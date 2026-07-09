@@ -127,6 +127,11 @@ function Test-PublicReleaseScanPath {
     return $true
 }
 
+function Get-ProviderSetupDoc {
+    param([string]$Provider)
+    return "docs/provider-notes/$Provider.md"
+}
+
 function Test-Provider {
     param(
         [string]$Provider,
@@ -134,7 +139,7 @@ function Test-Provider {
     )
 
     if ($null -eq $ProviderConfig) {
-        Add-Check "provider:$Provider" "missing_config" "Provider config is missing: $Provider." "Add providers.$Provider to the local config."
+        Add-Check "provider:$Provider" "disabled" "Optional provider is not configured: $Provider. Real dispatch for this provider is disabled." "Add providers.$Provider to an ignored local config after installing the provider. See $(Get-ProviderSetupDoc -Provider $Provider)."
         return
     }
 
@@ -143,7 +148,7 @@ function Test-Provider {
         $nodePath = [string]$ProviderConfig.nodePath
         if ([string]::IsNullOrWhiteSpace($nodePath)) { $nodePath = "node" }
         if (-not (Test-CommandExists $nodePath)) {
-            Add-Check "provider:codebuddy:node" "missing" "Node is not available, so CodeBuddy CLI cannot run." "Install Node or set providers.codebuddy.nodePath in the local config."
+            Add-Check "provider:codebuddy:node" "disabled" "CodeBuddy provider is disabled because Node is not available for the configured entrypoint." "Install Node or set providers.codebuddy.nodePath in an ignored local config. See $(Get-ProviderSetupDoc -Provider 'codebuddy')."
             return
         }
         Add-Check "provider:codebuddy:node" "ready" "Node is available for CodeBuddy." ""
@@ -151,7 +156,7 @@ function Test-Provider {
 
     $cliPath = [string]$ProviderConfig.cliPath
     if ([string]::IsNullOrWhiteSpace($cliPath) -or $cliPath -like "C:\Path\To\*") {
-        Add-Check "provider:${Provider}:cli" "missing" "$Provider CLI path is still a template value." "Install $Provider and set a real cliPath in the local config."
+        Add-Check "provider:${Provider}:cli" "disabled" "$Provider provider is optional and currently disabled because cliPath is still a template value." "Install $Provider, then set providers.$Provider.cliPath in an ignored local config. See $(Get-ProviderSetupDoc -Provider $Provider)."
         return
     }
 
@@ -163,7 +168,7 @@ function Test-Provider {
     }
 
     if (-not $exists) {
-        Add-Check "provider:${Provider}:cli" "missing" "$Provider CLI was not found: $cliPath" "Install this provider or fix the local config."
+        Add-Check "provider:${Provider}:cli" "disabled" "$Provider provider is disabled because the configured CLI was not found: $cliPath" "Install this provider, put it on PATH, or fix providers.$Provider.cliPath in an ignored local config. See $(Get-ProviderSetupDoc -Provider $Provider)."
         return
     }
 
@@ -190,11 +195,11 @@ function Test-Provider {
             if ($versionText.Length -gt 120) { $versionText = $versionText.Substring(0, 120) + "..." }
             Add-Check "provider:${Provider}:version" "ready" "$Provider version probe succeeded. $versionText" ""
         } else {
-            Add-Check "provider:${Provider}:version" "info" "$Provider version probe did not prove compatibility. Exit code: $($versionProbe.returncode)." "Run the provider CLI manually if you plan to use this provider, then run a readonly canary before real dispatch."
+            Add-Check "provider:${Provider}:version" "info" "$Provider version probe did not prove compatibility. Exit code: $($versionProbe.returncode)." "Run the provider CLI manually if you plan to use this provider, then run a readonly canary before real dispatch. See $(Get-ProviderSetupDoc -Provider $Provider)."
         }
     }
 
-    Add-Check "provider:${Provider}:auth" "info" "$Provider CLI presence is checked, but login/account state is not verified by doctor." "Complete the provider's normal login flow, then run a readonly dry-run or canary before real dispatch."
+    Add-Check "provider:${Provider}:auth" "info" "$Provider CLI presence is checked, but login/account state is intentionally not inspected by doctor." "Complete the provider's normal login flow outside Codex Praetor, then run a readonly dry-run or canary before real dispatch. See $(Get-ProviderSetupDoc -Provider $Provider)."
 }
 
 if (Test-CommandExists "git") {
@@ -344,7 +349,7 @@ if ($PublicRelease) {
     }
 }
 
-$statusRank = @{ ready = 0; info = 0; warn = 1; missing = 1; missing_config = 1; fail = 2 }
+$statusRank = @{ ready = 0; info = 0; disabled = 0; warn = 1; missing = 1; missing_config = 1; fail = 2 }
 $maxRank = 0
 foreach ($check in $checks) {
     $rank = $statusRank[[string]$check.status]

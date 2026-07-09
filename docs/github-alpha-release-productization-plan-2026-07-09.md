@@ -216,18 +216,21 @@ README 必须包含：
 
 完成标准：一个新用户按 README 能跑 doctor、能完成至少 dry-run；有对应 provider 的用户能跑 readonly canary。
 
-## 立即下一步
+## 2026-07-10 执行更新
 
-下一步不是继续真实 MiMo 派工。因为当前仓库没有首 commit，真实 worker 没有可检出的项目快照。
+这份计划里的早期阻塞已经有一部分完成：仓库已有干净提交，最小验证、Git hooks、MIT 许可证、基础发布文件、personal plugin/cache republish、MCP protocol smoke 和 MiMo readonly canary 都已经跑过。
 
-下一步应该按这个顺序：
+因此下一步不再是“做首个提交”或“证明 MiMo 能不能跑”。新的主路线见：
 
-1. 脱敏公开包：清理 config 示例、证据文件、handoff/private 内容。
-2. 增加 local config 模板和 `.gitignore` 规则。
-3. 补 doctor 脚本。
-4. 跑完整自检。
-5. 做首个干净 commit。
-6. 再跑 MiMo readonly canary。
-7. 根据 canary 结果扩 MCP dispatch/collect 或补 provider 兼容。
+`docs/productization-execution-map-2026-07-10.md`
 
-现在最重要的判断是：Codex Praetor 的核心方向没错，MCP 也已经放在正确位置；真正差的是公开发布工程、隐私隔离、安装体验和首个真实 worker 基线。
+当前立即下一步：
+
+1. 继续做公开包脱敏和发布边界复查。
+2. 补 Qoder、CodeBuddy、MiMo 面向用户的安装、登录、验证说明。
+3. 改善 doctor 的 provider UX，让缺失、登录未知、能力不匹配都有清楚 next action。
+4. 跑 doctor、test 和 diff check。
+5. 再进入 CodeBuddy/Qoder readonly canary。
+6. 最终 fresh-context native MCP 新对话验收只放在发布前最后阶段。
+
+现在最重要的判断是：Codex Praetor 的核心方向没错，MCP 也已经放在正确位置；真正差的是公开发布工程、隐私隔离、安装体验、provider UX、最终 GitHub URL 和 fresh-context native MCP 验收。

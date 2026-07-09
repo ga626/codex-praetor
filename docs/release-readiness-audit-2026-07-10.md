@@ -33,16 +33,16 @@ Release acceptance must include a fresh Codex tool-context canary where native M
 ## Remaining Release Blocks
 
 - Final GitHub repository URL is not configured yet.
-- README now has first-pass setup/troubleshooting; provider-specific installation and login docs still need more detail.
-- Provider setup docs need to explain that Qoder, CodeBuddy, and MiMo are user-installed optional CLIs.
+- README now has first-pass setup/troubleshooting; provider-specific installation and login docs have a public first draft under `docs/provider-notes/`, but still need to be checked against later canary results.
+- Provider setup docs now explain that Qoder, CodeBuddy, and MiMo are user-installed optional CLIs.
 - Doctor should make missing provider states more user-friendly.
 - Plugin manifest should use final repository/homepage URLs before release.
 - Native MCP verification requires a refreshed tool context after the new personal plugin/cache version is loaded.
 
 ## Next Actions
 
-1. Expand provider-specific install/login/capability docs for Qoder, CodeBuddy, and MiMo.
-2. Improve `doctor` output for provider missing/login/capability states.
+1. Refine provider-specific install/login/capability docs after CodeBuddy and Qoder canaries.
+2. Keep improving `doctor` output for provider missing/login/capability states.
 3. Reload Codex or open a refreshed tool context so the new personal plugin/cache version is loaded.
 4. Run a fresh-context native MCP canary.
 5. Set the GitHub remote and replace placeholder repository URLs.

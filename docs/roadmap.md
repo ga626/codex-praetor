@@ -13,7 +13,7 @@
 - Public release files now include MIT license, changelog, security policy, contributing notes, examples, and a release-readiness audit.
 - Personal plugin/cache was republished as `0.1.0-alpha+codex.20260710071926`; install and cache copies both use portable `node` MCP startup.
 
-Next: use `docs/release-gate-checklist.md` as the release gate, improve doctor provider UX, then verify native MCP in a refreshed Codex tool context only when the MCP gate is reached.
+Next: follow `docs/productization-execution-map-2026-07-10.md`. Do not open a new Codex conversation during normal development; the refreshed conversation belongs to the final fresh-context native MCP acceptance gate.
 
 ## Current Status: 2026-07-09 22:41
 
@@ -45,7 +45,7 @@ Next: use `docs/release-gate-checklist.md` as the release gate, improve doctor p
 - A fresh `codex exec --ephemeral` verification attempt for the new lane tools did not use native MCP tool cards; it fell back to an SDK client. Treat that as protocol evidence only, not native UI/tool-card evidence.
 - This already-open thread still does not expose `codex_praetor_*` via tool discovery, so live native calls should be verified in a refreshed tool context.
 
-Interpretation: plugin discovery, installed MCP protocol, native fresh-context route/dry-run calls, and the lane/conflict protocol layer are now repaired. The next implementation task is the first controlled real-worker canary, starting with MiMo readonly and no file modifications.
+Interpretation: plugin discovery, installed MCP protocol, native fresh-context route/dry-run calls, and the lane/conflict protocol layer were repaired for the earlier baseline. Since then, a real MiMo readonly canary has also completed. The next product task is provider documentation and provider UX, not another fresh conversation canary.
 
 ## Phase 0: Migration
 
@@ -131,5 +131,16 @@ Interpretation: plugin discovery, installed MCP protocol, native fresh-context r
 - Run a fresh-context native MCP canary after reload so the current thread's stale transport does not confuse final acceptance.
 - This is where a new Codex conversation belongs: it is a final acceptance canary, not a routine development loop.
 - Only freeze the public release after the fresh-context canary, provider UX checks, and final URLs are all green.
+
+## Current Execution Map
+
+The controlling release map is now [productization-execution-map-2026-07-10.md](productization-execution-map-2026-07-10.md).
+
+Short version:
+
+- Continue in the current project until the final acceptance gate.
+- Next work is provider docs plus doctor UX.
+- Native MCP fresh-context validation stays in Phase 8.
+- GitHub push/tag/release waits for user confirmation of the final owner/repo.
 
 

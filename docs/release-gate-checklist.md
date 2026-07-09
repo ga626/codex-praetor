@@ -24,7 +24,7 @@ Include:
 - `plugin/` package shape with `.codex-plugin/plugin.json`, `.mcp.json`, bundled `plugin/mcp/dist/server.js`, and `plugin/skills/codex-praetor`.
 - Root `README.md`, `LICENSE`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`.
 - `config/codex-praetor-tiers.example.json` as a template with no real local paths.
-- Provider setup references for Qoder, CodeBuddy, and MiMo.
+- Provider setup references for Qoder, CodeBuddy, and MiMo under `docs/provider-notes/`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 
 Exclude from release bundles/assets:
@@ -39,6 +39,7 @@ Exclude from release bundles/assets:
 Before release, a normal Windows user should see clear doctor states:
 
 - CLI missing: what to install and where to configure `cliPath`.
+- CLI missing or template path: report the optional provider as disabled, not as a core product failure.
 - CLI installed: version probe result.
 - Login unknown: clear instruction to complete the provider's normal login outside Codex Praetor.
 - Capability mismatch: version/help probe fails or required flags are not accepted.

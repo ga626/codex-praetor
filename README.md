@@ -95,18 +95,24 @@ This is a deliberate copy-and-verify operation, not automatic sync.
 
 Codex Praetor does not install or log in to these providers for the user. Configure local CLI paths in an ignored local config and complete provider login through the provider's normal flow.
 
+Provider setup notes:
+
+- [Qoder](docs/provider-notes/qoder.md)
+- [CodeBuddy](docs/provider-notes/codebuddy.md)
+- [MiMo](docs/provider-notes/mimo.md)
+
 ## Setup
 
 1. Clone the repository.
 2. Copy `config/codex-praetor-tiers.example.json` to an ignored local config such as `config/codex-praetor.local.json`.
-3. Fill in provider CLI paths for only the providers you have installed.
+3. Fill in provider CLI paths for only the providers you have installed. Leave uninstalled providers as template paths; doctor will report them as optional disabled providers.
 4. Run doctor:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 ```
 
-Doctor uses `info` for provider facts that are intentionally not auto-verified, such as account login state. A provider is ready for real work only after a dry-run or readonly canary succeeds for that provider.
+Doctor uses `info` for provider facts that are intentionally not auto-verified, such as account login state. A missing provider is not a product failure; it only disables real dispatch for that provider. A provider is ready for real work only after a dry-run or readonly canary succeeds for that provider.
 
 5. Run the minimal validation suite:
 
@@ -115,6 +121,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor
 ```
 
 6. Start with a dry-run before any real dispatch.
+
+If you have no provider installed yet, stop after doctor and MCP/plugin checks. You can still validate the local project shape, but real Qoder/CodeBuddy/MiMo dispatch will wait until you install and sign in to at least one provider.
 
 ## First Validation
 
@@ -151,6 +159,8 @@ npm run build:plugin
 
 - If a provider is missing, Codex Praetor can still do route-intent, plan, dry-run, and status work, but real worker dispatch for that provider is disabled.
 - If a provider is installed but not logged in, complete the provider's normal login flow outside Codex Praetor.
+- If doctor reports `provider:<name>:cli` as `disabled`, install that provider or update only your ignored local config.
+- If doctor reports provider auth as `info`, that is expected. Codex Praetor does not read provider account databases; prove login with a provider readonly canary.
 - If MCP tools are visible but calls fail with `Transport closed`, remove duplicate same-name MCP registrations, republish the plugin, and verify in a refreshed Codex tool context. The current open thread may keep a stale transport.
 - If worktree creation fails, make sure the target repository has at least one commit.
 - If MiMo writes `.mimocode`, it should happen inside the isolated worktree, not the main repository.
