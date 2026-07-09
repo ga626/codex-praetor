@@ -38,7 +38,7 @@ Blocked/default-denied:
 Readonly/planning:
 
 ```powershell
-mimo run --model "mimo/mimo-auto" --agent plan --format json --dir <repo>.worktrees\<name> "<task packet>"
+mimo run --model "mimo/mimo-auto" --format json --dir <repo>.worktrees\<name> "<task packet>"
 ```
 
 Edit worktree:
@@ -51,7 +51,9 @@ Use `--variant <level>` only when Codex has selected a reasoning effort for the 
 
 ## Worktree requirement
 
-Local wrapper validation showed that MiMo `plan` can create `.mimocode/plans/...` files in the target project even when the user asks for a readonly smoke. Therefore the wrapper runs MiMo inside a Codex-created worktree for both readonly and edit tasks. Treat MiMo as agentic and useful, but not filesystem-readonly by default.
+Local wrapper validation showed that MiMo can create `.mimocode` files in the target project even when the user asks for a readonly smoke. Therefore the wrapper runs MiMo inside a Codex-created worktree for both readonly and edit tasks. Treat MiMo as agentic and useful, but not filesystem-readonly by default.
+
+Do not force `--agent plan` for readonly tasks. Validation on 2026-07-10 showed that the current MiMo plan agent can treat the task packet as plan-mode instructions and ignore the actual task. The default MiMo agent completed a minimal README canary correctly.
 
 Background watcher validation later confirmed this design: MiMo generated `.mimocode` inside the disposable worktree, the main repo stayed clean, `completion.json` recorded exit code `0`, and the watcher parsed `provider_cost=0` from the JSON event stream.
 

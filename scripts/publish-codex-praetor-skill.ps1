@@ -1,7 +1,7 @@
 param(
     [string]$SourceSkill = "",
     [string]$InstalledSkill = (Join-Path $env:USERPROFILE ".codex\skills\codex-praetor"),
-    [string]$BackupRoot = (Join-Path $env:USERPROFILE ".codex\skills\.codex-praetor-backups"),
+    [string]$BackupRoot = (Join-Path $env:USERPROFILE ".codex\codex-praetor-backups\skills"),
     [switch]$Apply
 )
 

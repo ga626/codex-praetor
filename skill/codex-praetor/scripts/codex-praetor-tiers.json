@@ -178,11 +178,11 @@
       "modelCli": "mimo/mimo-auto",
       "creditMultiplier": "provider-defined; verify in your account",
       "allowedWindow": "any",
-      "agent": "plan",
+      "agent": "",
       "reasoningEffort": "",
       "outputFormat": "json",
       "permissionProfile": "mimo-readonly",
-      "role": "MiMo readonly/planning worker"
+      "role": "MiMo readonly worker; do not force --agent plan because current MiMo plan mode can ignore the task packet"
     },
     "mimo-auto-edit": {
       "provider": "mimo",

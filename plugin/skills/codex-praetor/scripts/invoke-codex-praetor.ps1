@@ -857,13 +857,19 @@ try {
     }
 
     $supervisedTask = @"
+TASK:
+$Task
+
+You are a worker agent under Codex supervision. Complete the TASK above directly.
+Do not ask follow-up questions. Do not call memory, history, task, or question-style tools for this packet.
+If the TASK is ambiguous, state the ambiguity in the final output instead of asking Codex or the user.
+
 Role: worker agent. Codex is supervising this task.
 Source repo: $Repo
 Execution worktree: $executionRepo
 Project artifact root: $ProjectArtifactRoot
 Scratch root: $ScratchRoot
 Mode: $Mode
-Task: $Task
 Plan id: $PlanId
 Task id: $TaskId
 Depends on: $DependsOn
@@ -966,7 +972,8 @@ Rules:
         if (-not [string]::IsNullOrWhiteSpace($effectiveReasoningEffort)) {
             $cmdArgs += @("--variant", $effectiveReasoningEffort)
         }
-        $cmdArgs += @($supervisedTask)
+        $mimoTaskPacket = ($supervisedTask -replace "\r?\n", " ").Trim()
+        $cmdArgs += @($mimoTaskPacket)
 
         Invoke-Or-StartWorker -Exe $mimo -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "mimo" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $mimoOutputFormat -ProfileRoot $mimoProfileRoot -StructuredOutput "json_event_stream" -ModelPolicy $modelPolicy
     }
