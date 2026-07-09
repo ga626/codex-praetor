@@ -1,0 +1,40 @@
+{
+  "name": "codex-praetor",
+  "version": "0.1.0-alpha",
+  "description": "Cost-aware external worker orchestration for Codex.",
+  "author": {
+    "name": "Codex Praetor"
+  },
+  "homepage": "https://developers.openai.com/codex/plugins",
+  "repository": "https://developers.openai.com/codex/plugins",
+  "license": "UNLICENSED",
+  "keywords": [
+    "codex",
+    "mcp",
+    "worker",
+    "orchestration",
+    "coding-agent"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Codex Praetor",
+    "shortDescription": "Split bounded Codex tasks across external worker agents.",
+    "longDescription": "Codex Praetor helps Codex split tasks, dispatch bounded work, track jobs, and verify results from external CLI coding agents such as Qoder, CodeBuddy, and MiMo.",
+    "developerName": "Codex Praetor",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://developers.openai.com/codex/plugins",
+    "privacyPolicyURL": "https://openai.com/policies/row-privacy-policy/",
+    "termsOfServiceURL": "https://openai.com/policies/row-terms-of-use/",
+    "defaultPrompt": [
+      "Split this task across external agents with Codex Praetor."
+    ],
+    "brandColor": "#7C3AED",
+    "screenshots": []
+  }
+}

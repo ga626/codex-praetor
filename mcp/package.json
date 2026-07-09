@@ -1,0 +1,33 @@
+{
+  "name": "codex-praetor-mcp",
+  "version": "0.1.0-alpha",
+  "description": "Thin MCP wrapper for Codex Praetor dry-run dispatch and job state.",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "codex-praetor-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:plugin": "node scripts/package-plugin-mcp.js",
+    "start": "node dist/server.js",
+    "test": "tsc -p tsconfig.json && node dist/self-test.js"
+  },
+  "keywords": [
+    "codex",
+    "mcp",
+    "worker",
+    "orchestration"
+  ],
+  "author": "Codex Praetor",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,339 @@
+﻿param(
+    [Parameter(Mandatory = $true)]
+    [string]$JobDir,
+
+    [Parameter(Mandatory = $true)]
+    [int]$WorkerPid,
+
+    [switch]$StartWorker,
+
+    [string]$Exe = "",
+
+    [string]$ArgumentListPath = "",
+
+    [string]$WorkingDirectory = "",
+
+    [string]$StdoutPath = "",
+
+    [string]$StderrPath = "",
+
+    [string]$LockPath = "",
+
+    [string]$NotifyThreadId = "",
+
+    [string]$NotifyWorkspace = "",
+
+    [switch]$NoNotify
+)
+
+$ErrorActionPreference = "Stop"
+
+function Write-JsonFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [object]$Value
+    )
+    $Value | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
+function Set-JsonProperty {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Object,
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [object]$Value
+    )
+    if ($Object.PSObject.Properties[$Name]) {
+        $Object.$Name = $Value
+    } else {
+        $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
+    }
+}
+
+function Quote-Arg {
+    param([string]$Value)
+    if ($null -eq $Value) { return '""' }
+    if ($Value -notmatch '[\s"`&|<>]') { return $Value }
+    return '"' + ($Value -replace '"', '\"') + '"'
+}
+
+function Update-LockForWorker {
+    param(
+        [string]$Path,
+        [string]$JobId,
+        [int]$WorkerProcessId
+    )
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+    $lock = $null
+    try {
+        $lock = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    } catch {
+        $lock = [pscustomobject]@{}
+    }
+    $updated = [ordered]@{}
+    if ($null -ne $lock) {
+        foreach ($property in $lock.PSObject.Properties) {
+            $updated[$property.Name] = $property.Value
+        }
+    }
+    $updated["pid"] = $PID
+    $updated["watcher_pid"] = $PID
+    $updated["worker_pid"] = $WorkerProcessId
+    $updated["job_id"] = $JobId
+    $updated["updated_at"] = (Get-Date).ToString("o")
+    $updated["note"] = "Repo edit lock is held by the detached worker process and will be released by watch-codex-praetor-job.ps1 when that process exits."
+    $updated | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
+function Read-MiMoJsonEventSummary {
+    param([string]$Path)
+    $summary = [ordered]@{
+        text = ""
+        cost = $null
+        input_tokens = $null
+        output_tokens = $null
+        reasoning_tokens = $null
+        cache_read = $null
+        cache_write = $null
+        tool_use_count = 0
+        parse_errors = 0
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return $summary
+    }
+
+    $texts = New-Object System.Collections.Generic.List[string]
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart()[0] -ne "{") {
+            continue
+        }
+        try {
+            $event = $line | ConvertFrom-Json
+        } catch {
+            $summary.parse_errors = [int]$summary.parse_errors + 1
+            continue
+        }
+
+        if ($event.type -eq "text" -and $null -ne $event.part.text) {
+            $texts.Add([string]$event.part.text) | Out-Null
+        }
+
+        if ($event.type -eq "tool_use") {
+            $summary.tool_use_count = [int]$summary.tool_use_count + 1
+        }
+
+        if ($event.type -eq "step_finish" -and $null -ne $event.part) {
+            if ($null -ne $event.part.cost) { $summary.cost = $event.part.cost }
+            if ($null -ne $event.part.tokens) {
+                $tokens = $event.part.tokens
+                if ($null -ne $tokens.input) { $summary.input_tokens = $tokens.input }
+                if ($null -ne $tokens.output) { $summary.output_tokens = $tokens.output }
+                if ($null -ne $tokens.reasoning) { $summary.reasoning_tokens = $tokens.reasoning }
+                if ($null -ne $tokens.cache) {
+                    if ($null -ne $tokens.cache.read) { $summary.cache_read = $tokens.cache.read }
+                    if ($null -ne $tokens.cache.write) { $summary.cache_write = $tokens.cache.write }
+                }
+            }
+        }
+    }
+
+    $summary.text = ($texts -join "`n")
+    return $summary
+}
+
+$metaPath = Join-Path $JobDir "job.json"
+$completionPath = Join-Path $JobDir "completion.json"
+$watcherLog = Join-Path $JobDir "watcher.log"
+
+try {
+    if (-not (Test-Path -LiteralPath $metaPath)) {
+        throw "Missing job metadata: $metaPath"
+    }
+
+    $meta = Get-Content -LiteralPath $metaPath -Raw | ConvertFrom-Json
+    $exitCode = $null
+    $waitError = $null
+    $alreadyWaited = $false
+
+    try {
+        if ($StartWorker) {
+            if ([string]::IsNullOrWhiteSpace($Exe) -or [string]::IsNullOrWhiteSpace($ArgumentListPath)) {
+                throw "StartWorker requires -Exe and -ArgumentListPath."
+            }
+            if ([string]::IsNullOrWhiteSpace($WorkingDirectory)) {
+                $WorkingDirectory = $meta.execution_repo
+            }
+            if ([string]::IsNullOrWhiteSpace($StdoutPath)) {
+                $StdoutPath = $meta.stdout
+            }
+            if ([string]::IsNullOrWhiteSpace($StderrPath)) {
+                $StderrPath = $meta.stderr
+            }
+            $jobScratch = [string]$meta.job_scratch
+            if (-not [string]::IsNullOrWhiteSpace($jobScratch)) {
+                New-Item -ItemType Directory -Path $jobScratch -Force | Out-Null
+                $env:TEMP = $jobScratch
+                $env:TMP = $jobScratch
+                Set-JsonProperty -Object $meta -Name "worker_temp" -Value $jobScratch
+            }
+            $argumentList = @()
+            $loadedArgs = Get-Content -LiteralPath $ArgumentListPath -Raw | ConvertFrom-Json
+            foreach ($arg in @($loadedArgs)) {
+                $argumentList += [string]$arg
+            }
+            $argumentLine = ($argumentList | ForEach-Object { Quote-Arg ([string]$_) }) -join " "
+            Set-JsonProperty -Object $meta -Name "started_exe" -Value $Exe
+            Set-JsonProperty -Object $meta -Name "started_argument_line" -Value $argumentLine
+            Set-JsonProperty -Object $meta -Name "watcher_pid" -Value $PID
+            Set-JsonProperty -Object $meta -Name "status" -Value "running"
+            Set-JsonProperty -Object $meta -Name "started_at" -Value (Get-Date).ToString("o")
+            Set-JsonProperty -Object $meta -Name "status_note" -Value "Worker was started and is being waited by the watcher process. No interval polling is used."
+            Write-JsonFile -Path $metaPath -Value $meta
+            Update-LockForWorker -Path $LockPath -JobId $meta.job_id -WorkerProcessId 0
+            $proc = Start-Process -FilePath $Exe -ArgumentList $argumentLine -WorkingDirectory $WorkingDirectory -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath -WindowStyle Hidden -Wait -PassThru
+            $alreadyWaited = $true
+            $WorkerPid = $proc.Id
+            Set-JsonProperty -Object $meta -Name "pid" -Value $WorkerPid
+            Write-JsonFile -Path $metaPath -Value $meta
+        } else {
+            $proc = [System.Diagnostics.Process]::GetProcessById($WorkerPid)
+        }
+        if (-not $alreadyWaited) {
+            $proc.WaitForExit()
+        }
+        $proc.Refresh()
+        try {
+            $exitCode = [int]$proc.ExitCode
+        } catch {
+            $exitCode = $null
+        }
+    } catch {
+        $waitError = $_.Exception.Message
+    }
+
+    $status = "completed"
+    if ($null -ne $exitCode -and $exitCode -ne 0) {
+        $status = "failed"
+    } elseif ($waitError) {
+        $status = "unknown"
+    }
+
+    $now = Get-Date
+    Set-JsonProperty -Object $meta -Name "status" -Value $status
+    Set-JsonProperty -Object $meta -Name "exit_code" -Value $exitCode
+    Set-JsonProperty -Object $meta -Name "exited_at" -Value $now.ToString("o")
+    Set-JsonProperty -Object $meta -Name "wait_error" -Value $waitError
+    Set-JsonProperty -Object $meta -Name "completion" -Value $completionPath
+    Set-JsonProperty -Object $meta -Name "status_note" -Value "Worker process exit was captured by an OS-level watcher. No interval polling was used."
+    Write-JsonFile -Path $metaPath -Value $meta
+
+    $completion = [ordered]@{
+        job_id = $meta.job_id
+        provider = $meta.provider
+        tier = $meta.tier
+        model = $meta.model
+        plan_id = $meta.plan_id
+        task_id = $meta.task_id
+        depends_on = $meta.depends_on
+        acceptance = $meta.acceptance
+        repo = $meta.repo
+        mode = $meta.mode
+        status = $status
+        exit_code = $exitCode
+        exited_at = $now.ToString("o")
+        stdout = $meta.stdout
+        stderr = $meta.stderr
+        stderr_nonempty = (-not [string]::IsNullOrWhiteSpace([string]$meta.stderr) -and (Test-Path -LiteralPath ([string]$meta.stderr)) -and ((Get-Item -LiteralPath ([string]$meta.stderr)).Length -gt 0))
+        worktree = $meta.execution_repo
+        lock_released = $false
+        notify_attempted = $false
+        notify_ok = $false
+        notify_error = ""
+    }
+
+    if ([string]$meta.provider -eq "mimo") {
+        $mimoSummary = Read-MiMoJsonEventSummary -Path ([string]$meta.stdout)
+        $completion.provider_cost = $mimoSummary.cost
+        $completion.input_tokens = $mimoSummary.input_tokens
+        $completion.output_tokens = $mimoSummary.output_tokens
+        $completion.reasoning_tokens = $mimoSummary.reasoning_tokens
+        $completion.cache_read = $mimoSummary.cache_read
+        $completion.cache_write = $mimoSummary.cache_write
+        $completion.tool_use_count = $mimoSummary.tool_use_count
+        $completion.parser = "mimo_json_event_summary"
+        $completion.parser_errors = $mimoSummary.parse_errors
+        $completion.summary_text = $mimoSummary.text
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($LockPath) -and (Test-Path -LiteralPath $LockPath)) {
+        $removeLock = $true
+        try {
+            $lock = Get-Content -LiteralPath $LockPath -Raw | ConvertFrom-Json
+            if ($null -ne $lock.job_id -and $lock.job_id -ne $meta.job_id) {
+                $removeLock = $false
+            }
+        } catch {
+            $removeLock = $true
+        }
+        if ($removeLock) {
+            Remove-Item -LiteralPath $LockPath -Force
+            $completion.lock_released = $true
+        }
+    }
+
+    Write-JsonFile -Path $completionPath -Value $completion
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$meta.plan_id) -and -not [string]::IsNullOrWhiteSpace([string]$meta.task_id)) {
+        $planScript = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "manage-codex-praetor-plan.ps1"
+        $planRoot = [string]$meta.plan_root
+        if ([string]::IsNullOrWhiteSpace($planRoot)) {
+            $planRoot = "$env:USERPROFILE\.codex\codex-praetor-plans"
+        }
+        if (Test-Path -LiteralPath $planScript) {
+            try {
+                $null = & powershell -NoProfile -ExecutionPolicy Bypass -File $planScript -Action RecordJob -PlanId ([string]$meta.plan_id) -PlanRoot $planRoot -TaskId ([string]$meta.task_id) -JobDir $JobDir -CompletionPath $completionPath 2>&1
+            } catch {
+                $completion.plan_record_error = $_.Exception.Message
+            }
+        }
+    }
+
+    if (-not $NoNotify -and -not [string]::IsNullOrWhiteSpace($NotifyThreadId)) {
+        $completion.notify_attempted = $true
+        if ([string]::IsNullOrWhiteSpace($NotifyWorkspace)) {
+            $NotifyWorkspace = $meta.repo
+        }
+
+        $notifyScript = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "notify-codex-praetor-completion.ps1"
+        try {
+            $result = & powershell -NoProfile -ExecutionPolicy Bypass -File $notifyScript -ThreadId $NotifyThreadId -Workspace $NotifyWorkspace -CompletionPath $completionPath -JobDir $JobDir 2>&1
+            $completion.notify_result = ($result -join "`n")
+            if ($LASTEXITCODE -eq 0) {
+                $completion.notify_ok = $true
+            }
+        } catch {
+            $completion.notify_error = $_.Exception.Message
+        }
+    }
+
+    Write-JsonFile -Path $completionPath -Value $completion
+    "completed $(Get-Date -Format o) status=$status exit_code=$exitCode" | Add-Content -LiteralPath $watcherLog -Encoding UTF8
+} catch {
+    $failure = [ordered]@{
+        status = "watcher_failed"
+        job_dir = $JobDir
+        worker_pid = $WorkerPid
+        error = $_.Exception.Message
+        at = (Get-Date).ToString("o")
+    }
+    Write-JsonFile -Path $completionPath -Value $failure
+    "watcher_failed $(Get-Date -Format o) $($_.Exception.Message)" | Add-Content -LiteralPath $watcherLog -Encoding UTF8
+    exit 1
+}
+

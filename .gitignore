@@ -1,0 +1,41 @@
+# Runtime artifacts
+*.codex-praetor/
+*.worktrees/
+.codex-praetor/
+
+# Logs and temporary outputs
+*.log
+*.tmp
+*.bak
+
+# Secrets and local provider state
+.env
+.env.*
+*.local.json
+codex-praetor.local.json
+codex-praetor-tiers.local.json
+*.secret.*
+*token*
+*auth*
+handoff/
+docs/internal/
+
+# Node / MCP build outputs
+node_modules/
+dist/
+build/
+coverage/
+!plugin/mcp/dist/
+!plugin/mcp/dist/server.js
+
+# Python helper environments and caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

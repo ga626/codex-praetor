@@ -1,0 +1,136 @@
+#!/usr/bin/env node
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const mcpRoot = path.resolve(scriptDir, "..");
+const projectRoot = path.resolve(mcpRoot, "..");
+const runtimePath = path.resolve(process.argv[2] ?? path.join(projectRoot, "plugin", "mcp", "dist", "server.js"));
+const repo = path.resolve(process.argv[3] ?? projectRoot);
+
+const requiredTools = [
+  "codex_praetor_route_intent",
+  "codex_praetor_dispatch_dry_run",
+  "codex_praetor_plan",
+  "codex_praetor_list_jobs",
+  "codex_praetor_list_lanes",
+  "codex_praetor_get_lane",
+  "codex_praetor_detect_conflicts",
+  "codex_praetor_status"
+];
+
+const expectedReadOnlyTools = [
+  "codex_praetor_route_intent",
+  "codex_praetor_dispatch_dry_run",
+  "codex_praetor_list_jobs",
+  "codex_praetor_list_lanes",
+  "codex_praetor_get_lane",
+  "codex_praetor_detect_conflicts",
+  "codex_praetor_status"
+];
+
+const client = new Client({
+  name: "codex-praetor-plugin-smoke",
+  version: "0.0.0"
+});
+
+const transport = new StdioClientTransport({
+  command: "node",
+  args: [runtimePath],
+  cwd: path.dirname(path.dirname(runtimePath))
+});
+
+try {
+  await client.connect(transport);
+
+  const tools = await client.listTools();
+  const toolNames = tools.tools.map((tool) => tool.name);
+  const missingTools = requiredTools.filter((toolName) => !toolNames.includes(toolName));
+  if (missingTools.length > 0) {
+    throw new Error(`Missing MCP tools: ${missingTools.join(", ")}`);
+  }
+
+  for (const toolName of expectedReadOnlyTools) {
+    const tool = tools.tools.find((candidate) => candidate.name === toolName);
+    if (tool?.annotations?.readOnlyHint !== true || tool.annotations.openWorldHint !== false) {
+      throw new Error(`Missing safe read-only annotations on MCP tool: ${toolName}`);
+    }
+  }
+
+  const planTool = tools.tools.find((candidate) => candidate.name === "codex_praetor_plan");
+  if (planTool?.annotations?.readOnlyHint !== false || planTool.annotations.destructiveHint !== false) {
+    throw new Error("Missing additive non-destructive annotations on MCP tool: codex_praetor_plan");
+  }
+
+  const routeResult = await client.callTool({
+    name: "codex_praetor_route_intent",
+    arguments: {
+      request: "开省钱模式，把任务分配给其他便宜 agent",
+      repo
+    }
+  });
+  const routePayload = JSON.parse(routeResult.content?.[0]?.text ?? "{}");
+  if (routePayload.route !== "codex_praetor_external_worker") {
+    throw new Error(`Unexpected route intent: ${routePayload.route}`);
+  }
+
+  const dryRunResult = await client.callTool({
+    name: "codex_praetor_dispatch_dry_run",
+    arguments: {
+      repo,
+      task: "Plugin MCP smoke dry-run. Do not modify files.",
+      provider: "mimo",
+      tier: "mimo-auto-readonly",
+      mode: "readonly",
+      run_mode: "blocking"
+    }
+  });
+  const dryRunPayload = JSON.parse(dryRunResult.content?.[0]?.text ?? "{}");
+  if (dryRunPayload.ok !== true || dryRunPayload.provider !== "mimo") {
+    throw new Error(`Unexpected dispatch dry-run result: ${JSON.stringify(dryRunPayload)}`);
+  }
+
+  const lanesResult = await client.callTool({
+    name: "codex_praetor_list_lanes",
+    arguments: {
+      repo,
+      status: "all",
+      limit: 10
+    }
+  });
+  const lanesPayload = JSON.parse(lanesResult.content?.[0]?.text ?? "{}");
+  if (!Array.isArray(lanesPayload.lanes)) {
+    throw new Error(`Unexpected list lanes result: ${JSON.stringify(lanesPayload)}`);
+  }
+
+  const readonlyConflictResult = await client.callTool({
+    name: "codex_praetor_detect_conflicts",
+    arguments: {
+      repo,
+      mode: "readonly"
+    }
+  });
+  const readonlyConflictPayload = JSON.parse(readonlyConflictResult.content?.[0]?.text ?? "{}");
+  if (readonlyConflictPayload.ok !== true || readonlyConflictPayload.conflict_count !== 0) {
+    throw new Error(`Unexpected readonly conflict result: ${JSON.stringify(readonlyConflictPayload)}`);
+  }
+
+  const editConflictResult = await client.callTool({
+    name: "codex_praetor_detect_conflicts",
+    arguments: {
+      repo,
+      mode: "edit",
+      file_scope: ["mcp/src/tools.ts"]
+    }
+  });
+  const editConflictPayload = JSON.parse(editConflictResult.content?.[0]?.text ?? "{}");
+  if (typeof editConflictPayload.conflict_count !== "number" || !Array.isArray(editConflictPayload.conflicts)) {
+    throw new Error(`Unexpected edit conflict result: ${JSON.stringify(editConflictPayload)}`);
+  }
+
+  console.log("plugin mcp protocol smoke ok");
+} finally {
+  await client.close();
+}

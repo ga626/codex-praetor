@@ -1,0 +1,200 @@
+﻿{
+  "timezone": "Asia/Shanghai",
+  "policy": {
+    "assumeQoderPlanCreditsExpireDays": 25,
+    "offPeakStart": "22:00",
+    "offPeakEnd": "08:00",
+    "defaultDayTier": "codebuddy-free",
+    "defaultNightTier": "qoder-night-cheap",
+    "defaultPreferQoderDayTier": "qoder-day-cheap",
+    "denyAutoModelByDefault": true,
+    "disableContinuationByDefault": true,
+    "defaultReasoningEffort": "medium",
+    "maxReasoningEffortWithoutApproval": "high"
+  },
+  "providers": {
+    "qoder": {
+      "cliPath": "C:\\Path\\To\\qodercli.exe",
+      "versionCommand": ["--version"],
+      "allowedModels": ["Qwen3.7-Plus", "Qwen3.7-Max"],
+      "knownButNotDefaultModels": [
+        "Qwen3.6-Flash",
+        "DeepSeek-V4-Pro",
+        "DeepSeek-V4-Flash",
+        "GLM-5.2",
+        "Kimi-K2.7-Code",
+        "MiniMax-M2.7"
+      ],
+      "blockedModels": ["Auto"],
+      "effortFlag": "--reasoning-effort",
+      "agentFlag": "--agent",
+      "contextWindowFlag": "--context-window",
+      "defaultOutputFormat": "text",
+      "supportsJsonSchema": false,
+      "notes": "Install Qoder or QoderWork CLI and set this path in config/codex-praetor.local.json or CODEX_PRAETOR_CONFIG. Confirm login and credits in Qoder before real dispatch."
+    },
+    "codebuddy": {
+      "nodePath": "node",
+      "cliPath": "C:\\Path\\To\\codebuddy",
+      "versionCommand": ["--version"],
+      "blockedModels": ["auto"],
+      "allowedModels": ["hy3", "deepseek-v4-flash", "deepseek-v4-pro"],
+      "knownButNotDefaultModels": ["hy3-preview-agent"],
+      "trustedExtraModels": [
+        {
+          "modelDisplay": "Hy3",
+          "modelCli": "hy3",
+          "reason": "Tencent Cloud CodeBuddy documentation has used hy3 as a fixed model id; verify availability and cost in your own account before large runs."
+        },
+        {
+          "modelDisplay": "Hy3 preview",
+          "modelCli": "hy3-preview-agent",
+          "reason": "Known paid/preview route; not selected by default."
+        },
+        {
+          "modelDisplay": "DeepSeek-V4-Pro",
+          "modelCli": "deepseek-v4-pro",
+          "reason": "Optional stronger fallback; verify cost in your own account."
+        },
+        {
+          "modelDisplay": "DeepSeek-V4-Flash",
+          "modelCli": "deepseek-v4-flash",
+          "reason": "Optional cheaper fallback; verify cost in your own account."
+        }
+      ],
+      "effortFlag": "--effort",
+      "agentFlag": "--agent",
+      "defaultOutputFormat": "text",
+      "supportsJsonSchema": true,
+      "notes": "Install CodeBuddy or WorkBuddy CLI, then set nodePath and cliPath in a local config. The auto model is blocked by default."
+    },
+    "mimo": {
+      "cliPath": "C:\\Path\\To\\mimo.cmd",
+      "versionCommand": ["--version"],
+      "profileRoot": "",
+      "allowedModels": ["mimo/mimo-auto"],
+      "knownButNotDefaultModels": ["xiaomi/mimo-v2.5", "xiaomi/mimo-v2.5-pro"],
+      "blockedModels": [
+        "auto",
+        "openai/*",
+        "xiaomi/mimo-v2-flash",
+        "xiaomi/mimo-v2-pro",
+        "xiaomi/mimo-v2-omni",
+        "xiaomi/mimo-v2.5-pro-ultraspeed"
+      ],
+      "effortFlag": "--variant",
+      "agentFlag": "--agent",
+      "defaultOutputFormat": "json",
+      "jsonMode": "event-stream",
+      "supportsJsonSchema": false,
+      "notes": "Install MiMo Code CLI and set cliPath in a local config. Free or paid routing depends on your own MiMo account and current product policy."
+    }
+  },
+  "tiers": {
+    "qoder-night-cheap": {
+      "provider": "qoder",
+      "modelDisplay": "Qwen3.7-Plus",
+      "modelCli": "Qwen3.7-Plus",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "22:00-08:00 UTC+8",
+      "reasoningEffort": "medium",
+      "contextWindow": 200000,
+      "outputFormat": "text",
+      "permissionProfile": "readonly-or-worktree",
+      "role": "normal worker, cheaper Qoder off-peak when available"
+    },
+    "qoder-night-strong": {
+      "provider": "qoder",
+      "modelDisplay": "Qwen3.7-Max",
+      "modelCli": "Qwen3.7-Max",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "22:00-08:00 UTC+8",
+      "reasoningEffort": "high",
+      "contextWindow": 400000,
+      "outputFormat": "text",
+      "permissionProfile": "readonly-or-worktree",
+      "role": "harder worker tasks during off-peak"
+    },
+    "qoder-day-cheap": {
+      "provider": "qoder",
+      "modelDisplay": "Qwen3.7-Plus",
+      "modelCli": "Qwen3.7-Plus",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "08:00-22:00 UTC+8",
+      "reasoningEffort": "medium",
+      "contextWindow": 200000,
+      "outputFormat": "text",
+      "permissionProfile": "readonly-or-worktree",
+      "role": "daytime Qoder fallback"
+    },
+    "qoder-day-strong": {
+      "provider": "qoder",
+      "modelDisplay": "Qwen3.7-Max",
+      "modelCli": "Qwen3.7-Max",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "08:00-22:00 UTC+8",
+      "reasoningEffort": "high",
+      "contextWindow": 400000,
+      "outputFormat": "text",
+      "permissionProfile": "readonly-or-worktree",
+      "role": "daytime stronger Qoder fallback"
+    },
+    "codebuddy-free": {
+      "provider": "codebuddy",
+      "modelDisplay": "Hy3",
+      "modelCli": "hy3",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "any",
+      "reasoningEffort": "medium",
+      "outputFormat": "text",
+      "permissionProfile": "readonly-or-worktree",
+      "role": "default CodeBuddy fixed-model worker; no auto model selection"
+    },
+    "codebuddy-cheap": {
+      "provider": "codebuddy",
+      "modelDisplay": "DeepSeek-V4-Flash",
+      "modelCli": "deepseek-v4-flash",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "any",
+      "reasoningEffort": "medium",
+      "outputFormat": "text",
+      "permissionProfile": "readonly-or-worktree",
+      "role": "cheap CodeBuddy fallback"
+    },
+    "codebuddy-strong": {
+      "provider": "codebuddy",
+      "modelDisplay": "DeepSeek-V4-Pro",
+      "modelCli": "deepseek-v4-pro",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "any",
+      "reasoningEffort": "high",
+      "outputFormat": "text",
+      "permissionProfile": "readonly-or-worktree",
+      "role": "stronger CodeBuddy fallback for harder bounded tasks"
+    },
+    "mimo-auto-readonly": {
+      "provider": "mimo",
+      "modelDisplay": "MiMo Auto",
+      "modelCli": "mimo/mimo-auto",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "any",
+      "agent": "plan",
+      "reasoningEffort": "",
+      "outputFormat": "json",
+      "permissionProfile": "mimo-readonly",
+      "role": "MiMo readonly/planning worker"
+    },
+    "mimo-auto-edit": {
+      "provider": "mimo",
+      "modelDisplay": "MiMo Auto",
+      "modelCli": "mimo/mimo-auto",
+      "creditMultiplier": "provider-defined; verify in your account",
+      "allowedWindow": "any",
+      "agent": "build",
+      "reasoningEffort": "",
+      "outputFormat": "json",
+      "permissionProfile": "mimo-edit-worktree",
+      "role": "MiMo edit worker only inside isolated git worktree"
+    }
+  }
+}
