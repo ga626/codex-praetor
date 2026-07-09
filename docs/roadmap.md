@@ -5,6 +5,7 @@
 - Repository now has a clean alpha baseline and a second commit for MiMo readonly dispatch fixes.
 - `doctor -RequireHead -PublicRelease` passes.
 - `scripts/test-codex-praetor.ps1` passes with 0 warnings and 0 failures.
+- Commit verification is enforced by Git hooks in `.githooks/` via `core.hooksPath`; they run doctor plus the minimal test suite, and they are separate from Codex app background settings.
 - The C-drive installed skill is a real copied directory and matches the D-drive source skill.
 - The duplicate global `mcp_servers.codex-praetor` entry was removed from local Codex config; the personal plugin entry remains enabled.
 - Current thread native MCP calls still fail with `Transport closed`, which now points to stale current-thread transport state rather than bundled MCP server failure.
@@ -12,7 +13,7 @@
 - Public release files now include MIT license, changelog, security policy, contributing notes, examples, and a release-readiness audit.
 - Personal plugin/cache was republished as `0.1.0-alpha+codex.20260710071926`; install and cache copies both use portable `node` MCP startup.
 
-Next: improve doctor provider UX and verify native MCP in a refreshed Codex tool context.
+Next: use `docs/release-gate-checklist.md` as the release gate, improve doctor provider UX, then verify native MCP in a refreshed Codex tool context only when the MCP gate is reached.
 
 ## Current Status: 2026-07-09 22:41
 
@@ -107,6 +108,9 @@ Interpretation: plugin discovery, installed MCP protocol, native fresh-context r
 - Add local marketplace entry for testing.
 - Verify plugin install in Codex.
 - Replace local absolute Node paths with a portable launcher/runtime strategy.
+- Separate source/dev validation from the user-facing release package. See `docs/release-gate-checklist.md`.
+- Improve doctor provider states so users can distinguish missing CLI, version probe failure, login unknown, and real-dispatch readiness.
+- Keep `handoff/`, `docs/internal/`, local configs, caches, worktrees, and runtime state out of release bundles.
 
 ## Phase 7: GitHub Release
 
@@ -115,5 +119,17 @@ Interpretation: plugin discovery, installed MCP protocol, native fresh-context r
 - Add installation guide.
 - Add example tasks.
 - Mark first release as `0.1.0-alpha`.
+- Set the real GitHub remote and replace placeholder repository URLs.
+- Re-run public marker scan after final URL changes.
+- Confirm a new user path: clone -> doctor -> dry-run -> optional readonly canary.
+
+## Phase 8: Final Validation and Freeze
+
+- Treat development validation as its own layer: Git hooks, doctor, test, plugin smoke, and the release-readiness audit.
+- Treat user-facing release material as a separate layer: README, LICENSE, CHANGELOG, SECURITY, CONTRIBUTING, examples, plugin manifest, and portable MCP config.
+- Keep internal handoff/history, local configs, caches, and worktrees out of the release bundle.
+- Run a fresh-context native MCP canary after reload so the current thread's stale transport does not confuse final acceptance.
+- This is where a new Codex conversation belongs: it is a final acceptance canary, not a routine development loop.
+- Only freeze the public release after the fresh-context canary, provider UX checks, and final URLs are all green.
 
 

@@ -106,6 +106,8 @@ Codex Praetor does not install or log in to these providers for the user. Config
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 ```
 
+Doctor uses `info` for provider facts that are intentionally not auto-verified, such as account login state. A provider is ready for real work only after a dry-run or readonly canary succeeds for that provider.
+
 5. Run the minimal validation suite:
 
 ```powershell
@@ -115,6 +117,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor
 6. Start with a dry-run before any real dispatch.
 
 ## First Validation
+
+Project commits are guarded by Git hooks under `.githooks/`, installed through `scripts/install-codex-praetor-hooks.ps1`. They run the release doctor and minimal test suite before commit or push. These are Git hooks, not Codex background hooks.
 
 Run a dry-run before any real worker call:
 

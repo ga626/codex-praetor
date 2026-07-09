@@ -138,18 +138,20 @@ function Test-Provider {
         return
     }
 
+    $nodePath = ""
     if ($Provider -eq "codebuddy") {
         $nodePath = [string]$ProviderConfig.nodePath
         if ([string]::IsNullOrWhiteSpace($nodePath)) { $nodePath = "node" }
         if (-not (Test-CommandExists $nodePath)) {
-            Add-Check "provider:codebuddy" "missing" "Node is not available, so CodeBuddy CLI cannot run." "Install Node or set providers.codebuddy.nodePath in the local config."
+            Add-Check "provider:codebuddy:node" "missing" "Node is not available, so CodeBuddy CLI cannot run." "Install Node or set providers.codebuddy.nodePath in the local config."
             return
         }
+        Add-Check "provider:codebuddy:node" "ready" "Node is available for CodeBuddy." ""
     }
 
     $cliPath = [string]$ProviderConfig.cliPath
     if ([string]::IsNullOrWhiteSpace($cliPath) -or $cliPath -like "C:\Path\To\*") {
-        Add-Check "provider:$Provider" "missing" "$Provider CLI path is still a template value." "Install $Provider and set a real cliPath in the local config."
+        Add-Check "provider:${Provider}:cli" "missing" "$Provider CLI path is still a template value." "Install $Provider and set a real cliPath in the local config."
         return
     }
 
@@ -161,11 +163,38 @@ function Test-Provider {
     }
 
     if (-not $exists) {
-        Add-Check "provider:$Provider" "missing" "$Provider CLI was not found: $cliPath" "Install this provider or fix the local config."
+        Add-Check "provider:${Provider}:cli" "missing" "$Provider CLI was not found: $cliPath" "Install this provider or fix the local config."
         return
     }
 
-    Add-Check "provider:$Provider" "ready" "$Provider CLI path exists." ""
+    Add-Check "provider:${Provider}:cli" "ready" "$Provider CLI path exists." ""
+
+    if ($StagedOnly) {
+        Add-Check "provider:${Provider}:capability" "info" "$Provider capability probe is skipped in staged-only commit guard mode." "Run doctor without -StagedOnly before release or before using this provider for real dispatch."
+        return
+    }
+
+    $versionCommand = @($ProviderConfig.versionCommand)
+    if ($versionCommand.Count -eq 0) {
+        Add-Check "provider:${Provider}:version" "info" "$Provider has no versionCommand configured." "Add a versionCommand to the provider config so doctor can check CLI compatibility."
+    } else {
+        if ($Provider -eq "codebuddy") {
+            $codebuddyVersionArgs = @($cliPath) + [string[]]$versionCommand
+            $versionProbe = Invoke-Quick -Exe $nodePath -Args $codebuddyVersionArgs -TimeoutSeconds 15
+        } else {
+            $versionProbe = Invoke-Quick -Exe $cliPath -Args ([string[]]$versionCommand) -TimeoutSeconds 15
+        }
+
+        if ($versionProbe.returncode -eq 0) {
+            $versionText = (($versionProbe.stdout, $versionProbe.stderr) -join " ").Trim()
+            if ($versionText.Length -gt 120) { $versionText = $versionText.Substring(0, 120) + "..." }
+            Add-Check "provider:${Provider}:version" "ready" "$Provider version probe succeeded. $versionText" ""
+        } else {
+            Add-Check "provider:${Provider}:version" "info" "$Provider version probe did not prove compatibility. Exit code: $($versionProbe.returncode)." "Run the provider CLI manually if you plan to use this provider, then run a readonly canary before real dispatch."
+        }
+    }
+
+    Add-Check "provider:${Provider}:auth" "info" "$Provider CLI presence is checked, but login/account state is not verified by doctor." "Complete the provider's normal login flow, then run a readonly dry-run or canary before real dispatch."
 }
 
 if (Test-CommandExists "git") {
@@ -315,7 +344,7 @@ if ($PublicRelease) {
     }
 }
 
-$statusRank = @{ ready = 0; warn = 1; missing = 1; missing_config = 1; fail = 2 }
+$statusRank = @{ ready = 0; info = 0; warn = 1; missing = 1; missing_config = 1; fail = 2 }
 $maxRank = 0
 foreach ($check in $checks) {
     $rank = $statusRank[[string]$check.status]
