@@ -91,7 +91,7 @@ mcp/      future MCP server source
 plugin/   final Codex plugin package shape
 ```
 
-The source MCP package lives in `mcp/`. Build output under `mcp/dist/` is ignored. The plugin's `plugin/.mcp.json` still stays disabled until a local Codex tool-card verification is completed.
+The source MCP package lives in `mcp/`. Build output under `mcp/dist/` is ignored. The plugin package carries `plugin/mcp/dist/server.js` as the bundled runtime. `plugin/.mcp.json` points at that bundled runtime with `cwd = "."`; native Codex verification must be done in a refreshed tool context because an already-open thread can keep a stale closed transport.
 
 The active tree stays shallow on purpose. Future generated release bundles should be build outputs, not the place where agents edit source.
 

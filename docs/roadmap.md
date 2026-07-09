@@ -1,4 +1,17 @@
-﻿# Codex Praetor Roadmap
+# Codex Praetor Roadmap
+
+## Current Status: 2026-07-10 07:20
+
+- Repository now has a clean alpha baseline and a second commit for MiMo readonly dispatch fixes.
+- `doctor -RequireHead -PublicRelease` passes.
+- `scripts/test-codex-praetor.ps1` passes with 0 warnings and 0 failures.
+- The C-drive installed skill is a real copied directory and matches the D-drive source skill.
+- The duplicate global `mcp_servers.codex-praetor` entry was removed from local Codex config; the personal plugin entry remains enabled.
+- Current thread native MCP calls still fail with `Transport closed`, which now points to stale current-thread transport state rather than bundled MCP server failure.
+- A real MiMo readonly release audit completed in an isolated worktree and did not dirty the main repo.
+- Public release files now include MIT license, changelog, security policy, contributing notes, examples, and a release-readiness audit.
+
+Next: improve doctor provider UX, republish the personal plugin once, and verify native MCP in a refreshed Codex tool context.
 
 ## Current Status: 2026-07-09 22:41
 

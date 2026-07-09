@@ -13,13 +13,14 @@ This repository is the productization workspace for the local `codex-praetor` sk
 Current stage:
 
 - Skill and script migration: completed for the local baseline.
-- MCP server: v0 source implemented for route-intent, dry-run dispatch, list-jobs, plan, and status; plugin MCP remains disabled until tool-card verification.
-- Codex plugin package: scaffolded, not install-ready yet.
-- Public GitHub release: not ready.
+- MCP server: v0 source implemented for route-intent, dry-run dispatch, list-jobs, plan, status, lane listing, lane lookup, and conflict detection.
+- Plugin package: local personal-plugin packaging and protocol smoke are working; final public repository URLs and fresh-context native MCP verification are still required.
+- Real worker chain: one MiMo readonly release audit has run successfully in an isolated worktree.
+- Public GitHub release: not ready until install docs, final URLs, provider UX, and native MCP canary are complete.
 
 ## Product Shape
 
-Codex Praetor has three layers:
+Codex Praetor has four layers:
 
 1. Skill: natural-language workflow for Codex.
 2. Scripts: deterministic Windows-friendly worker dispatch and job recording.
@@ -47,7 +48,6 @@ mcp/              TypeScript MCP server source.
 plugin/           Final Codex plugin package shape.
 config/           Example provider/model tier config.
 examples/         Small validation examples.
-handoff/          Migration report and continuation package.
 ```
 
 ## Development vs Package Shape
@@ -73,7 +73,46 @@ This repository is not loaded by Codex automatically. Codex loads the installed 
 ```
 
 When the source skill changes, publish it by copying files into the installed skill directory. Do not use symlinks or path redirection for the local install.
-For now there is no automatic publish script. When local installation needs to be updated, perform one explicit copy-and-verify operation.
+Use the explicit publish script when local installation needs to be updated:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-codex-praetor-skill.ps1 -Apply
+```
+
+This is a deliberate copy-and-verify operation, not automatic sync.
+
+## Requirements
+
+- Windows
+- PowerShell
+- Git
+- Node.js and npm for MCP development and plugin runtime
+- Codex with local skills/plugins enabled
+- Optional provider CLIs for real dispatch:
+  - Qoder or QoderWork CN CLI
+  - Tencent CodeBuddy or WorkBuddy CLI
+  - Xiaomi MiMo Code CLI
+
+Codex Praetor does not install or log in to these providers for the user. Configure local CLI paths in an ignored local config and complete provider login through the provider's normal flow.
+
+## Setup
+
+1. Clone the repository.
+2. Copy `config/codex-praetor-tiers.example.json` to an ignored local config such as `config/codex-praetor.local.json`.
+3. Fill in provider CLI paths for only the providers you have installed.
+4. Run doctor:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+```
+
+5. Run the minimal validation suite:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor.ps1
+```
+
+6. Start with a dry-run before any real dispatch.
 
 ## First Validation
 
@@ -95,6 +134,22 @@ The validation script also runs the MCP package self-test. To run MCP tests dire
 cd .\mcp
 npm test
 ```
+
+To rebuild the plugin-bundled MCP runtime:
+
+```powershell
+cd .\mcp
+npm install
+npm run build:plugin
+```
+
+## Troubleshooting
+
+- If a provider is missing, Codex Praetor can still do route-intent, plan, dry-run, and status work, but real worker dispatch for that provider is disabled.
+- If a provider is installed but not logged in, complete the provider's normal login flow outside Codex Praetor.
+- If MCP tools are visible but calls fail with `Transport closed`, remove duplicate same-name MCP registrations, republish the plugin, and verify in a refreshed Codex tool context. The current open thread may keep a stale transport.
+- If worktree creation fails, make sure the target repository has at least one commit.
+- If MiMo writes `.mimocode`, it should happen inside the isolated worktree, not the main repository.
 
 ## Roadmap
 

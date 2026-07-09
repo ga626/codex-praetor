@@ -5,9 +5,9 @@
   "author": {
     "name": "Codex Praetor"
   },
-  "homepage": "https://developers.openai.com/codex/plugins",
-  "repository": "https://developers.openai.com/codex/plugins",
-  "license": "UNLICENSED",
+  "homepage": "https://github.com/YOUR_GITHUB_OWNER/codex-praetor",
+  "repository": "https://github.com/YOUR_GITHUB_OWNER/codex-praetor",
+  "license": "MIT",
   "keywords": [
     "codex",
     "mcp",
@@ -28,7 +28,7 @@
       "Read",
       "Write"
     ],
-    "websiteURL": "https://developers.openai.com/codex/plugins",
+    "websiteURL": "https://github.com/YOUR_GITHUB_OWNER/codex-praetor",
     "privacyPolicyURL": "https://openai.com/policies/row-privacy-policy/",
     "termsOfServiceURL": "https://openai.com/policies/row-terms-of-use/",
     "defaultPrompt": [
