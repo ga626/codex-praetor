@@ -10,8 +10,9 @@
 - Current thread native MCP calls still fail with `Transport closed`, which now points to stale current-thread transport state rather than bundled MCP server failure.
 - A real MiMo readonly release audit completed in an isolated worktree and did not dirty the main repo.
 - Public release files now include MIT license, changelog, security policy, contributing notes, examples, and a release-readiness audit.
+- Personal plugin/cache was republished as `0.1.0-alpha+codex.20260710071926`; install and cache copies both use portable `node` MCP startup.
 
-Next: improve doctor provider UX, republish the personal plugin once, and verify native MCP in a refreshed Codex tool context.
+Next: improve doctor provider UX and verify native MCP in a refreshed Codex tool context.
 
 ## Current Status: 2026-07-09 22:41
 
