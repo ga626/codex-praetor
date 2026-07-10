@@ -137,7 +137,7 @@ Readonly tasks may share the main checkout. Edit tasks must use worktrees and th
 
 - Qoder off-peak `Qwen3.7-Plus`: default cheap coding worker for normal tasks.
 - Qoder off-peak `Qwen3.7-Max`: harder tasks that still fit a bounded packet.
-- CodeBuddy `codebuddy-free`: fixed `hy3` by default. This is the Tencent Cloud TokenHub CodeBuddy Code documented model id and the 2026-07-08 usage page showed `hy3` calls consuming 0 credits. Bundled product configs list `hy3-preview-agent` with `x0.04 credits`, so `hy3-preview-agent` is not the default free route. Do not use `auto` for normal dispatch.
+- CodeBuddy `codebuddy-free`: fixed `hy3` by default. This is the Tencent Cloud TokenHub CodeBuddy Code documented model id. Bundled product configs list `hy3-preview-agent` as a preview/credit-multiplied route, so `hy3-preview-agent` is not the default route. Do not use `auto` for normal dispatch.
 - CodeBuddy `auto`: blocked by default. It is an automatic provider-selected route, so it violates cost-controlled orchestration unless the user explicitly chooses it for a one-off run.
 - CodeBuddy DeepSeek fallbacks: use `deepseek-v4-flash` as the cheap fallback and `deepseek-v4-pro` as the stronger fallback. These are the user-approved DeepSeek V4 options and are present in the bundled product catalog/docs. `DeepSeek-V3.2` is only a current CLI-help observation, not a selected default/recommended tier.
 - CodeBuddy DeepSeek tiers are explicit fallbacks only after verifying the current UI price/model mapping. The wrapper blocks unlisted CodeBuddy model IDs by default because unsupported IDs can silently fall back provider-side.
