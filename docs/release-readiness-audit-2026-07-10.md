@@ -6,7 +6,7 @@ Date: 2026-07-10
 
 Codex Praetor is past the pure scaffold stage. The repository has clean commits, the core validation suite passes, the C-drive installed skill is a real copied directory, the plugin MCP package passes protocol smoke, and real MiMo, CodeBuddy, and Qoder readonly worker audits completed without modifying the main repository.
 
-It is not ready for public GitHub release yet. The remaining work is now final-publication gating: safe GitHub CLI auth, final GitHub URLs, native fresh-context MCP verification after config reload, provider-missing UX refinements as new canary failures appear, and the user's confirmation before any public push, tag, release, or asset publication.
+It is not ready for a tagged GitHub release yet. The public GitHub repository exists and `main` has been pushed, but the final native fresh-context MCP canary is still blocked by the current environment.
 
 ## Evidence
 
@@ -26,6 +26,12 @@ It is not ready for public GitHub release yet. The remaining work is now final-p
 - GitHub CLI on the current machine: missing from PATH at audit time; raw Personal Access Tokens must not be used as a substitute. Publication requires `gh auth login` / `gh auth status`.
 - MiMo readonly release-blocker audit: PASS for job `20260710-114335-mimo-mimo-auto-readonly-0c27df67`; it confirmed the same live blockers: placeholder GitHub URLs, no remote, fresh-context MCP canary still pending, and GitHub publication requiring safe auth. The audit worktree was created from HEAD, so findings about files added later in the working tree are treated as stale.
 - Current validation refresh: `scripts/test-codex-praetor.ps1 -SkipInstalledSkillCheck` PASS with 0 warnings and 0 failures; `npm test --prefix .\mcp` PASS; `git diff --check` PASS; draft release package rebuilt successfully at `.release/codex-praetor-0.1.0-alpha.zip` with placeholder warning only.
+- GitHub repository created: `https://github.com/ga626/codex-praetor`.
+- Public metadata replaced: `plugin/.codex-plugin/plugin.json` now points to `https://github.com/ga626/codex-praetor`.
+- Final public doctor: PASS after GitHub CLI was made available for the command environment.
+- Final release package builder without `-AllowDraftMetadataPlaceholders`: PASS for `.release/codex-praetor-0.1.0-alpha.zip`; plugin metadata no longer contains placeholders, and the release tree passed private-marker checks.
+- First public push: PASS; local `main` now tracks `origin/main`.
+- Fresh-context MCP canary: BLOCKED in this thread. The WindowsApps `codex.exe` alias returns `Access is denied`, the current thread native `mcp__codex_praetor.*` surface still returns stale `Transport closed`, and no Codex thread-creation tool is exposed in the current tool surface.
 
 ## Important Finding
 
@@ -40,8 +46,8 @@ Release acceptance must include a fresh Codex tool-context canary where native M
 
 ## Remaining Release Blocks
 
-- Final GitHub repository URL is not configured yet.
-- Safe GitHub CLI auth is not configured yet. Any exposed PAT must be revoked before publication continues.
+- Final fresh-context native MCP canary is not complete.
+- GitHub tag and release asset publication have not been performed because the canary gate is still blocked.
 - README now has setup, troubleshooting, and release-package instructions; provider-specific installation and login docs have a public first draft under `docs/provider-notes/` and have been checked by CodeBuddy/Qoder readonly canaries.
 - Provider setup docs now explain that Qoder, CodeBuddy, and MiMo are user-installed optional CLIs.
 - Doctor can still be improved as new provider-missing/login/capability cases are observed, but this is no longer a release-package blocker by itself.
@@ -50,9 +56,7 @@ Release acceptance must include a fresh Codex tool-context canary where native M
 
 ## Next Actions
 
-1. Revoke any exposed GitHub token, install GitHub CLI if needed, and complete `gh auth login` / `gh auth status`.
-2. Confirm the final GitHub owner/repo URL, then replace placeholder repository URLs in plugin metadata with `scripts\set-codex-praetor-public-metadata.ps1 -RepositoryUrl https://github.com/OWNER/codex-praetor -Apply`.
-3. Re-run public-release doctor, minimal validation, diff check, and release package build without `-AllowDraftMetadataPlaceholders` after the URL change.
-4. Reload Codex or open a refreshed tool context so the new personal plugin/cache version is loaded.
-5. Run a fresh-context native MCP canary using `docs/fresh-context-native-mcp-canary.md`.
-6. Stop for user confirmation before first public push, `0.1.0-alpha` tag, GitHub release, or release asset publication.
+1. Open a refreshed Codex Desktop context with Codex Praetor plugin/MCP loaded, or provide a working Codex CLI path that does not hit the WindowsApps `Access is denied` failure.
+2. Run a fresh-context native MCP canary using `docs/fresh-context-native-mcp-canary.md`.
+3. If the canary passes, create `v0.1.0-alpha`, create the GitHub release, and upload `.release/codex-praetor-0.1.0-alpha.zip`.
+4. If the canary fails, fix plugin/MCP loading before tagging.

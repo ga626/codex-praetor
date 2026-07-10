@@ -33,12 +33,12 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 | Provider 用户文档 | 已有公开首版，还需要随 doctor UX 和 canary 结果继续补。 | Phase 3 |
 | Doctor 用户体验还不够完整 | 现在能区分 CLI、version、auth unknown，但还要更清楚地输出安装/登录/能力问题。 | Phase 3 |
 | 公开发布包脱敏还要复查 | 不能把账号、token、usage 截图、provider cache、本机路径和 handoff/internal 历史发出去。 | Phase 2 |
-| Plugin metadata 仍是占位 URL | Draft GitHub metadata placeholder 必须等真实 GitHub remote 确认后替换。 | Phase 6 |
-| GitHub 安全授权未完成 | 不能使用聊天中暴露的 PAT；需要撤销暴露 token，并用 GitHub CLI 浏览器/设备码登录建立本机授权态。 | Phase 6 |
+| Plugin metadata 仍是占位 URL | 已完成：metadata 已替换为 `https://github.com/ga626/codex-praetor`。 | Phase 6 |
+| GitHub 安全授权未完成 | 已完成本机安全路径：使用 GitHub CLI keyring 登录态；没有把聊天中的 PAT 写入命令、配置或仓库。 | Phase 6 |
 | 当前线程 MCP transport 已陈旧 | 本线程的 `Transport closed` 不能当产品失败，也不能当最终通过。 | Phase 7 |
 | 原生 fresh-context MCP 验收未做 | 必须在最终阶段用新工具上下文验证真实 Codex 能看见并调用工具。 | Phase 8 |
 | Provider canary 结果需持续回归 | MiMo、CodeBuddy、Qoder 已跑通过；后续发布前仍要作为回归检查。 | Phase 5 |
-| GitHub 发布动作未做 | 无 remote、无 tag、无 release。必须等用户确认 owner/repo 后才能公开。 | Phase 9 |
+| GitHub 发布动作未做 | 仓库和 `main` 已公开；tag/release 因 fresh-context MCP canary 未完成而暂停。 | Phase 9 |
 | Release 包本地构建 | 草稿包已可构建；公开发布前必须替换最终 URL，并在不带 `-AllowDraftMetadataPlaceholders` 的情况下重跑。 | Phase 6 |
 
 ## 正确执行顺序
@@ -134,14 +134,14 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 
 ### Phase 6：GitHub 公开仓库准备
 
-状态：进行中；本地发布材料可继续收口，但公开动作需要安全 GitHub CLI 授权和用户确认 owner/repo。
+状态：已完成到仓库创建和首次 push；tag/release 等待 Phase 8 canary。
 
 要做：
 
-- 撤销任何已经暴露的 GitHub Personal Access Token；不要把 PAT 粘进 Codex、脚本、文档或仓库。
-- 安装并验证 GitHub CLI：`gh --version`、`gh auth login`、`gh auth status`。
+- 不把已经暴露的 GitHub Personal Access Token 粘进 Codex 命令、脚本、文档或仓库。
+- 安装并验证 GitHub CLI：`gh --version`、`gh auth login`、`gh auth status`。本机已通过 keyring 登录态完成。
 - 把 GitHub 发布路径固定到 `docs/github-publish-runbook.md`：用户只做账号授权和 owner/repo 确认，Codex 负责后续命令。
-- 设置真实 GitHub remote。
+- 设置真实 GitHub remote：`https://github.com/ga626/codex-praetor.git`。
 - 替换 plugin metadata 中的 draft GitHub repository URL。
 - 确认 README、LICENSE、CHANGELOG、SECURITY、CONTRIBUTING、examples 是公开可读的。
 - 按 GitHub 官方建议使用 README 解释项目用途和使用方法；按 GitHub release 模型用 tag/release 发布可下载版本。
@@ -174,7 +174,7 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 
 ### Phase 8：最终新对话验收
 
-状态：未开始，明确放到最后。
+状态：阻塞。当前线程 MCP transport 陈旧，WindowsApps `codex.exe` 无法执行，当前工具面没有创建新 Codex 线程的工具。
 
 这个阶段才开新 Codex 对话。目标不是开发，而是模拟新鲜用户上下文。
 
