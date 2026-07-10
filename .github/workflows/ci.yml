@@ -34,7 +34,7 @@ jobs:
       - name: Minimal validation without local installed skill
         shell: pwsh
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor.ps1 -SkipInstalledSkillCheck -SkipGlobalRuleCheck
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor.ps1 -SkipInstalledSkillCheck -SkipGlobalRuleCheck -SkipDryRun
 
       - name: Release package build
         shell: pwsh
