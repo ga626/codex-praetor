@@ -39,6 +39,48 @@ function Compare-HashMaps {
     return $diffs
 }
 
+function Get-DirectoryChildren {
+    param([string]$Root)
+    if (-not (Test-Path -LiteralPath $Root -PathType Container)) {
+        return @()
+    }
+    return @(Get-ChildItem -LiteralPath $Root -Force | Where-Object { $_.PSIsContainer })
+}
+
+function Remove-DirectoryList {
+    param(
+        [System.Collections.IEnumerable]$Items,
+        [string]$Label
+    )
+
+    $removed = @()
+    $blocked = @()
+    foreach ($item in @($Items)) {
+        if (-not $item) {
+            continue
+        }
+        try {
+            Remove-Item -LiteralPath $item.FullName -Recurse -Force
+            $removed += $item.FullName
+        } catch {
+            $blocked += "$($item.FullName) :: $($_.Exception.Message)"
+        }
+    }
+
+    if ($removed.Count -gt 0) {
+        Write-Host "[PASS] Removed ${Label}:"
+        foreach ($path in $removed) {
+            Write-Host "  - $path"
+        }
+    }
+    if ($blocked.Count -gt 0) {
+        Write-Host "[WARN] Could not remove some ${Label}. They may be held by a running Codex process and can be removed after Codex reloads:"
+        foreach ($path in $blocked) {
+            Write-Host "  - $path"
+        }
+    }
+}
+
 $installPath = Resolve-FullPath $InstallRoot
 $cacheRootPath = Resolve-FullPath $CacheRoot
 $manifestPath = Join-Path $installPath ".codex-plugin\plugin.json"
@@ -96,6 +138,16 @@ try {
     }
 
     Move-Item -LiteralPath $tempPath -Destination $targetPath
+
+    $staleVersionDirs = @(Get-DirectoryChildren $cacheRootPath | Where-Object {
+        $_.Name -ne $version -and $_.Name -ne ".backups" -and $_.Name -notlike ".publish-*.tmp" -and $_.Name -notlike ".failed-*"
+    })
+    $staleScratchDirs = @(Get-DirectoryChildren $cacheRootPath | Where-Object {
+        $_.Name -like ".publish-*.tmp" -or $_.Name -like ".failed-*"
+    })
+
+    Remove-DirectoryList -Items $staleVersionDirs -Label "stale cache version directories"
+    Remove-DirectoryList -Items $staleScratchDirs -Label "stale cache scratch directories"
 
     Write-Host "[PASS] Personal cache populated at $targetPath"
     if ($backupMade) {
