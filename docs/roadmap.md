@@ -9,7 +9,7 @@
 - The C-drive installed skill is a real copied directory and matches the D-drive source skill.
 - The duplicate global `mcp_servers.codex-praetor` entry was removed from local Codex config; the personal plugin entry remains enabled.
 - Current thread native MCP calls still fail with `Transport closed`, which now points to stale current-thread transport state rather than bundled MCP server failure.
-- A real MiMo readonly release audit completed in an isolated worktree and did not dirty the main repo.
+- Real MiMo and CodeBuddy readonly audits completed and did not dirty the main repo.
 - Public release files now include MIT license, changelog, security policy, contributing notes, examples, and a release-readiness audit.
 - Personal plugin/cache was republished as `0.1.0-alpha+codex.20260710071926`; install and cache copies both use portable `node` MCP startup.
 
@@ -141,6 +141,7 @@ Short version:
 - Continue in the current project until the final acceptance gate.
 - Next work is provider docs plus doctor UX.
 - Native MCP fresh-context validation stays in Phase 8.
+- Qoder readonly canary is the remaining provider gate before final native MCP acceptance.
 - GitHub push/tag/release waits for user confirmation of the final owner/repo.
 
 

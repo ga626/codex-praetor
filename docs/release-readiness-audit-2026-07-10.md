@@ -4,7 +4,7 @@ Date: 2026-07-10
 
 ## Current Result
 
-Codex Praetor is past the pure scaffold stage. The repository has two clean commits, the core validation suite passes, the C-drive installed skill is a real copied directory, the plugin MCP package passes protocol smoke, and a real MiMo readonly worker audit completed in an isolated worktree without modifying the main repository.
+Codex Praetor is past the pure scaffold stage. The repository has clean commits, the core validation suite passes, the C-drive installed skill is a real copied directory, the plugin MCP package passes protocol smoke, and real MiMo plus CodeBuddy readonly worker audits completed without modifying the main repository.
 
 It is not ready for public GitHub release yet. The remaining work is product packaging: user-facing installation docs, final GitHub URLs, native fresh-context MCP verification after config reload, provider-missing UX, and release hygiene.
 
@@ -16,6 +16,7 @@ It is not ready for public GitHub release yet. The remaining work is product pac
 - `scripts/test-codex-praetor.ps1`: PASS, 0 warnings, 0 failures.
 - Plugin MCP protocol smoke: PASS.
 - Real MiMo readonly release audit: PASS; output started with `CP_WORKER_RELEASE_AUDIT`; main repo stayed clean except ignored runtime/internal folders.
+- Real CodeBuddy readonly provider-doc canary: PASS; output marker `CP_CODEBUDDY_PROVIDER_DOCS_CANARY`; root README links into `docs/provider-notes/`, provider index links Qoder/CodeBuddy/MiMo notes, and the main repo stayed clean.
 - Local Codex config cleanup: removed the duplicate global `mcp_servers.codex-praetor` entry and kept the `codex-praetor@personal` plugin entry. Backup: `%USERPROFILE%\.codex\config.toml.bak-codex-praetor-dedupe-20260710-070243`.
 - Personal plugin/cache publish: PASS for `0.1.0-alpha+codex.20260710071926`; both install copy and Codex cache use portable `"command": "node"` and MIT metadata.
 
@@ -41,7 +42,7 @@ Release acceptance must include a fresh Codex tool-context canary where native M
 
 ## Next Actions
 
-1. Refine provider-specific install/login/capability docs after CodeBuddy and Qoder canaries.
+1. Refine provider-specific install/login/capability docs after Qoder canary.
 2. Keep improving `doctor` output for provider missing/login/capability states.
 3. Reload Codex or open a refreshed tool context so the new personal plugin/cache version is loaded.
 4. Run a fresh-context native MCP canary.
