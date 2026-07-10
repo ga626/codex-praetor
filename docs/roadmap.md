@@ -9,7 +9,7 @@
 - The C-drive installed skill is a real copied directory and matches the D-drive source skill.
 - The duplicate global `mcp_servers.codex-praetor` entry was removed from local Codex config; the personal plugin entry remains enabled.
 - Current thread native MCP calls still fail with `Transport closed`, which now points to stale current-thread transport state rather than bundled MCP server failure.
-- Real MiMo and CodeBuddy readonly audits completed and did not dirty the main repo.
+- Real MiMo, CodeBuddy, and Qoder readonly audits completed and did not dirty the main repo.
 - Public release files now include MIT license, changelog, security policy, contributing notes, examples, and a release-readiness audit.
 - Personal plugin/cache was republished as `0.1.0-alpha+codex.20260710071926`; install and cache copies both use portable `node` MCP startup.
 
@@ -45,7 +45,7 @@ Next: follow `docs/productization-execution-map-2026-07-10.md`. Do not open a ne
 - A fresh `codex exec --ephemeral` verification attempt for the new lane tools did not use native MCP tool cards; it fell back to an SDK client. Treat that as protocol evidence only, not native UI/tool-card evidence.
 - This already-open thread still does not expose `codex_praetor_*` via tool discovery, so live native calls should be verified in a refreshed tool context.
 
-Interpretation: plugin discovery, installed MCP protocol, native fresh-context route/dry-run calls, and the lane/conflict protocol layer were repaired for the earlier baseline. Since then, a real MiMo readonly canary has also completed. The next product task is provider documentation and provider UX, not another fresh conversation canary.
+Interpretation: plugin discovery, installed MCP protocol, native fresh-context route/dry-run calls, and the lane/conflict protocol layer were repaired for the earlier baseline. Since then, real MiMo, CodeBuddy, and Qoder readonly canaries have completed. The next product task is GitHub URL and release package preparation, not another fresh conversation canary.
 
 ## Phase 0: Migration
 
@@ -99,7 +99,7 @@ Interpretation: plugin discovery, installed MCP protocol, native fresh-context r
 - Add MiMo dispatch.
 - Support blocking and background modes.
 - Read completion files through MCP.
-- Next canary: one MiMo readonly real dispatch with a tiny, inspectable task and no file modifications.
+- Provider readonly canaries are complete for MiMo, CodeBuddy, and Qoder. Keep them as release regression checks.
 
 ## Phase 6: Product Hardening
 
@@ -141,7 +141,7 @@ Short version:
 - Continue in the current project until the final acceptance gate.
 - Next work is provider docs plus doctor UX.
 - Native MCP fresh-context validation stays in Phase 8.
-- Qoder readonly canary is the remaining provider gate before final native MCP acceptance.
+- Provider readonly canaries are now completed for MiMo, CodeBuddy, and Qoder; final native MCP acceptance still belongs to Phase 8.
 - GitHub push/tag/release waits for user confirmation of the final owner/repo.
 
 

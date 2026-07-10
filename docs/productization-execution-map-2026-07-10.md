@@ -23,7 +23,7 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 | MCP v0 | 已完成首版 | 已有 route-intent、dry-run、plan、status、list-jobs、lane/conflict 工具。 |
 | Plugin 包 | 已完成本机雏形 | personal plugin/cache 发布过，包内 MCP runtime 使用 `node` 和相对 cwd。 |
 | 最小验证 | 已完成首版 | doctor、test、MCP/package smoke、public marker scan 已跑通过。 |
-| 真实 worker canary | 已完成两条 | MiMo readonly 和 CodeBuddy readonly 均跑通过；主仓库未被污染。 |
+| 真实 worker canary | 三条 provider gate 已完成 | MiMo、CodeBuddy、Qoder readonly 均跑通过；主仓库未被污染。 |
 | 多对话状态 | 已有 v0 | 项目本地 jobs/plans/locks/lane/conflict 可读；file-scope metadata 还没补。 |
 
 ## 当前没有完成的事
@@ -36,7 +36,7 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 | Plugin metadata 仍是占位 URL | `YOUR_GITHUB_OWNER` 必须等真实 GitHub remote 确认后替换。 | Phase 6 |
 | 当前线程 MCP transport 已陈旧 | 本线程的 `Transport closed` 不能当产品失败，也不能当最终通过。 | Phase 7 |
 | 原生 fresh-context MCP 验收未做 | 必须在最终阶段用新工具上下文验证真实 Codex 能看见并调用工具。 | Phase 8 |
-| Qoder 真实 canary 未补 | MiMo 和 CodeBuddy 已跑通过；Qoder 仍应作为 provider gate，不阻塞无 provider 用户 dry-run。 | Phase 5 |
+| Provider canary 结果需持续回归 | MiMo、CodeBuddy、Qoder 已跑通过；后续发布前仍要作为回归检查。 | Phase 5 |
 | GitHub 发布动作未做 | 无 remote、无 tag、无 release。必须等用户确认 owner/repo 后才能公开。 | Phase 9 |
 
 ## 正确执行顺序
@@ -115,19 +115,19 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 
 ### Phase 5：真实 worker 链路扩展
 
-状态：MiMo readonly 和 CodeBuddy readonly 已完成，Qoder 待补。
+状态：MiMo readonly、CodeBuddy readonly、Qoder readonly 均已完成。
 
 要做：
 
 - 保留 MiMo readonly 作为回归 canary。
 - 保留 CodeBuddy readonly canary，重点验证工具白名单和非交互参数。2026-07-10 已通过 `CP_CODEBUDDY_PROVIDER_DOCS_CANARY`。
-- 做 Qoder readonly canary，重点验证 Git/worktree、登录状态和模型白名单。
+- 保留 Qoder readonly canary，重点验证 Git/worktree、登录状态和模型白名单。2026-07-10 已通过 `CP_QODER_PROVIDER_DOCS_CANARY`。
 - 记录每次 canary 的 completion、stderr 摘要、主仓库干净状态、失败 next action。
 
 完成标准：
 
-- 至少两条真实 worker 链路稳定通过。
-- 对剩余 provider，即使因为未登录/未安装失败，也能给出用户可执行的下一步。
+- 三条真实 worker 链路均有通过记录。
+- 如果后续 provider 因为未登录/未安装失败，也能给出用户可执行的下一步。
 - 不把 provider 失败等同于 Codex Praetor 核心失败。
 
 ### Phase 6：GitHub 公开仓库准备
@@ -207,7 +207,7 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 
 下一步不是开新对话，也不是继续刷新 MiMo canary。
 
-下一步应该做 Phase 3：把 provider 用户文档和 doctor UX 补齐，同时维持 Phase 2 的发布包边界检查。
+Phase 3 和 provider canary 首轮已经完成。下一步进入 GitHub URL/发布包准备，同时维持 Phase 2 的发布包边界检查。
 
 具体顺序：
 
@@ -215,7 +215,7 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 2. 把 README 的 Setup 和 Troubleshooting 改成新用户路径。
 3. 让 doctor 的 provider 输出更像产品诊断，而不是开发日志。
 4. 跑 `doctor -RequireHead -PublicRelease`、`test-codex-praetor.ps1`、`git diff --check`。
-5. 再决定是否进入 CodeBuddy/Qoder readonly canary。
+5. Provider canary 已完成；下一步进入 GitHub URL/发布包准备，遇到公开发布动作前停下等用户确认。
 
 ## 外部依据记录
 
