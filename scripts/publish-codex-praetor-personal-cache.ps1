@@ -54,17 +54,28 @@ function Remove-DirectoryList {
     )
 
     $removed = @()
+    $blocked = @()
     foreach ($item in @($Items)) {
         if (-not $item) {
             continue
         }
-        Remove-Item -LiteralPath $item.FullName -Recurse -Force
-        $removed += $item.FullName
+        try {
+            Remove-Item -LiteralPath $item.FullName -Recurse -Force
+            $removed += $item.FullName
+        } catch {
+            $blocked += "$($item.FullName) :: $($_.Exception.Message)"
+        }
     }
 
     if ($removed.Count -gt 0) {
         Write-Host "[PASS] Removed ${Label}:"
         foreach ($path in $removed) {
+            Write-Host "  - $path"
+        }
+    }
+    if ($blocked.Count -gt 0) {
+        Write-Host "[WARN] Could not remove some ${Label}. They may be held by a running Codex process and can be removed after Codex reloads:"
+        foreach ($path in $blocked) {
             Write-Host "  - $path"
         }
     }
