@@ -374,7 +374,11 @@ if (-not $SkipPluginMcpPackageCheck) {
         try {
             Push-Location -LiteralPath (Join-Path $projectRoot "mcp")
             try {
-                $smokeOutput = & node $pluginMcpSmoke $pluginMcpRuntime $Repo 2>&1
+                $smokeArgs = @($pluginMcpRuntime, $Repo)
+                if ($SkipDryRun) {
+                    $smokeArgs += "--skip-dry-run"
+                }
+                $smokeOutput = & node $pluginMcpSmoke @smokeArgs 2>&1
                 if ($LASTEXITCODE -eq 0 -and (($smokeOutput | Out-String) -match "plugin mcp protocol smoke ok")) {
                     Add-Pass "Plugin MCP protocol smoke passes"
                 } else {
