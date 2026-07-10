@@ -1,6 +1,6 @@
 # Codex Praetor 0.1.0-alpha Release Notes
 
-Status: draft. Publish only after the final GitHub owner/repo URL and fresh-context native MCP canary are confirmed.
+Status: published alpha.
 
 ## What This Release Is
 
@@ -24,17 +24,19 @@ These providers are not bundled. Users install and sign in to them through each 
 - Public-release doctor and minimal validation suite.
 - Release package builder: `scripts/build-codex-praetor-release.ps1`.
 
-## Verified For Draft Release Candidate
+## Verified For This Alpha
 
-- Draft public doctor gate with `-AllowDraftMetadataPlaceholders`.
-- Final public doctor gate without `-AllowDraftMetadataPlaceholders` fails by design until the real GitHub owner/repo URL replaces placeholder metadata.
-- `scripts/test-codex-praetor.ps1`
-- Draft local release package build and private-marker check.
+- Final public doctor gate without draft metadata placeholders.
+- `scripts/test-codex-praetor.ps1`.
+- `npm test --prefix .\mcp`.
+- Local release package build and private-marker check.
 - Plugin MCP protocol smoke.
+- Fresh Codex project-thread acceptance with native `codex-praetor` MCP tool calls.
 - MiMo readonly canary.
 - CodeBuddy readonly canary: `CP_CODEBUDDY_PROVIDER_DOCS_CANARY`.
 - Qoder readonly canary: `CP_QODER_PROVIDER_DOCS_CANARY`.
 - Installed C-drive skill is a real copied directory, not a link.
+- Personal plugin install/cache publish path was refreshed. A running Codex process may keep one older cache directory locked until Codex reloads.
 
 ## Known Alpha Boundaries
 
@@ -43,13 +45,10 @@ These providers are not bundled. Users install and sign in to them through each 
 - Provider accounts, credits, login state, and pricing are owned by each provider and the user's account.
 - Codex Praetor does not install providers, log in for users, read provider auth databases, or promise free routing.
 - Current open Codex threads may keep stale MCP transports after plugin changes. Final acceptance requires a fresh Codex tool context.
-- GitHub publication should use GitHub CLI browser/device auth. Do not paste Personal Access Tokens into Codex or this repository.
+- GitHub publication should use GitHub CLI browser/device auth. Do not paste Personal Access Tokens into Codex, docs, scripts, issues, release notes, or config files.
 
-## Still Required Before Public Release
+## Post-Alpha Follow-Ups
 
-- Confirm final GitHub owner/repo URL.
-- Complete safe GitHub CLI auth and revoke any exposed token before publication.
-- Replace draft GitHub metadata URLs in the plugin manifest.
-- Re-run public marker scan and release package build without `-AllowDraftMetadataPlaceholders`.
-- Run final fresh-context native MCP canary using `docs/fresh-context-native-mcp-canary.md`.
-- Get user confirmation before first public push, tag, GitHub release, or release asset publication.
+- Improve first-run setup around provider CLI discovery, login guidance, and capability canaries.
+- Make stale plugin-cache cleanup friendlier when a running Codex process holds the old cache directory open.
+- Keep expanding native MCP acceptance coverage as Codex App plugin/tool loading evolves.
