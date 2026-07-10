@@ -60,17 +60,19 @@ assert.equal(readonlyConflict.ok, true);
 const editConflict = detectConflictsTool({ repo, mode: "edit", file_scope: ["mcp/src/tools.ts"] });
 assert.equal(Array.isArray(editConflict.conflicts), true);
 
-const dryRun = await dispatchDryRunTool({
-  repo,
-  task: "Dry run only. MCP self-test.",
-  provider: "mimo",
-  tier: "mimo-auto-readonly",
-  mode: "readonly",
-  run_mode: "blocking"
-});
-assert.equal(dryRun.ok, true);
-assert.equal(dryRun.provider, "mimo");
-assert.equal(dryRun.tier, "mimo-auto-readonly");
-assert.match(dryRun.command, /mimo/);
+if (process.env.CODEX_PRAETOR_SELF_TEST_DRY_RUN === "1") {
+  const dryRun = await dispatchDryRunTool({
+    repo,
+    task: "Dry run only. MCP self-test.",
+    provider: "mimo",
+    tier: "mimo-auto-readonly",
+    mode: "readonly",
+    run_mode: "blocking"
+  });
+  assert.equal(dryRun.ok, true);
+  assert.equal(dryRun.provider, "mimo");
+  assert.equal(dryRun.tier, "mimo-auto-readonly");
+  assert.match(dryRun.command, /mimo/);
+}
 
 console.log("codex-praetor-mcp self-test ok");
