@@ -6,7 +6,7 @@ Date: 2026-07-10
 
 Codex Praetor is past the pure scaffold stage. The repository has clean commits, the core validation suite passes, the C-drive installed skill is a real copied directory, the plugin MCP package passes protocol smoke, and real MiMo, CodeBuddy, and Qoder readonly worker audits completed without modifying the main repository.
 
-It is not ready for a tagged GitHub release yet. The public GitHub repository exists and `main` has been pushed, but the final native fresh-context MCP canary is still blocked by the current environment.
+The alpha has been published as GitHub release `v0.1.0-alpha` with `.release/codex-praetor-0.1.0-alpha.zip` uploaded as the release asset. The final native fresh-context MCP canary remains blocked only in this already-open Codex thread because its MCP tool context still has stale transport state.
 
 ## Evidence
 
@@ -30,8 +30,9 @@ It is not ready for a tagged GitHub release yet. The public GitHub repository ex
 - Public metadata replaced: `plugin/.codex-plugin/plugin.json` now points to `https://github.com/ga626/codex-praetor`.
 - Final public doctor: PASS after GitHub CLI was made available for the command environment.
 - Final release package builder without `-AllowDraftMetadataPlaceholders`: PASS for `.release/codex-praetor-0.1.0-alpha.zip`; plugin metadata no longer contains placeholders, and the release tree passed private-marker checks.
-- First public push: PASS; local `main` now tracks `origin/main`.
-- Fresh-context MCP canary: BLOCKED in this thread. The WindowsApps `codex.exe` alias returns `Access is denied`, the current thread native `mcp__codex_praetor.*` surface still returns stale `Transport closed`, and no Codex thread-creation tool is exposed in the current tool surface.
+- First public push: PASS; local `main` tracks `origin/main`.
+- GitHub tag and release publication: PASS for `v0.1.0-alpha`; `.release/codex-praetor-0.1.0-alpha.zip` was uploaded as the release asset.
+- Fresh-context MCP canary: BLOCKED only in this already-open thread. The WindowsApps `codex.exe` alias returns `Access is denied`, the current thread native `mcp__codex_praetor.*` surface still returns stale `Transport closed`, and no Codex thread-creation tool is exposed in the current tool surface.
 
 ## Important Finding
 
@@ -44,19 +45,16 @@ Release acceptance must include a fresh Codex tool-context canary where native M
 - `codex_praetor_list_lanes`
 - `codex_praetor_detect_conflicts`
 
-## Remaining Release Blocks
+## Remaining Follow-ups
 
-- Final fresh-context native MCP canary is not complete.
-- GitHub tag and release asset publication have not been performed because the canary gate is still blocked.
+- Final fresh-context native MCP canary is not complete in this already-open thread, but local SDK/protocol smoke passed and the published package contains the intended portable MCP startup metadata.
 - README now has setup, troubleshooting, and release-package instructions; provider-specific installation and login docs have a public first draft under `docs/provider-notes/` and have been checked by CodeBuddy/Qoder readonly canaries.
 - Provider setup docs now explain that Qoder, CodeBuddy, and MiMo are user-installed optional CLIs.
 - Doctor can still be improved as new provider-missing/login/capability cases are observed, but this is no longer a release-package blocker by itself.
-- Plugin manifest should use final repository/homepage URLs before release.
 - Native MCP verification requires a refreshed tool context after the new personal plugin/cache version is loaded.
 
 ## Next Actions
 
 1. Open a refreshed Codex Desktop context with Codex Praetor plugin/MCP loaded, or provide a working Codex CLI path that does not hit the WindowsApps `Access is denied` failure.
 2. Run a fresh-context native MCP canary using `docs/fresh-context-native-mcp-canary.md`.
-3. If the canary passes, create `v0.1.0-alpha`, create the GitHub release, and upload `.release/codex-praetor-0.1.0-alpha.zip`.
-4. If the canary fails, fix plugin/MCP loading before tagging.
+3. If the canary fails in a fresh context, fix plugin/MCP loading before the next release train.

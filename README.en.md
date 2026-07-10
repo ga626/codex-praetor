@@ -18,7 +18,7 @@ Current stage:
 - MCP server: v0 source implemented for route-intent, dry-run dispatch, list-jobs, plan, status, lane listing, lane lookup, and conflict detection.
 - Plugin package: local personal-plugin packaging and protocol smoke are working; final public repository URLs and fresh-context native MCP verification are still required.
 - Real worker chain: one MiMo readonly release audit has run successfully in an isolated worktree.
-- Public GitHub release: not ready until safe GitHub CLI auth, final URLs, provider UX, release gates, and native MCP canary are complete.
+- Public GitHub release: published as `v0.1.0-alpha` with release asset; native MCP canary evidence remains documented for fresh Codex contexts.
 
 ## Product Shape
 
@@ -179,7 +179,7 @@ For the final native MCP acceptance step, follow [docs/fresh-context-native-mcp-
 
 ## GitHub Publication
 
-Codex Praetor can be published by Codex after a safe local GitHub auth state exists. Do not paste GitHub Personal Access Tokens into Codex or this repository. If a token is exposed anywhere, revoke it before continuing.
+Codex Praetor was published as `v0.1.0-alpha` after safe local GitHub auth, final public metadata, and release gate validation. Do not paste GitHub Personal Access Tokens into Codex or this repository. If a token is exposed anywhere, revoke it before continuing.
 
 Preferred path:
 
@@ -188,7 +188,7 @@ gh auth login
 gh auth status
 ```
 
-Then follow [docs/github-publish-runbook.md](docs/github-publish-runbook.md). Codex can create or connect the GitHub repository, replace plugin metadata, push, tag, create the GitHub release, and upload the release zip after the user confirms the final owner/repo and the first public publication step.
+The historical publishing procedure is captured in [docs/github-publish-runbook.md](docs/github-publish-runbook.md). Codex can use it for future release trains to create or connect the GitHub repository, replace plugin metadata, push, tag, create the GitHub release, and upload the release zip after the user confirms the final owner/repo and the first public publication step.
 
 ## Troubleshooting
 

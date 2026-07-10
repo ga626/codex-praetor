@@ -11,4 +11,4 @@
 - Added provider setup docs, CI workflow, draft release notes, and a local release package builder with release-tree checks.
 - Cleaned local install boundaries: D drive is the source project, C drive skill/plugin paths are explicit copied installs, not symlinks or auto-sync.
 
-Public GitHub release is still pending final repository URLs, native fresh-context MCP verification, and first public publish confirmation.
+Public GitHub release `v0.1.0-alpha` has been published with the release asset. Native fresh-context MCP verification remains recorded as a thread-context limitation rather than a package build blocker.
