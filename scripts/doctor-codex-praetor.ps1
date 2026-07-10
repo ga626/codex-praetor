@@ -4,6 +4,7 @@ param(
     [switch]$RequireHead,
     [switch]$PublicRelease,
     [switch]$StagedOnly,
+    [switch]$AllowDraftMetadataPlaceholders,
     [switch]$Json
 )
 
@@ -120,11 +121,21 @@ function Test-PublicReleaseScanPath {
     $normalized = $RelativePath -replace "/", "\"
     if ($normalized -like "handoff\*") { return $false }
     if ($normalized -like "docs\internal\*") { return $false }
+    if ($normalized -like "docs\github-alpha-release-productization-plan-*.md") { return $false }
+    if ($normalized -like "docs\productization-execution-map-*.md") { return $false }
+    if ($normalized -like "docs\release-readiness-audit-*.md") { return $false }
     if ($normalized -like "plugin\skills\*") { return $false }
     if ($normalized -eq "scripts\doctor-codex-praetor.ps1") { return $false }
     if ($normalized -like "*\node_modules\*") { return $false }
     if ($normalized -like "*\dist\server.js") { return $false }
     return $true
+}
+
+function Test-DraftMetadataPlaceholder {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    return ($Value -match "YOUR_GITHUB_OWNER|YOUR_REPO|PLACEHOLDER|TODO_PUBLIC_URL")
 }
 
 function Get-ProviderSetupDoc {
@@ -277,6 +288,12 @@ if (Test-Path -LiteralPath $testScript -PathType Leaf) {
 }
 
 if ($PublicRelease) {
+    if (Test-CommandExists "gh") {
+        Add-Check "github-cli" "ready" "GitHub CLI is available for publication workflows." "Run gh auth status before creating the public repository or release."
+    } else {
+        Add-Check "github-cli" "warn" "GitHub CLI is not available. Codex cannot create the repository or GitHub release from this machine yet." "Install GitHub CLI and use gh auth login. Do not use pasted Personal Access Tokens as a substitute."
+    }
+
     $publicRoots = @(
         "README.md",
         "AGENTS.md",
@@ -291,15 +308,24 @@ if ($PublicRelease) {
         "plugin\.mcp.json",
         "plugin\mcp"
     )
+    $privateUserProfile = [Environment]::GetFolderPath('UserProfile')
     $patterns = @(
-        "C:\\Users\\ga990",
-        "D:\\AI Studio",
-        "ga1972891918",
-        ".codex\\plugins\\cache",
-        "AppData\\Roaming\\QoderWork"
-    )
+        $projectRoot,
+        $privateUserProfile,
+        ('.codex' + '\\plugins\\cache'),
+        ('AppData' + '\\Roaming\\QoderWork')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $hits = New-Object System.Collections.Generic.List[string]
+    $secretHits = New-Object System.Collections.Generic.List[string]
     $filesToScan = New-Object System.Collections.Generic.List[string]
+    $secretPatterns = @(
+        "ghp_[A-Za-z0-9_]{20,}",
+        "github_pat_[A-Za-z0-9_]{20,}",
+        "gho_[A-Za-z0-9_]{20,}",
+        "ghu_[A-Za-z0-9_]{20,}",
+        "ghs_[A-Za-z0-9_]{20,}",
+        "ghr_[A-Za-z0-9_]{20,}"
+    )
     if ($StagedOnly) {
         $staged = & git -C $projectRoot -c core.quotePath=false diff --cached --name-only 2>$null
         foreach ($path in $staged) {
@@ -340,12 +366,47 @@ if ($PublicRelease) {
                 $hits.Add("$relative :: $pattern")
             }
         }
+        foreach ($secretPattern in $secretPatterns) {
+            if ($text -match $secretPattern) {
+                $secretHits.Add("$relative :: GitHub token-shaped secret")
+            }
+        }
     }
 
     if ($hits.Count -eq 0) {
         Add-Check "public-release-scan" "ready" "No blocking local path or account markers were found in the public release scan." ""
     } else {
         Add-Check "public-release-scan" "fail" "Found $($hits.Count) blocking public release markers." (($hits | Select-Object -First 12) -join "; ")
+    }
+
+    if ($secretHits.Count -eq 0) {
+        Add-Check "public-secret-scan" "ready" "No GitHub token-shaped secrets were found in the public release scan." ""
+    } else {
+        Add-Check "public-secret-scan" "fail" "Found $($secretHits.Count) token-shaped public release secrets." (($secretHits | Select-Object -First 12) -join "; ")
+    }
+
+    $manifestPath = Join-Path $projectRoot "plugin\.codex-plugin\plugin.json"
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        try {
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            $metadataValues = @(
+                [string]$manifest.homepage,
+                [string]$manifest.repository,
+                [string]$manifest.interface.websiteURL
+            )
+            $placeholderValues = @($metadataValues | Where-Object { Test-DraftMetadataPlaceholder -Value $_ })
+            if ($placeholderValues.Count -eq 0) {
+                Add-Check "public-metadata-url" "ready" "Plugin public metadata URLs do not contain draft placeholders." ""
+            } elseif ($AllowDraftMetadataPlaceholders) {
+                Add-Check "public-metadata-url" "warn" "Plugin public metadata URLs still contain draft placeholders." "Replace final GitHub owner/repo URLs before publishing a public release."
+            } else {
+                Add-Check "public-metadata-url" "fail" "Plugin public metadata URLs still contain draft placeholders." "Use -AllowDraftMetadataPlaceholders only for CI or draft package checks; final public release must use real URLs."
+            }
+        } catch {
+            Add-Check "public-metadata-url" "fail" "Could not inspect plugin public metadata URLs." $_.Exception.Message
+        }
+    } else {
+        Add-Check "public-metadata-url" "fail" "Plugin manifest is missing, so public metadata URLs cannot be inspected." $manifestPath
     }
 }
 

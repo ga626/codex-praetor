@@ -199,7 +199,8 @@ try {
 $psRoots = @(
     (Join-Path $projectRoot "scripts"),
     (Join-Path $sourceSkill "scripts"),
-    (Join-Path $pluginSkill "scripts")
+    (Join-Path $pluginSkill "scripts"),
+    (Join-Path $projectRoot "examples")
 )
 Get-ChildItem -LiteralPath $psRoots -Filter "*.ps1" -File -Recurse |
     Sort-Object FullName |
@@ -213,6 +214,8 @@ try {
     $rootProjectOnlyScripts = @(
         "test-codex-praetor.ps1",
         "doctor-codex-praetor.ps1",
+        "build-codex-praetor-release.ps1",
+        "set-codex-praetor-public-metadata.ps1",
         "install-codex-praetor-hooks.ps1",
         "publish-codex-praetor-skill.ps1",
         "publish-codex-praetor-plugin.ps1",
@@ -264,7 +267,7 @@ $allowedOldNameFiles = @(
     "AGENTS.md",
     "scripts\test-codex-praetor.ps1"
 )
-$skipDirectoryNames = @(".git", "handoff", "node_modules", "dist", "build", "coverage", "__pycache__")
+$skipDirectoryNames = @(".git", ".release", "handoff", "node_modules", "dist", "build", "coverage", "__pycache__")
 $oldNameHits = @()
 Get-ChildItem -LiteralPath $projectRoot -Recurse -File -Force |
     Where-Object {

@@ -19,7 +19,7 @@ Use this file to justify the codex-praetor orchestration policy without re-runni
 - Qoder CLI CN `--help` on this machine shows `-p/--print`, `--worktree`, `--permission-mode`, `--tools`, `--allowed-tools`, `--disallowed-tools`, `--remote`, `--list-sessions`, `--session-id`, `--agent`, `--agents`, and `--max-output-tokens`.
 - CodeBuddy headless key path is configured and verified locally with user-level `CODEBUDDY_API_KEY` plus `CODEBUDDY_INTERNET_ENVIRONMENT=internal`.
 - CodeBuddy blocking wrapper validation returned `WRAPPER_AUTH_OK`.
-- CodeBuddy background wrapper validation first failed because PowerShell `Start-Process -ArgumentList` split the CLI path at `D:\AI`; wrapper was fixed to pass a single quoted argument line. Retest returned `BACKGROUND_OK_2` and the process exited.
+- CodeBuddy background wrapper validation first failed because PowerShell `Start-Process -ArgumentList` split a CLI path containing spaces; wrapper was fixed to pass a single quoted argument line. Retest returned `BACKGROUND_OK_2` and the process exited.
 - `codebuddy ps` reported no active sessions after validation.
 - Bundled CodeBuddy product configs list `hy3-preview-agent` as `Hy3 preview` with a credit multiplier, plus DeepSeek V4 fallback entries. Tencent Cloud TokenHub CodeBuddy Code official setup uses model id `hy3` in `models.json` and `availableModels`. Account-specific billing observations are private evidence and are not included in the public release.
 - Skill validation passed with `quick_validate.py`.

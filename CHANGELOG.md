@@ -7,6 +7,8 @@
 - Added a thin MCP server for route intent, dry-run dispatch, job/plan status, lane listing, lane lookup, and conflict detection.
 - Added public-release doctor checks, minimal validation, git hooks, and plugin MCP protocol smoke tests.
 - Verified one real MiMo readonly worker audit in an isolated worktree without modifying the main repository.
+- Verified CodeBuddy and Qoder readonly provider-doc canaries without modifying the main repository.
+- Added provider setup docs, CI workflow, draft release notes, and a local release package builder with release-tree checks.
 - Cleaned local install boundaries: D drive is the source project, C drive skill/plugin paths are explicit copied installs, not symlinks or auto-sync.
 
-Public GitHub release is still pending final repository URLs, native fresh-context MCP verification, and release packaging.
+Public GitHub release is still pending final repository URLs, native fresh-context MCP verification, and first public publish confirmation.

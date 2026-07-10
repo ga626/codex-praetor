@@ -1,5 +1,5 @@
 #!/bin/sh
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -StagedOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -StagedOnly -AllowDraftMetadataPlaceholders
 if [ $? -ne 0 ]; then
   exit 1
 fi

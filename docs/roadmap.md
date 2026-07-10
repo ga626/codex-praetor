@@ -3,7 +3,7 @@
 ## Current Status: 2026-07-10 07:20
 
 - Repository now has a clean alpha baseline and a second commit for MiMo readonly dispatch fixes.
-- `doctor -RequireHead -PublicRelease` passes.
+- Draft `doctor -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders` passes; final public doctor without the draft flag is intentionally blocked until real GitHub URLs are applied.
 - `scripts/test-codex-praetor.ps1` passes with 0 warnings and 0 failures.
 - Commit verification is enforced by Git hooks in `.githooks/` via `core.hooksPath`; they run doctor plus the minimal test suite, and they are separate from Codex app background settings.
 - The C-drive installed skill is a real copied directory and matches the D-drive source skill.
@@ -12,6 +12,7 @@
 - Real MiMo, CodeBuddy, and Qoder readonly audits completed and did not dirty the main repo.
 - Public release files now include MIT license, changelog, security policy, contributing notes, examples, and a release-readiness audit.
 - Personal plugin/cache was republished as `0.1.0-alpha+codex.20260710071926`; install and cache copies both use portable `node` MCP startup.
+- GitHub CLI is not available on the current machine yet; public publication now follows `docs/github-publish-runbook.md` and must not use pasted Personal Access Tokens.
 
 Next: follow `docs/productization-execution-map-2026-07-10.md`. Do not open a new Codex conversation during normal development; the refreshed conversation belongs to the final fresh-context native MCP acceptance gate.
 
@@ -49,7 +50,7 @@ Interpretation: plugin discovery, installed MCP protocol, native fresh-context r
 
 ## Phase 0: Migration
 
-- Create `D:\Projects\CodexPraetor`.
+- Create a dedicated repository checkout for Codex Praetor.
 - Move skill, scripts, references, and reports into product-shaped folders.
 - Rename user-facing `codex-praetor` labels to `Codex Praetor`.
 - Keep compatibility with prior local validation where practical.
@@ -119,6 +120,7 @@ Interpretation: plugin discovery, installed MCP protocol, native fresh-context r
 - Add installation guide.
 - Add example tasks.
 - Mark first release as `0.1.0-alpha`.
+- Establish safe GitHub CLI auth with `gh auth login` / `gh auth status`; do not use pasted Personal Access Tokens.
 - Set the real GitHub remote and replace placeholder repository URLs.
 - Re-run public marker scan after final URL changes.
 - Confirm a new user path: clone -> doctor -> dry-run -> optional readonly canary.

@@ -9,7 +9,8 @@ This checklist separates the development repository from the user-facing release
 These checks protect the source repository. They may stay in the repo, but they are not the product experience.
 
 - Git hooks: `.githooks/pre-commit` and `.githooks/pre-push` through `core.hooksPath`.
-- Release doctor: `scripts/doctor-codex-praetor.ps1 -RequireHead -PublicRelease`.
+- GitHub CI: `.github/workflows/ci.yml` runs doctor with the public template, minimal validation, MCP tests, and a release package build.
+- Release doctor: draft CI can run `scripts/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders`; final public release must run without `-AllowDraftMetadataPlaceholders`.
 - Minimal validation: `scripts/test-codex-praetor.ps1`.
 - MCP source tests: `npm test` under `mcp/`.
 - Plugin protocol smoke: `mcp/scripts/smoke-plugin-mcp.js` against the packaged runtime.
@@ -23,9 +24,13 @@ Include:
 
 - `plugin/` package shape with `.codex-plugin/plugin.json`, `.mcp.json`, bundled `plugin/mcp/dist/server.js`, and `plugin/skills/codex-praetor`.
 - Root `README.md`, `LICENSE`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`.
+- `.github/workflows/ci.yml` so the source release keeps its public validation path.
 - `config/codex-praetor-tiers.example.json` as a template with no real local paths.
 - Provider setup references for Qoder, CodeBuddy, and MiMo under `docs/provider-notes/`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
+- Draft release notes: `docs/release-notes-0.1.0-alpha.md`.
+- Local release package builder: `scripts/build-codex-praetor-release.ps1`.
+  - Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
 
 Exclude from release bundles/assets:
 
@@ -58,16 +63,22 @@ Required before release:
 - Fresh Codex tool context shows native Codex Praetor MCP tools.
 - Fresh-context native calls succeed for route-intent and dry-run.
 - The current-thread `Transport closed` issue is documented as a reload/cache boundary, not treated as server failure.
+- The final procedure follows `docs/fresh-context-native-mcp-canary.md`, and the result is recorded before public publication.
 
 ## 5. GitHub Gate
 
 Before pushing or tagging:
 
+- Revoke any GitHub Personal Access Token that was exposed in chat, logs, terminals, issues, or docs.
+- Use GitHub CLI browser/device login, not pasted raw tokens. Required local checks: `gh --version`, `gh auth login`, and `gh auth status`.
+- Follow `docs/github-publish-runbook.md` for repository creation, remote setup, push, tag, and GitHub release.
 - Set the real GitHub remote.
-- Replace `https://github.com/YOUR_GITHUB_OWNER/codex-praetor` in plugin metadata.
+- Replace draft GitHub URLs in plugin metadata with `scripts\set-codex-praetor-public-metadata.ps1 -RepositoryUrl https://github.com/OWNER/codex-praetor -Apply`.
 - Re-run the public marker scan after the final URL change.
+- Re-run the release package build without `-AllowDraftMetadataPlaceholders` after the final URL change.
 - Enable or document GitHub secret scanning/push protection expectations.
 - Confirm license, changelog entry, security policy, and README install path are current.
+- Build the local release package and verify it excludes private/internal artifacts.
 - Tag only after a new user path succeeds: clone -> doctor -> dry-run -> optional readonly canary.
 
 ## 6. Final Human Confirmation
@@ -75,6 +86,7 @@ Before pushing or tagging:
 Stop before irreversible public release steps and ask for confirmation when:
 
 - Choosing the final GitHub owner/repo URL.
+- Completing GitHub account authorization outside Codex.
 - Pushing the first public branch.
 - Creating the `0.1.0-alpha` tag or GitHub release.
 - Publishing any package/archive intended for other users.

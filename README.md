@@ -16,7 +16,7 @@ Current stage:
 - MCP server: v0 source implemented for route-intent, dry-run dispatch, list-jobs, plan, status, lane listing, lane lookup, and conflict detection.
 - Plugin package: local personal-plugin packaging and protocol smoke are working; final public repository URLs and fresh-context native MCP verification are still required.
 - Real worker chain: one MiMo readonly release audit has run successfully in an isolated worktree.
-- Public GitHub release: not ready until install docs, final URLs, provider UX, and native MCP canary are complete.
+- Public GitHub release: not ready until safe GitHub CLI auth, final URLs, provider UX, release gates, and native MCP canary are complete.
 
 ## Product Shape
 
@@ -155,6 +155,39 @@ npm install
 npm run build:plugin
 ```
 
+## Release Package
+
+Build a local release zip only after the public-release doctor and tests pass:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-codex-praetor-release.ps1 -Apply
+```
+
+The package is written under `.release/`, which is ignored by Git. The builder uses a public allowlist and rejects blocked paths such as `handoff/`, `docs/internal/`, `node_modules/`, local configs, auth/token/secret files, known machine-local markers, and placeholder public metadata URLs.
+
+CI and pre-URL draft checks may use `-AllowDraftMetadataPlaceholders`; the final public package must omit that flag after the real GitHub owner/repo URL is applied.
+
+Do not publish the zip until the final GitHub URL is confirmed, placeholder URLs are replaced, and the fresh-context native MCP canary passes. After the owner/repo is final, update plugin metadata with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\set-codex-praetor-public-metadata.ps1 -RepositoryUrl https://github.com/OWNER/codex-praetor -Apply
+```
+
+For the final native MCP acceptance step, follow [docs/fresh-context-native-mcp-canary.md](docs/fresh-context-native-mcp-canary.md).
+
+## GitHub Publication
+
+Codex Praetor can be published by Codex after a safe local GitHub auth state exists. Do not paste GitHub Personal Access Tokens into Codex or this repository. If a token is exposed anywhere, revoke it before continuing.
+
+Preferred path:
+
+```powershell
+gh auth login
+gh auth status
+```
+
+Then follow [docs/github-publish-runbook.md](docs/github-publish-runbook.md). Codex can create or connect the GitHub repository, replace plugin metadata, push, tag, create the GitHub release, and upload the release zip after the user confirms the final owner/repo and the first public publication step.
+
 ## Troubleshooting
 
 - If a provider is missing, Codex Praetor can still do route-intent, plan, dry-run, and status work, but real worker dispatch for that provider is disabled.
@@ -162,6 +195,7 @@ npm run build:plugin
 - If doctor reports `provider:<name>:cli` as `disabled`, install that provider or update only your ignored local config.
 - If doctor reports provider auth as `info`, that is expected. Codex Praetor does not read provider account databases; prove login with a provider readonly canary.
 - If MCP tools are visible but calls fail with `Transport closed`, remove duplicate same-name MCP registrations, republish the plugin, and verify in a refreshed Codex tool context. The current open thread may keep a stale transport.
+- If `gh` is missing, install GitHub CLI before asking Codex to create the GitHub repository or release. Raw tokens are not an acceptable substitute for publication.
 - If worktree creation fails, make sure the target repository has at least one commit.
 - If MiMo writes `.mimocode`, it should happen inside the isolated worktree, not the main repository.
 

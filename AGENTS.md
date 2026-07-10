@@ -16,7 +16,7 @@ Use these names consistently:
 - Skill name: `codex-praetor`
 - MCP server name: `codex-praetor`
 - MCP tool prefix: `codex_praetor_`
-- Local project path: `D:\Projects\CodexPraetor`
+- Local project path: this repository checkout.
 
 Do not reintroduce `cheap-worker-orchestrator`, `WorkerLane`, or `workerlane` as active product names.
 
@@ -33,7 +33,7 @@ Prefer updating root-level docs over burying important decisions in deep folders
 
 ## Local Install Boundary
 
-`D:\Projects\CodexPraetor` is the development project, not the installed Codex skill path.
+This repository checkout is the development project, not the installed Codex skill path.
 
 The local installed skill remains under the current Windows user's Codex home:
 

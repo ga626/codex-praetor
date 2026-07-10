@@ -1,7 +1,7 @@
 # Codex Praetor GitHub Alpha 发布产品化路线图
 
 日期：2026-07-09  
-项目：`D:\Projects\CodexPraetor`  
+项目：Codex Praetor local productization workspace
 目标版本：`0.1.0-alpha`
 
 ## 一句话结论
