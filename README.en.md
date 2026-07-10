@@ -12,13 +12,21 @@ Codex keeps the planning, risk judgment, integration, and final verification rol
 
 This repository is the productization workspace for the local `codex-praetor` skill and script bundle.
 
-Current stage:
+Current stage: alpha release validation.
+
+Completed:
 
 - Skill and script migration: completed for the local baseline.
 - MCP server: v0 source implemented for route-intent, dry-run dispatch, list-jobs, plan, status, lane listing, lane lookup, and conflict detection.
-- Plugin package: local personal-plugin packaging and protocol smoke are working; final public repository URLs and fresh-context native MCP verification are still required.
+- Plugin package: local personal-plugin packaging and protocol smoke are working.
 - Real worker chain: one MiMo readonly release audit has run successfully in an isolated worktree.
-- Public GitHub release: published as `v0.1.0-alpha` with release asset; native MCP canary evidence remains documented for fresh Codex contexts.
+- The GitHub repository has been created and local release zip generation works.
+
+Not published as a final public release yet:
+
+- A fresh Codex context still needs native `codex_praetor_*` MCP tool visibility.
+- The local installed plugin cache needs final reload/install verification.
+- GitHub tag/release publishing should happen only after the fresh-context MCP check passes.
 
 ## Product Shape
 

@@ -90,7 +90,7 @@ function Update-PluginCachebuster {
         throw "Installed plugin manifest missing before cachebuster: $manifestPath"
     }
 
-    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $baseVersion = [string]$manifest.version
     if ([string]::IsNullOrWhiteSpace($baseVersion)) {
         throw "Plugin manifest version missing before cachebuster."
@@ -102,7 +102,7 @@ function Update-PluginCachebuster {
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($manifestPath, $manifestJson, $utf8NoBom)
 
-    $updated = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $updated = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$updated.version -ne "$baseVersion+codex.$cacheStamp") {
         throw "Plugin cachebuster failed; version is $($updated.version)"
     }
@@ -120,7 +120,7 @@ if (-not (Test-Path -LiteralPath $marketplacePath -PathType Leaf)) {
     throw "Marketplace missing: $marketplacePath"
 }
 
-$marketplace = Get-Content -LiteralPath $marketplacePath -Raw | ConvertFrom-Json
+$marketplace = Get-Content -LiteralPath $marketplacePath -Raw -Encoding UTF8 | ConvertFrom-Json
 $entry = @($marketplace.plugins | Where-Object { $_.name -eq "codex-praetor" } | Select-Object -First 1)
 if ($entry.Count -eq 0) {
     throw "Marketplace entry codex-praetor is missing from $marketplacePath"
@@ -143,13 +143,16 @@ if (-not $Apply) {
 $sourceMap = Get-RelativeHashMap $sourcePath
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $tempPath = Join-Path $installParent ".codex-praetor.publish-$stamp.tmp"
-$backupPath = Join-Path $backupRoot "codex-praetor-$stamp"
+$backupBasePath = Join-Path $backupRoot "codex-praetor-$stamp"
+$backupPath = $backupBasePath
+$backupSuffix = 1
+while (Test-Path -LiteralPath $backupPath) {
+    $backupPath = "$backupBasePath-$backupSuffix"
+    $backupSuffix++
+}
 
 if (Test-Path -LiteralPath $tempPath) {
     throw "Temporary publish path already exists: $tempPath"
-}
-if (Test-Path -LiteralPath $backupPath) {
-    throw "Backup path already exists: $backupPath"
 }
 
 $backupMade = $false

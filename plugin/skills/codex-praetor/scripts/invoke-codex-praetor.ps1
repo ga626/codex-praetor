@@ -1,4 +1,4 @@
-﻿param(
+param(
     [ValidateSet("auto", "qoder", "codebuddy", "mimo")]
     [string]$Provider = "auto",
 
@@ -105,7 +105,7 @@ if ([string]::IsNullOrWhiteSpace($resolvedConfigPath)) {
     throw "Missing Codex Praetor config. Checked: $($configCandidates -join '; ')"
 }
 
-$config = Get-Content -LiteralPath $resolvedConfigPath -Raw | ConvertFrom-Json
+$config = Get-Content -LiteralPath $resolvedConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 function Test-OffPeak {
     $now = Get-Date
@@ -274,7 +274,7 @@ function Acquire-RepoEditLock {
     if (Test-Path -LiteralPath $lockPath) {
         $existing = $null
         try {
-            $existing = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json
+            $existing = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
         } catch {
             $existing = $null
         }
@@ -325,7 +325,7 @@ function Update-RepoEditLockHolder {
     }
     $lock = $null
     try {
-        $lock = Get-Content -LiteralPath $LockPath -Raw | ConvertFrom-Json
+        $lock = Get-Content -LiteralPath $LockPath -Raw -Encoding UTF8 | ConvertFrom-Json
     } catch {
         $lock = [pscustomobject]@{}
     }

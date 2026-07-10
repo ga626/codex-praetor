@@ -85,7 +85,7 @@ function Compare-HashMaps {
 function Test-JsonFile {
     param([string]$Path)
     try {
-        $null = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        $null = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
         Add-Pass "JSON parses: $Path"
     } catch {
         Add-Fail "JSON parse failed: $Path :: $($_.Exception.Message)"
@@ -122,7 +122,7 @@ Assert-Path $pluginManifest "Plugin manifest"
 Assert-Path $pluginMcpConfig "Plugin MCP config"
 Assert-Path $sourceInvoke "Dry-run entrypoint"
 
-$skillText = Get-Content -LiteralPath (Join-Path $sourceSkill "SKILL.md") -Raw
+$skillText = Get-Content -LiteralPath (Join-Path $sourceSkill "SKILL.md") -Raw -Encoding UTF8
 if ($skillText -match "(?m)^name:\s*codex-praetor\s*$") {
     Add-Pass "Source skill frontmatter name is codex-praetor"
 } else {
@@ -131,7 +131,7 @@ if ($skillText -match "(?m)^name:\s*codex-praetor\s*$") {
 
 if (-not $SkipGlobalRuleCheck) {
     if (Test-Path -LiteralPath $globalAgents) {
-        $globalAgentsText = Get-Content -LiteralPath $globalAgents -Raw
+        $globalAgentsText = Get-Content -LiteralPath $globalAgents -Raw -Encoding UTF8
         if ($globalAgentsText -match "## Codex Praetor Delegation" -and $globalAgentsText -match "Codex subagents are a different Codex-token route") {
             Add-Pass "Global AGENTS has Codex Praetor delegation route"
         } else {
@@ -159,14 +159,14 @@ foreach ($path in $jsonPaths) {
 }
 
 try {
-    $manifest = Get-Content -LiteralPath $pluginManifest -Raw | ConvertFrom-Json
+    $manifest = Get-Content -LiteralPath $pluginManifest -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($manifest.name -eq "codex-praetor") {
         Add-Pass "Plugin manifest name is codex-praetor"
     } else {
         Add-Fail "Plugin manifest name is $($manifest.name)"
     }
 
-    $mcpConfig = Get-Content -LiteralPath $pluginMcpConfig -Raw | ConvertFrom-Json
+    $mcpConfig = Get-Content -LiteralPath $pluginMcpConfig -Raw -Encoding UTF8 | ConvertFrom-Json
     $server = $mcpConfig.mcpServers.'codex-praetor'
     if ($null -ne $server) {
         Add-Pass "Plugin MCP server is present"

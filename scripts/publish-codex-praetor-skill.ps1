@@ -82,7 +82,7 @@ $sourceSkillMd = Join-Path $sourcePath "SKILL.md"
 if (-not (Test-Path -LiteralPath $sourceSkillMd -PathType Leaf)) {
     throw "Source SKILL.md missing: $sourceSkillMd"
 }
-$skillText = Get-Content -LiteralPath $sourceSkillMd -Raw
+$skillText = Get-Content -LiteralPath $sourceSkillMd -Raw -Encoding UTF8
 if ($skillText -notmatch "(?m)^name:\s*codex-praetor\s*$") {
     throw "Source SKILL.md frontmatter name is not codex-praetor."
 }
@@ -94,7 +94,13 @@ if (Test-Path -LiteralPath $installedPath) {
 $sourceMap = Get-RelativeHashMap $sourcePath
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $tempPath = Join-Path $installedParent ".codex-praetor.publish-$stamp.tmp"
-$backupPath = Join-Path $backupRootPath "codex-praetor-$stamp"
+$backupBasePath = Join-Path $backupRootPath "codex-praetor-$stamp"
+$backupPath = $backupBasePath
+$backupSuffix = 1
+while (Test-Path -LiteralPath $backupPath) {
+    $backupPath = "$backupBasePath-$backupSuffix"
+    $backupSuffix++
+}
 
 Write-Host "Codex Praetor skill publish plan"
 Write-Host "Source:    $sourcePath"
@@ -111,9 +117,6 @@ if (-not $Apply) {
 
 if (Test-Path -LiteralPath $tempPath) {
     throw "Temporary publish path already exists: $tempPath"
-}
-if (Test-Path -LiteralPath $backupPath) {
-    throw "Backup path already exists: $backupPath"
 }
 
 $backupMade = $false

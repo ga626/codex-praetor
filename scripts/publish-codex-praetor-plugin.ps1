@@ -12,7 +12,7 @@ $skillRoot = Join-Path $projectRoot "skill\codex-praetor"
 
 function Get-MarketplaceName {
     param([string]$Path)
-    $payload = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    $payload = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
     if (-not $payload.name) {
         throw "Marketplace name missing in $Path"
     }
@@ -48,7 +48,7 @@ if ([string]::IsNullOrWhiteSpace($marketplaceName)) {
     throw "Unable to read marketplace name from $MarketplacePath"
 }
 
-$marketplacePayload = Get-Content -LiteralPath $MarketplacePath -Raw | ConvertFrom-Json
+$marketplacePayload = Get-Content -LiteralPath $MarketplacePath -Raw -Encoding UTF8 | ConvertFrom-Json
 $plugins = @($marketplacePayload.plugins)
 $pluginName = "codex-praetor"
 $existing = $plugins | Where-Object { $_.name -eq $pluginName } | Select-Object -First 1

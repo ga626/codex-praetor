@@ -31113,16 +31113,6 @@ var codexPraetorTerms = [
   "codex praetor",
   "codex \u6267\u653F\u5B98",
   "codex-praetor",
-  "\u7701\u94B1\u6A21\u5F0F",
-  "\u4FBF\u5B9C\u5DE5\u4EBA",
-  "\u4F4E\u6210\u672C\u6D3E\u5DE5",
-  "\u8585\u7F8A\u6BDB\u6A21\u5F0F",
-  "\u514D\u8D39 agent",
-  "\u514D\u8D39\u7684 agent",
-  "cheap worker",
-  "cheap workers",
-  "free agent",
-  "free agents",
   "external worker",
   "external workers",
   "qoder",
@@ -31166,6 +31156,18 @@ function collectMatches(value, terms) {
   const lower = value.toLowerCase();
   return terms.filter((term) => lower.includes(term.toLowerCase()));
 }
+function rejectsNativeCodexSubagents(value) {
+  const lower = value.toLowerCase();
+  return [
+    /不要.{0,16}codex.{0,8}sub-?\s*agent/i,
+    /不.{0,8}(创建|使用|走|开).{0,16}codex.{0,8}sub-?\s*agent/i,
+    /别.{0,8}(创建|使用|走|开).{0,16}codex.{0,8}sub-?\s*agent/i,
+    /不要.{0,16}codex.{0,8}(子智能体|原生)/i,
+    /do not.{0,16}codex.{0,8}sub-?\s*agent/i,
+    /don't.{0,16}codex.{0,8}sub-?\s*agent/i,
+    /not.{0,16}codex.{0,8}sub-?\s*agent/i
+  ].some((pattern) => pattern.test(lower));
+}
 function routeIntent(request, allowNativeCodexSubagents = false) {
   const trimmed = request.trim();
   if (!trimmed) {
@@ -31182,6 +31184,17 @@ function routeIntent(request, allowNativeCodexSubagents = false) {
   const praetorMatches = collectMatches(trimmed, codexPraetorTerms);
   const delegationMatches = collectMatches(trimmed, delegationTerms);
   const allMatches = [.../* @__PURE__ */ new Set([...subagentMatches, ...praetorMatches, ...delegationMatches])];
+  const rejectsNative = subagentMatches.length > 0 && rejectsNativeCodexSubagents(trimmed);
+  if (rejectsNative && (praetorMatches.length > 0 || delegationMatches.length > 0)) {
+    return {
+      route: "codex_praetor_external_worker",
+      confidence: "high",
+      reason: "The request asks for delegation while explicitly rejecting native Codex subagents, so Codex Praetor external workers are the intended route.",
+      suggested_next_action: "Run codex_praetor_dispatch_dry_run before any real worker dispatch.",
+      matched_terms: allMatches,
+      native_codex_subagents_allowed: allowNativeCodexSubagents
+    };
+  }
   if (subagentMatches.length > 0 && allowNativeCodexSubagents) {
     return {
       route: "native_codex_subagent",

@@ -1,6 +1,6 @@
 ---
 name: codex-praetor
-description: External worker orchestration for Codex using local Qoder/QoderWork CN, Tencent WorkBuddy/CodeBuddy, and Xiaomi MiMo Code CLIs. Trigger on natural Chinese phrases like "拆分一下任务", "把任务拆一下", "分配给其他 agent", "交给其他 agent", "让别的 agent 做一部分", "多 agent 分工", "派给腾讯/阿里/小米", "用 MiMo/Qoder/CodeBuddy", or cost-control phrases like "省钱模式". Use when Codex should split coding or research-support work into bounded tasks for external worker agents, prepare dry-run dispatch, track jobs, and verify worker outputs while Codex remains the planner.
+description: External worker orchestration for Codex using local Qoder/QoderWork CN, Tencent WorkBuddy/CodeBuddy, and Xiaomi MiMo Code CLIs. Trigger on natural Chinese delegation phrases like "拆分一下任务", "把任务拆一下", "分配给其他 agent", "交给其他 agent", "让别的 agent 做一部分", "多 agent 分工", "派给腾讯/阿里/小米", or "用 MiMo/Qoder/CodeBuddy". Use when Codex should split coding or research-support work into bounded tasks for external worker agents, prepare dry-run dispatch, track jobs, and verify worker outputs while Codex remains the planner.
 ---
 
 # Codex Praetor
@@ -13,7 +13,7 @@ This is a cross-conversation routing workflow, not only a project-local habit. I
 2. Native Codex subagents only when the user explicitly asks for Codex subagents or accepts that fallback.
 3. No worker dispatch when the task is too small, unsafe, or not inspectable.
 
-Natural trigger phrases: prefer the user's normal delegation language, including "拆分一下任务", "把任务拆一下", "分配给其他 agent", "交给其他 agent", "让别的 agent 做一部分", "多 agent 分工", "自己去分配一下", "派给腾讯/阿里/小米", and "用 MiMo/Qoder/CodeBuddy". Also treat "省钱模式", "便宜工人", "低成本派工", and "薅羊毛模式" as cost-control variants, but do not require those phrases.
+Natural trigger phrases: prefer the user's normal delegation language, including "拆分一下任务", "把任务拆一下", "分配给其他 agent", "交给其他 agent", "让别的 agent 做一部分", "多 agent 分工", "自己去分配一下", "派给腾讯/阿里/小米", and "用 MiMo/Qoder/CodeBuddy". Do not require special cost-saving slang before choosing this route.
 
 Important terminology boundary:
 

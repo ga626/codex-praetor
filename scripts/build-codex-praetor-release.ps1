@@ -93,7 +93,7 @@ function Assert-PublicReleaseTree {
             if (Test-BlockedReleasePath -RelativePath $relative) {
                 $blocked.Add($relative)
             }
-            $text = Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue
+            $text = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
             foreach ($marker in $markers) {
                 if ($text -like "*$marker*") {
                     $markerHits.Add("$relative :: $marker")
@@ -132,7 +132,7 @@ function Assert-PublicMetadataUrls {
         throw "Release package is missing plugin manifest: $manifestPath"
     }
 
-    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $metadataValues = @(
         [string]$manifest.homepage,
         [string]$manifest.repository,

@@ -16,7 +16,11 @@ import {
 const repo = process.env.CODEX_PRAETOR_TEST_REPO ?? resolve(process.cwd(), "..");
 
 assert.equal(routeIntentTool({ request: "把这个任务拆一下，分配给其他 agent 做" }).route, "codex_praetor_external_worker");
-assert.equal(routeIntentTool({ request: "开省钱模式，分配给其他 agent" }).route, "codex_praetor_external_worker");
+assert.equal(routeIntentTool({ request: "拆分一下任务，分配给其他 agent 做只读验收" }).route, "codex_praetor_external_worker");
+assert.equal(
+  routeIntentTool({ request: "拆分一下任务，分配给其他 agent 做只读验收，不要创建 Codex subagent。" }).route,
+  "codex_praetor_external_worker"
+);
 assert.equal(
   routeIntentTool({ request: "Use Codex subagent for parallel review", allow_native_codex_subagents: true }).route,
   "native_codex_subagent"

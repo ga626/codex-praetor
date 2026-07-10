@@ -89,7 +89,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     throw "Install manifest missing: $manifestPath"
 }
 
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = [string]$manifest.version
 if ([string]::IsNullOrWhiteSpace($version)) {
     throw "Install manifest version missing."
@@ -99,7 +99,13 @@ $sourceMap = Get-RelativeHashMap $installPath
 $targetPath = Join-Path $cacheRootPath $version
 $backupRoot = Join-Path $cacheRootPath ".backups"
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$backupPath = Join-Path $backupRoot $version
+$backupBasePath = Join-Path $backupRoot $version
+$backupPath = $backupBasePath
+$backupSuffix = 1
+while (Test-Path -LiteralPath $backupPath) {
+    $backupPath = "$backupBasePath-$backupSuffix"
+    $backupSuffix++
+}
 $tempPath = Join-Path $cacheRootPath ".publish-$stamp.tmp"
 
 Write-Host "Codex Praetor personal cache publish plan"
@@ -114,9 +120,6 @@ if (-not $Apply) {
 
 if (Test-Path -LiteralPath $tempPath) {
     throw "Temporary path already exists: $tempPath"
-}
-if (Test-Path -LiteralPath $backupPath) {
-    throw "Backup path already exists: $backupPath"
 }
 
 $backupMade = $false

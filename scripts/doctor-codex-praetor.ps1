@@ -264,7 +264,7 @@ if ([string]::IsNullOrWhiteSpace($resolvedConfigPath)) {
     $config = $null
 } else {
     try {
-        $config = Get-Content -LiteralPath $resolvedConfigPath -Raw | ConvertFrom-Json
+        $config = Get-Content -LiteralPath $resolvedConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $configStatus = if ($resolvedConfigPath -like "*codex-praetor-tiers.example.json") { "warn" } else { "ready" }
         $configNext = if ($configStatus -eq "warn") { "Create a local config before real dispatch; do not depend on the public template." } else { "" }
         Add-Check "config" $configStatus "Config parsed: $resolvedConfigPath" $configNext
@@ -360,7 +360,7 @@ if ($PublicRelease) {
 
     foreach ($file in ($filesToScan | Sort-Object -Unique)) {
         $relative = $file.Substring($projectRoot.Length).TrimStart("\")
-        $text = Get-Content -LiteralPath $file -Raw -ErrorAction SilentlyContinue
+        $text = Get-Content -LiteralPath $file -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
         foreach ($pattern in $patterns) {
             if ($text -like "*$pattern*") {
                 $hits.Add("$relative :: $pattern")
@@ -388,7 +388,7 @@ if ($PublicRelease) {
     $manifestPath = Join-Path $projectRoot "plugin\.codex-plugin\plugin.json"
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
         try {
-            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
             $metadataValues = @(
                 [string]$manifest.homepage,
                 [string]$manifest.repository,

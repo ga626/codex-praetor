@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string]$JobDir,
 
@@ -71,7 +71,7 @@ function Update-LockForWorker {
     }
     $lock = $null
     try {
-        $lock = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        $lock = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
     } catch {
         $lock = [pscustomobject]@{}
     }
@@ -156,7 +156,7 @@ try {
         throw "Missing job metadata: $metaPath"
     }
 
-    $meta = Get-Content -LiteralPath $metaPath -Raw | ConvertFrom-Json
+    $meta = Get-Content -LiteralPath $metaPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $exitCode = $null
     $waitError = $null
     $alreadyWaited = $false
@@ -183,7 +183,7 @@ try {
                 Set-JsonProperty -Object $meta -Name "worker_temp" -Value $jobScratch
             }
             $argumentList = @()
-            $loadedArgs = Get-Content -LiteralPath $ArgumentListPath -Raw | ConvertFrom-Json
+            $loadedArgs = Get-Content -LiteralPath $ArgumentListPath -Raw -Encoding UTF8 | ConvertFrom-Json
             foreach ($arg in @($loadedArgs)) {
                 $argumentList += [string]$arg
             }
@@ -274,7 +274,7 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($LockPath) -and (Test-Path -LiteralPath $LockPath)) {
         $removeLock = $true
         try {
-            $lock = Get-Content -LiteralPath $LockPath -Raw | ConvertFrom-Json
+            $lock = Get-Content -LiteralPath $LockPath -Raw -Encoding UTF8 | ConvertFrom-Json
             if ($null -ne $lock.job_id -and $lock.job_id -ne $meta.job_id) {
                 $removeLock = $false
             }

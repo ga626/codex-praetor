@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string]$ThreadId,
 
@@ -73,7 +73,7 @@ New-Item -ItemType Directory -Path $processingRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $sentRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $failedRoot -Force | Out-Null
 
-$completion = Get-Content -LiteralPath $CompletionPath -Raw | ConvertFrom-Json
+$completion = Get-Content -LiteralPath $CompletionPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $jobId = if ($completion.job_id) { [string]$completion.job_id } else { Split-Path -Leaf $JobDir }
 $eventName = "{0}-{1}.json" -f (Get-Date -Format "yyyyMMdd-HHmmss-fff"), (Get-SafeName $jobId)
 $eventPath = Join-Path $pendingDir $eventName
@@ -105,7 +105,7 @@ try {
     if (Test-Path -LiteralPath $lockPath) {
         $stale = $false
         try {
-            $lockText = Get-Content -LiteralPath $lockPath -Raw
+            $lockText = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8
             $match = [regex]::Match($lockText, 'pid=(\d+)')
             if ($match.Success) {
                 $lockPid = [int]$match.Groups[1].Value
@@ -151,7 +151,7 @@ try {
         $batchFiles = @(Move-EventFiles -Files $pending -Destination $processingDir)
         $items = @()
         foreach ($file in $batchFiles) {
-            $items += (Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json)
+            $items += (Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json)
         }
 
         $lines = @()

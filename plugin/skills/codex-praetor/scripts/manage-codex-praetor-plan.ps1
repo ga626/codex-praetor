@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("Init", "UpsertTask", "RecordJob", "NextReady", "Get", "AppendEvent")]
     [string]$Action,
@@ -81,7 +81,7 @@ function Read-Plan {
     param([string]$Id)
     $path = Get-PlanPath -Id $Id
     if (Test-Path -LiteralPath $path) {
-        return (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json)
+        return (Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json)
     }
     return [pscustomobject](New-EmptyPlan -Id $Id)
 }
@@ -228,7 +228,7 @@ if ($Action -eq "Init") {
     if (-not (Test-Path -LiteralPath $completionFile)) {
         throw "Completion file not found: $completionFile"
     }
-    $completion = Get-Content -LiteralPath $completionFile -Raw | ConvertFrom-Json
+    $completion = Get-Content -LiteralPath $completionFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $recordTaskId = if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $TaskId } else { [string]$completion.task_id }
     $recordStatus = if ($completion.status -eq "completed") { "completed" } elseif ($completion.status -eq "failed") { "failed" } else { "blocked" }
     $summaryText = "worker_status=$($completion.status); exit_code=$($completion.exit_code)"

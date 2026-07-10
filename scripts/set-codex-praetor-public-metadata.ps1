@@ -50,7 +50,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 }
 
 $normalizedUrl = Normalize-GitHubRepositoryUrl -Value $RepositoryUrl
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 Write-Host "Codex Praetor public metadata update"
 Write-Host "Manifest: $manifestPath"
