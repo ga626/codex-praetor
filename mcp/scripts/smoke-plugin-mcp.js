@@ -9,6 +9,8 @@ const mcpRoot = path.resolve(scriptDir, "..");
 const projectRoot = path.resolve(mcpRoot, "..");
 const runtimePath = path.resolve(process.argv[2] ?? path.join(projectRoot, "plugin", "mcp", "dist", "server.js"));
 const repo = path.resolve(process.argv[3] ?? projectRoot);
+const skipDryRun =
+  process.argv.includes("--skip-dry-run") || process.env.CODEX_PRAETOR_SKIP_PROVIDER_DRY_RUN === "1";
 
 const requiredTools = [
   "codex_praetor_route_intent",
@@ -76,20 +78,22 @@ try {
     throw new Error(`Unexpected route intent: ${routePayload.route}`);
   }
 
-  const dryRunResult = await client.callTool({
-    name: "codex_praetor_dispatch_dry_run",
-    arguments: {
-      repo,
-      task: "Plugin MCP smoke dry-run. Do not modify files.",
-      provider: "mimo",
-      tier: "mimo-auto-readonly",
-      mode: "readonly",
-      run_mode: "blocking"
+  if (!skipDryRun) {
+    const dryRunResult = await client.callTool({
+      name: "codex_praetor_dispatch_dry_run",
+      arguments: {
+        repo,
+        task: "Plugin MCP smoke dry-run. Do not modify files.",
+        provider: "mimo",
+        tier: "mimo-auto-readonly",
+        mode: "readonly",
+        run_mode: "blocking"
+      }
+    });
+    const dryRunPayload = JSON.parse(dryRunResult.content?.[0]?.text ?? "{}");
+    if (dryRunPayload.ok !== true || dryRunPayload.provider !== "mimo") {
+      throw new Error(`Unexpected dispatch dry-run result: ${JSON.stringify(dryRunPayload)}`);
     }
-  });
-  const dryRunPayload = JSON.parse(dryRunResult.content?.[0]?.text ?? "{}");
-  if (dryRunPayload.ok !== true || dryRunPayload.provider !== "mimo") {
-    throw new Error(`Unexpected dispatch dry-run result: ${JSON.stringify(dryRunPayload)}`);
   }
 
   const lanesResult = await client.callTool({
