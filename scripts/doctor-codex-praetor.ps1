@@ -121,7 +121,11 @@ function Test-PublicReleaseScanPath {
     $normalized = $RelativePath -replace "/", "\"
     if ($normalized -like "handoff\*") { return $false }
     if ($normalized -like "docs\internal\*") { return $false }
+    if ($normalized -like "docs\development\*") { return $false }
     if ($normalized -like "docs\github-alpha-release-productization-plan-*.md") { return $false }
+    if ($normalized -like "docs\github-repository-and-user-experience-audit-*.md") { return $false }
+    if ($normalized -like "docs\productization-*.md") { return $false }
+    if ($normalized -like "docs\mcp-tool-handle-transport-closed-research-*.md") { return $false }
     if ($normalized -like "docs\productization-execution-map-*.md") { return $false }
     if ($normalized -like "docs\release-readiness-audit-*.md") { return $false }
     if ($normalized -like "plugin\skills\*") { return $false }

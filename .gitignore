@@ -8,6 +8,7 @@
 *.tmp
 *.bak
 .release/
+.release-*/
 
 # Secrets and local provider state
 .env
@@ -20,6 +21,7 @@ codex-praetor-tiers.local.json
 *auth*
 handoff/
 docs/internal/
+docs/development/
 
 # Node / MCP build outputs
 node_modules/

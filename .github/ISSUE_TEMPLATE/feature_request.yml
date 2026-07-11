@@ -1,0 +1,34 @@
+name: 功能建议
+description: 建议 Codex Praetor 的产品、文档、安装或 provider 体验改进
+title: "[Feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的真实场景
+      description: 请讲清楚你想完成什么，而不是只给一个实现方案。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望它怎么变好
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 主要影响范围
+      options:
+        - 安装
+        - MCP 工具
+        - 自然语言触发
+        - Qoder
+        - CodeBuddy
+        - MiMo
+        - 文档
+        - 其他
+    validations:
+      required: true
+

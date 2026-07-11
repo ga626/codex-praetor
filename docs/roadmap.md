@@ -1,153 +1,37 @@
-# Codex Praetor Roadmap
+# Codex Praetor 路线图
 
-## Current Status: 2026-07-10 07:20
+## 当前状态：2026-07-11
 
-- Repository now has a clean alpha baseline and a second commit for MiMo readonly dispatch fixes.
-- Draft `doctor -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders` passes; final public doctor without the draft flag is intentionally blocked until real GitHub URLs are applied.
-- `scripts/test-codex-praetor.ps1` passes with 0 warnings and 0 failures.
-- Commit verification is enforced by Git hooks in `.githooks/` via `core.hooksPath`; they run doctor plus the minimal test suite, and they are separate from Codex app background settings.
-- The C-drive installed skill is a real copied directory and matches the D-drive source skill.
-- The duplicate global `mcp_servers.codex-praetor` entry was removed from local Codex config; the personal plugin entry remains enabled.
-- Current thread native MCP calls still fail with `Transport closed`, which now points to stale current-thread transport state rather than bundled MCP server failure.
-- Real MiMo, CodeBuddy, and Qoder readonly audits completed and did not dirty the main repo.
-- Public release files now include MIT license, changelog, security policy, contributing notes, examples, and a release-readiness audit.
-- Personal plugin/cache was republished as `0.1.0-alpha+codex.20260710071926`; install and cache copies both use portable `node` MCP startup.
-- GitHub CLI is not available on the current machine yet; public publication now follows `docs/github-publish-runbook.md` and must not use pasted Personal Access Tokens.
+`v0.1.0-alpha` 已作为 GitHub 预发布版发布。当前重点不是继续堆新功能，而是把公开仓库、安装体验、排错路径和发布包边界收口到普通用户能理解、能安装、能反馈问题的状态。
 
-Next: follow `docs/productization-next-stage-plan-2026-07-10.md` and `docs/productization-execution-map-2026-07-10.md`. Do not open a new Codex conversation during normal development or normal user recovery; use official app-server reload/probe first. A fresh conversation belongs only to the final fresh-context native MCP acceptance gate.
+已经完成：
 
-## Current Status: 2026-07-09 22:41
+- Skill、脚本、MCP 薄封装和插件包结构。
+- 意图识别、dry-run、任务列表、状态查询、计划、lane 查询和冲突检测。
+- Qoder、CodeBuddy、MiMo 三类 provider 路线的只读 canary。
+- 中文首页、安装指南、排错指南、隐私边界、卸载回滚和用户验收清单。
+- GitHub issue 模板和 pull request 模板。
 
-- Source MCP v0 works and exposes eight tools.
-- C-drive installed skill is still a real copied directory, not a link.
-- Personal plugin source/cache were republished as `0.1.0-alpha+codex.20260709224130`.
-- Plugin `.mcp.json` now sets `cwd = "."` so bundled relative runtime paths resolve from the plugin root.
-- The publish script now writes cachebuster `plugin.json` as UTF-8 without BOM; Codex's plugin parser rejected the prior BOM file.
-- Latest cache `plugin.json` starts with `{` (`7B 0D 0A`), not a BOM.
-- MCP tools now carry safety annotations:
-  - route-intent, dry-run, list-jobs, list-lanes, get-lane, detect-conflicts, and status are marked read-only, non-destructive, closed-world.
-  - plan is marked non-destructive additive project-local write.
-- The plugin MCP smoke test now asserts these annotations so future regressions are caught.
-- Local Codex config can use a direct `[mcp_servers.codex-praetor]` registration pointing to `%USERPROFILE%\plugins\codex-praetor\mcp\dist\server.js` during development.
-- Local Codex config can set Codex Praetor MCP tool approval to `auto` for the direct MCP server and the personal plugin MCP server during canary testing.
-- Direct MCP protocol smoke against the C-drive runtime passes.
-- Fresh `codex debug prompt-input` now lists `Codex Praetor` under Available plugins.
-- On some Windows installs, the WindowsApps `codex.exe` alias may return `Access is denied` from PowerShell; use the real Codex binary path reported by the local Codex environment when running canaries.
-- A fresh `codex exec --ephemeral` canary successfully called `codex_praetor_route_intent` and `codex_praetor_dispatch_dry_run` through native MCP.
-- The canary did not create a native Codex subagent and did not launch a real worker.
-- Dry-run stdout now preserves Chinese task text after the PowerShell wrapper was forced to UTF-8.
-- `codex_praetor_dispatch_dry_run` now returns structured `repo`, `task`, and `mode` fields so callers do not need to parse a multi-line shell command.
-- Added lane/conflict tools:
-  - `codex_praetor_list_lanes`
-  - `codex_praetor_get_lane`
-  - `codex_praetor_detect_conflicts`
-- Lane state is derived from project-local jobs, plans, and repo edit locks. It does not introduce a hidden global queue.
-- Protocol smoke now actually calls lane/conflict tools; current result: lane count 3, readonly conflict count 0, edit conflict count 0.
-- A fresh `codex exec --ephemeral` verification attempt for the new lane tools did not use native MCP tool cards; it fell back to an SDK client. Treat that as protocol evidence only, not native UI/tool-card evidence.
-- This already-open thread still does not expose `codex_praetor_*` via tool discovery, so live native calls should be verified in a refreshed tool context.
+## 近期目标
 
-Interpretation: plugin discovery, installed MCP protocol, native fresh-context route/dry-run calls, and the lane/conflict protocol layer were repaired for the earlier baseline. Since then, real MiMo, CodeBuddy, and Qoder readonly canaries have completed. The next product task is GitHub URL and release package preparation, not another fresh conversation canary.
+1. 公开文档继续中文优先，英文只作为切换页或折叠补充。
+2. Release 页面、README、安装说明和插件展示信息保持同一套口径。
+3. 公开包不包含内部交接材料、本机配置、provider 缓存、运行态任务、个人截图或账号信息。
+4. 正常使用保持轻量：不要每次派工前都跑完整 doctor，也不要把新开任务当成日常恢复方式。
+5. 失败恢复优先走轻量 reload/probe；只有安装、更新、最终验收或工具上下文无法恢复时，才建议重启 Codex 或打开新任务。
 
-## Phase 0: Migration
+## 下一版候选方向
 
-- Create a dedicated repository checkout for Codex Praetor.
-- Move skill, scripts, references, and reports into product-shaped folders.
-- Rename user-facing `codex-praetor` labels to `Codex Praetor`.
-- Keep compatibility with prior local validation where practical.
-- Validate dry-run.
+- 更清楚的 provider CLI 发现和登录提示。
+- 更像普通用户流程的只读 canary。
+- 更友好的插件缓存清理和恢复提示。
+- 更完整的 GitHub Release 校验信息，例如 zip 摘要和安装后检查步骤。
+- 持续跟进 Codex 插件和 MCP 加载机制变化，减少用户手动操作。
 
-## Phase 1: Skill Stabilization
+## 不做什么
 
-- Keep the installed `codex-praetor` skill as a real copied directory, not a link.
-- Add a short global routing rule that task-splitting or "other agent" requests mean Codex Praetor external workers, not native Codex subagents.
-- Test natural-language triggers:
-  - "把任务拆一下"
-  - "拆分任务给其他 agent"
-  - "交给其他 agent 做一部分"
-- Confirm Codex does not satisfy these prompts by spawning Codex subagents.
-- Confirm the first visible action is a route decision, dry-run command, or MCP route-intent tool once MCP exists.
-
-## Phase 2: Native Plugin Discovery
-
-- Fix personal plugin discovery until fresh Codex sessions can see Codex Praetor.
-- Compare the personal plugin and cache layout against the working KnowledgeRadar plugin.
-- Verify `tool_search` can discover `codex_praetor_route_intent`.
-- Keep direct global MCP registration as the development/runtime canary until plugin-card discovery is fixed.
-- Fix native MCP tool-call cancellation for dry-run/read-only tools.
-- Add a reliable fresh-context canary path that does not depend on a blocked WindowsApps CLI entrypoint.
-- Status: done for route-intent and dry-run in `codex exec --ephemeral`.
-
-## Phase 3: Minimal MCP Tool Cards
-
-- Implement a thin MCP server.
-- Start with route-intent, status, and dry-run tools only.
-- Verify Codex UI tool cards.
-- Keep script dispatch as source of truth.
-
-## Phase 4: Multi-Conversation Lane State
-
-- Support up to about five independent conversation lanes.
-- Use project-local job/plan state plus a light global metadata index.
-- Detect edit conflicts instead of hiding work in a central queue.
-- Keep Codex as the only merger and final verifier.
-- Status: first thin MCP layer done for project-local jobs/plans/locks.
-- Next: persist file-scope metadata when real dispatch starts so conflict detection can become more precise than repo-level edit locks.
-
-## Phase 5: Real Worker Dispatch Through MCP
-
-- Add CodeBuddy dispatch.
-- Add Qoder dispatch.
-- Add MiMo dispatch.
-- Support blocking and background modes.
-- Read completion files through MCP.
-- Provider readonly canaries are complete for MiMo, CodeBuddy, and Qoder. Keep them as release regression checks.
-
-## Phase 6: Product Hardening
-
-- Finalize plugin manifest.
-- Bundle skill and MCP config.
-- Add local marketplace entry for testing.
-- Verify plugin install in Codex.
-- Replace local absolute Node paths with a portable launcher/runtime strategy.
-- Separate source/dev validation from the user-facing release package. See `docs/release-gate-checklist.md`.
-- Improve doctor provider states so users can distinguish missing CLI, version probe failure, login unknown, and real-dispatch readiness.
-- Keep `handoff/`, `docs/internal/`, local configs, caches, worktrees, and runtime state out of release bundles.
-
-## Phase 7: GitHub Release
-
-- Clean local-only paths and secrets.
-- Add license.
-- Add installation guide.
-- Add example tasks.
-- Mark first release as `0.1.0-alpha`.
-- Establish safe GitHub CLI auth with `gh auth login` / `gh auth status`; do not use pasted Personal Access Tokens.
-- Set the real GitHub remote and replace placeholder repository URLs.
-- Re-run public marker scan after final URL changes.
-- Confirm a new user path: clone -> doctor -> dry-run -> optional readonly canary.
-
-## Phase 8: Final Validation and Freeze
-
-- Treat development validation as its own layer: Git hooks, doctor, test, plugin smoke, and the release-readiness audit.
-- Treat user-facing release material as a separate layer: README, LICENSE, CHANGELOG, SECURITY, CONTRIBUTING, examples, plugin manifest, and portable MCP config.
-- Keep internal handoff/history, local configs, caches, and worktrees out of the release bundle.
-- Run a fresh-context native MCP canary after reload so the current thread's stale transport does not confuse final acceptance.
-- This is where a new Codex conversation belongs: it is a final acceptance canary, not a routine development loop.
-- Only freeze the public release after the fresh-context canary, provider UX checks, and final URLs are all green.
-
-## Current Execution Map
-
-The controlling release map is now [productization-execution-map-2026-07-10.md](productization-execution-map-2026-07-10.md).
-
-The next-stage productization plan is [productization-next-stage-plan-2026-07-10.md](productization-next-stage-plan-2026-07-10.md).
-
-The user-facing product journey and lightweight recovery plan is [productization-user-journey-and-lightweight-recovery-2026-07-10.md](productization-user-journey-and-lightweight-recovery-2026-07-10.md).
-
-Short version:
-
-- Continue in the current project until the final acceptance gate.
-- Next work is provider docs plus doctor UX.
-- Native MCP fresh-context validation stays in Phase 8.
-- Provider readonly canaries are now completed for MiMo, CodeBuddy, and Qoder; final native MCP acceptance still belongs to Phase 8.
-- GitHub push/tag/release waits for user confirmation of the final owner/repo.
-
-
+- 不做通用多 Agent 平台。
+- 不替用户安装或登录 Qoder、CodeBuddy、MiMo。
+- 不读取 token、cookie、账号数据库、余额页或个人截图。
+- 不默认创建 Codex 原生 subagent。
+- 不把源码目录和本机安装目录做软链接或自动同步。

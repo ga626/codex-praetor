@@ -50,11 +50,17 @@ function Compare-HashMaps {
 }
 
 function New-MarketplacePayload {
-    return [ordered]@{
+    return [pscustomobject]@{
         name = "personal"
-        interface = [ordered]@{ displayName = "Personal" }
+        interface = [pscustomobject]@{ displayName = "Personal" }
         plugins = @()
     }
+}
+
+function Test-ObjectProperty {
+    param([object]$Object, [string]$Name)
+    if ($null -eq $Object) { return $false }
+    return ($Object.PSObject.Properties.Name -contains $Name)
 }
 
 function Update-Marketplace {
@@ -69,13 +75,13 @@ function Update-Marketplace {
         $payload = New-MarketplacePayload
     }
 
-    if (-not $payload.name) {
+    if (-not (Test-ObjectProperty -Object $payload -Name "name") -or [string]::IsNullOrWhiteSpace([string]$payload.name)) {
         $payload | Add-Member -NotePropertyName name -NotePropertyValue "personal"
     }
-    if (-not $payload.interface) {
+    if (-not (Test-ObjectProperty -Object $payload -Name "interface") -or $null -eq $payload.interface) {
         $payload | Add-Member -NotePropertyName interface -NotePropertyValue ([pscustomobject]@{ displayName = "Personal" })
     }
-    if (-not $payload.plugins) {
+    if (-not (Test-ObjectProperty -Object $payload -Name "plugins") -or $null -eq $payload.plugins) {
         $payload | Add-Member -NotePropertyName plugins -NotePropertyValue @()
     }
 
@@ -97,6 +103,15 @@ function Update-Marketplace {
     $json = ($payload | ConvertTo-Json -Depth 20) + [Environment]::NewLine
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
+
+    $written = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $entry = @($written.plugins | Where-Object { $_.name -eq "codex-praetor" } | Select-Object -First 1)
+    if ($entry.Count -eq 0) {
+        throw "Marketplace write verification failed: codex-praetor entry is missing from $Path"
+    }
+    if ([string]$entry[0].source.path -ne "./plugins/codex-praetor") {
+        throw "Marketplace write verification failed: unexpected plugin path $($entry[0].source.path)"
+    }
 }
 
 $sourcePath = Resolve-FullPath $SourcePlugin

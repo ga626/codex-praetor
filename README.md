@@ -2,54 +2,84 @@
 
 [简体中文](README.md) | [English](README.en.md)
 
-Codex Praetor，中文名 **Codex 执政官**，是给 Codex 用的外部 Agent 编排工具。
+Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Agent 派工插件。
 
-它解决的是一个很具体的问题：当你说“拆分任务”“分配给其他 agent”“让别的 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy、MiMo。Codex 仍然负责规划、判断风险、整合结果和最终验收。
+它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy、MiMo。Codex 仍然负责规划、风险判断、整合结果和最终验收。
+
+当前版本是 **0.1.0-alpha 预发布版**。它已经发布到 GitHub Release，适合试用和验收；后续会继续打磨安装体验、故障恢复和 provider canary。
+
+[下载 0.1.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.0-alpha) · [安装指南](docs/installation.zh.md) · [排错指南](docs/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
+
+## 适合你吗
+
+适合：
+
+- 你在 Windows 上使用 Codex Desktop 或 Codex CLI。
+- 你希望 Codex 把小而清楚的任务交给外部 CLI worker。
+- 你已经有，或准备安装 Qoder、CodeBuddy、MiMo 其中至少一个。
+- 你想先验证 dry-run、计划、状态查询和冲突检测，再决定是否真实派工。
+
+不适合：
+
+- 你想要一个通用多 Agent 平台。
+- 你希望它自动安装 provider、替你登录账号，或者读取 provider 的账号数据库。
+- 你希望它默认创建 Codex 原生 subagent。Codex subagent 是另一条路线，会继续消耗 Codex 模型资源。
 
 ## 最快开始
 
-1. 下载 GitHub Release zip，解压后运行安装脚本：
+1. 下载 Release zip：
+
+```powershell
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.0-alpha/codex-praetor-0.1.0-alpha.zip" -OutFile ".\codex-praetor-0.1.0-alpha.zip"
+Expand-Archive .\codex-praetor-0.1.0-alpha.zip .\codex-praetor-0.1.0-alpha
+cd .\codex-praetor-0.1.0-alpha
+```
+
+2. 预览安装计划：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1
+```
+
+3. 确认路径没问题后安装：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
 ```
 
-2. 重启 Codex，或者打开一个新任务，让 Codex 发现插件。
+4. 重启 Codex，或者打开一个新任务，让 Codex 发现插件。
 
-3. 先做 dry-run：
+5. 先做 dry-run：
 
 ```text
 拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。
 ```
 
-没有 Qoder、CodeBuddy、MiMo 也可以先验证计划、dry-run、状态查询和冲突检测。真实派工才需要安装并登录外部 CLI。
+你应该看到 Codex Praetor 选择外部 worker 路线，而不是创建 Codex 自己的 subagent。
 
-详细安装说明：[docs/installation.zh.md](docs/installation.zh.md)
+## 没有 provider 也能先试
 
-排错说明：[docs/troubleshooting.zh.md](docs/troubleshooting.zh.md)
+| 本机状态 | 可以做什么 | 不能做什么 |
+| --- | --- | --- |
+| 没有安装 Qoder、CodeBuddy、MiMo | 计划、dry-run、任务状态、lane 查询、冲突检测 | 真实派工 |
+| 已安装 provider，但未登录 | dry-run、路径检查、配置检查 | 真实派工通常会被 provider 拒绝 |
+| 已安装并登录 provider | 先跑 readonly canary，再做真实派工 | 不建议跳过 dry-run 直接改代码 |
 
-## 当前状态
+Codex Praetor 不会替你安装 provider，不会替你登录，也不会读取 provider 的 token、cookie、账号数据库或使用截图。
 
-这个项目已经进入 **alpha 发布前验收阶段**。
+## 安全边界
 
-已经完成：
+- 不默认创建 Codex 原生 subagent。
+- 不默认使用 provider `auto`。
+- 不读取或发布 provider 账号数据库、token、cookie、使用截图。
+- 不要求用户必须同时安装 Qoder、CodeBuddy、MiMo。
+- 没装某个 provider 时，只禁用那个 provider 的真实派工，不影响计划、dry-run、状态查询和 MCP 基础能力。
+- 修改型 worker 任务必须使用隔离 worktree。
+- 源码目录和本机安装目录保持分离，不做软链接、不自动同步。
 
-- 项目已经完成独立仓库迁移。
-- Skill、脚本、MCP 薄封装和插件包结构已经完成。
-- MCP 已经实现任务意图识别、dry-run 派工、任务列表、状态查询、计划生成、lane 查询和冲突检测。
-- GitHub 仓库已经创建并推送到 `ga626/codex-praetor`。
-- CI 已经跑通过。
-- 本地 release zip 已经可以构建。
-- 已经做过一次 MiMo 只读真实链路审计。
+更多隐私边界见 [docs/privacy.zh.md](docs/privacy.zh.md)。
 
-还没有正式发布：
-
-- 本机安装版已经可以通过 `scripts/install-user.ps1 -Apply` 做无损替换；正式发布前仍要用 release zip 再走一遍新用户安装验收。
-- 还需要在一个全新的 Codex 对话里完成全功能 MCP/插件验收。
-- 还需要确认中文主界面、英文切换、安装说明、隐私清理和 release 包内容都符合公开发布要求。
-- 验收通过后才会创建 GitHub tag 和 GitHub Release。
-
-## 它做什么
+## 它包含什么
 
 Codex Praetor 有四层：
 
@@ -58,53 +88,25 @@ Codex Praetor 有四层：
 3. **MCP**：把脚本能力包成 Codex 能看见的工具调用。
 4. **Plugin**：把 Skill 和 MCP 打包成 Codex 插件，方便安装和发布。
 
-## 边界
+当前 MCP 工具覆盖：
 
-- 不默认创建 Codex 原生 subagent。
-- 不默认使用 provider `auto`。
-- 不读取或发布你的 provider 账号数据库、token、cookie、使用截图。
-- 不要求用户必须同时安装 Qoder、CodeBuddy、MiMo。
-- 没装某个 provider 时，只禁用那个 provider 的真实派工，不影响计划、dry-run、状态查询和 MCP 基础能力。
-- Worker 如果要改代码，必须使用隔离 worktree。
-- D 盘是开发源，C 盘 `%USERPROFILE%\.codex\skills\codex-praetor` 是本机安装版。两者不做软链接，不自动同步。
-
-## 适用范围
-
-当前版本只面向：
-
-- Windows
-- Codex Desktop
-- 本机 CLI worker
-- 中文用户优先
-- Qoder / CodeBuddy / MiMo 三类外部工具
-
-这不是通用多 Agent 平台。它是一个小而清楚的 Codex 辅助工具。
-
-## 目录结构
-
-```text
-README.md         中文主页，GitHub 默认展示。
-README.en.md      英文说明。
-AGENTS.md         给后续 Codex 维护者看的项目规则。
-docs/             架构、路线图、验收、发布说明。
-skill/            开发源 Skill。
-scripts/          派工、watcher、doctor、发布脚本。
-mcp/              TypeScript MCP 服务源代码。
-plugin/           最终 Codex 插件包结构。
-config/           provider 配置模板。
-examples/         小型验证样例。
-.agents/          Codex repo marketplace 入口。
-```
+- 任务意图识别
+- dry-run 派工
+- 任务列表
+- 状态查询
+- 计划生成
+- lane 查询
+- lane 详情
+- 冲突检测
 
 ## 安装前准备
 
-你至少需要：
+必须准备：
 
 - Windows
 - PowerShell
-- Git
-- Node.js 和 npm
-- Codex Desktop
+- Node.js
+- Codex Desktop 或 Codex CLI
 
 真实派工还需要至少安装并登录一个外部 CLI：
 
@@ -112,7 +114,11 @@ examples/         小型验证样例。
 - Tencent CodeBuddy 或 WorkBuddy
 - Xiaomi MiMo Code
 
-如果你没有安装这些外部 CLI，也可以先验证 Codex Praetor 的插件、MCP、计划和 dry-run 能力。
+provider 说明：
+
+- [Qoder](docs/provider-notes/qoder.md)
+- [CodeBuddy](docs/provider-notes/codebuddy.md)
+- [MiMo](docs/provider-notes/mimo.md)
 
 ## 本地配置
 
@@ -126,17 +132,51 @@ Copy-Item .\config\codex-praetor-tiers.example.json .\config\codex-praetor.local
 
 这个本地配置不会被提交。
 
-## 本地验证
+## 成功时会看到什么
 
-运行 doctor：
+dry-run 成功时，输出会说明 selected provider、tier、repo、artifact root 和将要执行的外部 worker 命令。dry-run 不会启动真实 worker，也不会修改文件。
+
+简化示例：
+
+```text
+provider=mimo
+tier=mimo-auto-readonly
+mode=readonly
+dry_run=True
+project_artifact_root=...\<repo>.codex-praetor
+```
+
+如果 provider 缺失，这不是产品坏了；它只表示真实派工暂不可用。
+
+## 更新、卸载和回滚
+
+更新时下载新版 Release zip 后重新运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+```
+
+安装脚本会先复制到临时目录，校验后再替换旧插件目录，并保留一次备份。
+
+卸载和回滚说明见 [docs/uninstall.zh.md](docs/uninstall.zh.md)。
+
+## 排错
+
+先看 [docs/troubleshooting.zh.md](docs/troubleshooting.zh.md)。
+
+常见情况：
+
+- 看不到插件：确认安装成功后，重启 Codex 或打开新任务。
+- MCP 工具显示了但报 `Transport closed`：优先运行轻量 reload/probe；重载 Codex 或新开任务是最后兜底。
+- provider 已安装但没登录：按 provider 自己的官方方式登录，Codex Praetor 不读取账号数据库。
+- WindowsApps `codex.exe` 权限问题：优先使用 Codex Desktop 自己的插件/MCP 发现能力。
+
+## 开发者验证
+
+开发者可以在仓库根目录运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
-```
-
-运行测试：
-
-```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor.ps1
 ```
 
@@ -146,29 +186,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\invoke-codex-praetor.ps1 -Provider mimo -Tier mimo-auto-readonly -Repo "<repo>" -Task "Dry run only. Verify Codex Praetor." -Mode readonly -DryRun
 ```
 
-## MCP 和插件验收
-
-发布前必须完成一个全新的 Codex 对话验收。
-
-验收目标：
-
-- Codex 能看到 `codex-praetor` 插件。
-- Codex 能看到 `codex_praetor_*` MCP 工具。
-- 自然语言“拆分任务给其他 agent”会走 Codex Praetor 外部 worker 路线。
-- 不会创建 Codex 原生 subagent。
-- dry-run、plan、list-jobs、status、lane 查询和冲突检测都能正常返回。
-- provider 缺失时给出清楚提示，不崩溃。
-- 本机只保留一个有效安装版本，旧版本不会同时生效。
-
-完整验收提示词保存在本地内部文档中，不随公开 release 包发布。
-
-## 发布包
-
-构建 release zip：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-codex-praetor-release.ps1 -Apply
-```
+## 发布包边界
 
 release 包不会包含：
 
@@ -176,52 +194,31 @@ release 包不会包含：
 - auth 文件
 - provider 账号数据库
 - 本机私有配置
-- handoff 材料
+- 内部交接材料
+- `docs/internal`
 - `node_modules`
 - 本地缓存
 - 个人截图或使用记录
 
-正式发布前必须确认 GitHub URL 已经替换为真实仓库地址，不能留下 `YOUR_GITHUB_OWNER` 这类占位符。
+## 仓库结构
 
-## GitHub 发布
+```text
+README.md         中文主页，GitHub 默认展示。
+README.en.md      英文说明。
+AGENTS.md         给后续 Codex 维护者看的项目规则。
+docs/             用户文档、架构、路线图、发布说明。
+skill/            源码 Skill。
+scripts/          派工、watcher、doctor、安装和发布脚本。
+mcp/              TypeScript MCP 服务源代码。
+plugin/           最终 Codex 插件包结构。
+config/           provider 配置模板。
+examples/         小型验证样例。
+.agents/          Codex repo marketplace 入口。
+```
 
-当前仓库地址：
+## 贡献和反馈
 
-[https://github.com/ga626/codex-praetor](https://github.com/ga626/codex-praetor)
-
-发布顺序：
-
-1. 本地 doctor 通过。
-2. 测试通过。
-3. release 包扫描通过。
-4. 本机安装版清理和重装通过。
-5. 新 Codex 对话全功能验收通过。
-6. 创建 `v0.1.0-alpha` tag。
-7. 创建 GitHub Release。
-8. 上传 release zip。
-
-## 常见问题
-
-**没有安装 Qoder / CodeBuddy / MiMo 怎么办？**
-
-可以先用计划、dry-run、MCP 和插件能力。真实派工需要至少一个 provider CLI。
-
-**provider 已经安装但没有登录怎么办？**
-
-请按 provider 自己的方式登录。Codex Praetor 不读取你的账号数据库。
-
-**MCP 工具显示了，但调用时报 `Transport closed` 怎么办？**
-
-正常使用时不需要每次新开对话。优先使用 Codex 官方 MCP reload/probe 路线恢复当前配置；如果当前这一次模型回合里的工具通道已经断开，重载 Codex 或开新任务是最后兜底，不是日常使用方式。
-
-**为什么不直接用 Codex subagent？**
-
-因为这个项目的目标是把小任务派给外部低成本 CLI worker。Codex subagent 是另一条路线，会继续消耗 Codex 模型资源。
-
-**为什么 D 盘和 C 盘不做自动同步？**
-
-D 盘是开发源，C 盘是本机安装版。自动同步容易把开发中的文件带进安装版，也容易造成旧版本和新版本混在一起。这个项目要求显式复制、显式验证。
-
-## 路线图
-
-看 [docs/roadmap.md](docs/roadmap.md)。
+- 报 bug 前请先看 [docs/troubleshooting.zh.md](docs/troubleshooting.zh.md)。
+- 提交 issue 时不要粘贴 token、cookie、账号页面、provider 数据库、个人截图或完整长日志。
+- 贡献说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- 安全边界见 [SECURITY.md](SECURITY.md)。

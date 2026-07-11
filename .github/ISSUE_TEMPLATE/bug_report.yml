@@ -1,0 +1,65 @@
+name: Bug 报告
+description: 报告 Codex Praetor 安装、插件、MCP 或 provider 派工问题
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢反馈。请不要粘贴 token、cookie、API key、账号页面、provider 数据库、个人截图或完整长日志。
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本
+      description: 例如 Windows 11 24H2
+    validations:
+      required: true
+  - type: dropdown
+    id: codex_surface
+    attributes:
+      label: Codex 使用方式
+      options:
+        - Codex Desktop
+        - Codex CLI
+        - 不确定
+    validations:
+      required: true
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: 安装方式
+      options:
+        - GitHub Release zip
+        - 从源码安装
+        - 其他
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 你已经确认了什么
+      options:
+        - label: 我能看到 Codex Praetor 插件
+        - label: 我能看到 codex_praetor_* MCP 工具
+        - label: dry-run 成功
+        - label: reload-codex-praetor-mcp.ps1 已运行
+        - label: probe-codex-praetor-mcp.ps1 已运行
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 用几句话说明你做了什么、预期是什么、实际发生了什么。
+    validations:
+      required: true
+  - type: textarea
+    id: minimal_output
+    attributes:
+      label: 精简输出
+      description: 只贴关键几行。不要贴账号、token、cookie、完整本机路径和长日志。
+      render: text
+  - type: textarea
+    id: provider
+    attributes:
+      label: provider 状态
+      description: 说明是否安装了 Qoder、CodeBuddy、MiMo；不要贴账号页面或凭据。
+

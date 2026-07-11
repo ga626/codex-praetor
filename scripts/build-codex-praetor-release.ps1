@@ -16,6 +16,7 @@ $outputRootPath = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $OutputR
 $releaseName = "codex-praetor-$Version"
 $stagePath = Join-Path $outputRootPath $releaseName
 $zipPath = Join-Path $outputRootPath "$releaseName.zip"
+$sha256Path = Join-Path $outputRootPath "$releaseName.zip.sha256"
 
 function Assert-UnderProject {
     param([string]$Path)
@@ -54,7 +55,9 @@ function Test-BlockedReleasePath {
     $normalized = $RelativePath -replace "/", "\"
     if ($normalized -like "handoff\*") { return $true }
     if ($normalized -like "docs\internal\*") { return $true }
+    if ($normalized -like "docs\development\*") { return $true }
     if ($normalized -like "docs\github-alpha-release-productization-plan-*.md") { return $true }
+    if ($normalized -like "docs\github-repository-and-user-experience-audit-*.md") { return $true }
     if ($normalized -like "docs\productization-*.md") { return $true }
     if ($normalized -like "docs\mcp-tool-handle-transport-closed-research-*.md") { return $true }
     if ($normalized -like "docs\productization-execution-map-*.md") { return $true }
@@ -156,6 +159,7 @@ function Assert-PublicMetadataUrls {
 
 $include = @(
     "README.md",
+    "README.en.md",
     "LICENSE",
     "CHANGELOG.md",
     "SECURITY.md",
@@ -181,6 +185,7 @@ Write-Host "Codex Praetor release package plan"
 Write-Host "Version: $Version"
 Write-Host "Stage:   $stagePath"
 Write-Host "Zip:     $zipPath"
+Write-Host "SHA256:  $sha256Path"
 Write-Host "Mode:    $(if ($Apply) { 'apply' } else { 'dry-run' })"
 Write-Host "Draft metadata placeholders allowed: $(if ($AllowDraftMetadataPlaceholders) { 'yes' } else { 'no' })"
 
@@ -217,8 +222,11 @@ if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
 Compress-Archive -Path (Join-Path $stagePath "*") -DestinationPath $zipPath -Force
+$zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+[System.IO.File]::WriteAllText($sha256Path, "$zipHash  $releaseName.zip$([Environment]::NewLine)", (New-Object System.Text.UTF8Encoding($false)))
 
 $zipItem = Get-Item -LiteralPath $zipPath
 Write-Host "[PASS] Release package created: $($zipItem.FullName)"
 Write-Host "[PASS] Size bytes: $($zipItem.Length)"
+Write-Host "[PASS] SHA256: $zipHash"
 Write-Host "[PASS] Release tree passed blocked-path and private-marker checks."

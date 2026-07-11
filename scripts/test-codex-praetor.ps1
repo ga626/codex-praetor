@@ -4,7 +4,8 @@ param(
     [switch]$SkipInstalledSkillCheck,
     [switch]$SkipGlobalRuleCheck,
     [switch]$SkipMcpTest,
-    [switch]$SkipPluginMcpPackageCheck
+    [switch]$SkipPluginMcpPackageCheck,
+    [switch]$SkipUserInstallSmoke
 )
 
 $ErrorActionPreference = "Stop"
@@ -113,6 +114,7 @@ $pluginMcpConfig = Join-Path $projectRoot "plugin\.mcp.json"
 $pluginMcpRuntime = Join-Path $projectRoot "plugin\mcp\dist\server.js"
 $pluginMcpPackage = Join-Path $projectRoot "plugin\mcp\package.json"
 $sourceInvoke = Join-Path $projectRoot "scripts\invoke-codex-praetor.ps1"
+$userInstallScript = Join-Path $projectRoot "scripts\install-user.ps1"
 
 Assert-Path $sourceSkill "Source skill"
 Assert-Path $pluginSkill "Plugin skill"
@@ -271,11 +273,12 @@ $allowedOldNameFiles = @(
     "AGENTS.md",
     "scripts\test-codex-praetor.ps1"
 )
-$skipDirectoryNames = @(".git", ".release", "handoff", "node_modules", "dist", "build", "coverage", "__pycache__")
+$skipDirectoryNames = @(".git", ".release", ".release-live", ".release-remote-check", "handoff", "development", "node_modules", "dist", "build", "coverage", "__pycache__")
 $oldNameHits = @()
 Get-ChildItem -LiteralPath $projectRoot -Recurse -File -Force |
     Where-Object {
         $full = $_.FullName
+        if ($full -match "\\\.release[^\\]*\\") { return $false }
         foreach ($dirName in $skipDirectoryNames) {
             if ($full -like "*\$dirName\*") { return $false }
         }
@@ -396,6 +399,40 @@ if (-not $SkipPluginMcpPackageCheck) {
         }
     } else {
         Add-Fail "Plugin MCP protocol smoke script missing: $pluginMcpSmoke"
+    }
+}
+
+if (-not $SkipUserInstallSmoke) {
+    $installSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-install-smoke-" + [System.Guid]::NewGuid().ToString("N"))
+    $installSmokePlugin = Join-Path $installSmokeRoot "plugins\codex-praetor"
+    $installSmokeMarketplace = Join-Path $installSmokeRoot ".agents\plugins\marketplace.json"
+    try {
+        $installOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $userInstallScript `
+            -SourcePlugin (Join-Path $projectRoot "plugin") `
+            -InstallRoot $installSmokePlugin `
+            -MarketplacePath $installSmokeMarketplace `
+            -Apply 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Add-Fail "User install smoke failed: $($installOutput | Out-String)"
+        } elseif (-not (Test-Path -LiteralPath (Join-Path $installSmokePlugin ".codex-plugin\plugin.json") -PathType Leaf)) {
+            Add-Fail "User install smoke did not copy plugin manifest"
+        } elseif (-not (Test-Path -LiteralPath $installSmokeMarketplace -PathType Leaf)) {
+            Add-Fail "User install smoke did not write marketplace"
+        } else {
+            $marketplace = Get-Content -LiteralPath $installSmokeMarketplace -Raw -Encoding UTF8 | ConvertFrom-Json
+            $entry = @($marketplace.plugins | Where-Object { $_.name -eq "codex-praetor" } | Select-Object -First 1)
+            if ($entry.Count -eq 1 -and [string]$entry[0].source.path -eq "./plugins/codex-praetor") {
+                Add-Pass "User install smoke writes plugin and marketplace entry in a clean temp root"
+            } else {
+                Add-Fail "User install smoke marketplace entry is missing or malformed"
+            }
+        }
+    } catch {
+        Add-Fail "User install smoke failed: $($_.Exception.Message)"
+    } finally {
+        if (Test-Path -LiteralPath $installSmokeRoot) {
+            Remove-Item -LiteralPath $installSmokeRoot -Recurse -Force
+        }
     }
 }
 

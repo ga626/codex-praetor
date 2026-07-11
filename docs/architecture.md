@@ -55,8 +55,6 @@ The current project artifact root defaults to:
 
 The first MCP version is intentionally thin. It calls the existing scripts instead of reimplementing dispatch.
 
-Detailed v0 plan: [mcp-v0-thin-wrapper-plan.md](mcp-v0-thin-wrapper-plan.md).
-
 Implemented v0 tools:
 
 - `codex_praetor_route_intent`
@@ -82,12 +80,12 @@ The plugin will bundle:
 - default prompts,
 - user-facing product copy.
 
-Development and final package paths are intentionally separate:
+Source folders and final package folders are intentionally separate:
 
 ```text
-skill/    source skill used while developing
+skill/    source skill
 scripts/  source dispatch scripts
-mcp/      future MCP server source
+mcp/      MCP server source
 plugin/   final Codex plugin package shape
 ```
 
@@ -95,12 +93,12 @@ The source MCP package lives in `mcp/`. Build output under `mcp/dist/` is ignore
 
 The active tree stays shallow on purpose. Future generated release bundles should be build outputs, not the place where agents edit source.
 
-## Local Publish Boundary
+## Local Install Boundary
 
 There are three copies with different jobs:
 
 - `skill/codex-praetor`: source skill for development.
 - `plugin/skills/codex-praetor`: package copy for future Codex plugin distribution.
-- `%USERPROFILE%\.codex\skills\codex-praetor`: local installed skill that Codex actually loads.
+- `%USERPROFILE%\plugins\codex-praetor`: local installed plugin package that Codex discovers through the personal marketplace entry.
 
-The installed skill must be updated by real file copy, not by path redirection. This keeps local Codex behavior independent from half-finished development work.
+The installed plugin must be updated by real file copy, not by path redirection. This keeps local Codex behavior independent from half-finished development work.
