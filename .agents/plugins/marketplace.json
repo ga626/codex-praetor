@@ -1,0 +1,20 @@
+{
+  "name": "codex-praetor",
+  "interface": {
+    "displayName": "Codex Praetor"
+  },
+  "plugins": [
+    {
+      "name": "codex-praetor",
+      "source": {
+        "source": "local",
+        "path": "./plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

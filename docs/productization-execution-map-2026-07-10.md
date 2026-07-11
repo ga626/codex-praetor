@@ -214,16 +214,17 @@ Codex Praetor 已经过了“能不能做”的阶段。现在已经有可运行
 
 下一步不是开新对话，也不是继续刷新 MiMo canary。
 
-Phase 3 和 provider canary 首轮已经完成。下一步进入 GitHub URL/发布包准备，同时维持 Phase 2 的发布包边界检查。
+Phase 3 和 provider canary 首轮已经完成。新增的用户链路和轻量恢复规划见 `docs/productization-user-journey-and-lightweight-recovery-2026-07-10.md`。下一步先补轻量 reload/probe 脚本、普通用户安装文档、repo marketplace 和 release zip 安装说明，同时维持 Phase 2 的发布包边界检查。
 
 具体顺序：
 
-1. 整理 Qoder、CodeBuddy、MiMo 的公开安装/登录/验证说明。
-2. 把 README 的 Setup 和 Troubleshooting 改成新用户路径。
-3. 让 doctor 的 provider 输出更像产品诊断，而不是开发日志。
-4. 把 GitHub CLI 安全授权和发布命令写入正式 runbook，避免再使用暴露 PAT。
-5. 跑草稿门禁 `doctor -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders`、最终阻断门禁 `doctor -RequireHead -PublicRelease`、`test-codex-praetor.ps1`、`git diff --check`。
-6. Provider canary 已完成；下一步进入 GitHub URL/发布包准备，遇到公开发布动作前停下等用户确认。
+1. 实现 `scripts/reload-codex-praetor-mcp.ps1` 和 `scripts/probe-codex-praetor-mcp.ps1`，只在失败恢复时使用。
+2. 新增 `.agents/plugins/marketplace.json`、`docs/installation.zh.md`、`docs/troubleshooting.zh.md`，并设计 `scripts/install-user.ps1`。
+3. 把 README 第一屏改成普通用户路径：这是什么、最快安装、第一次 dry-run、没有 provider 怎么办。
+4. 让 doctor 的 provider 输出更像产品诊断，而不是开发日志。
+5. 把 GitHub CLI 安全授权和发布命令继续固定在正式 runbook，避免再使用暴露 PAT。
+6. 跑草稿门禁 `doctor -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders`、最终阻断门禁 `doctor -RequireHead -PublicRelease`、`test-codex-praetor.ps1`、`git diff --check`。
+7. Provider canary 已完成；下一步进入 GitHub URL/发布包准备，遇到公开发布动作前停下等用户确认。
 
 ## 外部依据记录
 

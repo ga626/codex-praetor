@@ -14,7 +14,7 @@
 - Personal plugin/cache was republished as `0.1.0-alpha+codex.20260710071926`; install and cache copies both use portable `node` MCP startup.
 - GitHub CLI is not available on the current machine yet; public publication now follows `docs/github-publish-runbook.md` and must not use pasted Personal Access Tokens.
 
-Next: follow `docs/productization-execution-map-2026-07-10.md`. Do not open a new Codex conversation during normal development; the refreshed conversation belongs to the final fresh-context native MCP acceptance gate.
+Next: follow `docs/productization-next-stage-plan-2026-07-10.md` and `docs/productization-execution-map-2026-07-10.md`. Do not open a new Codex conversation during normal development or normal user recovery; use official app-server reload/probe first. A fresh conversation belongs only to the final fresh-context native MCP acceptance gate.
 
 ## Current Status: 2026-07-09 22:41
 
@@ -137,6 +137,10 @@ Interpretation: plugin discovery, installed MCP protocol, native fresh-context r
 ## Current Execution Map
 
 The controlling release map is now [productization-execution-map-2026-07-10.md](productization-execution-map-2026-07-10.md).
+
+The next-stage productization plan is [productization-next-stage-plan-2026-07-10.md](productization-next-stage-plan-2026-07-10.md).
+
+The user-facing product journey and lightweight recovery plan is [productization-user-journey-and-lightweight-recovery-2026-07-10.md](productization-user-journey-and-lightweight-recovery-2026-07-10.md).
 
 Short version:
 

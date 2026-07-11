@@ -6,6 +6,28 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 用的外部 Agent 
 
 它解决的是一个很具体的问题：当你说“拆分任务”“分配给其他 agent”“让别的 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy、MiMo。Codex 仍然负责规划、判断风险、整合结果和最终验收。
 
+## 最快开始
+
+1. 下载 GitHub Release zip，解压后运行安装脚本：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+```
+
+2. 重启 Codex，或者打开一个新任务，让 Codex 发现插件。
+
+3. 先做 dry-run：
+
+```text
+拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。
+```
+
+没有 Qoder、CodeBuddy、MiMo 也可以先验证计划、dry-run、状态查询和冲突检测。真实派工才需要安装并登录外部 CLI。
+
+详细安装说明：[docs/installation.zh.md](docs/installation.zh.md)
+
+排错说明：[docs/troubleshooting.zh.md](docs/troubleshooting.zh.md)
+
 ## 当前状态
 
 这个项目已经进入 **alpha 发布前验收阶段**。
@@ -22,7 +44,7 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 用的外部 Agent 
 
 还没有正式发布：
 
-- 还需要清理和重装本机安装版，确保旧插件缓存不会和新版并存。
+- 本机安装版已经可以通过 `scripts/install-user.ps1 -Apply` 做无损替换；正式发布前仍要用 release zip 再走一遍新用户安装验收。
 - 还需要在一个全新的 Codex 对话里完成全功能 MCP/插件验收。
 - 还需要确认中文主界面、英文切换、安装说明、隐私清理和 release 包内容都符合公开发布要求。
 - 验收通过后才会创建 GitHub tag 和 GitHub Release。
@@ -71,6 +93,7 @@ mcp/              TypeScript MCP 服务源代码。
 plugin/           最终 Codex 插件包结构。
 config/           provider 配置模板。
 examples/         小型验证样例。
+.agents/          Codex repo marketplace 入口。
 ```
 
 ## 安装前准备
@@ -189,7 +212,7 @@ release 包不会包含：
 
 **MCP 工具显示了，但调用时报 `Transport closed` 怎么办？**
 
-通常是当前 Codex 对话里保留了旧 transport。需要清理重复安装、重新安装插件，并在新的 Codex 对话里验收。
+正常使用时不需要每次新开对话。优先使用 Codex 官方 MCP reload/probe 路线恢复当前配置；如果当前这一次模型回合里的工具通道已经断开，重载 Codex 或开新任务是最后兜底，不是日常使用方式。
 
 **为什么不直接用 Codex subagent？**
 

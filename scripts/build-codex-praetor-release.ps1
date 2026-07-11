@@ -55,6 +55,8 @@ function Test-BlockedReleasePath {
     if ($normalized -like "handoff\*") { return $true }
     if ($normalized -like "docs\internal\*") { return $true }
     if ($normalized -like "docs\github-alpha-release-productization-plan-*.md") { return $true }
+    if ($normalized -like "docs\productization-*.md") { return $true }
+    if ($normalized -like "docs\mcp-tool-handle-transport-closed-research-*.md") { return $true }
     if ($normalized -like "docs\productization-execution-map-*.md") { return $true }
     if ($normalized -like "docs\release-readiness-audit-*.md") { return $true }
     if ($normalized -like "*\node_modules\*") { return $true }
@@ -159,6 +161,7 @@ $include = @(
     "SECURITY.md",
     "CONTRIBUTING.md",
     ".gitignore",
+    ".agents",
     ".githooks",
     ".github",
     "config",

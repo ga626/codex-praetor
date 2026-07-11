@@ -146,6 +146,7 @@ $jsonPaths = @(
     $pluginManifest,
     $pluginMcpConfig,
     (Join-Path $projectRoot "config\codex-praetor-tiers.example.json"),
+    (Join-Path $projectRoot ".agents\plugins\marketplace.json"),
     (Join-Path $sourceSkill "scripts\codex-praetor-tiers.json"),
     (Join-Path $pluginSkill "scripts\codex-praetor-tiers.json"),
     $pluginMcpPackage
@@ -217,6 +218,9 @@ try {
         "build-codex-praetor-release.ps1",
         "set-codex-praetor-public-metadata.ps1",
         "install-codex-praetor-hooks.ps1",
+        "install-user.ps1",
+        "reload-codex-praetor-mcp.ps1",
+        "probe-codex-praetor-mcp.ps1",
         "publish-codex-praetor-skill.ps1",
         "publish-codex-praetor-plugin.ps1",
         "publish-codex-praetor-personal-marketplace.ps1",

@@ -27,10 +27,13 @@ Include:
 - `.github/workflows/ci.yml` so the source release keeps its public validation path.
 - `config/codex-praetor-tiers.example.json` as a template with no real local paths.
 - Provider setup references for Qoder, CodeBuddy, and MiMo under `docs/provider-notes/`.
+- User installation and troubleshooting docs: `docs/installation.zh.md` and `docs/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
+- Repository marketplace entry: `.agents/plugins/marketplace.json`.
 - Draft release notes: `docs/release-notes-0.1.0-alpha.md`.
 - Local release package builder: `scripts/build-codex-praetor-release.ps1`.
-  - Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
+- User installer: `scripts/install-user.ps1`.
+  Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
 
 Exclude from release bundles/assets:
 
@@ -60,6 +63,9 @@ Required before release:
 
 - Packaged runtime imports successfully.
 - Protocol smoke can call route-intent, dry-run, lane listing, and conflict detection.
+- `scripts/reload-codex-praetor-mcp.ps1 -Json` can reload and report the packaged server.
+- `scripts/probe-codex-praetor-mcp.ps1 -Json` can route a dry-run request through the app-server MCP path.
+- `scripts/probe-codex-praetor-mcp.ps1 -AfterDirectHandleFailure -Json` can distinguish stale direct tool handles from a broken MCP service.
 - Fresh Codex tool context shows native Codex Praetor MCP tools.
 - Fresh-context native calls succeed for route-intent and dry-run.
 - The current-thread `Transport closed` issue is documented as a reload/cache boundary, not treated as server failure.
