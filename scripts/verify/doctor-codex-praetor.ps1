@@ -17,7 +17,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $utf8NoBom
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 if ([string]::IsNullOrWhiteSpace($Repo)) {
     $Repo = $projectRoot
 }
@@ -129,7 +129,7 @@ function Test-PublicReleaseScanPath {
     if ($normalized -like "docs\productization-execution-map-*.md") { return $false }
     if ($normalized -like "docs\release-readiness-audit-*.md") { return $false }
     if ($normalized -like "plugin\skills\*") { return $false }
-    if ($normalized -eq "scripts\doctor-codex-praetor.ps1") { return $false }
+    if ($normalized -eq "scripts\verify\doctor-codex-praetor.ps1") { return $false }
     if ($normalized -like "*\node_modules\*") { return $false }
     if ($normalized -like "*\dist\server.js") { return $false }
     return $true
@@ -284,9 +284,9 @@ if ($null -ne $config) {
     Test-Provider -Provider "mimo" -ProviderConfig $config.providers.mimo
 }
 
-$testScript = Join-Path $projectRoot "scripts\test-codex-praetor.ps1"
+$testScript = Join-Path $projectRoot "scripts\verify\test-codex-praetor.ps1"
 if (Test-Path -LiteralPath $testScript -PathType Leaf) {
-    Add-Check "self-test" "ready" "Self-test script exists." "Run scripts/test-codex-praetor.ps1 before committing."
+    Add-Check "self-test" "ready" "Self-test script exists." "Run scripts/verify/test-codex-praetor.ps1 before committing."
 } else {
     Add-Check "self-test" "fail" "Self-test script is missing." ""
 }

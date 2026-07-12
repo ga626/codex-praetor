@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 if ([string]::IsNullOrWhiteSpace($Repo)) {
     $Repo = $projectRoot
 }
@@ -113,8 +113,8 @@ $pluginManifest = Join-Path $projectRoot "plugin\.codex-plugin\plugin.json"
 $pluginMcpConfig = Join-Path $projectRoot "plugin\.mcp.json"
 $pluginMcpRuntime = Join-Path $projectRoot "plugin\mcp\dist\server.js"
 $pluginMcpPackage = Join-Path $projectRoot "plugin\mcp\package.json"
-$sourceInvoke = Join-Path $projectRoot "scripts\invoke-codex-praetor.ps1"
-$userInstallScript = Join-Path $projectRoot "scripts\install-user.ps1"
+$sourceInvoke = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
+$userInstallScript = Join-Path $projectRoot "scripts\install\install-user.ps1"
 $setupCmd = Join-Path $projectRoot "setup.cmd"
 $setupScript = Join-Path $projectRoot "setup.ps1"
 
@@ -226,22 +226,7 @@ try {
     $pluginMap = Get-RelativeHashMap $pluginSkill
     Compare-HashMaps -Expected $sourceMap -Actual $pluginMap -ActualLabel "Plugin skill"
 
-    $rootProjectOnlyScripts = @(
-        "test-codex-praetor.ps1",
-        "doctor-codex-praetor.ps1",
-        "build-codex-praetor-release.ps1",
-        "set-codex-praetor-public-metadata.ps1",
-        "install-codex-praetor-hooks.ps1",
-        "install-user.ps1",
-        "reload-codex-praetor-mcp.ps1",
-        "probe-codex-praetor-mcp.ps1",
-        "publish-codex-praetor-skill.ps1",
-        "publish-codex-praetor-plugin.ps1",
-        "publish-codex-praetor-personal-marketplace.ps1",
-        "publish-codex-praetor-personal-cache.ps1"
-    )
-    $rootScriptFiles = Get-ChildItem -LiteralPath (Join-Path $projectRoot "scripts") -File |
-        Where-Object { $rootProjectOnlyScripts -notcontains $_.Name }
+    $rootScriptFiles = Get-ChildItem -LiteralPath (Join-Path $projectRoot "scripts\dispatch") -File
     $rootScriptDiffs = @()
     foreach ($rootScriptFile in $rootScriptFiles) {
         $sourceScriptPath = Join-Path (Join-Path $sourceSkill "scripts") $rootScriptFile.Name
@@ -256,9 +241,9 @@ try {
         }
     }
     if ($rootScriptDiffs.Count -eq 0) {
-        Add-Pass "Root scripts match source skill script copies"
+        Add-Pass "Root dispatch scripts match source skill script copies"
     } else {
-        Add-Fail "Root scripts differ from source skill script copies: $($rootScriptDiffs -join '; ')"
+        Add-Fail "Root dispatch scripts differ from source skill script copies: $($rootScriptDiffs -join '; ')"
     }
 
     if (-not $SkipInstalledSkillCheck) {
@@ -283,7 +268,7 @@ try {
 $oldNamePattern = "cheap-worker-orchestrator|WorkerLane|workerlane|invoke-cheap-worker|watch-cheap-worker|manage-cheap-worker|\.cheap-worker"
 $allowedOldNameFiles = @(
     "AGENTS.md",
-    "scripts\test-codex-praetor.ps1"
+    "scripts\verify\test-codex-praetor.ps1"
 )
 $skipDirectoryNames = @(".git", ".release", ".release-live", ".release-remote-check", "handoff", "development", "node_modules", "dist", "build", "coverage", "__pycache__")
 $oldNameHits = @()

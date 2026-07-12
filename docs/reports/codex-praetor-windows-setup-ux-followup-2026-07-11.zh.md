@@ -159,7 +159,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
 pause
 ```
 
-`setup.ps1` 再调用现有 `scripts/install-user.ps1`，并在前后显示中文说明、provider 状态和下一步 dry-run 语句。主安装逻辑仍留在现有脚本里，避免复制两套逻辑。
+`setup.ps1` 再调用现有 `scripts/install/install-user.ps1`，并在前后显示中文说明、provider 状态和下一步 dry-run 语句。主安装逻辑仍留在现有脚本里，避免复制两套逻辑。
 
 ## README 和安装指南应该调整的措辞
 
@@ -211,7 +211,7 @@ P1：新增 ASCII 入口设计，不把中文文件名作为根目录入口。
 
 - 新增 `setup.cmd`。
 - 新增 `setup.ps1`。
-- `setup.ps1` 复用 `scripts/install-user.ps1`。
+- `setup.ps1` 复用 `scripts/install/install-user.ps1`。
 - release notes 写“解压后双击 setup.cmd，会出现中文向导”。
 - 不新增 `安装 Codex 执政官.cmd` 作为主入口；中文体验放在窗口标题和正文里。
 

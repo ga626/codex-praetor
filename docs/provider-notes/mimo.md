@@ -71,7 +71,7 @@ If `mimo` is on `PATH`, you may use `mimo` or `mimo.cmd`.
 Run doctor:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 ```
 
 Expected doctor states:

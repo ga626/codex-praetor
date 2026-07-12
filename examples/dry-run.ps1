@@ -16,7 +16,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $scriptDir
-$wrapper = Join-Path $projectRoot "scripts\invoke-codex-praetor.ps1"
+$wrapper = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File $wrapper `
     -Provider $Provider `

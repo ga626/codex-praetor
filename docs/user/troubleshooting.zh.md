@@ -38,13 +38,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 先运行轻量恢复：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\reload-codex-praetor-mcp.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\reload-codex-praetor-mcp.ps1
 ```
 
 如果你在 Codex 对话里，并且环境里有 `CODEX_THREAD_ID`，再运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\probe-codex-praetor-mcp.ps1 -AfterDirectHandleFailure
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex-praetor-mcp.ps1 -AfterDirectHandleFailure
 ```
 
 如果 probe 成功，说明底层 MCP 服务还活着，只是当前这一次模型回合里的工具句柄旧了。可以等待下一轮工具上下文刷新，或重试一次原动作。
@@ -102,7 +102,7 @@ doctor 是排查工具，不是正常使用前置。
 只有你要发布、验证本机安装、或者 provider 派工失败时才运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 ```
 
 ## 反馈问题前请准备

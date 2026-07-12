@@ -8,7 +8,7 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 当前版本是 **0.1.0-alpha 预发布版**。它已经发布到 GitHub Release，适合试用和验收；后续会继续打磨安装体验、故障恢复和 provider canary。
 
-[下载 0.1.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.0-alpha) · [安装指南](docs/installation.zh.md) · [排错指南](docs/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
+[下载 0.1.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.0-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
 
 ## 适合你吗
 
@@ -83,7 +83,7 @@ Codex Praetor 不会替你安装 provider，不会替你登录，也不会读取
 - 修改型 worker 任务必须使用隔离 worktree。
 - 源码目录和本机安装目录保持分离，不做软链接、不自动同步。
 
-更多隐私边界见 [docs/privacy.zh.md](docs/privacy.zh.md)。
+更多隐私边界见 [docs/user/privacy.zh.md](docs/user/privacy.zh.md)。
 
 ## 它包含什么
 
@@ -166,11 +166,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 安装脚本会先复制到临时目录，校验后再替换旧插件目录，并保留一次备份。
 
-卸载和回滚说明见 [docs/uninstall.zh.md](docs/uninstall.zh.md)。
+卸载和回滚说明见 [docs/user/uninstall.zh.md](docs/user/uninstall.zh.md)。
 
 ## 排错
 
-先看 [docs/troubleshooting.zh.md](docs/troubleshooting.zh.md)。
+先看 [docs/user/troubleshooting.zh.md](docs/user/troubleshooting.zh.md)。
 
 常见情况：
 
@@ -184,14 +184,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 开发者可以在仓库根目录运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
 ```
 
 运行 dry-run：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\invoke-codex-praetor.ps1 -Provider mimo -Tier mimo-auto-readonly -Repo "<repo>" -Task "Dry run only. Verify Codex Praetor." -Mode readonly -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dispatch\invoke-codex-praetor.ps1 -Provider mimo -Tier mimo-auto-readonly -Repo "<repo>" -Task "Dry run only. Verify Codex Praetor." -Mode readonly -DryRun
 ```
 
 ## 发布包边界
@@ -214,9 +214,9 @@ release 包不会包含：
 README.md         中文主页，GitHub 默认展示。
 README.en.md      英文说明。
 AGENTS.md         给后续 Codex 维护者看的项目规则。
-docs/             用户文档、架构、路线图、发布说明。
+docs/             文档入口；user、architecture、release、reports 按读者角色分组。
 skill/            源码 Skill。
-scripts/          派工、watcher、doctor、安装和发布脚本。
+scripts/          源码脚本；dispatch、install、verify、release、maintenance 按用途分组。
 mcp/              TypeScript MCP 服务源代码。
 plugin/           最终 Codex 插件包结构。
 config/           provider 配置模板。
@@ -226,7 +226,7 @@ examples/         小型验证样例。
 
 ## 贡献和反馈
 
-- 报 bug 前请先看 [docs/troubleshooting.zh.md](docs/troubleshooting.zh.md)。
+- 报 bug 前请先看 [docs/user/troubleshooting.zh.md](docs/user/troubleshooting.zh.md)。
 - 提交 issue 时不要粘贴 token、cookie、账号页面、provider 数据库、个人截图或完整长日志。
 - 贡献说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 - 安全边界见 [SECURITY.md](SECURITY.md)。

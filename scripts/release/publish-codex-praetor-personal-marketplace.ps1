@@ -1,5 +1,5 @@
 param(
-    [string]$SourcePlugin = (Join-Path (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)) "plugin"),
+    [string]$SourcePlugin = (Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))) "plugin"),
     [string]$InstallRoot = (Join-Path $env:USERPROFILE "plugins\codex-praetor"),
     [string]$MarketplacePath = (Join-Path $env:USERPROFILE ".agents\plugins\marketplace.json"),
     [switch]$Apply

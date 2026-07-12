@@ -80,6 +80,8 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $utf8NoBom
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptParent = Split-Path -Parent $scriptDir
+$scriptGrandparent = Split-Path -Parent $scriptParent
 $configCandidates = New-Object System.Collections.Generic.List[string]
 if (-not [string]::IsNullOrWhiteSpace($ConfigPath)) {
     $configCandidates.Add($ConfigPath)
@@ -91,7 +93,10 @@ $configCandidates.Add((Join-Path (Get-Location).Path "config\codex-praetor.local
 $configCandidates.Add((Join-Path $env:USERPROFILE ".codex\codex-praetor.local.json"))
 $configCandidates.Add((Join-Path $scriptDir "codex-praetor-tiers.local.json"))
 $configCandidates.Add((Join-Path $scriptDir "codex-praetor-tiers.json"))
-$configCandidates.Add((Join-Path (Split-Path -Parent $scriptDir) "config\codex-praetor-tiers.example.json"))
+$configCandidates.Add((Join-Path $scriptParent "config\codex-praetor.local.json"))
+$configCandidates.Add((Join-Path $scriptParent "config\codex-praetor-tiers.example.json"))
+$configCandidates.Add((Join-Path $scriptGrandparent "config\codex-praetor.local.json"))
+$configCandidates.Add((Join-Path $scriptGrandparent "config\codex-praetor-tiers.example.json"))
 
 $resolvedConfigPath = ""
 foreach ($candidate in $configCandidates) {
@@ -979,4 +984,3 @@ Rules:
 }
 
 throw "Unsupported provider: $resolvedProvider"
-

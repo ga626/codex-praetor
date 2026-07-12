@@ -9,8 +9,8 @@ Do not run this as a substitute for local validation. Run it after the public-re
 ## Preconditions
 
 - Final GitHub owner/repo URL is confirmed and applied to plugin metadata.
-- `scripts/doctor-codex-praetor.ps1 -RequireHead -PublicRelease` passes with the public template.
-- `scripts/test-codex-praetor.ps1` passes.
+- `scripts/verify/doctor-codex-praetor.ps1 -RequireHead -PublicRelease` passes with the public template.
+- `scripts/verify/test-codex-praetor.ps1` passes.
 - MCP source tests and packaged protocol smoke pass.
 - Local plugin package has been republished or the release package has been installed into a fresh Codex plugin context.
 - Duplicate same-name `codex-praetor` MCP registrations have been removed.

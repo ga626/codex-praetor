@@ -70,7 +70,7 @@ Use a real command name if it is on `PATH`, or an absolute path if the CLI is in
 Run doctor:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 ```
 
 Expected doctor states:

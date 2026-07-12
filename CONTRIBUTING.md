@@ -10,8 +10,8 @@ Codex Praetor 在 alpha 阶段优先面向 Windows 和 Codex。
 4. 运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
 ```
 
 涉及 provider 的真实派工测试必须先使用隔离 worktree，并从小型只读 canary 开始。

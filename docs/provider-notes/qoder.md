@@ -61,7 +61,7 @@ If `qodercli` is on `PATH`, you may use `qodercli` as the path.
 Run doctor:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 ```
 
 Expected doctor states:

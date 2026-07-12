@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $hooksRoot = Join-Path $projectRoot ".githooks"
 $required = @(
     (Join-Path $hooksRoot "pre-commit"),
