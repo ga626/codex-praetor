@@ -22,7 +22,8 @@ function Assert-UnderProject {
     param([string]$Path)
     $full = [System.IO.Path]::GetFullPath($Path)
     $projectFull = [System.IO.Path]::GetFullPath($projectRoot)
-    if (-not $full.StartsWith($projectFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $projectPrefix = $projectFull.TrimEnd("\") + "\"
+    if (($full -ne $projectFull) -and (-not $full.StartsWith($projectPrefix, [System.StringComparison]::OrdinalIgnoreCase))) {
         throw "Refusing to operate outside project root: $full"
     }
 }
