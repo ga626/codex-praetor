@@ -19,6 +19,13 @@
 
 没有这些外部 CLI 也可以先使用 Codex Praetor 的计划、dry-run、状态查询和冲突检测。只有真实派工需要至少一个外部 CLI。
 
+安装前不需要：
+
+- GitHub 登录
+- provider token、cookie 或账号数据库
+- 同时安装 Qoder、CodeBuddy、MiMo
+- 修改 Codex 安装目录
+
 ## 推荐方式：从 GitHub Release 安装
 
 ### 1. 下载并解压
@@ -88,6 +95,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -
 
 dry-run 不会启动真实 worker，也不会修改文件。
 
+### 6. 安装验收
+
+在解压后的 release 目录运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+```
+
+看到 `[PASS]` 后，再在 Codex 里完成一次 dry-run。没有 provider 时，doctor 和 dry-run 仍然应该通过；只有真实派工会不可用。
+
 ## 从源码安装
 
 适合开发者：
@@ -129,6 +146,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -
 ```
 
 安装脚本会用新的插件目录替换旧目录，并保留一次备份。
+
+更新后如果 Codex 看不到插件：
+
+1. 关闭并重新打开 Codex，或新开一个任务。
+2. 运行上面的 doctor 验收命令。
+3. 仍然失败时，按 [troubleshooting.zh.md](troubleshooting.zh.md) 的顺序执行 reload 和 probe。
+4. 需要恢复旧版时，按 [uninstall.zh.md](uninstall.zh.md) 的“回滚到上一个备份”操作。
 
 ## 卸载和回滚
 

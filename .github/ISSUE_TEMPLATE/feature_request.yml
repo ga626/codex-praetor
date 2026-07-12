@@ -16,6 +16,13 @@ body:
       label: 你希望它怎么变好
     validations:
       required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 你认为怎样算完成
+      description: 请给出可观察的验收结果，例如命令输出、插件状态或用户流程。
+    validations:
+      required: true
   - type: dropdown
     id: area
     attributes:
@@ -31,4 +38,3 @@ body:
         - 其他
     validations:
       required: true
-

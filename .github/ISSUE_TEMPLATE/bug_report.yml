@@ -62,4 +62,10 @@ body:
     attributes:
       label: provider 状态
       description: 说明是否安装了 Qoder、CodeBuddy、MiMo；不要贴账号页面或凭据。
-
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 最小复现步骤
+      description: 请按 1、2、3 列出最少步骤，并尽量使用占位路径，例如 C:\work\repo。
+    validations:
+      required: true
