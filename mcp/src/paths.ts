@@ -59,9 +59,7 @@ export function resolveGitRoot(repo: string): string {
 
 export function getProjectArtifactRoot(repo: string): string {
   const projectRoot = resolveGitRoot(resolveExistingRepo(repo));
-  const parent = path.dirname(projectRoot);
-  const leaf = path.basename(projectRoot);
-  return path.join(parent, `${leaf}.codex-praetor`);
+  return path.join(projectRoot, ".codex-praetor");
 }
 
 export function getJobRoot(repo: string): string {

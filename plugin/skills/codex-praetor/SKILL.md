@@ -40,13 +40,13 @@ Important terminology boundary:
 
 Project work should follow the current Codex project path passed as `-Repo`; do not hard-code one business repo such as KnowledgeRadar.
 
-The wrapper derives a project artifact root from the git root when available, otherwise from the given `-Repo` path. By default it creates sibling folders next to the project, not inside the tracked source tree:
+The wrapper derives a project artifact root from the git root when available, otherwise from the given `-Repo` path. By default it creates one ignored runtime folder inside the project root, not sibling folders next to the project:
 
-- `<project>.worktrees\<worker-worktree>` for isolated edit/read execution.
-- `<project>.codex-praetor\jobs\<job_id>` for `job.json`, `stdout.log`, `stderr.log`, and `completion.json`.
-- `<project>.codex-praetor\plans\<plan_id>` for durable multi-step plan state.
-- `<project>.codex-praetor\locks\*.json` for per-project edit locks shared by multiple Codex conversations.
-- `<project>.codex-praetor\scratch\<job_id>` or `scratch\blocking-*` for temporary files.
+- `<project>\.codex-praetor\worktrees\<worker-worktree>` for isolated edit/read execution.
+- `<project>\.codex-praetor\jobs\<job_id>` for `job.json`, `stdout.log`, `stderr.log`, and `completion.json`.
+- `<project>\.codex-praetor\plans\<plan_id>` for durable multi-step plan state.
+- `<project>\.codex-praetor\locks\*.json` for per-project edit locks shared by multiple Codex conversations.
+- `<project>\.codex-praetor\scratch\<job_id>` or `scratch\blocking-*` for temporary files.
 
 This means worker-created task artifacts are tied to the current project and can be reviewed or deleted as a group. Worker prompts must tell the agent to put scratch files, downloaded references, generated plans, and temporary outputs only under the execution worktree or project artifact root unless Codex explicitly allowed another path.
 
@@ -107,18 +107,18 @@ When the user asks to split work and the task is suitable for Codex Praetors, th
 
 Do not merely say that work "could be split" and then do it all inside Codex.
 
-Use `-RunMode background` when the worker should run after the current Codex turn ends. It records `job.json`, `stdout.log`, `stderr.log`, and `completion.json` under the project-local `<project>.codex-praetor\jobs\<job_id>` root unless `-JobRoot` is explicitly overridden. The wrapper starts `watch-codex-praetor-job.ps1`; that watcher starts the worker, waits for process exit, writes completion state, and releases repo edit locks. This is an OS process wait, not interval polling.
+Use `-RunMode background` when the worker should run after the current Codex turn ends. It records `job.json`, `stdout.log`, `stderr.log`, and `completion.json` under the project-local `<project>\.codex-praetor\jobs\<job_id>` root unless `-JobRoot` is explicitly overridden. The wrapper starts `watch-codex-praetor-job.ps1`; that watcher starts the worker, waits for process exit, writes completion state, and releases repo edit locks. This is an OS process wait, not interval polling.
 
 If `$env:CODEX_THREAD_ID` is present, background jobs notify the originating Codex thread through the local Codex app-server when the worker exits. Use `-NoNotify` for dry validation or when the user does not want an automatic follow-up turn.
 
-For multi-step work, create a durable plan with `scripts/manage-codex-praetor-plan.ps1`. Use `PlanId`, `TaskId`, `DependsOn`, and `Acceptance` when dispatching background jobs. The wrapper records dispatched tasks as `running`; the watcher records worker exits as `completed`, `failed`, or `blocked` in project-local `<project>.codex-praetor\plans\<plan_id>\plan.json` unless `-PlanRoot` is explicitly overridden. This plan file is the recovery point after context compaction or when multiple worker completions arrive out of order.
+For multi-step work, create a durable plan with `scripts/manage-codex-praetor-plan.ps1`. Use `PlanId`, `TaskId`, `DependsOn`, and `Acceptance` when dispatching background jobs. The wrapper records dispatched tasks as `running`; the watcher records worker exits as `completed`, `failed`, or `blocked` in project-local `<project>\.codex-praetor\plans\<plan_id>\plan.json` unless `-PlanRoot` is explicitly overridden. This plan file is the recovery point after context compaction or when multiple worker completions arrive out of order.
 
 ## UI Visibility
 
 The current lightweight implementation is script-based. It gives reliable local files:
 
 - dry-run command output in the current Codex turn,
-- `<project>.codex-praetor\jobs\<job_id>\job.json`,
+- `<project>\.codex-praetor\jobs\<job_id>\job.json`,
 - `stdout.log`, `stderr.log`, and `completion.json`,
 - optional thread notification when the worker exits.
 

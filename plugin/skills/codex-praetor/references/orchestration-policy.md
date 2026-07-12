@@ -14,9 +14,9 @@ The worker boundary is not a security boundary. Use filesystem scope, git worktr
 
 For edit tasks, the wrapper intentionally uses non-interactive approval inside a narrow tool whitelist and a Codex-created git worktree. Codex creates the linked worktree first, then starts the worker with that worktree as its working directory:
 
-- CodeBuddy: `-y --tools Read,Glob,Grep,Edit,Write,Bash` inside `<repo>.worktrees\<name>`.
-- Qoder: `--permission-mode bypass_permissions --tools Read Grep Glob Edit Write Bash` with `-w <repo>.worktrees\<name>`.
-- MiMo: `mimo run --model mimo/mimo-auto --agent build --format json --dir <repo>.worktrees\<name>` after Codex creates the worktree.
+- CodeBuddy: `-y --tools Read,Glob,Grep,Edit,Write,Bash` inside `<repo>\.codex-praetor\worktrees\<name>`.
+- Qoder: `--permission-mode bypass_permissions --tools Read Grep Glob Edit Write Bash` with `-w <repo>\.codex-praetor\worktrees\<name>`.
+- MiMo: `mimo run --model mimo/mimo-auto --agent build --format json --dir <repo>\.codex-praetor\worktrees\<name>` after Codex creates the worktree.
 
 The wrapper does not rely on each vendor CLI's internal `--worktree` path for edit dispatch. That is intentional: official CodeBuddy docs allow direct `git worktree` creation before starting a session, and this keeps branch naming, location, cleanup, and verification under Codex control.
 

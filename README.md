@@ -151,7 +151,7 @@ provider=mimo
 tier=mimo-auto-readonly
 mode=readonly
 dry_run=True
-project_artifact_root=...\<repo>.codex-praetor
+project_artifact_root=...\<repo>\.codex-praetor
 ```
 
 如果 provider 缺失，这不是产品坏了；它只表示真实派工暂不可用。

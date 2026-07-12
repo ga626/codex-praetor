@@ -327,8 +327,8 @@ if (-not $SkipDryRun) {
             -NoNotify
 
         $dryRunText = ($dryRunOutput | Out-String)
-        if ($LASTEXITCODE -eq 0 -and $dryRunText -match "provider=mimo" -and $dryRunText -match "project_artifact_root=" -and $dryRunText -match "CodexPraetor\.codex-praetor") {
-            Add-Pass "MiMo readonly dry-run succeeds and resolves project-local artifact root"
+        if ($LASTEXITCODE -eq 0 -and $dryRunText -match "provider=mimo" -and $dryRunText -match "project_artifact_root=" -and $dryRunText -match "CodexPraetor[\\\/]\.codex-praetor" -and $dryRunText -match "CodexPraetor[\\\/]\.codex-praetor[\\\/]worktrees") {
+            Add-Pass "MiMo readonly dry-run succeeds and resolves in-project artifact and worktree roots"
         } else {
             Add-Fail "MiMo readonly dry-run returned unexpected output"
         }
