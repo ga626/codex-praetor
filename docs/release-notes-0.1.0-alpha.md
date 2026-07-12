@@ -4,7 +4,8 @@
 
 ## 下载
 
-- Release zip：`codex-praetor-0.1.0-alpha.zip`
+- Release 页面：`v0.1.0-alpha`
+- Windows 用户安装包：`codex-praetor-setup-0.1.0-alpha.zip`，解压后双击根目录的 `setup.cmd`
 - 安装指南：[docs/installation.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/installation.zh.md)
 - 排错指南：[docs/troubleshooting.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/troubleshooting.zh.md)
 - 隐私边界：[docs/privacy.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/privacy.zh.md)
@@ -38,14 +39,13 @@
 
 ## 首次使用
 
-下载并解压 release zip 后运行：
+下载并解压 release zip 后，直接双击：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+.\setup.cmd
 ```
 
-然后重启 Codex，或打开一个新任务，让 Codex 发现插件。第一次建议只做 dry-run：
+安装向导会先显示检查结果，并默认允许跳过 provider 配置。安装完成后，重启 Codex，或打开一个新任务，让 Codex 发现插件。第一次建议只做 dry-run：
 
 ```text
 拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。

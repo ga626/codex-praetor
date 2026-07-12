@@ -93,7 +93,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    git push -u origin main
    git tag v0.1.0-alpha
    git push origin v0.1.0-alpha
-   gh release create v0.1.0-alpha .\.release\codex-praetor-0.1.0-alpha.zip --title "Codex Praetor 0.1.0-alpha" --notes-file .\docs\release-notes-0.1.0-alpha.md
+   gh release create v0.1.0-alpha .\.release\codex-praetor-setup-0.1.0-alpha.zip --title "Codex Praetor 0.1.0-alpha" --notes-file .\docs\release-notes-0.1.0-alpha.md
    ```
 
 ## Blockers That Stop Publication
@@ -104,4 +104,3 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 - Public release scan finds local paths, account data, auth/token/secret material, provider caches, or private evidence.
 - Fresh-context native MCP canary fails.
 - User has not confirmed the first public push/tag/release.
-

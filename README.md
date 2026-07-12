@@ -27,29 +27,35 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 ## 最快开始
 
-1. 下载 Release zip：
+普通 Windows 用户不需要打开 PowerShell。下载并解压 Release 包后，直接双击根目录里的 `setup.cmd`，按中文向导操作即可。
+
+1. 下载 Windows 安装 zip：
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.0-alpha/codex-praetor-0.1.0-alpha.zip" -OutFile ".\codex-praetor-0.1.0-alpha.zip"
-Expand-Archive .\codex-praetor-0.1.0-alpha.zip .\codex-praetor-0.1.0-alpha
-cd .\codex-praetor-0.1.0-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.0-alpha/codex-praetor-setup-0.1.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.0-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.1.0-alpha.zip .\codex-praetor-setup-0.1.0-alpha
+cd .\codex-praetor-setup-0.1.0-alpha
 ```
 
-2. 预览安装计划：
+2. 双击 `setup.cmd`。
+
+向导会先检查 PowerShell、Node.js、Git 和可发现的 provider CLI，然后让你选择是否查看 provider 配置提示。默认选择“暂不配置 provider”，先完成 Codex Praetor 本体安装。
+
+3. 如果只想先查看安装计划，也可以在 PowerShell 中运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-3. 确认路径没问题后安装：
+4. 确认路径没问题后安装：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
-4. 重启 Codex，或者打开一个新任务，让 Codex 发现插件。
+5. 重启 Codex，或者打开一个新任务，让 Codex 发现插件。
 
-5. 先做 dry-run：
+6. 先做 dry-run：
 
 ```text
 拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。
@@ -104,15 +110,17 @@ Codex Praetor 有四层：
 必须准备：
 
 - Windows
-- PowerShell
-- Node.js
 - Codex Desktop 或 Codex CLI
 
-真实派工还需要至少安装并登录一个外部 CLI：
+安装向导会使用 Windows 自带的 PowerShell。Node.js 是 MCP runtime 的运行依赖，向导会检查它；没有 Node.js 时可以先安装插件，但 MCP 工具需要 Node.js 才能启动。
+
+真实派工还需要至少一个外部 CLI 可用：
 
 - Qoder 或 QoderWork CN
 - Tencent CodeBuddy 或 WorkBuddy
 - Xiaomi MiMo Code
+
+Qoder 和 CodeBuddy 通常需要你按官方流程登录或授权。MiMo 可以先尝试官方 `mimo/mimo-auto` 限时免费匿名通道；如果该通道不可用，或者你要指定 MiMo Platform / Token Plan / 自定义 provider，再按 MiMo 官方流程连接账号或 API key。
 
 provider 说明：
 
@@ -150,10 +158,10 @@ project_artifact_root=...\<repo>.codex-praetor
 
 ## 更新、卸载和回滚
 
-更新时下载新版 Release zip 后重新运行：
+更新时下载新版 Release zip 后，重新双击 `setup.cmd` 即可。也可以运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
 安装脚本会先复制到临时目录，校验后再替换旧插件目录，并保留一次备份。

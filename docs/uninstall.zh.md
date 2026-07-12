@@ -27,7 +27,7 @@
 下载新版 release zip 后，在解压目录里运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
 安装脚本会先复制到临时目录，校验后再替换旧目录。旧目录会移动到备份目录。
@@ -78,4 +78,3 @@ Move-Item -LiteralPath "$env:USERPROFILE\plugins\.codex-praetor-backups\codex-pr
 如果 PowerShell 提示目录被占用，通常是 Codex 还在运行或插件 runtime 还没退出。
 
 先关闭 Codex，再重试。不要强行删除未知进程正在使用的目录。
-

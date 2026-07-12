@@ -13,7 +13,7 @@ if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -Er
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $scriptDir
 $outputRootPath = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $OutputRoot))
-$releaseName = "codex-praetor-$Version"
+$releaseName = "codex-praetor-setup-$Version"
 $stagePath = Join-Path $outputRootPath $releaseName
 $zipPath = Join-Path $outputRootPath "$releaseName.zip"
 $sha256Path = Join-Path $outputRootPath "$releaseName.zip.sha256"
@@ -161,6 +161,8 @@ function Assert-PublicMetadataUrls {
 $include = @(
     "README.md",
     "README.en.md",
+    "setup.cmd",
+    "setup.ps1",
     "LICENSE",
     "CHANGELOG.md",
     "SECURITY.md",
