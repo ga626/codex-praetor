@@ -164,10 +164,8 @@ function Get-WorkerWorktreePath {
         [string]$RepoPath,
         [string]$Name
     )
-    $repoItem = Get-Item -LiteralPath $RepoPath
-    $parent = Split-Path -Parent $repoItem.FullName
-    $leaf = Split-Path -Leaf $repoItem.FullName
-    return (Join-Path (Join-Path $parent "$leaf.worktrees") $Name)
+    $artifactRoot = Get-ProjectArtifactRoot -RepoPath $RepoPath
+    return (Join-Path (Join-Path $artifactRoot "worktrees") $Name)
 }
 
 function Get-ProjectRootPath {
@@ -187,10 +185,7 @@ function Get-ProjectRootPath {
 function Get-ProjectArtifactRoot {
     param([string]$RepoPath)
     $projectRoot = Get-ProjectRootPath -RepoPath $RepoPath
-    $projectItem = Get-Item -LiteralPath $projectRoot
-    $parent = Split-Path -Parent $projectItem.FullName
-    $leaf = Split-Path -Leaf $projectItem.FullName
-    return (Join-Path $parent "$leaf.codex-praetor")
+    return (Join-Path $projectRoot ".codex-praetor")
 }
 
 function Ensure-WorkerWorktree {

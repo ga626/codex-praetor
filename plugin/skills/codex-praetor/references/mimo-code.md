@@ -38,7 +38,7 @@ Blocked/default-denied:
 Readonly/planning:
 
 ```powershell
-mimo run --model "mimo/mimo-auto" --format json --dir <repo>.worktrees\<name> "<task packet>"
+mimo run --model "mimo/mimo-auto" --format json --dir <repo>\.codex-praetor\worktrees\<name> "<task packet>"
 ```
 
 Edit worktree:

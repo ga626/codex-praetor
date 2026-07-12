@@ -48,8 +48,10 @@ Core scripts:
 The current project artifact root defaults to:
 
 ```text
-<project>.codex-praetor
+<project>\.codex-praetor
 ```
+
+Worker git worktrees, jobs, plans, locks, and scratch files live under that ignored runtime root. They do not create sibling folders next to the project checkout.
 
 ## MCP Layer
 

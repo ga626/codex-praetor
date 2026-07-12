@@ -31011,9 +31011,7 @@ function resolveGitRoot(repo) {
 }
 function getProjectArtifactRoot(repo) {
   const projectRoot = resolveGitRoot(resolveExistingRepo(repo));
-  const parent = path.dirname(projectRoot);
-  const leaf = path.basename(projectRoot);
-  return path.join(parent, `${leaf}.codex-praetor`);
+  return path.join(projectRoot, ".codex-praetor");
 }
 function getJobRoot(repo) {
   return path.join(getProjectArtifactRoot(repo), "jobs");
