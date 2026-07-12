@@ -24,6 +24,7 @@ Include:
 
 - `plugin/` package shape with `.codex-plugin/plugin.json`, `.mcp.json`, bundled `plugin/mcp/dist/server.js`, and `plugin/skills/codex-praetor`.
 - Root `README.md`, `LICENSE`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`.
+- Root `setup.cmd` and `setup.ps1` as the Windows double-click setup entrypoints.
 - `.github/workflows/ci.yml` so the source release keeps its public validation path.
 - `config/codex-praetor-tiers.example.json` as a template with no real local paths.
 - Provider setup references for Qoder, CodeBuddy, and MiMo under `docs/provider-notes/`.

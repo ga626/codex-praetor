@@ -12,27 +12,34 @@
 
 ## 2. Release 包
 
-- [ ] 下载 `codex-praetor-0.1.0-alpha.zip`。
+- [ ] 从 `v0.1.0-alpha` Release 下载 `codex-praetor-setup-0.1.0-alpha.zip`。
 - [ ] 校验 SHA256 文件和 zip 匹配。
+- [ ] 解压后根目录能看到 `setup.cmd` 和 `setup.ps1`。
 - [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/installation.zh.md`、`docs/troubleshooting.zh.md`。
 - [ ] 包内没有 `docs/internal`、`docs/development`、`handoff`、`node_modules`、本机 local config、token、auth、cookie 或 provider 数据库。
 
 ## 3. 安装
 
+- [ ] 双击根目录的 `setup.cmd`。
+- [ ] 中文安装向导先显示基础环境和 provider CLI 的可发现状态。
+- [ ] 选择默认的“暂不配置 provider”，完成 Codex Praetor 本体安装。
+- [ ] 输出包含插件复制成功。
+- [ ] 输出包含 marketplace entry 写入成功。
+
+高级/自动化路径：
+
 - [ ] 运行预览安装：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
 - [ ] 运行真实安装：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
-- [ ] 输出包含插件复制成功。
-- [ ] 输出包含 marketplace entry 写入成功。
 - [ ] `%USERPROFILE%\plugins\codex-praetor` 是真实目录，不是链接。
 - [ ] `%USERPROFILE%\.agents\plugins\marketplace.json` 里有 `codex-praetor`。
 
@@ -94,4 +101,3 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\probe-codex-praeto
 - [ ] 仓库有 feature request template。
 - [ ] 仓库有 pull request template。
 - [ ] issue 模板明确禁止贴 token、cookie、账号页面、provider 数据库、个人截图和完整长日志。
-

@@ -14,10 +14,10 @@
 
 ## 看不到 Codex Praetor 插件
 
-先确认你已经运行过：
+先确认你已经运行过安装向导。如果你使用的是 `0.1.0-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
 成功输出应包含：

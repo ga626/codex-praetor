@@ -115,6 +115,8 @@ $pluginMcpRuntime = Join-Path $projectRoot "plugin\mcp\dist\server.js"
 $pluginMcpPackage = Join-Path $projectRoot "plugin\mcp\package.json"
 $sourceInvoke = Join-Path $projectRoot "scripts\invoke-codex-praetor.ps1"
 $userInstallScript = Join-Path $projectRoot "scripts\install-user.ps1"
+$setupCmd = Join-Path $projectRoot "setup.cmd"
+$setupScript = Join-Path $projectRoot "setup.ps1"
 
 Assert-Path $sourceSkill "Source skill"
 Assert-Path $pluginSkill "Plugin skill"
@@ -123,6 +125,15 @@ Assert-Path (Join-Path $projectRoot "mcp") "MCP source directory"
 Assert-Path $pluginManifest "Plugin manifest"
 Assert-Path $pluginMcpConfig "Plugin MCP config"
 Assert-Path $sourceInvoke "Dry-run entrypoint"
+Assert-Path $setupCmd "Double-click setup entrypoint"
+Assert-Path $setupScript "Setup wizard script"
+
+$setupCmdText = Get-Content -LiteralPath $setupCmd -Raw -Encoding UTF8
+if ($setupCmdText -match "setup\.ps1" -and $setupCmdText -match "pause") {
+    Add-Pass "Double-click setup entrypoint delegates to setup.ps1 and keeps the window visible"
+} else {
+    Add-Fail "Double-click setup entrypoint is missing setup.ps1 delegation or pause"
+}
 
 $skillText = Get-Content -LiteralPath (Join-Path $sourceSkill "SKILL.md") -Raw -Encoding UTF8
 if ($skillText -match "(?m)^name:\s*codex-praetor\s*$") {
@@ -208,6 +219,7 @@ $psRoots = @(
 Get-ChildItem -LiteralPath $psRoots -Filter "*.ps1" -File -Recurse |
     Sort-Object FullName |
     ForEach-Object { Test-PowerShellFile $_.FullName }
+Test-PowerShellFile $setupScript
 
 try {
     $sourceMap = Get-RelativeHashMap $sourceSkill
@@ -407,7 +419,7 @@ if (-not $SkipUserInstallSmoke) {
     $installSmokePlugin = Join-Path $installSmokeRoot "plugins\codex-praetor"
     $installSmokeMarketplace = Join-Path $installSmokeRoot ".agents\plugins\marketplace.json"
     try {
-        $installOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $userInstallScript `
+    $installOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $userInstallScript `
             -SourcePlugin (Join-Path $projectRoot "plugin") `
             -InstallRoot $installSmokePlugin `
             -MarketplacePath $installSmokeMarketplace `
@@ -432,6 +444,40 @@ if (-not $SkipUserInstallSmoke) {
     } finally {
         if (Test-Path -LiteralPath $installSmokeRoot) {
             Remove-Item -LiteralPath $installSmokeRoot -Recurse -Force
+        }
+    }
+}
+
+if (-not $SkipUserInstallSmoke) {
+    $setupSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-setup-smoke-" + [System.Guid]::NewGuid().ToString("N"))
+    $setupSmokeHome = Join-Path $setupSmokeRoot "home"
+    $setupSmokeInstall = Join-Path $setupSmokeHome "plugins\codex-praetor"
+    $setupSmokeMarketplace = Join-Path $setupSmokeHome ".agents\plugins\marketplace.json"
+    try {
+        New-Item -ItemType Directory -Path $setupSmokeHome -Force | Out-Null
+        $oldUserProfile = $env:USERPROFILE
+        $env:USERPROFILE = $setupSmokeHome
+        $setupOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $setupScript `
+            -Apply `
+            -NonInteractive `
+            -ProviderChoice 2 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Add-Fail "Setup wizard smoke failed: $($setupOutput | Out-String)"
+        } elseif (-not (Test-Path -LiteralPath (Join-Path $setupSmokeInstall ".codex-plugin\plugin.json") -PathType Leaf)) {
+            Add-Fail "Setup wizard smoke did not install plugin manifest"
+        } elseif (-not (Test-Path -LiteralPath $setupSmokeMarketplace -PathType Leaf)) {
+            Add-Fail "Setup wizard smoke did not write marketplace"
+        } else {
+            Add-Pass "Setup wizard smoke installs the plugin in a clean temporary user root"
+        }
+    } catch {
+        Add-Fail "Setup wizard smoke failed: $($_.Exception.Message)"
+    } finally {
+        if ($null -ne $oldUserProfile) {
+            $env:USERPROFILE = $oldUserProfile
+        }
+        if (Test-Path -LiteralPath $setupSmokeRoot) {
+            Remove-Item -LiteralPath $setupSmokeRoot -Recurse -Force
         }
     }
 }

@@ -4,15 +4,26 @@ Codex Praetor can dispatch CodeBuddy only when the user has installed and signed
 
 Codex Praetor does not install CodeBuddy, sign in for the user, read provider account databases, or promise that a model is free. It only calls the configured CLI path with explicit model and tool allowlists.
 
+普通用户只需要记住一句：Codex Praetor 可以检查本机有没有 CodeBuddy 命令，但不能替你选择中国站、国际站、企业域或 iOA，也不能替你完成浏览器登录。
+
 ## Install
 
 Install CodeBuddy or WorkBuddy through Tencent's official channel for your edition.
 
-Public package reference:
+CodeBuddy currently has two public installation routes:
+
+- Package-manager route. It requires Node.js 18.20 or later.
+- Native binary route. It is currently marked Beta by CodeBuddy and supports Windows x86_64.
+
+Official installation guide:
+
+https://www.codebuddy.ai/docs/zh/cli/installation
+
+Public npm package reference:
 
 https://www.npmjs.com/package/@tencent-ai/codebuddy-code
 
-Some editions are launched through a Node entrypoint. Codex Praetor therefore keeps both `nodePath` and `cliPath` in the config.
+Some editions are launched through a Node entrypoint, while the native binary route can expose a standalone command. Codex Praetor therefore keeps both `nodePath` and `cliPath` in the config.
 
 Verify installation in the same shell where Codex Praetor will run:
 
@@ -28,6 +39,8 @@ If your edition exposes a different command or a JavaScript entrypoint, set that
 Complete the provider's normal login flow outside Codex Praetor. In enterprise or China-specific editions, follow the provider's current instructions for endpoint, domain, token, or desktop login state.
 
 Do not place provider tokens, cookies, desktop databases, account screenshots, or usage pages into this repository.
+
+首次启动 CodeBuddy 时，官方流程可能要求用户选择中国站、国际站、企业域或 iOA，并通过浏览器完成认证。Codex Praetor 的安装向导只能把你带到这一步，不能代替你选择或登录。
 
 ## Configure Codex Praetor
 

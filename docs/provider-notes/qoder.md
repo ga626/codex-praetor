@@ -4,6 +4,8 @@ Codex Praetor can dispatch Qoder only when the user has installed and signed in 
 
 Codex Praetor does not install Qoder, sign in for the user, read Qoder account files, or promise that a model is free. It only calls the configured CLI path with the model allowlist from the local config.
 
+普通用户只需要记住一句：Codex Praetor 可以发现并调用 Qoder，但 Qoder 账号登录、浏览器授权、Personal Access Token 和额度状态都属于 Qoder 自己的流程。
+
 ## Install
 
 Use Qoder's official installation path for your region and edition.
@@ -23,6 +25,8 @@ Verify installation:
 ```powershell
 qodercli --version
 ```
+
+The official quick start also notes that Windows on Arm is not supported yet. If installation fails on that platform, treat it as a Qoder platform boundary, not as a Codex Praetor failure.
 
 ## Sign in
 
