@@ -359,7 +359,7 @@ function Read-ProviderChoice {
     if (-not [string]::IsNullOrWhiteSpace($State.providerChoice)) {
         Write-Host ""
         Write-Host "发现上次未完成的向导状态：选择 $($State.providerChoice)，更新时间 $($State.updatedAt)。" -ForegroundColor Yellow
-        $resume = Read-Host "按 Enter 继续上次进度；输入 N 重新选择"
+        $resume = ([string](Read-Host "按 Enter 继续上次进度；输入 N 重新选择")).Trim()
         if ($resume -notmatch "^n(?:o)?$" -and $State.providerChoice -in @("1", "2", "3", "4", "5")) {
             return $State.providerChoice
         }
@@ -372,7 +372,7 @@ function Read-ProviderChoice {
     Write-Host "  3. 只配置 Qoder"
     Write-Host "  4. 只配置 CodeBuddy"
     Write-Host "  5. 只配置 MiMo"
-    $choice = Read-Host "输入选项 [默认 2]"
+    $choice = ([string](Read-Host "输入选项 [默认 2]")).Trim()
     if ([string]::IsNullOrWhiteSpace($choice)) {
         return "2"
     }
@@ -433,7 +433,7 @@ function Select-Installer {
     Write-Host "  O. 打开官方说明"
     Write-Host "  R. 我已经自己装好了，重新检测"
     Write-Host "  S. 跳过 $($Provider.Name)"
-    $answer = Read-Host "选择 [默认 1]"
+    $answer = ([string](Read-Host "选择 [默认 1]")).Trim()
     if ([string]::IsNullOrWhiteSpace($answer)) { return $installers[0] }
     if ($answer -match "^[oO]$") {
         Start-Process $Provider.Docs | Out-Null
@@ -494,7 +494,7 @@ function Ensure-ProviderInstalled {
             } catch {
                 Write-Host $_.Exception.Message -ForegroundColor Red
                 Set-ProviderState -State $State -ProviderId $Provider.Id -Status "install_failed" -Message $_.Exception.Message
-                $retry = Read-Host "按 Enter 重试/换安装方式，输入 S 跳过"
+                $retry = ([string](Read-Host "按 Enter 重试/换安装方式，输入 S 跳过")).Trim()
                 if ($retry -match "^[sS]$") {
                     $Status.Skipped = $true
                     Set-ProviderState -State $State -ProviderId $Provider.Id -Status "skipped" -Message "安装失败后用户选择跳过"
@@ -548,7 +548,7 @@ function Invoke-ProviderAuthFlow {
         Write-Host "[C] 我已完成登录/授权，继续复检和 canary"
         Write-Host "[O] 打开官方说明"
         Write-Host "[S] 跳过 $($Provider.Name)"
-        $answer = Read-Host "选择 [默认 C]"
+        $answer = ([string](Read-Host "选择 [默认 C]")).Trim()
         if ([string]::IsNullOrWhiteSpace($answer) -or $answer -match "^[cC]$") {
             Set-ProviderState -State $State -ProviderId $Provider.Id -Status "auth_user_done_recheck" -ProviderStatus $Status -Message "用户声明已完成官方授权，进入复检"
             return (Get-ProviderStatus -Provider $Provider)
@@ -655,7 +655,7 @@ function Invoke-CanaryStep {
             continue
         }
 
-        $answer = Read-Host "选择：[P] 只预览 / [A] 运行真实只读 canary / [S] 先跳过 [默认 P]"
+        $answer = ([string](Read-Host "选择：[P] 只预览 / [A] 运行真实只读 canary / [S] 先跳过 [默认 P]")).Trim()
         if ($answer -match "^[sS]$") {
             Set-ProviderState -State $State -ProviderId $status.Id -Status "canary_skipped" -ProviderStatus $status -Canary "skipped" -Message "用户跳过 canary"
             continue
@@ -859,7 +859,7 @@ if (-not $Apply) {
 
 if (-not $NonInteractive) {
     Write-Host ""
-    $confirm = Read-Host "按 Enter 开始安装 Codex Praetor 本体，输入 N 取消"
+    $confirm = ([string](Read-Host "按 Enter 开始安装 Codex Praetor 本体，输入 N 取消")).Trim()
     if ($confirm -match "^n(?:o)?$") {
         Write-Host "已取消安装。重新运行 setup.cmd 会从向导状态继续。"
         Save-OnboardingState -State $state

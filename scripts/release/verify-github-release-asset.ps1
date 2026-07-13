@@ -48,6 +48,28 @@ function Assert-Contains {
     }
 }
 
+function Assert-CmdFileUsesCrlf {
+    param([string]$Path, [string]$Label)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$Label is missing: $Path"
+    }
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $lfCount = 0
+    $crlfCount = 0
+    for ($i = 0; $i -lt $bytes.Length; $i++) {
+        if ($bytes[$i] -eq 10) {
+            $lfCount += 1
+            if ($i -gt 0 -and $bytes[$i - 1] -eq 13) {
+                $crlfCount += 1
+            }
+        }
+    }
+    if ($lfCount -eq 0 -or $lfCount -ne $crlfCount) {
+        throw "$Label must use CRLF line endings so cmd.exe can run it after download."
+    }
+}
+
 Assert-Command -Name "gh"
 
 if (-not $SkipBuild) {
@@ -113,6 +135,7 @@ try {
     if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
         throw "Remote release zip is missing setup.ps1."
     }
+    Assert-CmdFileUsesCrlf -Path (Join-Path $unzip "setup.cmd") -Label "Remote setup.cmd"
     $setupText = Get-Content -LiteralPath $setupPath -Raw -Encoding UTF8
     Assert-Contains -Text $setupText -Needle "Get-ProviderDefinitions" -Label "provider definitions"
     Assert-Contains -Text $setupText -Needle "Invoke-OfficialInstallCommand" -Label "official installer execution"
@@ -128,6 +151,7 @@ try {
     Write-Host "[PASS] GitHub Release zip matches the local build: $remoteZipHash"
     Write-Host "[PASS] GitHub Release SHA256 file matches."
     Write-Host "[PASS] GitHub Release notes match local release notes."
+    Write-Host "[PASS] Downloaded remote setup.cmd uses CRLF line endings."
     Write-Host "[PASS] Downloaded remote zip contains the current onboarding wizard."
 } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue

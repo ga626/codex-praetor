@@ -158,6 +158,29 @@ function Assert-PublicMetadataUrls {
     throw "Release package contains placeholder public metadata URLs. Re-run with real GitHub owner/repo URLs, or use -AllowDraftMetadataPlaceholders only for draft checks."
 }
 
+function Assert-CmdFileUsesCrlf {
+    param([string]$Path, [string]$Label)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$Label is missing: $Path"
+    }
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $lfCount = 0
+    $crlfCount = 0
+    for ($i = 0; $i -lt $bytes.Length; $i++) {
+        if ($bytes[$i] -eq 10) {
+            $lfCount += 1
+            if ($i -gt 0 -and $bytes[$i - 1] -eq 13) {
+                $crlfCount += 1
+            }
+        }
+    }
+    if ($lfCount -eq 0 -or $lfCount -ne $crlfCount) {
+        throw "$Label must use CRLF line endings so cmd.exe can run it after download."
+    }
+    Write-Host "[PASS] $Label uses CRLF line endings."
+}
+
 $include = @(
     "README.md",
     "README.en.md",
@@ -221,6 +244,7 @@ foreach ($item in $include) {
 
 Assert-PublicReleaseTree -Root $stagePath
 Assert-PublicMetadataUrls -Root $stagePath
+Assert-CmdFileUsesCrlf -Path (Join-Path $stagePath "setup.cmd") -Label "Release setup.cmd"
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
