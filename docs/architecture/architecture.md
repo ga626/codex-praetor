@@ -72,9 +72,9 @@ Later tools:
 - `codex_praetor_finalize`
 - `codex_praetor_list_locks`
 
-## Planned Plugin Layer
+## Plugin Layer
 
-The plugin will bundle:
+The plugin bundles:
 
 - the `codex-praetor` skill,
 - MCP configuration,

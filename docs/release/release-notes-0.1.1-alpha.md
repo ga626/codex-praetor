@@ -38,7 +38,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 - 没有安装 Qoder、CodeBuddy、MiMo 时，计划、dry-run、状态查询和冲突检测仍然可以验收；真实派工会被清楚阻止。
 - 安装后重启 Codex 或打开新任务，应该能看到 Codex Praetor 插件和 `codex_praetor_*` MCP 工具。
 
-## 维护者发布前必须验证什么
+## 本次发布已按什么验证
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
@@ -47,7 +47,7 @@ npm test --prefix .\mcp
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\build-codex-praetor-release.ps1 -Apply
 ```
 
-发布包必须排除 `docs/internal`、`docs/development`、`handoff`、`node_modules`、本机 local config、token、auth、cookie、provider 数据库、运行态 job 日志和个人截图。
+发布包必须排除 `docs/internal`、`docs/development`、`handoff`、`node_modules`、本机 local config、token、auth、cookie、provider 数据库、运行态 job 日志和个人截图。本次 `0.1.1-alpha` 发布按这组检查完成。
 
 ## 仍然不是这版要做的事
 

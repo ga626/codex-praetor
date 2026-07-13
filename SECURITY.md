@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-`0.1.0-alpha` is pre-release software. Security fixes are handled on the main branch until the first tagged release.
+`0.1.1-alpha` is the current pre-release version. Security fixes are handled on the main branch and are included in the latest tagged pre-release when a release is cut.
 
 ## Reporting
 
