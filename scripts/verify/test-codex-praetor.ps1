@@ -141,6 +141,23 @@ if ($setupCmdText -match "setup\.ps1" -and $setupCmdText -match "pause") {
     Add-Fail "Double-click setup entrypoint is missing setup.ps1 delegation or pause"
 }
 
+$setupCmdBytes = [System.IO.File]::ReadAllBytes($setupCmd)
+$setupCmdLfCount = 0
+$setupCmdCrlfCount = 0
+for ($i = 0; $i -lt $setupCmdBytes.Length; $i++) {
+    if ($setupCmdBytes[$i] -eq 10) {
+        $setupCmdLfCount += 1
+        if ($i -gt 0 -and $setupCmdBytes[$i - 1] -eq 13) {
+            $setupCmdCrlfCount += 1
+        }
+    }
+}
+if ($setupCmdLfCount -gt 0 -and $setupCmdLfCount -eq $setupCmdCrlfCount) {
+    Add-Pass "Double-click setup entrypoint uses CRLF line endings for cmd.exe"
+} else {
+    Add-Fail "Double-click setup entrypoint must use CRLF line endings for cmd.exe"
+}
+
 $skillText = Get-Content -LiteralPath (Join-Path $sourceSkill "SKILL.md") -Raw -Encoding UTF8
 if ($skillText -match "(?m)^name:\s*codex-praetor\s*$") {
     Add-Pass "Source skill frontmatter name is codex-praetor"
@@ -469,6 +486,36 @@ if (-not $SkipUserInstallSmoke) {
         }
         if (Test-Path -LiteralPath $setupSmokeRoot) {
             Remove-Item -LiteralPath $setupSmokeRoot -Recurse -Force
+        }
+    }
+}
+
+if (-not $SkipUserInstallSmoke) {
+    $setupCmdSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-setup-cmd-smoke-" + [System.Guid]::NewGuid().ToString("N"))
+    $setupCmdSmokeHome = Join-Path $setupCmdSmokeRoot "home"
+    $setupCmdSmokeInstall = Join-Path $setupCmdSmokeHome "plugins\codex-praetor"
+    $setupCmdSmokeMarketplace = Join-Path $setupCmdSmokeHome ".agents\plugins\marketplace.json"
+    try {
+        New-Item -ItemType Directory -Path $setupCmdSmokeHome -Force | Out-Null
+        $setupCmdLine = 'set "USERPROFILE=' + $setupCmdSmokeHome + '" && set "HOME=' + $setupCmdSmokeHome + '" && cd /d "' + $projectRoot + '" && (echo 2&echo.) | setup.cmd'
+        $setupCmdOutput = & cmd.exe /d /c $setupCmdLine 2>&1
+        $setupCmdOutputText = $setupCmdOutput | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            Add-Fail "setup.cmd smoke failed: $setupCmdOutputText"
+        } elseif ($setupCmdOutputText -match "not recognized") {
+            Add-Fail "setup.cmd smoke was parsed incorrectly by cmd.exe: $setupCmdOutputText"
+        } elseif (-not (Test-Path -LiteralPath (Join-Path $setupCmdSmokeInstall ".codex-plugin\plugin.json") -PathType Leaf)) {
+            Add-Fail "setup.cmd smoke did not install plugin manifest"
+        } elseif (-not (Test-Path -LiteralPath $setupCmdSmokeMarketplace -PathType Leaf)) {
+            Add-Fail "setup.cmd smoke did not write marketplace"
+        } else {
+            Add-Pass "setup.cmd runs through cmd.exe and installs in a clean temporary user root"
+        }
+    } catch {
+        Add-Fail "setup.cmd smoke failed: $($_.Exception.Message)"
+    } finally {
+        if (Test-Path -LiteralPath $setupCmdSmokeRoot) {
+            Remove-Item -LiteralPath $setupCmdSmokeRoot -Recurse -Force
         }
     }
 }
