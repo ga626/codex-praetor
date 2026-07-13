@@ -22,9 +22,13 @@
 
 - [ ] 双击根目录的 `setup.cmd`。
 - [ ] 中文安装向导先显示基础环境和 provider CLI 的可发现状态。
+- [ ] 向导提供 5 个选择：全部配置、全部跳过、只配置 Qoder、只配置 CodeBuddy、只配置 MiMo。
 - [ ] 选择默认的“暂不配置 provider”，完成 Codex Praetor 本体安装。
+- [ ] 选择某一个 provider 时，向导能在用户确认后执行官方安装命令、刷新 PATH、等待用户完成官方登录/授权、复检命令、写入本机配置，并在最终状态总览里说明结果。
+- [ ] 误关窗口后重新运行 `setup.cmd`，向导能从 `%USERPROFILE%\.codex\codex-praetor.onboarding-state.json` 继续，且状态文件不包含 token、cookie、PAT、API key、账号数据库或余额页面。
 - [ ] 输出包含插件复制成功。
 - [ ] 输出包含 marketplace entry 写入成功。
+- [ ] 输出最后能用普通中文说明：本体是否可用、哪些 provider 已跳过、哪些 provider 缺安装或登录、下一步 dry-run 输入什么。
 
 高级/自动化路径：
 
@@ -73,6 +77,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 ## 7. provider 只读 canary
 
+- [ ] 向导不会把“CLI 已发现”当作“真实派工已可用”；它会提醒用户真实派工前仍需官方登录/授权和只读 canary。
+- [ ] 向导写入的本机配置在 `%USERPROFILE%\.codex\codex-praetor.local.json`，且不包含 token、cookie、PAT、API key 或账号数据库内容。
 - [ ] provider 已安装并登录后，先运行预览：
 
 ```powershell

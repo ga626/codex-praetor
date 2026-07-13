@@ -25,7 +25,7 @@ Include:
 
 - `plugin/` package shape with `.codex-plugin/plugin.json`, `.mcp.json`, bundled `plugin/mcp/dist/server.js`, and `plugin/skills/codex-praetor`.
 - Root `README.md`, `LICENSE`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`.
-- Root `setup.cmd` and `setup.ps1` as the Windows double-click setup entrypoints.
+- Root `setup.cmd` and `setup.ps1` as the Windows double-click setup entrypoints, including provider selection, human authorization wait, re-check, local config write, and final status summary.
 - `.github/workflows/ci.yml` so the source release keeps its public validation path.
 - `config/codex-praetor-tiers.example.json` as a template with no real local paths.
 - Provider setup references for Qoder, CodeBuddy, and MiMo under `docs/provider-notes/`.
@@ -52,11 +52,13 @@ Before release, a normal Windows user should see clear doctor states:
 - CLI missing or template path: report the optional provider as disabled, not as a core product failure.
 - CLI installed: version probe result.
 - Login unknown: clear instruction to complete the provider's normal login outside Codex Praetor.
+- Setup wizard selection: all providers, skip all providers, Qoder only, CodeBuddy only, and MiMo only all work without turning optional provider absence into a product failure.
+- Local config write: discovered provider CLI paths are written only to ignored user/local config and never include token, cookie, PAT, API key, account DB paths, balance pages, or screenshots.
 - Capability mismatch: version/help probe fails or required flags are not accepted.
 - No providers installed: local planning/dry-run/status still works, real dispatch is disabled.
 - Provider installed and logged in: readonly canary can run with `-Apply`, return `CODEX_PRAETOR_CANARY_OK`, and leave the main repository clean.
 
-Codex Praetor must not install providers, log in for the user, read provider auth databases, or promise free/cheap routing that depends on the user's account.
+Codex Praetor must not silently install providers, log in for the user, read provider auth databases, or promise free/cheap routing that depends on the user's account. It may guide users to official provider installation/authentication, wait for their manual action, re-check, and record non-secret CLI paths.
 
 ## 4. MCP Gate
 

@@ -10,6 +10,7 @@ Codex Praetor 是本机插件和脚本工具，不托管账号服务，不替用
 - 你明确传给它的仓库路径和任务文本。
 - 公开的 provider 配置模板。
 - 你自己创建的本地配置，例如 `config\codex-praetor.local.json`。
+- 当前 Windows 用户下的 Codex Praetor 本机配置和向导状态，例如 `%USERPROFILE%\.codex\codex-praetor.local.json`、`%USERPROFILE%\.codex\codex-praetor.onboarding-state.json`。这些文件只保存 provider 选择、CLI 路径、版本、步骤状态和非敏感失败原因。
 - 运行任务时由你明确选择的 worker 输出目录和任务状态文件。
 
 ## 它不会读取什么
@@ -23,7 +24,7 @@ Codex Praetor 是本机插件和脚本工具，不托管账号服务，不替用
 
 ## 它不会做什么
 
-- 不自动安装 Qoder、CodeBuddy、MiMo。
+- 不在未经用户确认时安装 Qoder、CodeBuddy、MiMo；用户选择后只调用官方安装命令。
 - 不替用户登录 provider。
 - 不把源码目录和本机安装目录做软链接或自动同步。
 - 不默认创建 Codex 原生 subagent。

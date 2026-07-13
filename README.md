@@ -6,7 +6,7 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy、MiMo。Codex 仍然负责规划、风险判断、整合结果和最终验收。
 
-当前版本是 **0.1.1-alpha 预发布版**。这一版把公开 Release 包、双击安装入口、文档目录和运行态目录收口到同一套用户路径；后续会继续打磨 provider canary 和真实派工恢复体验。
+当前版本是 **0.1.1-alpha 预发布版**。这一版把公开 Release 包、双击安装入口、provider 配置向导、只读 canary、文档目录和运行态目录收口到同一套用户路径；后续会继续打磨真实派工恢复体验。
 
 [下载 0.1.1-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.1-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
 
@@ -16,13 +16,13 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 - 你在 Windows 上使用 Codex Desktop 或 Codex CLI。
 - 你希望 Codex 把小而清楚的任务交给外部 CLI worker。
-- 你已经有，或准备安装 Qoder、CodeBuddy、MiMo 其中至少一个。
+- 你已经有，或准备按向导配置 Qoder、CodeBuddy、MiMo 其中至少一个。
 - 你想先验证 dry-run、计划、状态查询和冲突检测，再决定是否真实派工。
 
 不适合：
 
 - 你想要一个通用多 Agent 平台。
-- 你希望它自动安装 provider、替你登录账号，或者读取 provider 的账号数据库。
+- 你希望它在未经确认时静默安装 provider、替你登录账号，或者读取 provider 的账号数据库。
 - 你希望它默认创建 Codex 原生 subagent。Codex subagent 是另一条路线，会继续消耗 Codex 模型资源。
 
 ## 最快开始
@@ -39,7 +39,15 @@ cd .\codex-praetor-setup-0.1.1-alpha
 
 2. 双击 `setup.cmd`。
 
-向导会先检查 PowerShell、Node.js、Git 和可发现的 provider CLI，然后让你选择是否查看 provider 配置提示。默认选择“暂不配置 provider”，先完成 Codex Praetor 本体安装。
+向导会先检查 PowerShell、Node.js、Git 和可发现的 provider CLI，然后让你选择：
+
+- 配置全部 provider。
+- 先不配置 provider，只安装并验证 Codex Praetor 本体。
+- 只配置 Qoder。
+- 只配置 CodeBuddy。
+- 只配置 MiMo。
+
+选择 provider 后，向导会先检测本机命令；如果没装，会让你确认是否执行官方安装命令。安装完成后，它会刷新当前终端的 PATH、复检版本，并停在同一个向导里等待你完成官方登录、扫码、浏览器授权、站点选择、企业域、Token Plan 或 API key 等账号动作。你回到向导继续后，它会再次复检，写入当前用户的本机配置，并在最后给出一张中文状态总览。
 
 3. 如果只想先查看安装计划，也可以在 PowerShell 中运行：
 
@@ -67,11 +75,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 | 本机状态 | 可以做什么 | 不能做什么 |
 | --- | --- | --- |
-| 没有安装 Qoder、CodeBuddy、MiMo | 计划、dry-run、任务状态、lane 查询、冲突检测 | 真实派工 |
-| 已安装 provider，但未登录 | dry-run、路径检查、配置检查 | 真实派工通常会被 provider 拒绝 |
+| 没有安装 Qoder、CodeBuddy、MiMo | 本体安装、计划、dry-run、任务状态、lane 查询、冲突检测 | 真实派工 |
+| 已安装 provider，但未登录 | dry-run、路径检查、配置检查、向导复检 | 真实派工通常会被 provider 拒绝 |
 | 已安装并登录 provider | 先跑 readonly canary，再做真实派工 | 不建议跳过 canary 直接改代码 |
 
-Codex Praetor 不会替你安装 provider，不会替你登录，也不会读取 provider 的 token、cookie、账号数据库或使用截图。
+Codex Praetor 不会在未经你确认时安装 provider，不会替你登录，也不会读取 provider 的 token、cookie、账号数据库或使用截图。向导会尽量把能自动做的事做掉：执行官方安装命令、刷新 PATH、复检 CLI、记录非敏感路径；只有账号、扫码、授权、余额或 API key 这类必须由本人完成的步骤会停下来等你处理。
 
 ## 安全边界
 
@@ -130,13 +138,27 @@ provider 说明：
 
 ## 本地配置
 
-复制配置模板：
+安装向导会把已发现的 provider CLI 路径写入当前用户的本机配置：
+
+```text
+%USERPROFILE%\.codex\codex-praetor.local.json
+```
+
+向导自己的断点恢复状态保存在：
+
+```text
+%USERPROFILE%\.codex\codex-praetor.onboarding-state.json
+```
+
+这个状态文件只记录你选择了哪些 provider、每家走到哪一步、CLI 路径、版本、canary 状态和最后一条非敏感提示。它不保存 token、cookie、PAT、API key、账号数据库、余额页面或截图。误关窗口后重新运行 `setup.cmd`，向导会从这里继续；需要完全重选时可运行 `setup.ps1 -ResetOnboardingState`。
+
+如果你想手动配置，也可以复制配置模板：
 
 ```powershell
 Copy-Item .\config\codex-praetor-tiers.example.json .\config\codex-praetor.local.json
 ```
 
-然后在本地配置里填入你已经安装的 provider CLI 路径。没有安装的 provider 可以先留空或保留模板值。
+然后在本地配置里填入你已经安装的 provider CLI 路径。没有安装的 provider 可以先留空或保留模板值。本机配置不会提交到 Git。
 
 这个本地配置不会被提交。
 

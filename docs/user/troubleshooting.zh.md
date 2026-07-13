@@ -10,7 +10,7 @@
 | 插件能看到，但 MCP 工具不可见 | MCP 配置没刷新，或 Node 不可用 | 运行轻量 reload；确认 Node.js 已安装 |
 | MCP 工具报 `Transport closed` | 当前这一次工具句柄旧了，底层服务不一定坏 | 运行 reload/probe；失败后再重启 Codex 或打开新任务 |
 | 没有 Qoder、CodeBuddy、MiMo | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
-| provider 已安装但真实派工失败 | provider 未登录、权限不够或 CLI 路径不对 | 按 provider 官方流程登录，再跑 readonly canary |
+| provider 已安装但真实派工失败 | provider 未登录、权限不够或 CLI 路径不对 | 重新运行向导选择对应 provider，按官方流程登录，再跑 readonly canary |
 
 ## 看不到 Codex Praetor 插件
 
@@ -65,6 +65,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex
 - lane/conflict
 
 真实派工需要至少一个外部 CLI。
+
+想配置 provider 时，重新运行 `setup.cmd`，选择“配置全部 provider”或只选择某一家。向导会检测命令；没装时会让你确认是否执行官方安装命令；装好后刷新 PATH、复检命令，等待你完成 provider 自己的登录/授权，然后写入本机配置。
+
+如果安装过程中误关窗口，直接重新运行 `setup.cmd`。向导会读取 `%USERPROFILE%\.codex\codex-praetor.onboarding-state.json` 继续上次进度。这个状态文件不包含 token、cookie、PAT、API key、账号数据库或余额页面。
 
 ## provider 已安装但没有登录
 
