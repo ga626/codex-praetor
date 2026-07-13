@@ -16,6 +16,7 @@
 - [路线图](roadmap.md)
 - [Release gate checklist](release/release-gate-checklist.md)
 - [GitHub publish runbook](release/github-publish-runbook.md)
+- [Release notes 0.1.1-alpha](release/release-notes-0.1.1-alpha.md)
 - [Release notes 0.1.0-alpha](release/release-notes-0.1.0-alpha.md)
 
 历史调研和交付报告放在 [reports/](reports/)。这些文档保留项目决策的来龙去脉，但普通安装、排错和发布时不需要从这里开始读。

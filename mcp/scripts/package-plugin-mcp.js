@@ -29,7 +29,7 @@ await writeFile(
   `${JSON.stringify(
     {
       name: "codex-praetor-plugin-mcp",
-      version: "0.1.0-alpha",
+      version: "0.1.1-alpha",
       private: true,
       type: "module",
       main: "dist/server.js",

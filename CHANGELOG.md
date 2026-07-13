@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1-alpha - 2026-07-13
+
+Release closeout for the Windows-first alpha install path.
+
+- Updated the public install path to the setup package: `codex-praetor-setup-0.1.1-alpha.zip`.
+- Aligned the README, installation guide, troubleshooting guide, acceptance checklist, release gate, and publish runbook with the grouped `docs/user`, `docs/release`, and `scripts/*` layout.
+- Kept runtime artifacts project-local under `.codex-praetor` and documented that the development checkout is separate from the installed Codex plugin directory.
+- Added `0.1.1-alpha` release notes for the double-click setup flow, release package boundary, repository layout cleanup, and validation checklist.
+- Bumped MCP and plugin-facing version metadata to `0.1.1-alpha`.
+
 ## 0.1.0-alpha - 2026-07-10
 
 Public GitHub prerelease: `v0.1.0-alpha`.

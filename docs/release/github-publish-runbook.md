@@ -1,7 +1,7 @@
 # GitHub Publish Runbook
 
-Date: 2026-07-10
-Target release: `0.1.0-alpha`
+Date: 2026-07-13
+Target release: `0.1.1-alpha`
 
 This runbook is the safe path for publishing Codex Praetor to GitHub. It assumes Codex does the release work after the user completes only the account-owner actions that cannot be delegated safely.
 
@@ -89,11 +89,11 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 
    ```powershell
    git add .
-   git commit -m "Prepare Codex Praetor 0.1.0-alpha"
+   git commit -m "Prepare Codex Praetor 0.1.1-alpha"
    git push -u origin main
-   git tag v0.1.0-alpha
-   git push origin v0.1.0-alpha
-   gh release create v0.1.0-alpha .\.codex-praetor\releases\codex-praetor-setup-0.1.0-alpha.zip --title "Codex Praetor 0.1.0-alpha" --notes-file .\docs\release\release-notes-0.1.0-alpha.md
+   git tag v0.1.1-alpha
+   git push origin v0.1.1-alpha
+   gh release create v0.1.1-alpha .\.codex-praetor\releases\codex-praetor-setup-0.1.1-alpha.zip --title "Codex Praetor 0.1.1-alpha" --notes-file .\docs\release\release-notes-0.1.1-alpha.md
    ```
 
 ## Blockers That Stop Publication

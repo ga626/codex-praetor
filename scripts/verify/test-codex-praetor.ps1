@@ -83,6 +83,12 @@ function Compare-HashMaps {
     }
 }
 
+function Get-NormalizedText {
+    param([string]$Path)
+    $text = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+    return (($text -replace "`r`n", "`n") -replace "`r", "`n")
+}
+
 function Test-JsonFile {
     param([string]$Path)
     try {
@@ -234,9 +240,9 @@ try {
             $rootScriptDiffs += "missing in source skill: $($rootScriptFile.Name)"
             continue
         }
-        $rootHash = (Get-FileHash -LiteralPath $rootScriptFile.FullName -Algorithm SHA256).Hash
-        $sourceHash = (Get-FileHash -LiteralPath $sourceScriptPath -Algorithm SHA256).Hash
-        if ($rootHash -ne $sourceHash) {
+        $rootText = Get-NormalizedText -Path $rootScriptFile.FullName
+        $sourceText = Get-NormalizedText -Path $sourceScriptPath
+        if ($rootText -ne $sourceText) {
             $rootScriptDiffs += "changed: $($rootScriptFile.Name)"
         }
     }

@@ -1,6 +1,6 @@
 # Codex Praetor Release Gate Checklist
 
-Date: 2026-07-10
+Date: 2026-07-13
 
 This checklist separates the development repository from the user-facing release package. The goal is a Windows-first Codex plugin users can install and operate, not a dump of every local development artifact.
 
@@ -31,7 +31,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Draft release notes: `docs/release/release-notes-0.1.0-alpha.md`.
+- Draft release notes: `docs/release/release-notes-0.1.1-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -95,5 +95,5 @@ Stop before irreversible public release steps and ask for confirmation when:
 - Choosing the final GitHub owner/repo URL.
 - Completing GitHub account authorization outside Codex.
 - Pushing the first public branch.
-- Creating the `0.1.0-alpha` tag or GitHub release.
+- Creating the `0.1.1-alpha` tag or GitHub release.
 - Publishing any package/archive intended for other users.
