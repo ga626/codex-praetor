@@ -2,7 +2,7 @@
 
 Codex Praetor can dispatch Qoder only when the user has installed and signed in to Qoder CLI or QoderWork CLI on the same Windows machine.
 
-Codex Praetor does not install Qoder, sign in for the user, read Qoder account files, or promise that a model is free. It only calls the configured CLI path with the model allowlist from the local config.
+Codex Praetor does not silently install Qoder, sign in for the user, read Qoder account files, or promise that a model is free. It can guide the user to the official install/auth flow, wait for the user to finish, re-check the CLI, and then call the configured CLI path with the model allowlist from the local config.
 
 普通用户只需要记住一句：Codex Praetor 可以发现并调用 Qoder，但 Qoder 账号登录、浏览器授权、Personal Access Token 和额度状态都属于 Qoder 自己的流程。
 
@@ -36,7 +36,13 @@ For Codex Praetor, prefer the normal interactive provider login first. Do not pu
 
 ## Configure Codex Praetor
 
-Copy the public template to an ignored local config:
+The setup wizard can write the discovered Qoder CLI path to the current user config:
+
+```text
+%USERPROFILE%\.codex\codex-praetor.local.json
+```
+
+If you want to configure it manually, copy the public template to an ignored local config:
 
 ```powershell
 Copy-Item .\config\codex-praetor-tiers.example.json .\config\codex-praetor.local.json

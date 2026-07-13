@@ -2,7 +2,7 @@
 
 Codex Praetor can dispatch MiMo only when the user has installed MiMo Code CLI on the same Windows machine.
 
-Codex Praetor does not install MiMo, authorize an account for the user, read MiMo account files, or promise that a route is permanently free. It only calls the configured CLI path and keeps MiMo runs inside Codex-created Git worktrees.
+Codex Praetor does not silently install MiMo, authorize an account for the user, read MiMo account files, or promise that a route is permanently free. It can guide the user to the official install/auth flow, wait for the user to finish, re-check the CLI, and then call the configured CLI path while keeping MiMo runs inside Codex-created Git worktrees.
 
 普通用户只需要记住一句：MiMo 的第一推荐路线是 `mimo/mimo-auto`，这是官方限时免费、匿名、零配置通道；如果它不可用，或者你要使用 MiMo Platform / Token Plan / 自定义 provider，才进入 `/connect`、API key 或账单流程。
 
@@ -46,7 +46,13 @@ Follow MiMo's own account and Token Plan guidance. Codex Praetor will not inspec
 
 ## Configure Codex Praetor
 
-Copy the public template to an ignored local config:
+The setup wizard can write the discovered MiMo CLI path to the current user config:
+
+```text
+%USERPROFILE%\.codex\codex-praetor.local.json
+```
+
+If you want to configure it manually, copy the public template to an ignored local config:
 
 ```powershell
 Copy-Item .\config\codex-praetor-tiers.example.json .\config\codex-praetor.local.json

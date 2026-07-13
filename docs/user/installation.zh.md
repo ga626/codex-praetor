@@ -50,12 +50,16 @@ https://github.com/ga626/codex-praetor/releases/tag/v0.1.1-alpha
 
 - 检查 PowerShell、Node.js、Git 和 provider CLI 是否可发现。
 - 显示 Codex Praetor 本体的安装范围。
-- 默认允许你跳过 provider 配置，先完成本体安装。
+- 让你选择“配置全部 provider / 全部跳过 / 只配置某一家”。
+- 对选中的 provider 给出官方安装入口和账号授权提示。
+- 等你完成 provider 官方登录或授权后复检。
+- 把已发现的 provider CLI 路径写入当前用户本机配置。
+- 最后给出一张中文状态总览，告诉你本体是否可用、哪些 provider 可继续 canary、哪些还缺安装或登录。
 - 调用现有安装脚本，把插件复制到当前用户目录。
 
 向导不会：
 
-- 自动安装 Qoder、CodeBuddy、MiMo 或 Node.js。
+- 静默安装 Qoder、CodeBuddy、MiMo 或 Node.js。
 - 替你登录 provider。
 - 读取 token、cookie、账号数据库或个人截图。
 - 修改 Codex 安装目录或永久修改 PowerShell 执行策略。
@@ -151,13 +155,44 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 源码安装和 Release 安装使用同一个安装脚本。
 
+## 向导里的 provider 选择
+
+安装本体时，向导会出现 5 个选项：
+
+```text
+1. 配置全部 provider
+2. 先不配置 provider，只安装并验证 Codex Praetor 本体
+3. 只配置 Qoder
+4. 只配置 CodeBuddy
+5. 只配置 MiMo
+```
+
+默认推荐第 2 项。这样即使你还没准备 Qoder、CodeBuddy 或 MiMo，也可以先把 Codex Praetor 本体装好，并在 Codex 里验证 dry-run。
+
+如果你选择某个 provider，向导会按这个顺序处理：
+
+1. 检查本机有没有对应命令。
+2. 没有命令时，显示官方安装入口。
+3. 提醒你在 provider 官方流程里完成登录、扫码、站点选择、企业域、Token Plan 或 API key 等账号动作。
+4. 等你回到向导后重新检测。
+5. 如果命令已可用，把 CLI 路径写入本机配置。
+6. 给出只读 canary 的预览命令。
+
+这里的“等待你完成”很重要。Codex Praetor 不会替你输入密码、选择站点、扫码、购买 Token Plan、复制 API key，也不会读取任何 provider 账号文件。
+
 ## 配置真实派工
 
-真实派工前，你需要自己准备至少一个外部 CLI。
+真实派工前，你需要至少一个外部 CLI 已安装、已授权，并通过只读 canary。
 
-Codex Praetor 不会替你安装 provider，也不会读取账号数据库、token、cookie。Qoder 和 CodeBuddy 通常需要官方登录或授权；MiMo 可以先尝试官方 `mimo/mimo-auto` 限时免费匿名通道，失败或指定其它模型时再走 `/connect`、Token Plan 或 API key。
+Codex Praetor 不会静默安装 provider，也不会读取账号数据库、token、cookie。Qoder 和 CodeBuddy 通常需要官方登录或授权；MiMo 可以先尝试官方 `mimo/mimo-auto` 限时免费匿名通道，失败或指定其它模型时再走 `/connect`、Token Plan 或 API key。
 
-复制配置模板：
+向导会优先写入当前用户级配置：
+
+```text
+%USERPROFILE%\.codex\codex-praetor.local.json
+```
+
+如果你想手动维护仓库内的本地配置，可以复制模板：
 
 ```powershell
 Copy-Item .\config\codex-praetor-tiers.example.json .\config\codex-praetor.local.json

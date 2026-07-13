@@ -473,6 +473,52 @@ if (-not $SkipUserInstallSmoke) {
     }
 }
 
+if (-not $SkipUserInstallSmoke) {
+    $providerSetupSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-provider-setup-smoke-" + [System.Guid]::NewGuid().ToString("N"))
+    $providerSetupHome = Join-Path $providerSetupSmokeRoot "home"
+    $providerSetupBin = Join-Path $providerSetupSmokeRoot "bin"
+    $providerSetupConfig = Join-Path $providerSetupHome ".codex\codex-praetor.local.json"
+    try {
+        New-Item -ItemType Directory -Path $providerSetupHome -Force | Out-Null
+        New-Item -ItemType Directory -Path $providerSetupBin -Force | Out-Null
+        $fakeMimo = Join-Path $providerSetupBin "mimo.cmd"
+        "@echo off`r`necho 0.0.0-test`r`n" | Set-Content -LiteralPath $fakeMimo -Encoding ASCII
+
+        $oldUserProfile = $env:USERPROFILE
+        $oldPath = $env:PATH
+        $env:USERPROFILE = $providerSetupHome
+        $env:PATH = "$providerSetupBin;$oldPath"
+        $providerSetupOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $setupScript `
+            -Apply `
+            -NonInteractive `
+            -ProviderChoice 5 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Add-Fail "Provider setup wizard smoke failed: $($providerSetupOutput | Out-String)"
+        } elseif (-not (Test-Path -LiteralPath $providerSetupConfig -PathType Leaf)) {
+            Add-Fail "Provider setup wizard smoke did not write user config: $providerSetupConfig"
+        } else {
+            $providerConfig = Get-Content -LiteralPath $providerSetupConfig -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$providerConfig.providers.mimo.cliPath -eq $fakeMimo) {
+                Add-Pass "Provider setup wizard writes discovered provider CLI path to user config without secrets"
+            } else {
+                Add-Fail "Provider setup wizard wrote unexpected MiMo path: $($providerConfig.providers.mimo.cliPath)"
+            }
+        }
+    } catch {
+        Add-Fail "Provider setup wizard smoke failed: $($_.Exception.Message)"
+    } finally {
+        if ($null -ne $oldUserProfile) {
+            $env:USERPROFILE = $oldUserProfile
+        }
+        if ($null -ne $oldPath) {
+            $env:PATH = $oldPath
+        }
+        if (Test-Path -LiteralPath $providerSetupSmokeRoot) {
+            Remove-Item -LiteralPath $providerSetupSmokeRoot -Recurse -Force
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "Warnings: $($warnings.Count)"
 Write-Host "Failures: $($failures.Count)"
