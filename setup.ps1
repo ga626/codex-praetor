@@ -121,7 +121,7 @@ if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
 }
 
 Write-Section "Codex Praetor 安装向导"
-Write-Host "版本：0.1.0-alpha"
+Write-Host "版本：0.1.1-alpha"
 Write-Host "安装范围：当前用户插件目录，不需要管理员权限。"
 Write-Host "本向导不会安装 provider，不会替你登录，也不会读取 token、cookie 或账号数据库。"
 

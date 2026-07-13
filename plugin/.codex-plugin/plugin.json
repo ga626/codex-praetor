@@ -1,6 +1,6 @@
 {
     "name":  "codex-praetor",
-    "version":  "0.1.0-alpha",
+    "version":  "0.1.1-alpha",
     "description":  "给 Codex 使用的外部 Agent 编排工具。",
     "author":  {
                    "name":  "Codex Praetor"
@@ -29,7 +29,7 @@
                                            "Write"
                                        ],
                       "websiteURL":  "https://github.com/ga626/codex-praetor",
-                      "privacyPolicyURL":  "https://github.com/ga626/codex-praetor/blob/main/docs/privacy.zh.md",
+                      "privacyPolicyURL":  "https://github.com/ga626/codex-praetor/blob/main/docs/user/privacy.zh.md",
                       "termsOfServiceURL":  "https://github.com/ga626/codex-praetor/blob/main/SECURITY.md",
                       "defaultPrompt":  [
                                             "拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。",
