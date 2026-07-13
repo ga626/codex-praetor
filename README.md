@@ -29,13 +29,15 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 普通 Windows 用户不需要打开 PowerShell。下载并解压 Release 包后，直接双击根目录里的 `setup.cmd`，按中文向导操作即可。
 
-1. 下载 Windows 安装 zip：
+1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.1.1-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.1.1-alpha.zip`。
 
-```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.1-alpha/codex-praetor-setup-0.1.1-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.1-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.1.1-alpha.zip .\codex-praetor-setup-0.1.1-alpha
-cd .\codex-praetor-setup-0.1.1-alpha
-```
+   如果你更习惯 PowerShell，也可以运行：
+
+   ```powershell
+   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.1-alpha/codex-praetor-setup-0.1.1-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.1-alpha.zip"
+   Expand-Archive .\codex-praetor-setup-0.1.1-alpha.zip .\codex-praetor-setup-0.1.1-alpha
+   cd .\codex-praetor-setup-0.1.1-alpha
+   ```
 
 2. 双击 `setup.cmd`。
 
