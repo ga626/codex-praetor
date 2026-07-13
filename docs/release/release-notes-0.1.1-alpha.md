@@ -27,7 +27,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 - 公开下载包统一使用 `codex-praetor-setup-0.1.1-alpha.zip`，让用户一眼知道这是安装包，不是 GitHub 自动生成的源码包。
 - 根目录保留 `setup.cmd` 和 `setup.ps1`，普通用户可以双击安装，开发者和自动化流程也能继续使用 PowerShell。
 - 安装向导支持 5 个 provider 选择：配置全部、全部跳过、只配置 Qoder、只配置 CodeBuddy、只配置 MiMo。
-- 向导会给出官方 provider 安装入口，等待用户完成官方登录/授权，复检 CLI，并把已发现的 provider 路径写入本机用户配置。
+- 向导会在用户确认后执行官方 provider 安装命令，刷新 PATH，等待用户完成官方登录/授权，复检 CLI，并把已发现的 provider 路径写入本机用户配置。
+- 向导会保存非敏感断点恢复状态；误关窗口后重新运行 `setup.cmd` 可以继续上次进度。
 - 向导最终输出中文状态总览，明确区分“本体已安装”“CLI 已发现”“仍需官方登录/授权”“可继续只读 canary”。
 - 文档入口整理为 `docs/user`、`docs/release`、`docs/architecture` 和 `docs/reports`，用户安装和排错不需要翻历史调研报告。
 - 脚本入口整理为 `scripts/dispatch`、`scripts/install`、`scripts/verify`、`scripts/release` 和 `scripts/maintenance`，发布检查和安装流程指向同一套路径。
@@ -56,7 +57,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\build-code
 ## 仍然不是这版要做的事
 
 - 不实现通用多 Agent 平台。
-- 不静默安装或代登录 Qoder、CodeBuddy、MiMo。
+- 不在未经用户确认时安装或代登录 Qoder、CodeBuddy、MiMo。
 - 不读取 provider token、cookie、账号数据库、余额页或个人截图。
 - 不默认创建 Codex 原生 subagent。
 - 不把 D 盘源码目录和 C 盘用户安装目录做软链接或自动同步。

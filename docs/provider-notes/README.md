@@ -6,9 +6,9 @@ Codex Praetor 支持以下可选外部 CLI provider：
 - [CodeBuddy](codebuddy.md)
 - [MiMo](mimo.md)
 
-这些 provider 不随 Codex Praetor 附带。安装向导会帮用户检查本机命令、打开官方安装/登录说明、等待用户完成授权、复检，并把已发现的 CLI 路径写入不会提交的本机配置。
+这些 provider 不随 Codex Praetor 附带。安装向导会帮用户检查本机命令；如果命令不存在，会在用户确认后执行 provider 官方安装命令；安装后刷新 PATH、复检，等待用户完成官方授权，并把已发现的 CLI 路径写入不会提交的本机配置。
 
-它不会静默安装 provider，不会替用户登录，不会读取 token、cookie、账号数据库、余额页或个人截图。
+它不会在未经用户确认时安装 provider，不会替用户登录，不会读取 token、cookie、账号数据库、余额页或个人截图。
 
 没有配置 provider 时，Codex Praetor 仍然可以做意图识别、计划、dry-run、状态查询、lane/冲突可见性和 MCP 工具发现。真实派工需要至少一个 provider CLI 已安装、已登录或已处在 provider 允许的匿名路线，并通过只读 canary。
 

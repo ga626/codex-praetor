@@ -51,15 +51,17 @@ https://github.com/ga626/codex-praetor/releases/tag/v0.1.1-alpha
 - 检查 PowerShell、Node.js、Git 和 provider CLI 是否可发现。
 - 显示 Codex Praetor 本体的安装范围。
 - 让你选择“配置全部 provider / 全部跳过 / 只配置某一家”。
-- 对选中的 provider 给出官方安装入口和账号授权提示。
-- 等你完成 provider 官方登录或授权后复检。
+- 对选中的 provider 检查命令；如果没装，会让你确认是否执行官方安装命令。
+- 安装 provider 后刷新当前终端 PATH，并复检命令和版本。
+- 在同一个向导里等待你完成 provider 官方登录、扫码、浏览器授权、站点选择、企业域、Token Plan 或 API key 等账号动作。
+- 你回到向导继续后再次复检，并给出 canary 预览或真实只读 canary 选项。
 - 把已发现的 provider CLI 路径写入当前用户本机配置。
 - 最后给出一张中文状态总览，告诉你本体是否可用、哪些 provider 可继续 canary、哪些还缺安装或登录。
 - 调用现有安装脚本，把插件复制到当前用户目录。
 
 向导不会：
 
-- 静默安装 Qoder、CodeBuddy、MiMo 或 Node.js。
+- 在未经你确认时安装 Qoder、CodeBuddy、MiMo 或 Node.js。
 - 替你登录 provider。
 - 读取 token、cookie、账号数据库或个人截图。
 - 修改 Codex 安装目录或永久修改 PowerShell 执行策略。
@@ -172,24 +174,37 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 如果你选择某个 provider，向导会按这个顺序处理：
 
 1. 检查本机有没有对应命令。
-2. 没有命令时，显示官方安装入口。
-3. 提醒你在 provider 官方流程里完成登录、扫码、站点选择、企业域、Token Plan 或 API key 等账号动作。
-4. 等你回到向导后重新检测。
-5. 如果命令已可用，把 CLI 路径写入本机配置。
-6. 给出只读 canary 的预览命令。
+2. 没有命令时，列出官方安装方式，并让你选择“执行官方安装 / 打开官方说明 / 重新检测 / 跳过”。
+3. 你确认后，向导执行对应 provider 的官方安装命令，不使用第三方镜像，不把 provider 打进 Codex Praetor 包。
+4. 安装结束后，向导刷新当前终端 PATH，重新检测命令和版本。
+5. 命令可用后，向导进入登录/授权陪跑。它会停在同一个窗口里，让你启动 provider 官方 CLI，并按官方流程完成登录、扫码、站点选择、企业域、Token Plan 或 API key 等账号动作。
+6. 你回到向导继续后，向导再次检测 CLI，并把已发现的 CLI 路径写入本机配置。
+7. 最后给出只读 canary 的预览或真实运行选项。
 
-这里的“等待你完成”很重要。Codex Praetor 不会替你输入密码、选择站点、扫码、购买 Token Plan、复制 API key，也不会读取任何 provider 账号文件。
+这里的“等待你完成”很重要。Codex Praetor 会把能自动做的事情做掉，但不会替你输入密码、选择站点、扫码、购买 Token Plan、复制 API key，也不会读取任何 provider 账号文件。
 
 ## 配置真实派工
 
 真实派工前，你需要至少一个外部 CLI 已安装、已授权，并通过只读 canary。
 
-Codex Praetor 不会静默安装 provider，也不会读取账号数据库、token、cookie。Qoder 和 CodeBuddy 通常需要官方登录或授权；MiMo 可以先尝试官方 `mimo/mimo-auto` 限时免费匿名通道，失败或指定其它模型时再走 `/connect`、Token Plan 或 API key。
+Codex Praetor 不会在未经你确认时安装 provider，也不会读取账号数据库、token、cookie。Qoder 和 CodeBuddy 通常需要官方登录或授权；MiMo 可以先尝试官方 `mimo/mimo-auto` 限时免费匿名通道，失败或指定其它模型时再走 `/connect`、Token Plan 或 API key。
 
 向导会优先写入当前用户级配置：
 
 ```text
 %USERPROFILE%\.codex\codex-praetor.local.json
+```
+
+向导还会保存一个断点恢复状态：
+
+```text
+%USERPROFILE%\.codex\codex-praetor.onboarding-state.json
+```
+
+如果安装过程中误关窗口，重新双击 `setup.cmd`，向导会提示继续上次进度。这个状态文件只记录选择、步骤、CLI 路径、版本、canary 状态和失败原因，不记录 token、cookie、PAT、API key、账号数据库、余额页面或截图。想完全重来，可以运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -ResetOnboardingState
 ```
 
 如果你想手动维护仓库内的本地配置，可以复制模板：

@@ -478,6 +478,7 @@ if (-not $SkipUserInstallSmoke) {
     $providerSetupHome = Join-Path $providerSetupSmokeRoot "home"
     $providerSetupBin = Join-Path $providerSetupSmokeRoot "bin"
     $providerSetupConfig = Join-Path $providerSetupHome ".codex\codex-praetor.local.json"
+    $providerSetupState = Join-Path $providerSetupHome ".codex\codex-praetor.onboarding-state.json"
     try {
         New-Item -ItemType Directory -Path $providerSetupHome -Force | Out-Null
         New-Item -ItemType Directory -Path $providerSetupBin -Force | Out-Null
@@ -496,12 +497,21 @@ if (-not $SkipUserInstallSmoke) {
             Add-Fail "Provider setup wizard smoke failed: $($providerSetupOutput | Out-String)"
         } elseif (-not (Test-Path -LiteralPath $providerSetupConfig -PathType Leaf)) {
             Add-Fail "Provider setup wizard smoke did not write user config: $providerSetupConfig"
+        } elseif (-not (Test-Path -LiteralPath $providerSetupState -PathType Leaf)) {
+            Add-Fail "Provider setup wizard smoke did not write resumable onboarding state: $providerSetupState"
         } else {
             $providerConfig = Get-Content -LiteralPath $providerSetupConfig -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ([string]$providerConfig.providers.mimo.cliPath -eq $fakeMimo) {
-                Add-Pass "Provider setup wizard writes discovered provider CLI path to user config without secrets"
-            } else {
+            $providerStateText = Get-Content -LiteralPath $providerSetupState -Raw -Encoding UTF8
+            $providerState = $providerStateText | ConvertFrom-Json
+            $secretPattern = "token|cookie|api[_-]?key|personal[_-]?access[_-]?token|secret"
+            if ([string]$providerConfig.providers.mimo.cliPath -ne $fakeMimo) {
                 Add-Fail "Provider setup wizard wrote unexpected MiMo path: $($providerConfig.providers.mimo.cliPath)"
+            } elseif ($providerState.providerChoice -ne "5" -or $providerState.providers.mimo.status -notin @("canary_not_run", "config_written", "auth_not_checked", "cli_rechecked")) {
+                Add-Fail "Provider setup wizard wrote unexpected onboarding state for MiMo: $($providerState.providers.mimo.status)"
+            } elseif ($providerStateText -match $secretPattern) {
+                Add-Fail "Provider setup wizard state contains a secret-like field name"
+            } else {
+                Add-Pass "Provider setup wizard writes provider path and resumable non-secret onboarding state"
             }
         }
     } catch {

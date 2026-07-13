@@ -13,7 +13,7 @@
 - GitHub issue 模板和 pull request 模板。
 - provider 只读 canary 的统一预览/执行入口。
 - Windows 安装向导的 5 选项 provider 引导：全部配置、全部跳过、只配置 Qoder、只配置 CodeBuddy、只配置 MiMo。
-- 安装向导中的官方安装提示、人工授权等待、复检、本机配置写入和最终状态总览。
+- 安装向导中的官方安装执行、人工授权陪跑、断点恢复、复检、本机配置写入、可选只读 canary 和最终状态总览。
 
 ## 近期目标
 
@@ -33,7 +33,7 @@
 ## 不做什么
 
 - 不做通用多 Agent 平台。
-- 不静默安装 Qoder、CodeBuddy、MiMo，不替用户登录或确认账单。
+- 不在未经用户确认时安装 Qoder、CodeBuddy、MiMo；用户确认后只执行官方安装命令，不替用户登录或确认账单。
 - 不读取 token、cookie、账号数据库、余额页或个人截图。
 - 不默认创建 Codex 原生 subagent。
 - 不把源码目录和本机安装目录做软链接或自动同步。
