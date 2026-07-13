@@ -119,7 +119,11 @@ try {
     Assert-Contains -Text $setupText -Needle 'Shell = "cmd"' -Label "Qoder CMD shell"
     Assert-Contains -Text $setupText -Needle "Save-OnboardingState" -Label "onboarding state"
     Assert-Contains -Text $setupText -Needle "codex-praetor.onboarding-state.json" -Label "state file path"
-    Assert-Contains -Text $setupText -Needle "配置全部 provider" -Label "five-choice wizard"
+    Assert-Contains -Text $setupText -Needle 'Write-Host "  1.' -Label "all providers choice"
+    Assert-Contains -Text $setupText -Needle 'Write-Host "  2.' -Label "skip providers choice"
+    Assert-Contains -Text $setupText -Needle "Qoder" -Label "Qoder choice"
+    Assert-Contains -Text $setupText -Needle "CodeBuddy" -Label "CodeBuddy choice"
+    Assert-Contains -Text $setupText -Needle "MiMo" -Label "MiMo choice"
 
     Write-Host "[PASS] GitHub Release zip matches the local build: $remoteZipHash"
     Write-Host "[PASS] GitHub Release SHA256 file matches."
