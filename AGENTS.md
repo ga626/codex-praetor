@@ -45,6 +45,12 @@ Do not replace the installed skill with a symlink, junction, shortcut, or path p
 
 Do not add an automatic publish/sync mechanism unless the user explicitly asks for it. When local installation needs to be updated, do one explicit copy-and-verify operation.
 
+## 发布交付边界
+
+用户入口是 GitHub Release 的 `codex-praetor-setup-*.zip`，不是 `main` 源码树本身。
+
+凡改到 `setup.cmd`、`setup.ps1`、`plugin/`、`skill/`、`mcp/`、安装/排错/发布文档、版本号或安装体验，都算影响发布。用户合并这类 PR 后，必须同步最新 `main`，构建 zip 和 `.sha256`，更新 GitHub Release 资产/说明，再下载远端 zip、解压复验 setup 文件、文档、版本和关键向导行为，才能说产品已交付。
+
 ## Safety
 
 Do not commit API keys, auth tokens, provider account files, usage screenshots, or local app databases.
