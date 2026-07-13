@@ -10,4 +10,13 @@ Codex Praetor 支持以下可选外部 CLI provider：
 
 没有配置 provider 时，Codex Praetor 仍然可以做意图识别、计划、dry-run、状态查询、lane/冲突可见性和 MCP 工具发现。真实派工需要至少一个 provider CLI 已安装、已登录，并通过只读 canary。
 
+只读 canary 统一入口：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+```
+
+第一条只预览命令；第二条才会真实调用 provider。把 `mimo` 换成 `qoder` 或 `codebuddy` 可以验证其它 provider。
+
 返回安装入口：[README](../../README.md)。

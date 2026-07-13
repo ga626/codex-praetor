@@ -71,7 +71,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 - [ ] plan、dry-run、status、lane/conflict 仍可用。
 - [ ] 真实派工会被清楚地阻止或提示下一步。
 
-## 7. 故障恢复
+## 7. provider 只读 canary
+
+- [ ] provider 已安装并登录后，先运行预览：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+```
+
+- [ ] 确认命令无误后，再运行真实只读 canary：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+```
+
+- [ ] 输出包含 `CODEX_PRAETOR_CANARY_OK` 或等价成功标记。
+- [ ] 主仓库 Git 状态没有因为只读 canary 变脏。
+
+## 8. 故障恢复
 
 - [ ] `Transport closed` 说明里不会要求用户每次都新开任务。
 - [ ] 用户能按排错指南先运行 reload：
@@ -88,14 +105,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex
 
 - [ ] reload/probe 失败后，文档才建议重启 Codex 或打开新任务。
 
-## 8. 卸载和回滚
+## 9. 卸载和回滚
 
 - [ ] `docs/user/uninstall.zh.md` 能说明默认安装路径。
 - [ ] 能说明如何删除插件目录。
 - [ ] 能说明如何从 marketplace 移除 `codex-praetor`。
 - [ ] 能说明如何从备份目录回滚。
 
-## 9. GitHub 反馈
+## 10. GitHub 反馈
 
 - [ ] 仓库有 bug issue template。
 - [ ] 仓库有 feature request template。

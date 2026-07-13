@@ -72,6 +72,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex
 
 Codex Praetor 不会替你登录，也不会读取 provider 的账号数据库、token 或 cookie。
 
+登录后，先预览只读 canary：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+```
+
+确认命令无误后，再真实运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+```
+
+如果 `-Apply` 失败，优先按 provider 官方方式重新登录或修正本地 `cliPath`，不要把 token、cookie、账号页面或本地数据库贴到 issue 或聊天里。
+
 provider 说明：
 
 - [Qoder](provider-notes/qoder.md)

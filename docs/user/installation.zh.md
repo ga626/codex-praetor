@@ -125,6 +125,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-code
 
 看到 `[PASS]` 后，再在 Codex 里完成一次 dry-run。没有 provider 时，doctor 和 dry-run 仍然应该通过；只有真实派工会不可用。
 
+如果你已经安装并登录某个 provider，再跑只读 canary。默认只预览命令，不会启动真实 worker：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+```
+
+确认 provider 已经登录、命令看起来正确后，再加 `-Apply`：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+```
+
+这个 canary 只读取 `README.md`，并检查主仓库状态是否保持不变。它通过后，再考虑真实派工。
+
 ## 从源码安装
 
 适合开发者：
@@ -171,8 +185,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 1. 关闭并重新打开 Codex，或新开一个任务。
 2. 运行上面的 doctor 验收命令。
-3. 仍然失败时，按 [troubleshooting.zh.md](troubleshooting.zh.md) 的顺序执行 reload 和 probe。
-4. 需要恢复旧版时，按 [uninstall.zh.md](uninstall.zh.md) 的“回滚到上一个备份”操作。
+3. provider 已经安装并登录时，先跑只读 canary，再做真实派工。
+4. 仍然失败时，按 [troubleshooting.zh.md](troubleshooting.zh.md) 的顺序执行 reload 和 probe。
+5. 需要恢复旧版时，按 [uninstall.zh.md](uninstall.zh.md) 的“回滚到上一个备份”操作。
 
 ## 卸载和回滚
 

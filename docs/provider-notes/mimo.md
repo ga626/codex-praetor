@@ -80,7 +80,21 @@ Expected doctor states:
 - `provider:mimo:version` ready or info: version probing succeeded, timed out, or doctor could not prove compatibility.
 - `provider:mimo:auth` info: doctor intentionally does not inspect login state.
 
-Before real dispatch, run a dry-run or readonly canary from a Git repository with a valid `HEAD`.
+Before real dispatch, run the readonly canary from a Git repository with a valid `HEAD`.
+
+Preview only:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+```
+
+Real readonly canary:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+```
+
+The canary asks MiMo to read `README.md`, return `CODEX_PRAETOR_CANARY_OK`, and leave the main repository status unchanged.
 
 ## Worktree boundary
 

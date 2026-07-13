@@ -70,7 +70,21 @@ Expected doctor states:
 - `provider:qoder:version` ready or info: version probing succeeded, or doctor could not prove compatibility.
 - `provider:qoder:auth` info: doctor intentionally does not inspect Qoder login state.
 
-Before real dispatch, run a dry-run or readonly canary from a Git repository with a valid `HEAD`.
+Before real dispatch, run the readonly canary from a Git repository with a valid `HEAD`.
+
+Preview only:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider qoder
+```
+
+Real readonly canary:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider qoder -Apply
+```
+
+The canary asks Qoder to read `README.md`, return `CODEX_PRAETOR_CANARY_OK`, and leave the main repository status unchanged.
 
 ## Cost and model boundary
 

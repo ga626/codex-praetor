@@ -69,7 +69,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 | --- | --- | --- |
 | 没有安装 Qoder、CodeBuddy、MiMo | 计划、dry-run、任务状态、lane 查询、冲突检测 | 真实派工 |
 | 已安装 provider，但未登录 | dry-run、路径检查、配置检查 | 真实派工通常会被 provider 拒绝 |
-| 已安装并登录 provider | 先跑 readonly canary，再做真实派工 | 不建议跳过 dry-run 直接改代码 |
+| 已安装并登录 provider | 先跑 readonly canary，再做真实派工 | 不建议跳过 canary 直接改代码 |
 
 Codex Praetor 不会替你安装 provider，不会替你登录，也不会读取 provider 的 token、cookie、账号数据库或使用截图。
 
@@ -156,6 +156,22 @@ project_artifact_root=...\<repo>\.codex-praetor
 
 如果 provider 缺失，这不是产品坏了；它只表示真实派工暂不可用。
 
+## 真实派工前的只读 canary
+
+当你已经安装并登录某个 provider 后，先跑只读 canary。它默认只预览命令，不会启动真实 worker：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+```
+
+确认 provider 已经登录、命令看起来正确后，再加 `-Apply`：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+```
+
+这个 canary 只要求 worker 读取 `README.md` 并返回固定标记。成功时主仓库的 Git 状态应保持不变。
+
 ## 更新、卸载和回滚
 
 更新时下载新版 Release zip 后，重新双击 `setup.cmd` 即可。也可以运行：
@@ -186,6 +202,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
 ```
 
 运行 dry-run：

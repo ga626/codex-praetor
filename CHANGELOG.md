@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added a user-facing readonly provider canary command that previews by default and only starts a real provider run with `-Apply`.
+- Documented the canary in README, installation, troubleshooting, provider notes, and the user acceptance checklist.
+- Kept the canary limited to reading `README.md`, checking for a success marker, and verifying that the main repository stays unchanged.
+
 ## 0.1.1-alpha - 2026-07-13
 
 Release closeout for the Windows-first alpha install path.
