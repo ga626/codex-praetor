@@ -30973,7 +30973,7 @@ function getProjectRoot() {
   return path.resolve(getMcpRoot(), "..");
 }
 function getScriptRoot() {
-  const sourceScriptRoot = path.join(getProjectRoot(), "scripts");
+  const sourceScriptRoot = path.join(getProjectRoot(), "scripts", "dispatch");
   if (existsSync(path.join(sourceScriptRoot, "invoke-codex-praetor.ps1"))) {
     return sourceScriptRoot;
   }

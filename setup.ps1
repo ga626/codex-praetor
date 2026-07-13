@@ -7,7 +7,7 @@
 
 $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$installScript = Join-Path $scriptRoot "scripts\install-user.ps1"
+$installScript = Join-Path $scriptRoot "scripts\install\install-user.ps1"
 
 function Write-Section {
     param([string]$Text)
@@ -178,4 +178,4 @@ Write-Host "Codex Praetor 已安装到：$env:USERPROFILE\plugins\codex-praetor"
 Write-Host "下一步：重启 Codex，或打开一个新任务让插件被发现。"
 Write-Host "首次使用建议：拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。"
 Write-Host "provider 配置模板：config\codex-praetor.local.json"
-Write-Host "验收命令：powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1"
+Write-Host "验收命令：powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1"

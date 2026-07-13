@@ -6,7 +6,7 @@ Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching boun
 
 Current release: **0.1.0-alpha prerelease**.
 
-[Download 0.1.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.0-alpha) · [Chinese installation guide](docs/installation.zh.md) · [Chinese troubleshooting guide](docs/troubleshooting.zh.md)
+[Download 0.1.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.0-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
 
 ## What It Does
 
@@ -25,21 +25,21 @@ The supported alpha scope is intentionally narrow:
 Download and extract the release zip:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.0-alpha/codex-praetor-0.1.0-alpha.zip" -OutFile ".\codex-praetor-0.1.0-alpha.zip"
-Expand-Archive .\codex-praetor-0.1.0-alpha.zip .\codex-praetor-0.1.0-alpha
-cd .\codex-praetor-0.1.0-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.0-alpha/codex-praetor-setup-0.1.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.0-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.1.0-alpha.zip .\codex-praetor-setup-0.1.0-alpha
+cd .\codex-praetor-setup-0.1.0-alpha
 ```
 
 Preview the install:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install\install-user.ps1
 ```
 
 Install:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install\install-user.ps1 -Apply
 ```
 
 Restart Codex or open a new task, then start with a dry-run:
@@ -59,8 +59,8 @@ Without a provider, Codex Praetor can still validate planning, route-intent, dry
 ## Development Validation
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
 ```
 
 MCP tests:
@@ -74,10 +74,17 @@ npm test
 
 The release builder excludes internal handoff files, `docs/internal`, local configs, auth/token/secret files, provider caches, runtime job state, `node_modules`, and personal screenshots.
 
+## Repository Layout
+
+- `docs/`: documentation grouped by audience: `user`, `architecture`, `release`, and `reports`.
+- `scripts/`: source scripts grouped by role: `dispatch`, `install`, `verify`, `release`, and `maintenance`.
+- `skill/`: source skill package.
+- `mcp/`: TypeScript MCP server source.
+- `plugin/`: final Codex plugin package shape.
+
 ## More
 
-- Architecture: [docs/architecture.md](docs/architecture.md)
+- Architecture: [docs/architecture/architecture.md](docs/architecture/architecture.md)
 - Roadmap: [docs/roadmap.md](docs/roadmap.md)
 - Security: [SECURITY.md](SECURITY.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
-

@@ -1,6 +1,6 @@
 #!/bin/sh
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -StagedOnly -AllowDraftMetadataPlaceholders
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -StagedOnly -AllowDraftMetadataPlaceholders
 if [ $? -ne 0 ]; then
   exit 1
 fi
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-codex-praetor.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify/test-codex-praetor.ps1

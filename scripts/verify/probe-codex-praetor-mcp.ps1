@@ -1,6 +1,6 @@
 param(
     [string]$ThreadId = $env:CODEX_THREAD_ID,
-    [string]$Repo = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
+    [string]$Repo = (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))),
     [string]$Request = "",
     [int]$TimeoutMs = 60000,
     [switch]$AfterDirectHandleFailure,
@@ -13,7 +13,7 @@ if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -Er
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$appServerInvoker = Join-Path $scriptDir "invoke-codex-app-server.js"
+$appServerInvoker = Join-Path $projectRoot "scripts\dispatch\invoke-codex-app-server.js"
 
 if ([string]::IsNullOrWhiteSpace($Request)) {
     $Request = "Split the task for external agents in readonly validation mode. Do not create Codex native subagents."

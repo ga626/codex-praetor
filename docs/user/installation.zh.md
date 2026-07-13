@@ -120,7 +120,7 @@ dry-run 不会启动真实 worker，也不会修改文件。
 在解压后的 release 目录运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 ```
 
 看到 `[PASS]` 后，再在 Codex 里完成一次 dry-run。没有 provider 时，doctor 和 dry-run 仍然应该通过；只有真实派工会不可用。

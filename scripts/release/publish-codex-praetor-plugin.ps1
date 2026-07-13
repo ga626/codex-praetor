@@ -1,5 +1,5 @@
 param(
-    [string]$PluginPath = (Join-Path (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)) "plugin"),
+    [string]$PluginPath = (Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))) "plugin"),
     [string]$MarketplacePath = (Join-Path $env:USERPROFILE ".agents\plugins\marketplace.json"),
     [switch]$Apply
 )
@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $skillRoot = Join-Path $projectRoot "skill\codex-praetor"
 
 function Get-MarketplaceName {

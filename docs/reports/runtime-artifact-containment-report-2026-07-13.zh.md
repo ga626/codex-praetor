@@ -99,7 +99,7 @@ CodexPraetor\
 本次新增迁移脚本：
 
 ```powershell
-scripts\migrate-codex-praetor-runtime-root.ps1
+scripts\maintenance\migrate-codex-praetor-runtime-root.ps1
 ```
 
 执行顺序如下。
@@ -109,7 +109,7 @@ scripts\migrate-codex-praetor-runtime-root.ps1
 第二步，先做 dry-run：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\migrate-codex-praetor-runtime-root.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\maintenance\migrate-codex-praetor-runtime-root.ps1
 ```
 
 它会显示将要迁移的旧目录和新目录，但不移动任何东西。
@@ -125,7 +125,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\migrate-codex-praeto
 第四步，执行迁移：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\migrate-codex-praetor-runtime-root.ps1 -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\maintenance\migrate-codex-praetor-runtime-root.ps1 -Apply
 ```
 
 脚本会把旧的 `jobs`、`plans`、`locks`、`scratch` 收进 `<项目根>\.codex-praetor`；把旧 worktree 通过 `git worktree move` 移到 `<项目根>\.codex-praetor\worktrees`；把旧工具缓存移到 `<项目根>\.codex-praetor\tools`。如果新旧运行目录里已有同名 plan 或 job，脚本不会覆盖，会给旧项追加 `legacy-时间戳` 后缀保留下来。

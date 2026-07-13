@@ -1,6 +1,6 @@
 param(
     [string]$Version = "0.1.0-alpha",
-    [string]$OutputRoot = ".release",
+    [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
 )
@@ -11,7 +11,7 @@ if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -Er
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $outputRootPath = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $OutputRoot))
 $releaseName = "codex-praetor-setup-$Version"
 $stagePath = Join-Path $outputRootPath $releaseName
@@ -67,7 +67,7 @@ function Test-BlockedReleasePath {
     if ($normalized -like "mcp\dist\*") { return $true }
     if ($normalized -like "*.local.json") { return $true }
     if ($normalized -like ".env*") { return $true }
-    if ($normalized -like "scripts\publish-codex-praetor-personal-*") { return $true }
+    if ($normalized -like "scripts\release\publish-codex-praetor-personal-*") { return $true }
     if ($normalized -match "(?i)(auth|token|secret)") { return $true }
     return $false
 }

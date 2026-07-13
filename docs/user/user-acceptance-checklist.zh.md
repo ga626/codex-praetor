@@ -15,7 +15,7 @@
 - [ ] 从 `v0.1.0-alpha` Release 下载 `codex-praetor-setup-0.1.0-alpha.zip`。
 - [ ] 校验 SHA256 文件和 zip 匹配。
 - [ ] 解压后根目录能看到 `setup.cmd` 和 `setup.ps1`。
-- [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/installation.zh.md`、`docs/troubleshooting.zh.md`。
+- [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/user/installation.zh.md`、`docs/user/troubleshooting.zh.md`。
 - [ ] 包内没有 `docs/internal`、`docs/development`、`handoff`、`node_modules`、本机 local config、token、auth、cookie 或 provider 数据库。
 
 ## 3. 安装
@@ -77,20 +77,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 - [ ] 用户能按排错指南先运行 reload：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\reload-codex-praetor-mcp.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\reload-codex-praetor-mcp.ps1
 ```
 
 - [ ] 在 Codex 线程里可以继续尝试 probe：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\probe-codex-praetor-mcp.ps1 -AfterDirectHandleFailure
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex-praetor-mcp.ps1 -AfterDirectHandleFailure
 ```
 
 - [ ] reload/probe 失败后，文档才建议重启 Codex 或打开新任务。
 
 ## 8. 卸载和回滚
 
-- [ ] `docs/uninstall.zh.md` 能说明默认安装路径。
+- [ ] `docs/user/uninstall.zh.md` 能说明默认安装路径。
 - [ ] 能说明如何删除插件目录。
 - [ ] 能说明如何从 marketplace 移除 `codex-praetor`。
 - [ ] 能说明如何从备份目录回滚。

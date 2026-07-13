@@ -25,7 +25,7 @@ Do not reintroduce `cheap-worker-orchestrator`, `WorkerLane`, or `workerlane` as
 Keep source and distribution paths separate but shallow:
 
 - `skill/` is the source skill.
-- `scripts/` is the source script set.
+- `scripts/` is the source script set, grouped by role: `dispatch/`, `install/`, `verify/`, `release/`, and `maintenance/`.
 - `mcp/` is the MCP source.
 - `plugin/` is the final Codex plugin package shape.
 
@@ -58,7 +58,7 @@ Codex Praetor must not spawn Codex subagents by default. For cost-saving delegat
 Before saying a rename or migration is complete:
 
 - Scan for old names: `cheap-worker-orchestrator`, `WorkerLane`, `workerlane`, old script names.
-- Run a dry-run through `scripts/invoke-codex-praetor.ps1`.
+- Run a dry-run through `scripts/dispatch/invoke-codex-praetor.ps1`.
 - Confirm the skill frontmatter name is `codex-praetor`.
 - Confirm plugin manifest name is `codex-praetor`.
 - Confirm runtime outputs are ignored by Git and stay project-local.

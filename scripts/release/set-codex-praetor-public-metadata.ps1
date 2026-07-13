@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $manifestPath = Join-Path $projectRoot "plugin\.codex-plugin\plugin.json"
 
 function Normalize-GitHubRepositoryUrl {

@@ -10,8 +10,8 @@ if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -Er
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
-$appServerInvoker = Join-Path $scriptDir "invoke-codex-app-server.js"
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
+$appServerInvoker = Join-Path $projectRoot "scripts\dispatch\invoke-codex-app-server.js"
 
 function Write-Result {
     param([hashtable]$Result)

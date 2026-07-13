@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 if ([string]::IsNullOrWhiteSpace($SourceSkill)) {
     $SourceSkill = Join-Path $projectRoot "skill\codex-praetor"
 }

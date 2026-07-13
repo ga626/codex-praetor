@@ -6,9 +6,9 @@
 
 - Release 页面：`v0.1.0-alpha`
 - Windows 用户安装包：`codex-praetor-setup-0.1.0-alpha.zip`，解压后双击根目录的 `setup.cmd`
-- 安装指南：[docs/installation.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/installation.zh.md)
-- 排错指南：[docs/troubleshooting.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/troubleshooting.zh.md)
-- 隐私边界：[docs/privacy.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/privacy.zh.md)
+- 安装指南：[docs/user/installation.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/user/installation.zh.md)
+- 排错指南：[docs/user/troubleshooting.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/user/troubleshooting.zh.md)
+- 隐私边界：[docs/user/privacy.zh.md](https://github.com/ga626/codex-praetor/blob/main/docs/user/privacy.zh.md)
 
 ## 这个版本能做什么
 
@@ -29,7 +29,7 @@
 ## 已验证内容
 
 - 公开发布检查通过。
-- `scripts/test-codex-praetor.ps1` 通过。
+- `scripts/verify/test-codex-praetor.ps1` 通过。
 - MCP 自测通过。
 - 插件内置 MCP runtime smoke test 通过。
 - release 包构建和私有信息扫描通过。

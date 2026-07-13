@@ -11,7 +11,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\examples\dry-run.ps1 -Repo
 等价 wrapper 调用：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\invoke-codex-praetor.ps1 `
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dispatch\invoke-codex-praetor.ps1 `
   -Provider mimo `
   -Tier mimo-auto-readonly `
   -Repo "<你的仓库路径>" `
@@ -34,7 +34,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\examples\readonly-canary.p
 等价 wrapper 调用：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\invoke-codex-praetor.ps1 `
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dispatch\invoke-codex-praetor.ps1 `
   -Provider mimo `
   -Tier mimo-auto-readonly `
   -Repo "<你的仓库路径>" `

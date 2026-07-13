@@ -40,10 +40,10 @@ The script layer is already functional enough for dry-runs and smoke validation.
 
 Core scripts:
 
-- `scripts/invoke-codex-praetor.ps1`
-- `scripts/watch-codex-praetor-job.ps1`
-- `scripts/manage-codex-praetor-plan.ps1`
-- `scripts/notify-codex-praetor-completion.ps1`
+- `scripts/dispatch/invoke-codex-praetor.ps1`
+- `scripts/dispatch/watch-codex-praetor-job.ps1`
+- `scripts/dispatch/manage-codex-praetor-plan.ps1`
+- `scripts/dispatch/notify-codex-praetor-completion.ps1`
 
 The current project artifact root defaults to:
 

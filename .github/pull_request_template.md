@@ -4,8 +4,8 @@
 
 ## 验证
 
-- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-codex-praetor.ps1 -RequireHead -PublicRelease`
-- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-codex-praetor.ps1`
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease`
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1`
 - [ ] `npm test --prefix .\mcp`
 - [ ] 已完成一次不修改文件的 dry-run。
 - [ ] 如果改动安装或发布流程，已验证安装、更新或回滚路径。
