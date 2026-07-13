@@ -217,9 +217,9 @@ Copy-Item .\config\codex-praetor-tiers.example.json .\config\codex-praetor.local
 
 更多 provider 说明：
 
-- [Qoder](provider-notes/qoder.md)
-- [CodeBuddy](provider-notes/codebuddy.md)
-- [MiMo](provider-notes/mimo.md)
+- [Qoder](../provider-notes/qoder.md)
+- [CodeBuddy](../provider-notes/codebuddy.md)
+- [MiMo](../provider-notes/mimo.md)
 
 ## 更新
 

@@ -67,6 +67,7 @@ function Get-ProviderDefinitions {
                 [pscustomobject]@{
                     Label = "官方 Windows CMD 安装";
                     Command = "curl -fsSL https://qoder.com/install.cmd -o install.cmd && install.cmd";
+                    Shell = "cmd";
                     RequiresNode = $false;
                     Preferred = $false;
                 }
@@ -200,6 +201,7 @@ function Read-OnboardingState {
 
 function Save-OnboardingState {
     param([object]$State)
+    if (-not $Apply) { return }
     $State.updatedAt = Get-IsoNow
     New-Item -ItemType Directory -Path $userCodexDir -Force | Out-Null
     $json = ($State | ConvertTo-Json -Depth 20) + [Environment]::NewLine
@@ -401,7 +403,12 @@ function Invoke-OfficialInstallCommand {
     Write-Host ""
     Write-Host "开始执行 $($Provider.Name) 官方安装：" -ForegroundColor Cyan
     Write-Host $Installer.Command
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $Installer.Command
+    $shell = if (Test-ObjectProperty -Object $Installer -Name "Shell") { [string]$Installer.Shell } else { "powershell" }
+    if ($shell -eq "cmd") {
+        & cmd.exe /c $Installer.Command
+    } else {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $Installer.Command
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "$($Provider.Name) 官方安装命令失败，退出码：$LASTEXITCODE"
     }
