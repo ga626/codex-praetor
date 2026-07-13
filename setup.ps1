@@ -177,5 +177,6 @@ Write-Section "安装完成"
 Write-Host "Codex Praetor 已安装到：$env:USERPROFILE\plugins\codex-praetor" -ForegroundColor Green
 Write-Host "下一步：重启 Codex，或打开一个新任务让插件被发现。"
 Write-Host "首次使用建议：拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。"
+Write-Host "provider 只读 canary：powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo"
 Write-Host "provider 配置模板：config\codex-praetor.local.json"
 Write-Host "验收命令：powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1"

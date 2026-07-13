@@ -12,6 +12,7 @@ These checks protect the source repository. They may stay in the repo, but they 
 - GitHub CI: `.github/workflows/ci.yml` runs doctor with the public template, minimal validation, MCP tests, and a release package build.
 - Release doctor: draft CI can run `scripts/verify/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders`; final public release must run without `-AllowDraftMetadataPlaceholders`.
 - Minimal validation: `scripts/verify/test-codex-praetor.ps1`.
+- Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider mimo`.
 - MCP source tests: `npm test` under `mcp/`.
 - Plugin protocol smoke: `mcp/scripts/smoke-plugin-mcp.js` against the packaged runtime.
 - Public marker scan: no personal account paths, auth files, local caches, or token-bearing artifacts in public paths.
@@ -53,6 +54,7 @@ Before release, a normal Windows user should see clear doctor states:
 - Login unknown: clear instruction to complete the provider's normal login outside Codex Praetor.
 - Capability mismatch: version/help probe fails or required flags are not accepted.
 - No providers installed: local planning/dry-run/status still works, real dispatch is disabled.
+- Provider installed and logged in: readonly canary can run with `-Apply`, return `CODEX_PRAETOR_CANARY_OK`, and leave the main repository clean.
 
 Codex Praetor must not install providers, log in for the user, read provider auth databases, or promise free/cheap routing that depends on the user's account.
 

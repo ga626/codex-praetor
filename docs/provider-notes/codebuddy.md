@@ -80,7 +80,21 @@ Expected doctor states:
 - `provider:codebuddy:version` ready or info: version probing succeeded, or doctor could not prove compatibility.
 - `provider:codebuddy:auth` info: doctor intentionally does not inspect login state.
 
-Before real dispatch, run a dry-run or readonly canary. CodeBuddy tool permission behavior can vary by edition, so treat the first readonly canary as the real capability proof.
+Before real dispatch, run the readonly canary. CodeBuddy tool permission behavior can vary by edition, so treat the first readonly canary as the real capability proof.
+
+Preview only:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
+```
+
+Real readonly canary:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy -Apply
+```
+
+The canary asks CodeBuddy to read `README.md`, return `CODEX_PRAETOR_CANARY_OK`, and leave the main repository status unchanged.
 
 ## Cost and model boundary
 

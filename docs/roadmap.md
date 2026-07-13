@@ -11,6 +11,7 @@
 - Qoder、CodeBuddy、MiMo 三类 provider 路线的只读 canary。
 - 中文首页、安装指南、排错指南、隐私边界、卸载回滚和用户验收清单。
 - GitHub issue 模板和 pull request 模板。
+- provider 只读 canary 的统一预览/执行入口。
 
 ## 近期目标
 
@@ -22,8 +23,6 @@
 
 ## 下一版候选方向
 
-- 更清楚的 provider CLI 发现和登录提示。
-- 更像普通用户流程的只读 canary。
 - 更友好的插件缓存清理和恢复提示。
 - 更完整的 GitHub Release 校验信息，例如 zip 摘要和安装后检查步骤。
 - 持续跟进 Codex 插件和 MCP 加载机制变化，减少用户手动操作。

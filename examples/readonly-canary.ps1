@@ -2,7 +2,8 @@ param(
     [string]$Repo = (Get-Location).Path,
     [string]$Provider = "mimo",
     [string]$Tier = "mimo-auto-readonly",
-    [string]$Marker = "CODEX_PRAETOR_CANARY_OK"
+    [string]$Marker = "CODEX_PRAETOR_CANARY_OK",
+    [switch]$Apply
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,14 +17,19 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $scriptDir
-$wrapper = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
-$task = "Read README.md only. Final answer must start with $Marker. Do not modify files."
+$canary = Join-Path $projectRoot "scripts\verify\test-provider-readonly-canary.ps1"
 
-& powershell -NoProfile -ExecutionPolicy Bypass -File $wrapper `
-    -Provider $Provider `
-    -Tier $Tier `
-    -Repo $Repo `
-    -Mode readonly `
-    -RunMode blocking `
-    -Task $task `
-    -NoNotify
+$argsList = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $canary,
+    "-Provider", $Provider,
+    "-Tier", $Tier,
+    "-Repo", $Repo,
+    "-Marker", $Marker
+)
+if ($Apply) {
+    $argsList += "-Apply"
+}
+
+& powershell @argsList
