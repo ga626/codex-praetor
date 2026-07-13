@@ -88,9 +88,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 
 provider 说明：
 
-- [Qoder](provider-notes/qoder.md)
-- [CodeBuddy](provider-notes/codebuddy.md)
-- [MiMo](provider-notes/mimo.md)
+- [Qoder](../provider-notes/qoder.md)
+- [CodeBuddy](../provider-notes/codebuddy.md)
+- [MiMo](../provider-notes/mimo.md)
 
 ## WindowsApps `codex.exe` 报权限问题
 

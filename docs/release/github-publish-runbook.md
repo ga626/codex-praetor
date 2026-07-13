@@ -3,6 +3,8 @@
 Date: 2026-07-13
 Target release: `0.1.1-alpha`
 
+Status: `v0.1.1-alpha` has already been published. This runbook records the safe path that was used for that release and can be reused as a template for the next release after replacing the target version.
+
 This runbook is the safe path for publishing Codex Praetor to GitHub. It assumes Codex does the release work after the user completes only the account-owner actions that cannot be delegated safely.
 
 ## Hard Rules

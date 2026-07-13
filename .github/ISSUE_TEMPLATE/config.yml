@@ -1,6 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: 安装和排错指南
-    url: https://github.com/ga626/codex-praetor/blob/main/docs/troubleshooting.zh.md
+    url: https://github.com/ga626/codex-praetor/blob/main/docs/user/troubleshooting.zh.md
     about: 提交问题前，请先看这里的常见恢复步骤。
-
