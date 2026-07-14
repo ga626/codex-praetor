@@ -175,13 +175,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 1. 检查本机有没有对应命令。
 2. 没有命令时，列出官方安装方式，并让你选择“执行官方安装 / 打开官方说明 / 重新检测 / 跳过”。
-3. 你确认后，向导执行对应 provider 的官方安装命令，不使用第三方镜像，不把 provider 打进 Codex Praetor 包。
-4. 安装结束后，向导刷新当前终端 PATH，重新检测命令和版本。
+3. 你确认后，向导先检查对应官方安装源的网络是否可用，再执行 provider 的官方安装命令；它不使用第三方镜像，不把 provider 打进 Codex Praetor 包。
+4. 安装结束后，向导刷新当前终端 PATH，并主动检查 provider 的常见安装目录，例如 Qoder 的 `.qoder`、CodeBuddy 的 `AppData\Local\codebuddy\bin`、MiMo 的 `.mimocode\bin`，然后重新检测命令和版本。
 5. 命令可用后，向导进入登录/授权陪跑。它会停在同一个窗口里，让你启动 provider 官方 CLI，并按官方流程完成登录、扫码、站点选择、企业域、Token Plan 或 API key 等账号动作。
 6. 你回到向导继续后，向导再次检测 CLI，并把已发现的 CLI 路径写入本机配置。
 7. 最后给出只读 canary 的预览或真实运行选项。
 
 这里的“等待你完成”很重要。Codex Praetor 会把能自动做的事情做掉，但不会替你输入密码、选择站点、扫码、购买 Token Plan、复制 API key，也不会读取任何 provider 账号文件。
+
+如果你在安装或登录阶段选择跳过，Codex Praetor 本体仍然会继续安装。跳过只表示这家 provider 暂时不能真实派工；之后重新运行 `setup.cmd`，选择同一家 provider，就可以继续配置。
+
+如果官方安装源因为网络或代理暂时不可达，向导会给出中文提示。你可以修好网络后重试，也可以先跳过这家 provider；这不会影响 Codex Praetor 本体安装。
 
 ## 配置真实派工
 
