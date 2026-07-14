@@ -11,6 +11,7 @@
 | MCP 工具报 `Transport closed` | 当前这一次工具句柄旧了，底层服务不一定坏 | 运行 reload/probe；失败后再重启 Codex 或打开新任务 |
 | 没有 Qoder、CodeBuddy、MiMo | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
 | provider 已安装但真实派工失败 | provider 未登录、权限不够或 CLI 路径不对 | 重新运行向导选择对应 provider，按官方流程登录，再跑 readonly canary |
+| 执行 provider 官方安装时提示网络不可用或超时 | 官方安装源、DNS、代理或系统网络还没准备好 | 检查网络/代理后重试；也可以先跳过 provider，先完成本体安装 |
 
 ## 看不到 Codex Praetor 插件
 
@@ -70,11 +71,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex
 
 如果安装过程中误关窗口，直接重新运行 `setup.cmd`。向导会读取 `%USERPROFILE%\.codex\codex-praetor.onboarding-state.json` 继续上次进度。这个状态文件不包含 token、cookie、PAT、API key、账号数据库或余额页面。
 
+如果你只是暂时跳过 provider 安装或登录，这也是正常状态。本体安装、dry-run 和状态查询应该继续可用；真实派工等你后续把至少一家 provider 配好以后再启用。
+
+如果官方安装源网络不可用或安装命令超时，先确认浏览器能打开对应 provider 官网，再重新运行 `setup.cmd`。公司网络、代理软件、VPN、DNS 或刚恢复的虚拟机网络都可能导致官方安装源暂时不可达。
+
 ## provider 已安装但没有登录
 
 请用 provider 自己的官方方式登录。
 
 Codex Praetor 不会替你登录，也不会读取 provider 的账号数据库、token 或 cookie。
+
+如果向导刚装完 provider 后一时找不到命令，先重新运行 `setup.cmd` 选择同一家 provider。新版向导会同时检查 PATH 和常见安装目录：Qoder 的 `.qoder`、CodeBuddy 的 `AppData\Local\codebuddy\bin`、MiMo 的 `.mimocode\bin`。
 
 登录后，先预览只读 canary：
 

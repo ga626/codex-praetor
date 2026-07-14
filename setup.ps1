@@ -46,6 +46,13 @@ function Test-ObjectProperty {
     return ($Object.PSObject.Properties.Name -contains $Name)
 }
 
+function Read-TrimmedHost {
+    param([string]$Prompt)
+    $value = Read-Host $Prompt
+    if ($null -eq $value) { return "" }
+    return ([string]$value).Trim()
+}
+
 function Get-IsoNow {
     return ([DateTimeOffset]::Now.ToString("o"))
 }
@@ -61,6 +68,8 @@ function Get-ProviderDefinitions {
                 [pscustomobject]@{
                     Label = "官方 Windows PowerShell 安装";
                     Command = "irm https://qoder.com/install.ps1 | iex";
+                    NetworkHost = "qoder.com";
+                    TimeoutSeconds = 600;
                     RequiresNode = $false;
                     Preferred = $true;
                 },
@@ -68,6 +77,8 @@ function Get-ProviderDefinitions {
                     Label = "官方 Windows CMD 安装";
                     Command = "curl -fsSL https://qoder.com/install.cmd -o install.cmd && install.cmd";
                     Shell = "cmd";
+                    NetworkHost = "qoder.com";
+                    TimeoutSeconds = 600;
                     RequiresNode = $false;
                     Preferred = $false;
                 }
@@ -76,7 +87,8 @@ function Get-ProviderDefinitions {
             AuthLaunchHint = "向导会把当前终端交给 Qoder。进入 Qoder 后输入 /login，按官方提示完成浏览器登录或 PAT；完成后退出 Qoder，向导会继续复检。";
             AuthCommand = "";
             CanaryProvider = "qoder";
-            KnownBinDirs = @();
+            KnownBinDirs = @("%USERPROFILE%\.qoder\bin", "%USERPROFILE%\.qoder\bin\qodercli");
+            ExecutablePatterns = @("qodercli.exe", "qodercli-*.exe", "qoder.exe");
         }
         [pscustomobject]@{
             Id = "codebuddy";
@@ -87,18 +99,24 @@ function Get-ProviderDefinitions {
                 [pscustomobject]@{
                     Label = "官方 Windows Native Installer Beta（推荐，少依赖）";
                     Command = "irm https://copilot.tencent.com/cli/install.ps1 | iex";
+                    NetworkHost = "copilot.tencent.com";
+                    TimeoutSeconds = 600;
                     RequiresNode = $false;
                     Preferred = $true;
                 },
                 [pscustomobject]@{
                     Label = "官方 Windows Native Installer 备用域名";
                     Command = "irm https://www.codebuddy.cn/cli/install.ps1 | iex";
+                    NetworkHost = "www.codebuddy.cn";
+                    TimeoutSeconds = 600;
                     RequiresNode = $false;
                     Preferred = $false;
                 },
                 [pscustomobject]@{
                     Label = "npm 全局安装";
                     Command = "npm install -g @tencent-ai/codebuddy-code";
+                    NetworkHost = "registry.npmjs.org";
+                    TimeoutSeconds = 600;
                     RequiresNode = $true;
                     Preferred = $false;
                 }
@@ -108,6 +126,7 @@ function Get-ProviderDefinitions {
             AuthCommand = "";
             CanaryProvider = "codebuddy";
             KnownBinDirs = @("%USERPROFILE%\AppData\Local\codebuddy\bin");
+            ExecutablePatterns = @("codebuddy.exe", "workbuddy.exe", "codebuddy.cmd", "workbuddy.cmd");
         }
         [pscustomobject]@{
             Id = "mimo";
@@ -117,19 +136,26 @@ function Get-ProviderDefinitions {
             Installers = @(
                 [pscustomobject]@{
                     Label = "官方 Windows PowerShell 安装";
-                    Command = "powershell -ep Bypass -c `"irm https://mimo.xiaomi.com/install.ps1 | iex`"";
+                    DisplayCommand = "powershell -ep Bypass -c `"irm https://mimo.xiaomi.com/install.ps1 | iex`"";
+                    Command = "irm https://mimo.xiaomi.com/install.ps1 | iex";
+                    NetworkHost = "mimo.xiaomi.com";
+                    TimeoutSeconds = 1200;
                     RequiresNode = $false;
                     Preferred = $true;
                 },
                 [pscustomobject]@{
                     Label = "npm 全局安装";
                     Command = "npm install -g @mimo-ai/cli --registry https://registry.npmjs.org";
+                    NetworkHost = "registry.npmjs.org";
+                    TimeoutSeconds = 600;
                     RequiresNode = $true;
                     Preferred = $false;
                 },
                 [pscustomobject]@{
                     Label = "Windows 平台包 fallback";
                     Command = "npm install -g @mimo-ai/mimocode-windows-x64 --registry https://registry.npmjs.org";
+                    NetworkHost = "registry.npmjs.org";
+                    TimeoutSeconds = 600;
                     RequiresNode = $true;
                     Preferred = $false;
                 }
@@ -138,7 +164,8 @@ function Get-ProviderDefinitions {
             AuthLaunchHint = "如果 MiMo Auto 不可用，向导会启动 mimo auth login。请在弹出的官方登录/授权流程里完成账号、余额或 Token Plan 检查。";
             AuthCommand = "auth login";
             CanaryProvider = "mimo";
-            KnownBinDirs = @("%USERPROFILE%\AppData\Local\mimo\bin", "%APPDATA%\npm");
+            KnownBinDirs = @("%USERPROFILE%\.mimocode\bin", "%USERPROFILE%\AppData\Local\mimo\bin", "%APPDATA%\npm");
+            ExecutablePatterns = @("mimo.exe", "mimo.cmd");
         }
     )
 }
@@ -271,7 +298,11 @@ function Refresh-ProcessPath {
 }
 
 function Resolve-CommandCandidate {
-    param([string[]]$Names)
+    param(
+        [string[]]$Names,
+        [string[]]$KnownBinDirs = @(),
+        [string[]]$ExecutablePatterns = @()
+    )
     foreach ($name in $Names) {
         $command = Get-Command $name -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($null -ne $command) {
@@ -288,13 +319,52 @@ function Resolve-CommandCandidate {
             }
         }
     }
+    $patterns = @($ExecutablePatterns | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($patterns.Count -eq 0) {
+        $patterns = @($Names | ForEach-Object {
+            if ($_ -match "\.(exe|cmd|ps1|bat)$") { $_ } else { "$_.exe", "$_.cmd" }
+        })
+    }
+    foreach ($dir in $KnownBinDirs) {
+        $expanded = [Environment]::ExpandEnvironmentVariables($dir)
+        if ([string]::IsNullOrWhiteSpace($expanded) -or -not (Test-Path -LiteralPath $expanded -PathType Container)) {
+            continue
+        }
+        foreach ($pattern in $patterns) {
+            $candidate = Get-ChildItem -LiteralPath $expanded -Filter $pattern -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTimeUtc -Descending |
+                Select-Object -First 1
+            if ($null -ne $candidate) {
+                return [pscustomobject]@{
+                    Name = $candidate.Name;
+                    Path = $candidate.FullName;
+                }
+            }
+        }
+    }
     return $null
+}
+
+function Set-StatusField {
+    param(
+        [object]$Status,
+        [string]$Name,
+        [object]$Value
+    )
+    if ($null -eq $Status) { return }
+    if (Test-ObjectProperty -Object $Status -Name $Name) {
+        $Status.$Name = $Value
+    } else {
+        $Status | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
+    }
 }
 
 function Get-ProviderStatus {
     param([object]$Provider)
 
-    $command = Resolve-CommandCandidate -Names $Provider.Commands
+    $knownBinDirs = if (Test-ObjectProperty -Object $Provider -Name "KnownBinDirs") { @($Provider.KnownBinDirs) } else { @() }
+    $executablePatterns = if (Test-ObjectProperty -Object $Provider -Name "ExecutablePatterns") { @($Provider.ExecutablePatterns) } else { @() }
+    $command = Resolve-CommandCandidate -Names $Provider.Commands -KnownBinDirs $knownBinDirs -ExecutablePatterns $executablePatterns
     $version = ""
     if ($null -ne $command) {
         try {
@@ -359,7 +429,7 @@ function Read-ProviderChoice {
     if (-not [string]::IsNullOrWhiteSpace($State.providerChoice)) {
         Write-Host ""
         Write-Host "发现上次未完成的向导状态：选择 $($State.providerChoice)，更新时间 $($State.updatedAt)。" -ForegroundColor Yellow
-        $resume = ([string](Read-Host "按 Enter 继续上次进度；输入 N 重新选择")).Trim()
+        $resume = Read-TrimmedHost "按 Enter 继续上次进度；输入 N 重新选择"
         if ($resume -notmatch "^n(?:o)?$" -and $State.providerChoice -in @("1", "2", "3", "4", "5")) {
             return $State.providerChoice
         }
@@ -372,7 +442,7 @@ function Read-ProviderChoice {
     Write-Host "  3. 只配置 Qoder"
     Write-Host "  4. 只配置 CodeBuddy"
     Write-Host "  5. 只配置 MiMo"
-    $choice = ([string](Read-Host "输入选项 [默认 2]")).Trim()
+    $choice = Read-TrimmedHost "输入选项 [默认 2]"
     if ([string]::IsNullOrWhiteSpace($choice)) {
         return "2"
     }
@@ -394,6 +464,62 @@ function Get-SelectedProviderIds {
     }
 }
 
+function Wait-InstallerNetwork {
+    param(
+        [string]$HostName,
+        [int]$TimeoutSeconds = 240
+    )
+
+    if ([string]::IsNullOrWhiteSpace($HostName)) { return }
+    Write-Host "正在检查安装源网络：$HostName" -ForegroundColor Cyan
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastError = ""
+    do {
+        try {
+            Resolve-DnsName -Name $HostName -ErrorAction Stop | Out-Null
+            $tcpOk = Test-NetConnection -ComputerName $HostName -Port 443 -InformationLevel Quiet -WarningAction SilentlyContinue
+            if ($tcpOk) { return }
+            $lastError = "443 端口暂时不可达"
+        } catch {
+            $lastError = $_.Exception.Message
+        }
+        Start-Sleep -Seconds 5
+    } while ((Get-Date) -lt $deadline)
+
+    throw "安装源网络暂时不可用：$HostName。$lastError。请检查网络或代理后重试，也可以先跳过这个 provider。"
+}
+
+function Invoke-CommandWithTimeout {
+    param(
+        [string]$FilePath,
+        [string[]]$ArgumentList,
+        [int]$TimeoutSeconds
+    )
+
+    function Quote-ProcessArgument {
+        param([string]$Value)
+        if ($null -eq $Value) { return '""' }
+        if ($Value -notmatch '[\s"]') { return $Value }
+        return '"' + ($Value -replace '\\(?=\\*")', '$0$0' -replace '"', '\"') + '"'
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo.FileName = $FilePath
+    $process.StartInfo.Arguments = (($ArgumentList | ForEach-Object { Quote-ProcessArgument ([string]$_) }) -join " ")
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.RedirectStandardInput = $true
+    [void]$process.Start()
+    $process.StandardInput.Close()
+    $completed = $process.WaitForExit($TimeoutSeconds * 1000)
+    if (-not $completed) {
+        try { $process.Kill() } catch {}
+        throw "官方安装命令超过 $TimeoutSeconds 秒仍未结束。请检查网络或代理后重试，也可以先跳过这个 provider。"
+    }
+    if ($process.ExitCode -ne 0) {
+        throw "官方安装命令失败，退出码：$($process.ExitCode)"
+    }
+}
+
 function Invoke-OfficialInstallCommand {
     param(
         [object]$Provider,
@@ -402,15 +528,20 @@ function Invoke-OfficialInstallCommand {
 
     Write-Host ""
     Write-Host "开始执行 $($Provider.Name) 官方安装：" -ForegroundColor Cyan
-    Write-Host $Installer.Command
+    $shownCommand = if (Test-ObjectProperty -Object $Installer -Name "DisplayCommand") { $Installer.DisplayCommand } else { $Installer.Command }
+    Write-Host $shownCommand
+    if (Test-ObjectProperty -Object $Installer -Name "NetworkHost") {
+        Wait-InstallerNetwork -HostName ([string]$Installer.NetworkHost)
+    }
+    $timeoutSeconds = 600
+    if (Test-ObjectProperty -Object $Installer -Name "TimeoutSeconds") {
+        $timeoutSeconds = [int]$Installer.TimeoutSeconds
+    }
     $shell = if (Test-ObjectProperty -Object $Installer -Name "Shell") { [string]$Installer.Shell } else { "powershell" }
     if ($shell -eq "cmd") {
-        & cmd.exe /c $Installer.Command
+        Invoke-CommandWithTimeout -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList @("/d", "/c", $Installer.Command) -TimeoutSeconds $timeoutSeconds
     } else {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $Installer.Command
-    }
-    if ($LASTEXITCODE -ne 0) {
-        throw "$($Provider.Name) 官方安装命令失败，退出码：$LASTEXITCODE"
+        Invoke-CommandWithTimeout -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $Installer.Command) -TimeoutSeconds $timeoutSeconds
     }
 }
 
@@ -428,12 +559,13 @@ function Select-Installer {
         $marker = if ($installers[$i].Preferred) { "（推荐）" } else { "" }
         $nodeHint = if ($installers[$i].RequiresNode) { "，需要 Node.js" } else { "" }
         Write-Host ("  {0}. {1}{2}{3}" -f ($i + 1), $installers[$i].Label, $marker, $nodeHint)
-        Write-Host ("     {0}" -f $installers[$i].Command) -ForegroundColor DarkGray
+        $shownCommand = if (Test-ObjectProperty -Object $installers[$i] -Name "DisplayCommand") { $installers[$i].DisplayCommand } else { $installers[$i].Command }
+        Write-Host ("     {0}" -f $shownCommand) -ForegroundColor DarkGray
     }
     Write-Host "  O. 打开官方说明"
     Write-Host "  R. 我已经自己装好了，重新检测"
     Write-Host "  S. 跳过 $($Provider.Name)"
-    $answer = ([string](Read-Host "选择 [默认 1]")).Trim()
+    $answer = Read-TrimmedHost "选择 [默认 1]"
     if ([string]::IsNullOrWhiteSpace($answer)) { return $installers[0] }
     if ($answer -match "^[oO]$") {
         Start-Process $Provider.Docs | Out-Null
@@ -478,8 +610,8 @@ function Ensure-ProviderInstalled {
     while (-not $Status.Available) {
         $selection = Select-Installer -Provider $Provider
         if ($selection -eq "skip") {
-            $Status.Skipped = $true
-            $Status.Note = "用户选择跳过。"
+            Set-StatusField -Status $Status -Name "Skipped" -Value $true
+            Set-StatusField -Status $Status -Name "Note" -Value "用户选择跳过。"
             Set-ProviderState -State $State -ProviderId $Provider.Id -Status "skipped" -Message $Status.Note
             return $Status
         }
@@ -494,9 +626,9 @@ function Ensure-ProviderInstalled {
             } catch {
                 Write-Host $_.Exception.Message -ForegroundColor Red
                 Set-ProviderState -State $State -ProviderId $Provider.Id -Status "install_failed" -Message $_.Exception.Message
-                $retry = ([string](Read-Host "按 Enter 重试/换安装方式，输入 S 跳过")).Trim()
+                $retry = Read-TrimmedHost "按 Enter 重试/换安装方式，输入 S 跳过"
                 if ($retry -match "^[sS]$") {
-                    $Status.Skipped = $true
+                    Set-StatusField -Status $Status -Name "Skipped" -Value $true
                     Set-ProviderState -State $State -ProviderId $Provider.Id -Status "skipped" -Message "安装失败后用户选择跳过"
                     return $Status
                 }
@@ -506,11 +638,11 @@ function Ensure-ProviderInstalled {
 
         Refresh-ProcessPath -Providers $AllProviders
         $newStatus = Get-ProviderStatus -Provider $Provider
-        $Status.Available = $newStatus.Available
-        $Status.CommandName = $newStatus.CommandName
-        $Status.CommandPath = $newStatus.CommandPath
-        $Status.Version = $newStatus.Version
-        $Status.Rechecked = $true
+        Set-StatusField -Status $Status -Name "Available" -Value $newStatus.Available
+        Set-StatusField -Status $Status -Name "CommandName" -Value $newStatus.CommandName
+        Set-StatusField -Status $Status -Name "CommandPath" -Value $newStatus.CommandPath
+        Set-StatusField -Status $Status -Name "Version" -Value $newStatus.Version
+        Set-StatusField -Status $Status -Name "Rechecked" -Value $true
         if ($Status.Available) {
             Write-Host "复检通过：已发现 $($Provider.Name) CLI：$($Status.CommandPath)" -ForegroundColor Green
             Set-ProviderState -State $State -ProviderId $Provider.Id -Status "cli_detected" -ProviderStatus $Status -Message "安装后复检通过"
@@ -548,7 +680,7 @@ function Invoke-ProviderAuthFlow {
         Write-Host "[C] 我已完成登录/授权，继续复检和 canary"
         Write-Host "[O] 打开官方说明"
         Write-Host "[S] 跳过 $($Provider.Name)"
-        $answer = ([string](Read-Host "选择 [默认 C]")).Trim()
+        $answer = Read-TrimmedHost "选择 [默认 C]"
         if ([string]::IsNullOrWhiteSpace($answer) -or $answer -match "^[cC]$") {
             Set-ProviderState -State $State -ProviderId $Provider.Id -Status "auth_user_done_recheck" -ProviderStatus $Status -Message "用户声明已完成官方授权，进入复检"
             return (Get-ProviderStatus -Provider $Provider)
@@ -558,7 +690,8 @@ function Invoke-ProviderAuthFlow {
             continue
         }
         if ($answer -match "^[sS]$") {
-            $Status.Skipped = $true
+            Set-StatusField -Status $Status -Name "Skipped" -Value $true
+            Set-StatusField -Status $Status -Name "Note" -Value "用户在授权阶段选择跳过。"
             Set-ProviderState -State $State -ProviderId $Provider.Id -Status "skipped" -ProviderStatus $Status -Message "用户在授权阶段选择跳过"
             return $Status
         }
@@ -655,7 +788,7 @@ function Invoke-CanaryStep {
             continue
         }
 
-        $answer = ([string](Read-Host "选择：[P] 只预览 / [A] 运行真实只读 canary / [S] 先跳过 [默认 P]")).Trim()
+        $answer = Read-TrimmedHost "选择：[P] 只预览 / [A] 运行真实只读 canary / [S] 先跳过 [默认 P]"
         if ($answer -match "^[sS]$") {
             Set-ProviderState -State $State -ProviderId $status.Id -Status "canary_skipped" -ProviderStatus $status -Canary "skipped" -Message "用户跳过 canary"
             continue
@@ -724,12 +857,15 @@ function Invoke-ProviderOnboarding {
         }
 
         $status = Invoke-ProviderAuthFlow -Provider $definition -Status $status -State $State
+        if ($status.Skipped -or -not $status.Available) {
+            continue
+        }
         $latest = Get-ProviderStatus -Provider $definition
-        $status.Available = $latest.Available
-        $status.CommandName = $latest.CommandName
-        $status.CommandPath = $latest.CommandPath
-        $status.Version = $latest.Version
-        $status.Rechecked = $true
+        Set-StatusField -Status $status -Name "Available" -Value $latest.Available
+        Set-StatusField -Status $status -Name "CommandName" -Value $latest.CommandName
+        Set-StatusField -Status $status -Name "CommandPath" -Value $latest.CommandPath
+        Set-StatusField -Status $status -Name "Version" -Value $latest.Version
+        Set-StatusField -Status $status -Name "Rechecked" -Value $true
 
         if ($status.Available) {
             Write-Host "复检通过：$($status.Name) CLI 仍然可发现。" -ForegroundColor Green
@@ -859,7 +995,7 @@ if (-not $Apply) {
 
 if (-not $NonInteractive) {
     Write-Host ""
-    $confirm = ([string](Read-Host "按 Enter 开始安装 Codex Praetor 本体，输入 N 取消")).Trim()
+    $confirm = Read-TrimmedHost "按 Enter 开始安装 Codex Praetor 本体，输入 N 取消"
     if ($confirm -match "^n(?:o)?$") {
         Write-Host "已取消安装。重新运行 setup.cmd 会从向导状态继续。"
         Save-OnboardingState -State $state
