@@ -2,11 +2,13 @@
 
 ## Unreleased
 
+## 0.1.3-alpha - 2026-07-15
+
 - Separated product validation from developer-environment validation so PR, CI, and release gates no longer depend on the local Codex global rules, installed skill copy, or provider dry-run state by default.
 - Added a public-entry consistency check to keep README, installation docs, roadmap, release notes, and GitHub Release assets aligned after publication.
-- Updated public download documentation to the published `0.1.2-alpha` release.
 - Made release package builds deterministic by writing zip entries in stable order with fixed timestamps, plus a repeat-build SHA256 verification gate.
 - Added a dry-run-first runtime cleanup helper for merged clean worker worktrees, old completed jobs, and scratch artifacts under `.codex-praetor`.
+- Updated all public download, package metadata, installer, and release automation references for the `0.1.3-alpha` release.
 
 ## 0.1.2-alpha - 2026-07-15
 

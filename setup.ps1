@@ -939,7 +939,7 @@ if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
 $state = Read-OnboardingState
 
 Write-Section "Codex Praetor 安装向导"
-Write-Host "版本：0.1.2-alpha"
+Write-Host "版本：0.1.3-alpha"
 Write-Host "安装范围：当前 Windows 用户插件目录，不需要管理员权限。"
 Write-Host "这个向导会安装 Codex Praetor 本体，并把 Qoder、CodeBuddy、MiMo 的安装、登录陪跑、复检和 canary 串在同一个命令里。"
 Write-Host "它不会替你登录账号，不会读取 token、cookie、账号数据库，也不会替你确认账单。"

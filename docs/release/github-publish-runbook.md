@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-15
-Target release: `0.1.2-alpha`
+Target release: `0.1.3-alpha`
 
-Status: `v0.1.2-alpha` is the current public user-downloadable release. For the next delivery-affecting change, use a new version/tag and verify the downloaded zip before calling the product delivered.
+Status: `v0.1.3-alpha` is the next public release. Its version references and release notes must merge before the tag and Release are created from the latest `main`.
 
 This runbook is the safe path for publishing Codex Praetor to GitHub. It assumes Codex does the release work after the user completes only the account-owner actions that cannot be delegated safely.
 
@@ -89,18 +89,22 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    docs/architecture/fresh-context-native-mcp-canary.md
    ```
 
-6. Commit, push, tag, and publish only after explicit user confirmation:
+6. Prepare the release through a normal PR. Version metadata, public download links, release notes, changelog, roadmap, and script defaults must all name the new version. Codex creates the branch, commits, pushes, and provides the Chinese PR title and description; the user creates and merges the PR on GitHub.
+
+7. After the release PR is merged, return to the latest clean `main`. Preview the publication first, then publish:
 
    ```powershell
-   git add .
-   git commit -m "Prepare Codex Praetor 0.1.2-alpha"
-   git push -u origin main
-   git tag v0.1.2-alpha
-   git push origin v0.1.2-alpha
-   gh release create v0.1.2-alpha .\.codex-praetor\releases\codex-praetor-setup-0.1.2-alpha.zip --title "Codex Praetor 0.1.2-alpha" --notes-file .\docs\release\release-notes-0.1.2-alpha.md
+   git switch main
+   git pull --ff-only
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version 0.1.3-alpha -Tag v0.1.3-alpha
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version 0.1.3-alpha -Tag v0.1.3-alpha -Apply
    ```
 
-7. After any delivery-affecting PR is merged, publish a new version from latest `main` unless the user explicitly approves replacing a broken asset built from the same commit:
+   The apply command creates and pushes the new tag, creates a prerelease with the zip and `.sha256`, then downloads the remote assets and verifies them. Existing tags and Releases are rejected by default.
+
+8. Only when repairing a broken asset for the exact same tagged commit, and only after explicit user approval, add `-ReplaceExistingAsset`. It must never be used to put newer source under an older tag.
+
+9. After any later delivery-affecting PR is merged, repeat the same process with a new version unless the user explicitly approves replacing a broken asset built from the same commit:
 
    ```powershell
    git switch main
@@ -113,7 +117,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION -Apply
    ```
 
-   The first command is a dry-run confirmation. The `-Apply` command rebuilds, uploads the release asset, updates Release notes, downloads the GitHub Release zip, verifies the asset, and runs the public-entry consistency gate through `scripts\release\verify-github-release-asset.ps1`. Do not say the product is delivered until it passes.
+   The first command is a dry-run confirmation. The `-Apply` command builds, publishes, downloads, and verifies the GitHub Release assets, then runs the public-entry consistency gate through `scripts\release\verify-github-release-asset.ps1`. Do not say the product is delivered until it passes.
 
 ## Blockers That Stop Publication
 

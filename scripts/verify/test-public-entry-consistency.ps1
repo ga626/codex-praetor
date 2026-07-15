@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.2-alpha",
+    [string]$Version = "0.1.3-alpha",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ProjectRoot = "",
     [switch]$SkipRemoteRelease
@@ -47,7 +47,7 @@ function Read-Text {
 
 function Assert-Contains {
     param([string]$Text, [string]$Needle, [string]$Label)
-    if ($Text -like "*$Needle*") {
+    if ($Text.Contains($Needle)) {
         Add-Pass "$Label contains $Needle"
     } else {
         Add-Fail "$Label is missing $Needle"
@@ -56,7 +56,7 @@ function Assert-Contains {
 
 function Assert-NotContains {
     param([string]$Text, [string]$Needle, [string]$Label)
-    if ($Text -like "*$Needle*") {
+    if ($Text.Contains($Needle)) {
         Add-Fail "$Label still contains stale marker: $Needle"
     } else {
         Add-Pass "$Label does not contain stale marker: $Needle"
@@ -98,6 +98,15 @@ $installZh = Read-Text "docs\user\installation.zh.md"
 $roadmap = Read-Text "docs\roadmap.md"
 $releaseNotesPath = "docs\release\release-notes-$Version.md"
 $releaseNotes = Read-Text $releaseNotesPath
+$security = Read-Text "SECURITY.md"
+$setup = Read-Text "setup.ps1"
+$mcpPackage = Read-Text "mcp\package.json"
+$mcpServer = Read-Text "mcp\src\server.ts"
+$pluginManifest = Read-Text "plugin\.codex-plugin\plugin.json"
+$pluginMcpPackage = Read-Text "plugin\mcp\package.json"
+$releaseBuilder = Read-Text "scripts\release\build-codex-praetor-release.ps1"
+$releasePublisher = Read-Text "scripts\release\publish-github-release-asset.ps1"
+$releaseVerifier = Read-Text "scripts\release\verify-github-release-asset.ps1"
 
 Assert-Contains -Text $readme -Needle $releaseUrl -Label "README.md"
 Assert-Contains -Text $readme -Needle $assetUrl -Label "README.md"
@@ -107,12 +116,25 @@ Assert-Contains -Text $readmeEn -Needle $assetUrl -Label "README.en.md"
 Assert-Contains -Text $installZh -Needle $releaseUrl -Label "docs/user/installation.zh.md"
 Assert-Contains -Text $installZh -Needle $assetUrl -Label "docs/user/installation.zh.md"
 Assert-Contains -Text $roadmap -Needle $tag -Label "docs/roadmap.md"
+Assert-Contains -Text $releaseNotes -Needle $Version -Label $releaseNotesPath
+Assert-Contains -Text $security -Needle $Version -Label "SECURITY.md"
+Assert-Contains -Text $setup -Needle $Version -Label "setup.ps1"
+Assert-Contains -Text $mcpPackage -Needle ('"version": "' + $Version + '"') -Label "mcp/package.json"
+Assert-Contains -Text $mcpServer -Needle ('version: "' + $Version + '"') -Label "mcp/src/server.ts"
+Assert-Contains -Text $pluginManifest -Needle ('"version":  "' + $Version + '"') -Label "plugin/.codex-plugin/plugin.json"
+Assert-Contains -Text $pluginMcpPackage -Needle ('"version": "' + $Version + '"') -Label "plugin/mcp/package.json"
+Assert-Contains -Text $releaseBuilder -Needle ('[string]$Version = "' + $Version + '"') -Label "release package builder"
+Assert-Contains -Text $releasePublisher -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release publisher"
+Assert-Contains -Text $releaseVerifier -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release verifier"
 
 $staleMarkers = @(
     'releases/tag/v0.1.1-alpha',
     'releases/download/v0.1.1-alpha',
     'codex-praetor-setup-0.1.1-alpha.zip',
     '0.1.1-alpha',
+    'releases/tag/v0.1.2-alpha',
+    'releases/download/v0.1.2-alpha',
+    'codex-praetor-setup-0.1.2-alpha.zip',
     'latest user-downloadable GitHub Release is still **0.1.1-alpha**',
     'after merge',
     'release notes draft'

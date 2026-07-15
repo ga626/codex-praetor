@@ -6,9 +6,9 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy、MiMo。Codex 仍然负责规划、风险判断、整合结果和最终验收。
 
-当前公开版本是 **0.1.2-alpha**。这一版把 Codex Praetor 从 dry-run 和状态查询推进到真实 worker 派发、结果读取、计划任务推进和 Codex 验收记录。
+当前公开版本是 **0.1.3-alpha**。这一版在持续编排能力之上，补齐了产品验收与开发者本机检查的隔离、可复现发布包，以及安全的运行态清理预览。
 
-[下载 0.1.2-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.2-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
+[下载 0.1.3-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.3-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
 
 ## 适合你吗
 
@@ -29,14 +29,14 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 普通 Windows 用户不需要打开 PowerShell。下载并解压 Release 包后，直接双击根目录里的 `setup.cmd`，按中文向导操作即可。
 
-1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.1.2-alpha)，下载当前已发布的 Windows 安装 zip：`codex-praetor-setup-0.1.2-alpha.zip`。
+1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.1.3-alpha)，下载当前已发布的 Windows 安装 zip：`codex-praetor-setup-0.1.3-alpha.zip`。
 
    如果你更习惯 PowerShell，也可以运行：
 
    ```powershell
-   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.2-alpha/codex-praetor-setup-0.1.2-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.2-alpha.zip"
-   Expand-Archive .\codex-praetor-setup-0.1.2-alpha.zip .\codex-praetor-setup-0.1.2-alpha
-   cd .\codex-praetor-setup-0.1.2-alpha
+   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.3-alpha/codex-praetor-setup-0.1.3-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.3-alpha.zip"
+   Expand-Archive .\codex-praetor-setup-0.1.3-alpha.zip .\codex-praetor-setup-0.1.3-alpha
+   cd .\codex-praetor-setup-0.1.3-alpha
    ```
 
 2. 双击 `setup.cmd`。
