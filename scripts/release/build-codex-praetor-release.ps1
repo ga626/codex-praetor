@@ -17,6 +17,7 @@ $releaseName = "codex-praetor-setup-$Version"
 $stagePath = Join-Path $outputRootPath $releaseName
 $zipPath = Join-Path $outputRootPath "$releaseName.zip"
 $sha256Path = Join-Path $outputRootPath "$releaseName.zip.sha256"
+$deterministicTimestamp = [System.DateTimeOffset]::new(2024, 1, 1, 0, 0, 0, [System.TimeSpan]::Zero)
 
 function Assert-UnderProject {
     param([string]$Path)
@@ -181,6 +182,58 @@ function Assert-CmdFileUsesCrlf {
     Write-Host "[PASS] $Label uses CRLF line endings."
 }
 
+function New-DeterministicZip {
+    param(
+        [string]$SourceRoot,
+        [string]$DestinationPath,
+        [System.DateTimeOffset]$EntryTimestamp
+    )
+
+    Add-Type -AssemblyName System.IO.Compression
+
+    if (Test-Path -LiteralPath $DestinationPath -PathType Leaf) {
+        Remove-Item -LiteralPath $DestinationPath -Force
+    }
+
+    $sourceFull = [System.IO.Path]::GetFullPath($SourceRoot)
+    $files = New-Object System.Collections.Generic.List[object]
+    Get-ChildItem -LiteralPath $sourceFull -Recurse -File -Force | ForEach-Object {
+        $relative = $_.FullName.Substring($sourceFull.Length).TrimStart("\", "/")
+        $entryName = $relative -replace "\\", "/"
+        $files.Add([pscustomobject]@{
+            FullName = $_.FullName
+            EntryName = $entryName
+        })
+    }
+
+    $orderedFiles = @($files | Sort-Object -Property EntryName)
+    $stream = [System.IO.File]::Open($DestinationPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    try {
+        $archive = New-Object System.IO.Compression.ZipArchive -ArgumentList $stream, ([System.IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach ($file in $orderedFiles) {
+                $entry = $archive.CreateEntry($file.EntryName, [System.IO.Compression.CompressionLevel]::Optimal)
+                $entry.LastWriteTime = $EntryTimestamp
+                $inputStream = [System.IO.File]::OpenRead($file.FullName)
+                try {
+                    $entryStream = $entry.Open()
+                    try {
+                        $inputStream.CopyTo($entryStream)
+                    } finally {
+                        $entryStream.Dispose()
+                    }
+                } finally {
+                    $inputStream.Dispose()
+                }
+            }
+        } finally {
+            $archive.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 $include = @(
     "README.md",
     "README.en.md",
@@ -245,10 +298,7 @@ foreach ($item in $include) {
 Assert-PublicReleaseTree -Root $stagePath
 Assert-PublicMetadataUrls -Root $stagePath
 Assert-CmdFileUsesCrlf -Path (Join-Path $stagePath "setup.cmd") -Label "Release setup.cmd"
-if (Test-Path -LiteralPath $zipPath) {
-    Remove-Item -LiteralPath $zipPath -Force
-}
-Compress-Archive -Path (Join-Path $stagePath "*") -DestinationPath $zipPath -Force
+New-DeterministicZip -SourceRoot $stagePath -DestinationPath $zipPath -EntryTimestamp $deterministicTimestamp
 $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 [System.IO.File]::WriteAllText($sha256Path, "$zipHash  $releaseName.zip$([Environment]::NewLine)", (New-Object System.Text.UTF8Encoding($false)))
 
@@ -256,4 +306,5 @@ $zipItem = Get-Item -LiteralPath $zipPath
 Write-Host "[PASS] Release package created: $($zipItem.FullName)"
 Write-Host "[PASS] Size bytes: $($zipItem.Length)"
 Write-Host "[PASS] SHA256: $zipHash"
+Write-Host "[PASS] Deterministic zip entry timestamp: $($deterministicTimestamp.ToString("o"))"
 Write-Host "[PASS] Release tree passed blocked-path and private-marker checks."

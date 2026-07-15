@@ -9,11 +9,12 @@ This checklist separates the development repository from the user-facing release
 These checks protect the source repository. They may stay in the repo, but they are not the product experience.
 
 - Git hooks: `.githooks/pre-commit` and `.githooks/pre-push` through `core.hooksPath`.
-- GitHub CI: `.github/workflows/ci.yml` runs doctor with the public template, minimal validation, MCP tests, and a release package build.
+- GitHub CI: `.github/workflows/ci.yml` runs doctor with the public template, product validation, public-entry consistency, MCP tests, release package build, and release package determinism.
 - Release doctor: draft CI can run `scripts/verify/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders`; final public release must run without `-AllowDraftMetadataPlaceholders`.
 - Product validation: `scripts/verify/test-codex-praetor.ps1`. This default gate must not depend on the current developer's global Codex rules, installed skill copy, provider login state, or local provider account data.
 - Developer environment validation: `scripts/verify/test-codex-praetor-dev-env.ps1`. Use this when the change specifically touches local Codex installation, installed skill sync, provider dry-run behavior, or global-rule integration.
 - Public entry consistency: `scripts/verify/test-public-entry-consistency.ps1`. Use `-SkipRemoteRelease` before publication and the full remote check during release closeout.
+- Release package determinism: `scripts/verify/test-release-package-determinism.ps1`. The same staged release content must produce the same zip SHA256, stable entry order, and fixed zip entry timestamps.
 - Continuous orchestration MCP validation: route-intent, dry-run, real dispatch tool listing, result reading, next-ready lookup, plan-task dispatch tool listing, and verify-task recording must pass protocol smoke before release.
 - Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider mimo`.
 - MCP source tests: `npm test` under `mcp/`.
@@ -95,6 +96,8 @@ Before pushing or tagging:
 - Enable or document GitHub secret scanning/push protection expectations.
 - Confirm license, changelog entry, security policy, and README install path are current.
 - Build the local release package and verify it excludes private/internal artifacts.
+- Run the release package determinism check when the release builder or package contents change.
+- Preview runtime cleanup with `scripts/maintenance/clean-codex-praetor-runtime.ps1` after merged worker worktrees or completed jobs accumulate. Apply cleanup only after the dry-run output is reviewed.
 - Tag only after a new user path succeeds: clone -> doctor -> dry-run -> optional readonly canary.
 - After a delivery-affecting PR is merged, publish the next version's GitHub Release zip, `.sha256`, and notes from latest `main` with `scripts/release/publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION -Apply`; it must finish by running `scripts/release/verify-github-release-asset.ps1`, including the public-entry consistency gate.
 - Remote-download validation must prove the downloaded package exposes the intended user-facing behavior before calling the product delivered.
