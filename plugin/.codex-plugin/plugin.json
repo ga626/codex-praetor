@@ -1,6 +1,6 @@
 {
     "name":  "codex-praetor",
-    "version":  "0.1.1-alpha",
+    "version":  "0.1.2-alpha",
     "description":  "给 Codex 使用的外部 Agent 编排工具。",
     "author":  {
                    "name":  "Codex Praetor"
@@ -32,9 +32,9 @@
                       "privacyPolicyURL":  "https://github.com/ga626/codex-praetor/blob/main/docs/user/privacy.zh.md",
                       "termsOfServiceURL":  "https://github.com/ga626/codex-praetor/blob/main/SECURITY.md",
                       "defaultPrompt":  [
-                                            "拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。",
-                                            "用 Codex Praetor 把这个只读审计交给外部 agent 做一部分。",
-                                            "检查当前 repo 是否适合派给 Qoder、CodeBuddy 或 MiMo。"
+                                            "拆分一下任务，先做 dry-run，不要真实修改文件。",
+                                            "用 Codex Praetor 把这个只读审计交给外部 agent，并在结果回来后验收。",
+                                            "检查当前 repo 是否适合派给 Qoder、CodeBuddy 或 MiMo；如果适合，给出派工和验收计划。"
                                         ],
                       "brandColor":  "#7C3AED",
                       "screenshots":  [

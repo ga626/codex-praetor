@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
-Date: 2026-07-13
-Target release: `0.1.1-alpha`
+Date: 2026-07-15
+Target release: `0.1.2-alpha`
 
-Status: `v0.1.1-alpha` has already been published once. If main changes user-facing install behavior after that, update the Release asset and verify the downloaded zip before calling the product delivered.
+Status: `v0.1.1-alpha` has already been published. The next delivery-affecting source line is `0.1.2-alpha`; after the orchestration-loop PR is merged, create/update the `v0.1.2-alpha` Release asset and verify the downloaded zip before calling the product delivered.
 
 This runbook is the safe path for publishing Codex Praetor to GitHub. It assumes Codex does the release work after the user completes only the account-owner actions that cannot be delegated safely.
 
@@ -91,11 +91,11 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 
    ```powershell
    git add .
-   git commit -m "Prepare Codex Praetor 0.1.1-alpha"
+   git commit -m "Prepare Codex Praetor 0.1.2-alpha"
    git push -u origin main
-   git tag v0.1.1-alpha
-   git push origin v0.1.1-alpha
-   gh release create v0.1.1-alpha .\.codex-praetor\releases\codex-praetor-setup-0.1.1-alpha.zip --title "Codex Praetor 0.1.1-alpha" --notes-file .\docs\release\release-notes-0.1.1-alpha.md
+   git tag v0.1.2-alpha
+   git push origin v0.1.2-alpha
+   gh release create v0.1.2-alpha .\.codex-praetor\releases\codex-praetor-setup-0.1.2-alpha.zip --title "Codex Praetor 0.1.2-alpha" --notes-file .\docs\release\release-notes-0.1.2-alpha.md
    ```
 
 7. After any delivery-affecting PR is merged, rebuild and update the existing release assets from latest `main`:

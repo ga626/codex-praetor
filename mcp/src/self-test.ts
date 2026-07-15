@@ -4,13 +4,18 @@ import { resolve } from "node:path";
 import { getInvokeScriptPath } from "./paths.js";
 import {
   detectConflictsTool,
+  dispatchPlanTaskTool,
   dispatchDryRunTool,
+  dispatchTool,
   getLaneTool,
+  nextReadyTool,
+  resultTool,
   listJobsTool,
   listLanesTool,
   planTool,
   routeIntentTool,
-  statusTool
+  statusTool,
+  verifyTaskTool
 } from "./tools.js";
 
 const repo = process.env.CODEX_PRAETOR_TEST_REPO ?? resolve(process.cwd(), "..");
@@ -36,6 +41,12 @@ assert.ok(Array.isArray(listResult.jobs));
 const missingStatus = statusTool({ repo, job_id: "missing-job-for-self-test" });
 assert.equal(missingStatus.found, false);
 
+const missingResult = resultTool({ repo, job_id: "missing-job-for-self-test" });
+assert.equal(missingResult.found, false);
+
+assert.equal(typeof dispatchTool, "function");
+assert.equal(typeof dispatchPlanTaskTool, "function");
+
 const planId = "mcp-self-test";
 const plan = await planTool({
   repo,
@@ -51,6 +62,10 @@ assert.equal(plan.task_ids.length, 1);
 const planStatus = statusTool({ repo, plan_id: planId });
 assert.equal(planStatus.found, true);
 
+const readyBeforeVerification = await nextReadyTool({ repo, plan_id: planId });
+assert.equal(readyBeforeVerification.ok, true);
+assert.ok(readyBeforeVerification.ready_tasks.length >= 1);
+
 const lanes = listLanesTool({ repo, status: "all", limit: 20 });
 assert.equal(Array.isArray(lanes.lanes), true);
 assert.ok(lanes.lanes.some((lane) => lane.lane_id === `plan:${planId}:task-01`));
@@ -63,6 +78,19 @@ assert.equal(readonlyConflict.ok, true);
 
 const editConflict = detectConflictsTool({ repo, mode: "edit", file_scope: ["mcp/src/tools.ts"] });
 assert.equal(Array.isArray(editConflict.conflicts), true);
+
+const verification = await verifyTaskTool({
+  repo,
+  plan_id: planId,
+  task_id: "task-01",
+  verdict: "accepted",
+  summary: "Self-test verification accepted without dispatching a real worker.",
+  next_action: "No next action."
+});
+assert.equal(verification.ok, true);
+
+const readyAfterVerification = await nextReadyTool({ repo, plan_id: planId });
+assert.equal(readyAfterVerification.ok, true);
 
 if (process.env.CODEX_PRAETOR_SELF_TEST_DRY_RUN === "1") {
   const dryRun = await dispatchDryRunTool({

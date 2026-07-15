@@ -6,13 +6,18 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import {
   detectConflictsTool,
+  dispatchPlanTaskTool,
   dispatchDryRunTool,
+  dispatchTool,
   getLaneTool,
+  nextReadyTool,
+  resultTool,
   listJobsTool,
   listLanesTool,
   planTool,
   routeIntentTool,
-  statusTool
+  statusTool,
+  verifyTaskTool
 } from "./tools.js";
 
 const readOnlyClosedWorld = {
@@ -43,7 +48,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.1.1-alpha"
+    version: "0.1.2-alpha"
   });
 
   server.registerTool(
@@ -70,13 +75,38 @@ export function createServer(): McpServer {
       inputSchema: {
         repo: z.string().min(1),
         task: z.string().min(1),
-        provider: z.enum(["qoder", "codebuddy", "mimo"]),
+        provider: z.enum(["auto", "qoder", "codebuddy", "mimo"]),
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional()
       }
     },
     async (input) => asJsonContent(await dispatchDryRunTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_dispatch",
+    {
+      title: "Dispatch Codex Praetor Worker",
+      description: "Start a real Codex Praetor worker job through the existing dispatcher and return job metadata for later Codex verification.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: z.string().min(1),
+        task: z.string().min(1),
+        provider: z.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        tier: z.string().optional(),
+        mode: z.enum(["readonly", "edit"]).optional(),
+        run_mode: z.enum(["blocking", "background"]).optional(),
+        plan_id: z.string().optional(),
+        task_id: z.string().optional(),
+        depends_on: z.string().optional(),
+        acceptance: z.string().optional(),
+        worktree_name: z.string().optional(),
+        max_turns: z.number().int().positive().max(80).optional(),
+        no_notify: z.boolean().optional()
+      }
+    },
+    async (input) => asJsonContent(await dispatchTool(input))
   );
 
   server.registerTool(
@@ -127,6 +157,22 @@ export function createServer(): McpServer {
   );
 
   server.registerTool(
+    "codex_praetor_result",
+    {
+      title: "Read Codex Praetor Worker Result",
+      description: "Read one worker job's compact result, log tails, and failure classification without dumping full logs.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1),
+        job_id: z.string().min(1),
+        include_log_tails: z.boolean().optional(),
+        max_log_chars: z.number().int().positive().max(60000).optional()
+      }
+    },
+    async (input) => asJsonContent(resultTool(input))
+  );
+
+  server.registerTool(
     "codex_praetor_get_lane",
     {
       title: "Read Codex Praetor Lane",
@@ -169,6 +215,60 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(statusTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_next_ready",
+    {
+      title: "List Codex Praetor Ready Plan Tasks",
+      description: "Read pending plan tasks whose dependencies have passed Codex verification.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1),
+        plan_id: z.string().min(1),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async (input) => asJsonContent(await nextReadyTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_dispatch_plan_task",
+    {
+      title: "Dispatch Codex Praetor Plan Task",
+      description: "Start a real worker for one pending plan task and connect the resulting job back to the durable plan.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: z.string().min(1),
+        plan_id: z.string().min(1),
+        task_id: z.string().min(1),
+        provider: z.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        tier: z.string().optional(),
+        mode: z.enum(["readonly", "edit"]).optional(),
+        run_mode: z.enum(["blocking", "background"]).optional(),
+        max_turns: z.number().int().positive().max(80).optional(),
+        no_notify: z.boolean().optional()
+      }
+    },
+    async (input) => asJsonContent(await dispatchPlanTaskTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_verify_task",
+    {
+      title: "Record Codex Praetor Task Verification",
+      description: "Record Codex's verification verdict for a worker-completed plan task; dependencies advance only after accepted.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: z.string().min(1),
+        plan_id: z.string().min(1),
+        task_id: z.string().min(1),
+        verdict: z.enum(["accepted", "rejected", "retry", "human_required", "skipped"]),
+        summary: z.string().min(1),
+        next_action: z.string().optional()
+      }
+    },
+    async (input) => asJsonContent(await verifyTaskTool(input))
   );
 
   return server;

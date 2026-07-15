@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added MCP tools for the continuous orchestration loop: real worker dispatch, compact worker result reads, ready plan-task lookup, plan-task dispatch, and Codex verification verdict recording.
+- Changed plan job recording so a completed worker moves the task to `awaiting_verification`; dependent tasks unlock only after Codex records an accepted verdict.
+- Added worker outcome classification for common operator-facing failures such as max-turns exhaustion, missing provider CLI, auth/login requirements, permission denial, watcher failure, and missing completion files.
+- Bumped source/plugin/MCP version metadata toward `0.1.2-alpha`; the published GitHub Release remains `0.1.1-alpha` until a new release asset is built and verified.
 - Added a user-facing readonly provider canary command that previews by default and only starts a real provider run with `-Apply`.
 - Documented the canary in README, installation, troubleshooting, provider notes, and the user acceptance checklist.
 - Kept the canary limited to reading `README.md`, checking for a success marker, and verifying that the main repository stays unchanged.

@@ -115,16 +115,25 @@ For multi-step work, create a durable plan with `scripts/manage-codex-praetor-pl
 
 ## UI Visibility
 
-The current lightweight implementation is script-based. It gives reliable local files:
+The implementation now exposes the dispatch loop through the Codex Praetor MCP server. Use those native tool calls when they are available:
 
-- dry-run command output in the current Codex turn,
+- `codex_praetor_dispatch_dry_run` previews provider, model, permission, worktree, and command without starting a worker.
+- `codex_praetor_dispatch` starts a real worker through the existing wrapper.
+- `codex_praetor_result` reads compact completion state, log tails, and failure classification.
+- `codex_praetor_next_ready` lists plan tasks whose dependencies have been accepted by Codex.
+- `codex_praetor_dispatch_plan_task` starts a worker for one pending plan task and links the job back to the plan.
+- `codex_praetor_verify_task` records Codex's verdict after reading the worker result.
+
+The durable local files remain the recovery source:
+
 - `<project>\.codex-praetor\jobs\<job_id>\job.json`,
 - `stdout.log`, `stderr.log`, and `completion.json`,
+- `<project>\.codex-praetor\plans\<plan_id>\plan.json`,
 - optional thread notification when the worker exits.
 
-It does not create native Codex subagent cards. That is intentional: native subagents are Codex workers and consume Codex model tokens.
+Worker completion is not final acceptance. A completed worker job should leave its plan task waiting for Codex verification; only an `accepted` verdict should unblock dependent tasks. Use `rejected`, `retry`, `human_required`, or `skipped` when the worker output cannot be safely used.
 
-If the user wants Codex UI cards similar to KnowledgeRadar tool calls, the next product step is to wrap this worker dispatcher as an MCP server or plugin-bundled MCP server. MCP tools such as `dispatch_codebuddy_worker`, `dispatch_qoder_worker`, `dispatch_mimo_worker`, and `get_worker_job_status` would appear as tool calls in Codex. Keep that as Phase 2 because it adds a long-running service and MCP stability burden.
+It does not create native Codex subagent cards. That is intentional: native subagents are Codex workers and consume Codex model tokens.
 
 Recommended first probes:
 
@@ -162,4 +171,3 @@ Output required:
 - Read `references/evidence-register.md` when the user asks why the routing, permission, worktree, no-polling, or concurrency policy is justified.
 - Read `references/task-packet-template.md` when preparing prompts for repeated worker dispatch.
 - Read `references/orchestration-policy.md` when splitting large projects, coordinating multiple conversations, or deciding whether to use one or two workers.
-

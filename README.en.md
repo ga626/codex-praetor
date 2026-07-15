@@ -4,7 +4,7 @@
 
 Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching bounded work to external CLI worker agents while Codex remains the planner, supervisor, integrator, and final verifier.
 
-Current release: **0.1.1-alpha prerelease**.
+Current source version: **0.1.2-alpha prerelease candidate**. The latest user-downloadable GitHub Release is still **0.1.1-alpha** until a new Release zip is built and published after merge.
 
 [Download 0.1.1-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.1-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
 
@@ -55,6 +55,8 @@ Qoder, CodeBuddy, and MiMo are optional external CLIs. They are not bundled.
 Codex Praetor does not install providers, sign in for users, inspect provider account databases, read tokens or cookies, or promise that provider routing is free. Users install and authenticate each provider through that provider's normal flow.
 
 Without a provider, Codex Praetor can still validate planning, route-intent, dry-run, job status, lane listing, and conflict detection. Real dispatch needs at least one installed and authenticated provider.
+
+The 0.1.2-alpha source line adds the continuous orchestration loop: real worker dispatch, compact result reading, failure classification, ready plan-task lookup, plan-task dispatch, and Codex verification verdicts. A worker process exiting successfully is not enough to advance dependent tasks; Codex must verify and record the result first.
 
 ## Readonly Provider Canary
 

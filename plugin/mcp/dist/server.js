@@ -31290,6 +31290,174 @@ async function dispatchDryRunTool(input) {
     stderr: result.stderr
   };
 }
+function appendOptionalStringArg(args, name, value) {
+  if (value?.trim()) {
+    args.push(name, value.trim());
+  }
+}
+function appendOptionalNumberArg(args, name, value) {
+  if (Number.isFinite(value) && (value ?? 0) > 0) {
+    args.push(name, String(value));
+  }
+}
+function buildDispatchArgs(input) {
+  const args = [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    getInvokeScriptPath(),
+    "-Provider",
+    input.provider,
+    "-Repo",
+    input.repo,
+    "-Task",
+    input.task,
+    "-Mode",
+    input.mode ?? "readonly",
+    "-RunMode",
+    input.run_mode ?? "background"
+  ];
+  appendOptionalStringArg(args, "-Tier", input.tier);
+  appendOptionalStringArg(args, "-PlanId", input.plan_id);
+  appendOptionalStringArg(args, "-TaskId", input.task_id);
+  appendOptionalStringArg(args, "-DependsOn", input.depends_on);
+  appendOptionalStringArg(args, "-Acceptance", input.acceptance);
+  appendOptionalStringArg(args, "-WorktreeName", input.worktree_name);
+  appendOptionalNumberArg(args, "-MaxTurns", input.max_turns);
+  if (input.dry_run) {
+    args.push("-DryRun");
+  }
+  if (input.no_notify ?? true) {
+    args.push("-NoNotify");
+  }
+  return args;
+}
+function readTextTail(filePath, maxChars = 12e3) {
+  if (!existsSync2(filePath)) {
+    return "";
+  }
+  const text = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return text.slice(text.length - maxChars);
+}
+function classifyWorkerOutcome(input) {
+  const completion = input.completion;
+  const metaStatus = String(input.meta.status ?? "");
+  const status = String(completion?.status ?? metaStatus ?? "");
+  const exitCode = completion?.exit_code ?? input.meta.exit_code;
+  const combined = `${input.stdout_tail}
+${input.stderr_tail}`.toLowerCase();
+  if (!completion) {
+    if (["starting", "running"].includes(metaStatus)) {
+      return {
+        class: "worker_running",
+        explanation: "worker \u8FD8\u5728\u8FD0\u884C\uFF0C\u5C1A\u672A\u4EA7\u751F completion.json\u3002",
+        next_action: "\u7B49\u5F85 watcher \u5B8C\u6210\uFF0C\u7A0D\u540E\u518D\u8BFB\u53D6\u7ED3\u679C\u3002"
+      };
+    }
+    return {
+      class: "missing_completion",
+      explanation: "job \u5143\u6570\u636E\u5B58\u5728\uFF0C\u4F46\u6CA1\u6709 completion.json\u3002",
+      next_action: "\u68C0\u67E5 watcher \u65E5\u5FD7\uFF1B\u5982\u679C watcher \u5DF2\u9000\u51FA\u4F46\u6CA1\u6709 completion\uFF0C\u9700\u8981\u6309 watcher \u5931\u8D25\u5904\u7406\u3002"
+    };
+  }
+  if (status === "watcher_failed") {
+    return {
+      class: "watcher_failed",
+      explanation: "\u672C\u5730 watcher \u6CA1\u80FD\u5B8C\u6210 worker \u7B49\u5F85\u6216\u7ED3\u679C\u8BB0\u5F55\u3002",
+      next_action: "\u5148\u4FEE\u590D\u672C\u5730 watcher/\u8FDB\u7A0B\u542F\u52A8\u95EE\u9898\uFF0C\u518D\u91CD\u6D3E\u4EFB\u52A1\u3002"
+    };
+  }
+  if (combined.includes("max turns") || combined.includes("maximum turns") || combined.includes("turns exceeded")) {
+    return {
+      class: "worker_max_turns_exceeded",
+      explanation: "worker \u5728\u8F6E\u6570\u4E0A\u9650\u5185\u6CA1\u6709\u5B8C\u6210\u4EFB\u52A1\uFF0C\u4E0D\u80FD\u628A\u5B83\u5F53\u4F5C\u6709\u6548\u7ED3\u679C\u3002",
+      next_action: "\u7F29\u5C0F\u4EFB\u52A1\u3001\u63D0\u9AD8 MaxTurns\u3001\u6362 provider\uFF0C\u6216\u7531 Codex \u63A5\u7BA1\u5E76\u8BB0\u5F55\u539F\u56E0\u3002"
+    };
+  }
+  if (combined.includes("cli not found") || combined.includes("not recognized") || combined.includes("cannot find path")) {
+    return {
+      class: "provider_cli_missing",
+      explanation: "\u5916\u90E8 provider CLI \u4E0D\u53EF\u7528\u6216\u8DEF\u5F84\u4E0D\u6B63\u786E\u3002",
+      next_action: "\u56DE\u5230\u5B89\u88C5\u5411\u5BFC\u6216\u672C\u673A\u914D\u7F6E\uFF0C\u4FEE\u590D provider CLI \u8DEF\u5F84\u540E\u91CD\u8BD5\u3002"
+    };
+  }
+  if (combined.includes("login") || combined.includes("not logged") || combined.includes("unauthorized") || combined.includes("auth")) {
+    return {
+      class: "provider_auth_required",
+      explanation: "provider \u9700\u8981\u7528\u6237\u5B8C\u6210\u767B\u5F55\u3001\u626B\u7801\u3001\u6388\u6743\u6216\u8D26\u53F7\u914D\u7F6E\u3002",
+      next_action: "\u8BA9\u7528\u6237\u6309 provider \u5B98\u65B9\u6D41\u7A0B\u5B8C\u6210\u8D26\u53F7\u52A8\u4F5C\uFF0C\u518D\u91CD\u8DD1 canary \u6216\u91CD\u6D3E\u4EFB\u52A1\u3002"
+    };
+  }
+  if (combined.includes("permission") || combined.includes("denied") || combined.includes("sandbox")) {
+    return {
+      class: "permission_denied",
+      explanation: "worker \u88AB\u6743\u9650\u3001\u6C99\u7BB1\u6216\u5DE5\u5177\u767D\u540D\u5355\u62E6\u4F4F\u3002",
+      next_action: "\u68C0\u67E5\u4EFB\u52A1\u6A21\u5F0F\u3001\u5DE5\u5177\u767D\u540D\u5355\u548C worktree \u6743\u9650\uFF1B\u4E0D\u8981\u76F4\u63A5\u653E\u5BBD\u5230\u4E0D\u53D7\u63A7\u6743\u9650\u3002"
+    };
+  }
+  if (status === "failed" || typeof exitCode === "number" && exitCode !== 0) {
+    return {
+      class: "worker_failed",
+      explanation: "worker \u8FDB\u7A0B\u5931\u8D25\u9000\u51FA\u3002",
+      next_action: "\u8BFB\u53D6 stdout/stderr \u6458\u8981\uFF0C\u5224\u65AD\u662F\u91CD\u6D3E\u3001\u6362 provider\uFF0C\u8FD8\u662F\u7531 Codex \u63A5\u7BA1\u3002"
+    };
+  }
+  if (status === "completed") {
+    return {
+      class: "awaiting_codex_verification",
+      explanation: "worker \u5DF2\u5B8C\u6210\u8FDB\u7A0B\u5C42\u4EFB\u52A1\uFF0C\u4F46\u8FD8\u9700\u8981 Codex \u68C0\u67E5\u62A5\u544A\u3001diff \u548C\u9A8C\u8BC1\u7ED3\u679C\u3002",
+      next_action: "\u8C03\u7528\u9A8C\u6536\u5DE5\u5177\u8BB0\u5F55 accepted/rejected/retry/human_required\u3002"
+    };
+  }
+  return {
+    class: "unknown_worker_state",
+    explanation: "worker \u72B6\u6001\u65E0\u6CD5\u5F52\u5165\u5DF2\u77E5\u5206\u7C7B\u3002",
+    next_action: "\u8BFB\u53D6 job \u5143\u6570\u636E\u3001completion \u548C\u65E5\u5FD7\u6458\u8981\u540E\u4EBA\u5DE5\u5224\u65AD\u3002"
+  };
+}
+async function dispatchTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const runMode = input.run_mode ?? "background";
+  const result = await runPowerShell(
+    buildDispatchArgs({
+      ...input,
+      repo,
+      provider: input.provider ?? "auto",
+      run_mode: runMode,
+      no_notify: input.no_notify ?? true
+    }),
+    { timeoutMs: runMode === "blocking" ? 18e5 : 12e4, maxOutputBytes: 512e3 }
+  );
+  const fields = parseKeyValueOutput(result.stdout);
+  const completionPath = fields.completion ?? "";
+  const completion = completionPath && existsSync2(completionPath) ? readJsonFile(completionPath) : null;
+  return {
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    repo,
+    task: input.task,
+    provider: fields.provider ?? input.provider ?? "auto",
+    tier: fields.tier ?? input.tier ?? "",
+    model: fields.model ?? "",
+    mode: input.mode ?? "readonly",
+    run_mode: fields.run_mode ?? runMode,
+    job_id: fields.job_id ?? "",
+    job_dir: fields.job_dir ?? "",
+    watcher_pid: fields.watcher_pid ?? "",
+    stdout_path: fields.stdout ?? "",
+    stderr_path: fields.stderr ?? "",
+    completion_path: completionPath,
+    completion,
+    command: fields.command ?? "",
+    status_note: runMode === "background" ? "worker \u5DF2\u4EA4\u7ED9\u672C\u5730 watcher\uFF1B\u7B49\u5F85 completion.json \u540E\u518D\u7531 Codex \u9A8C\u6536\u3002" : "blocking worker \u5DF2\u9000\u51FA\uFF1B\u4ECD\u9700 Codex \u9A8C\u6536\u8F93\u51FA\u548C\u6539\u52A8\u3002",
+    stdout: result.stdout,
+    stderr: result.stderr
+  };
+}
 async function planTool(input) {
   const repo = resolveExistingRepo(input.repo);
   const planId = input.plan_id?.trim() || `plan-${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}`;
@@ -31688,6 +31856,175 @@ function statusTool(input) {
     message: "Provide job_id or plan_id."
   };
 }
+function resultTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const jobId = input.job_id.trim();
+  const jobDir = path2.join(getJobRoot(repo), jobId);
+  if (!existsSync2(jobDir)) {
+    return {
+      found: false,
+      repo,
+      job_id: jobId,
+      path: jobDir,
+      message: "Job not found."
+    };
+  }
+  const metaPath = path2.join(jobDir, "job.json");
+  const completionPath = path2.join(jobDir, "completion.json");
+  const stdoutPath = path2.join(jobDir, "stdout.log");
+  const stderrPath = path2.join(jobDir, "stderr.log");
+  const meta3 = existsSync2(metaPath) ? readJsonFile(metaPath) : {};
+  const completion = existsSync2(completionPath) ? readJsonFile(completionPath) : null;
+  const includeLogTails = input.include_log_tails ?? true;
+  const maxLogChars = Math.max(1e3, Math.min(input.max_log_chars ?? 12e3, 6e4));
+  const stdoutTail = includeLogTails ? readTextTail(stdoutPath, maxLogChars) : "";
+  const stderrTail = includeLogTails ? readTextTail(stderrPath, maxLogChars) : "";
+  const classification = classifyWorkerOutcome({
+    meta: meta3,
+    completion,
+    stdout_tail: stdoutTail,
+    stderr_tail: stderrTail
+  });
+  return {
+    found: true,
+    repo,
+    job_id: jobId,
+    job_dir: jobDir,
+    meta: meta3,
+    completion,
+    classification,
+    log_paths: {
+      stdout: stdoutPath,
+      stderr: stderrPath,
+      watcher: path2.join(jobDir, "watcher.log")
+    },
+    stdout_tail: stdoutTail,
+    stderr_tail: stderrTail
+  };
+}
+async function nextReadyTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const planRoot = getPlanRoot(repo);
+  const result = await runPowerShell(
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      getPlanScriptPath(),
+      "-Action",
+      "NextReady",
+      "-PlanId",
+      input.plan_id,
+      "-PlanRoot",
+      planRoot,
+      "-OutputJson"
+    ],
+    { timeoutMs: 3e4 }
+  );
+  const raw = result.stdout.trim();
+  let parsed = [];
+  if (raw) {
+    const value = JSON.parse(raw);
+    parsed = Array.isArray(value) ? value : [value];
+  }
+  const limit = Math.max(1, Math.min(input.limit ?? 20, 100));
+  return {
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    repo,
+    plan_id: input.plan_id,
+    plan_root: planRoot,
+    ready_tasks: parsed.slice(0, limit),
+    count: Math.min(parsed.length, limit),
+    stderr: result.stderr
+  };
+}
+function getPlanTask(repo, planId, taskId) {
+  const planDir = path2.join(getPlanRoot(repo), planId);
+  const planPath = path2.join(planDir, "plan.json");
+  if (!existsSync2(planPath)) {
+    throw new Error(`Plan not found: ${planPath}`);
+  }
+  const plan = readJsonFile(planPath);
+  const tasks = Array.isArray(plan.tasks) ? plan.tasks : [];
+  const task = tasks.find((candidate) => String(candidate.task_id ?? "") === taskId);
+  if (!task) {
+    throw new Error(`Task not found in plan ${planId}: ${taskId}`);
+  }
+  return { plan, task };
+}
+async function dispatchPlanTaskTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const taskId = input.task_id.trim();
+  const { task } = getPlanTask(repo, input.plan_id, taskId);
+  const status = String(task.status ?? "");
+  if (status !== "pending") {
+    return {
+      ok: false,
+      repo,
+      plan_id: input.plan_id,
+      task_id: taskId,
+      status,
+      message: "Only pending plan tasks can be dispatched."
+    };
+  }
+  const title = String(task.title ?? "");
+  const acceptance = String(task.acceptance ?? "");
+  const dependsOn = Array.isArray(task.depends_on) ? task.depends_on.map(String).join(",") : "";
+  return dispatchTool({
+    repo,
+    task: title,
+    provider: input.provider ?? "auto",
+    tier: input.tier,
+    mode: input.mode ?? (String(task.mode ?? "") === "edit" ? "edit" : "readonly"),
+    run_mode: input.run_mode ?? "background",
+    plan_id: input.plan_id,
+    task_id: taskId,
+    depends_on: dependsOn,
+    acceptance,
+    max_turns: input.max_turns,
+    no_notify: input.no_notify ?? true
+  });
+}
+async function verifyTaskTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const result = await runPowerShell(
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      getPlanScriptPath(),
+      "-Action",
+      "VerifyTask",
+      "-PlanId",
+      input.plan_id,
+      "-PlanRoot",
+      getPlanRoot(repo),
+      "-TaskId",
+      input.task_id,
+      "-VerificationVerdict",
+      input.verdict,
+      "-VerificationSummary",
+      input.summary,
+      "-NextAction",
+      input.next_action ?? "",
+      "-OutputJson"
+    ],
+    { timeoutMs: 3e4 }
+  );
+  return {
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    repo,
+    plan_id: input.plan_id,
+    task_id: input.task_id,
+    verdict: input.verdict,
+    plan: result.stdout.trim() ? JSON.parse(result.stdout) : null,
+    stderr: result.stderr
+  };
+}
 
 // src/server.ts
 var readOnlyClosedWorld = {
@@ -31715,7 +32052,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.1.1-alpha"
+    version: "0.1.2-alpha"
   });
   server.registerTool(
     "codex_praetor_route_intent",
@@ -31740,13 +32077,37 @@ function createServer() {
       inputSchema: {
         repo: external_exports.string().min(1),
         task: external_exports.string().min(1),
-        provider: external_exports.enum(["qoder", "codebuddy", "mimo"]),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]),
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional()
       }
     },
     async (input) => asJsonContent(await dispatchDryRunTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_dispatch",
+    {
+      title: "Dispatch Codex Praetor Worker",
+      description: "Start a real Codex Praetor worker job through the existing dispatcher and return job metadata for later Codex verification.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        task: external_exports.string().min(1),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        tier: external_exports.string().optional(),
+        mode: external_exports.enum(["readonly", "edit"]).optional(),
+        run_mode: external_exports.enum(["blocking", "background"]).optional(),
+        plan_id: external_exports.string().optional(),
+        task_id: external_exports.string().optional(),
+        depends_on: external_exports.string().optional(),
+        acceptance: external_exports.string().optional(),
+        worktree_name: external_exports.string().optional(),
+        max_turns: external_exports.number().int().positive().max(80).optional(),
+        no_notify: external_exports.boolean().optional()
+      }
+    },
+    async (input) => asJsonContent(await dispatchTool(input))
   );
   server.registerTool(
     "codex_praetor_plan",
@@ -31793,6 +32154,21 @@ function createServer() {
     async (input) => asJsonContent(listLanesTool(input))
   );
   server.registerTool(
+    "codex_praetor_result",
+    {
+      title: "Read Codex Praetor Worker Result",
+      description: "Read one worker job's compact result, log tails, and failure classification without dumping full logs.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        job_id: external_exports.string().min(1),
+        include_log_tails: external_exports.boolean().optional(),
+        max_log_chars: external_exports.number().int().positive().max(6e4).optional()
+      }
+    },
+    async (input) => asJsonContent(resultTool(input))
+  );
+  server.registerTool(
     "codex_praetor_get_lane",
     {
       title: "Read Codex Praetor Lane",
@@ -31833,6 +32209,57 @@ function createServer() {
       }
     },
     async (input) => asJsonContent(statusTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_next_ready",
+    {
+      title: "List Codex Praetor Ready Plan Tasks",
+      description: "Read pending plan tasks whose dependencies have passed Codex verification.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1),
+        limit: external_exports.number().int().positive().max(100).optional()
+      }
+    },
+    async (input) => asJsonContent(await nextReadyTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_dispatch_plan_task",
+    {
+      title: "Dispatch Codex Praetor Plan Task",
+      description: "Start a real worker for one pending plan task and connect the resulting job back to the durable plan.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1),
+        task_id: external_exports.string().min(1),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        tier: external_exports.string().optional(),
+        mode: external_exports.enum(["readonly", "edit"]).optional(),
+        run_mode: external_exports.enum(["blocking", "background"]).optional(),
+        max_turns: external_exports.number().int().positive().max(80).optional(),
+        no_notify: external_exports.boolean().optional()
+      }
+    },
+    async (input) => asJsonContent(await dispatchPlanTaskTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_verify_task",
+    {
+      title: "Record Codex Praetor Task Verification",
+      description: "Record Codex's verification verdict for a worker-completed plan task; dependencies advance only after accepted.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1),
+        task_id: external_exports.string().min(1),
+        verdict: external_exports.enum(["accepted", "rejected", "retry", "human_required", "skipped"]),
+        summary: external_exports.string().min(1),
+        next_action: external_exports.string().optional()
+      }
+    },
+    async (input) => asJsonContent(await verifyTaskTool(input))
   );
   return server;
 }
