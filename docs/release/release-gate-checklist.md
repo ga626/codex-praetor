@@ -11,7 +11,9 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Git hooks: `.githooks/pre-commit` and `.githooks/pre-push` through `core.hooksPath`.
 - GitHub CI: `.github/workflows/ci.yml` runs doctor with the public template, minimal validation, MCP tests, and a release package build.
 - Release doctor: draft CI can run `scripts/verify/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders`; final public release must run without `-AllowDraftMetadataPlaceholders`.
-- Minimal validation: `scripts/verify/test-codex-praetor.ps1`.
+- Product validation: `scripts/verify/test-codex-praetor.ps1`. This default gate must not depend on the current developer's global Codex rules, installed skill copy, provider login state, or local provider account data.
+- Developer environment validation: `scripts/verify/test-codex-praetor-dev-env.ps1`. Use this when the change specifically touches local Codex installation, installed skill sync, provider dry-run behavior, or global-rule integration.
+- Public entry consistency: `scripts/verify/test-public-entry-consistency.ps1`. Use `-SkipRemoteRelease` before publication and the full remote check during release closeout.
 - Continuous orchestration MCP validation: route-intent, dry-run, real dispatch tool listing, result reading, next-ready lookup, plan-task dispatch tool listing, and verify-task recording must pass protocol smoke before release.
 - Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider mimo`.
 - MCP source tests: `npm test` under `mcp/`.
@@ -33,7 +35,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Draft release notes: `docs/release/release-notes-0.1.2-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.1.2-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -94,8 +96,8 @@ Before pushing or tagging:
 - Confirm license, changelog entry, security policy, and README install path are current.
 - Build the local release package and verify it excludes private/internal artifacts.
 - Tag only after a new user path succeeds: clone -> doctor -> dry-run -> optional readonly canary.
-- After a delivery-affecting PR is merged, update the GitHub Release zip, `.sha256`, and notes from latest `main` with `scripts/release/publish-github-release-asset.ps1 -Apply`; it must finish by running `scripts/release/verify-github-release-asset.ps1`.
-- For the `0.1.2-alpha` orchestration-loop release, remote-download validation must prove the downloaded package exposes the new dispatch/result/verification MCP tools before calling the product delivered.
+- After a delivery-affecting PR is merged, publish the next version's GitHub Release zip, `.sha256`, and notes from latest `main` with `scripts/release/publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION -Apply`; it must finish by running `scripts/release/verify-github-release-asset.ps1`, including the public-entry consistency gate.
+- Remote-download validation must prove the downloaded package exposes the intended user-facing behavior before calling the product delivered.
 
 ## 6. Final Human Confirmation
 
@@ -104,6 +106,6 @@ Stop before irreversible public release steps and ask for confirmation when:
 - Choosing the final GitHub owner/repo URL.
 - Completing GitHub account authorization outside Codex.
 - Pushing the first public branch.
-- Creating the `0.1.2-alpha` tag or GitHub release.
+- Creating a new version tag or GitHub release.
 - Publishing any package/archive intended for other users.
 - Replacing existing GitHub Release assets with `gh release upload --clobber`.

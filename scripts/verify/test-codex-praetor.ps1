@@ -1,5 +1,6 @@
 param(
     [string]$Repo = "",
+    [switch]$IncludeDeveloperEnvironment,
     [switch]$SkipDryRun,
     [switch]$SkipInstalledSkillCheck,
     [switch]$SkipGlobalRuleCheck,
@@ -14,6 +15,12 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 if ([string]::IsNullOrWhiteSpace($Repo)) {
     $Repo = $projectRoot
+}
+
+if (-not $IncludeDeveloperEnvironment) {
+    $SkipDryRun = $true
+    $SkipInstalledSkillCheck = $true
+    $SkipGlobalRuleCheck = $true
 }
 
 $failures = New-Object System.Collections.Generic.List[string]
@@ -34,6 +41,12 @@ function Add-Fail {
     param([string]$Message)
     $script:failures.Add($Message)
     Write-Host "[FAIL] $Message"
+}
+
+if ($IncludeDeveloperEnvironment) {
+    Write-Host "Validation mode: product + developer environment"
+} else {
+    Write-Host "Validation mode: product only"
 }
 
 function Assert-Path {

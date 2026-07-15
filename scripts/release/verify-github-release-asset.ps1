@@ -153,6 +153,14 @@ try {
     Write-Host "[PASS] GitHub Release notes match local release notes."
     Write-Host "[PASS] Downloaded remote setup.cmd uses CRLF line endings."
     Write-Host "[PASS] Downloaded remote zip contains the current onboarding wizard."
+
+    $publicEntryCheck = Join-Path (Split-Path -Parent $scriptDir) "verify\test-public-entry-consistency.ps1"
+    if (Test-Path -LiteralPath $publicEntryCheck -PathType Leaf) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $publicEntryCheck -Version $Version -Repository $Repository -SkipRemoteRelease
+        if ($LASTEXITCODE -ne 0) {
+            throw "Public entry consistency check failed."
+        }
+    }
 } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
