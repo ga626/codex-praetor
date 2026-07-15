@@ -17,7 +17,7 @@
 - Tencent CodeBuddy 或 WorkBuddy
 - Xiaomi MiMo Code
 
-没有这些外部 CLI 也可以先使用 Codex Praetor 的计划、dry-run、状态查询和冲突检测。只有真实派工需要至少一个外部 CLI。
+没有这些外部 CLI 也可以先使用 Codex Praetor 的计划、dry-run、状态查询和冲突检测。真实派工、结果收集和计划任务推进需要至少一个外部 CLI。
 
 安装前不需要：
 
@@ -119,7 +119,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 你应该看到 Codex Praetor 选择外部 worker 路线，而不是创建 Codex 自己的 subagent。
 
-dry-run 不会启动真实 worker，也不会修改文件。
+dry-run 不会启动真实 worker，也不会修改文件。等 provider 安装、登录和只读 canary 都通过后，Codex 才应该进入真实派工闭环：派发 worker、读取结果、检查报告或改动、记录验收结论，再继续下一批计划任务。
 
 ### 7. 安装验收
 
@@ -143,7 +143,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
 ```
 
-这个 canary 只读取 `README.md`，并检查主仓库状态是否保持不变。它通过后，再考虑真实派工。
+这个 canary 只读取 `README.md`，并检查主仓库状态是否保持不变。它通过后，再考虑真实派工。真实派工完成后不代表任务自动完成；Codex 还要读取 worker 结果，确认输出能采信，必要时看 diff、跑验证，再把任务标成采信、拒绝、重试、需要人工处理或跳过。
 
 ## 从源码安装
 

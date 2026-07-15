@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Init", "UpsertTask", "RecordJob", "NextReady", "Get", "AppendEvent")]
+    [ValidateSet("Init", "UpsertTask", "RecordJob", "VerifyTask", "NextReady", "Get", "AppendEvent")]
     [string]$Action,
 
     [Parameter(Mandatory = $true)]
@@ -12,7 +12,7 @@ param(
     [string]$TaskId = "",
     [string]$TaskTitle = "",
     [string]$DependsOn = "",
-    [ValidateSet("pending", "running", "completed", "failed", "blocked", "new_problem", "skipped")]
+    [ValidateSet("pending", "running", "awaiting_verification", "completed", "failed", "blocked", "new_problem", "skipped")]
     [string]$Status = "pending",
     [string]$Acceptance = "",
     [string]$JobId = "",
@@ -23,6 +23,10 @@ param(
     [string]$Mode = "",
     [string]$CompletionPath = "",
     [string]$Summary = "",
+    [ValidateSet("", "accepted", "rejected", "retry", "human_required", "skipped")]
+    [string]$VerificationVerdict = "",
+    [string]$VerificationSummary = "",
+    [string]$NextAction = "",
     [string]$EventType = "",
     [string]$EventMessage = "",
     [switch]$OutputJson
@@ -154,6 +158,10 @@ function Upsert-Task {
             mode = ""
             completion = ""
             summary = ""
+            verification_verdict = ""
+            verification_summary = ""
+            verified_at = ""
+            next_action = ""
             created_at = (Get-Date).ToString("o")
             updated_at = (Get-Date).ToString("o")
         }
@@ -175,6 +183,65 @@ function Upsert-Task {
     $existing.updated_at = (Get-Date).ToString("o")
 
     $Plan.tasks = @($tasks | Sort-Object task_id)
+}
+
+function Set-DynamicProperty {
+    param(
+        [object]$Target,
+        [string]$Name,
+        [object]$Value
+    )
+    if ($Target.PSObject.Properties.Name -contains $Name) {
+        $Target.$Name = $Value
+    } else {
+        $Target | Add-Member -MemberType NoteProperty -Name $Name -Value $Value
+    }
+}
+
+function Set-TaskVerification {
+    param(
+        [object]$Plan,
+        [string]$Id,
+        [string]$Verdict,
+        [string]$SummaryValue,
+        [string]$NextActionValue
+    )
+    if ([string]::IsNullOrWhiteSpace($Id)) {
+        throw "TaskId is required for VerifyTask."
+    }
+    if ([string]::IsNullOrWhiteSpace($Verdict)) {
+        throw "VerificationVerdict is required for VerifyTask."
+    }
+
+    $target = $null
+    foreach ($task in @($Plan.tasks)) {
+        if ($task.task_id -eq $Id) {
+            $target = $task
+            break
+        }
+    }
+    if ($null -eq $target) {
+        throw "Task not found for verification: $Id"
+    }
+
+    Set-DynamicProperty -Target $target -Name "verification_verdict" -Value $Verdict
+    Set-DynamicProperty -Target $target -Name "verification_summary" -Value $SummaryValue
+    Set-DynamicProperty -Target $target -Name "verified_at" -Value (Get-Date).ToString("o")
+    Set-DynamicProperty -Target $target -Name "next_action" -Value $NextActionValue
+    Set-DynamicProperty -Target $target -Name "summary" -Value $SummaryValue
+    Set-DynamicProperty -Target $target -Name "updated_at" -Value (Get-Date).ToString("o")
+
+    if ($Verdict -eq "accepted") {
+        Set-DynamicProperty -Target $target -Name "status" -Value "completed"
+    } elseif ($Verdict -eq "retry") {
+        Set-DynamicProperty -Target $target -Name "status" -Value "new_problem"
+    } elseif ($Verdict -eq "human_required") {
+        Set-DynamicProperty -Target $target -Name "status" -Value "blocked"
+    } elseif ($Verdict -eq "skipped") {
+        Set-DynamicProperty -Target $target -Name "status" -Value "skipped"
+    } else {
+        Set-DynamicProperty -Target $target -Name "status" -Value "failed"
+    }
 }
 
 function Get-ReadyTasks {
@@ -230,10 +297,14 @@ if ($Action -eq "Init") {
     }
     $completion = Get-Content -LiteralPath $completionFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $recordTaskId = if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $TaskId } else { [string]$completion.task_id }
-    $recordStatus = if ($completion.status -eq "completed") { "completed" } elseif ($completion.status -eq "failed") { "failed" } else { "blocked" }
+    $recordStatus = if ($completion.status -eq "completed") { "awaiting_verification" } elseif ($completion.status -eq "failed") { "failed" } else { "blocked" }
     $summaryText = "worker_status=$($completion.status); exit_code=$($completion.exit_code)"
     Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
     Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "VerifyTask") {
+    Set-TaskVerification -Plan $plan -Id $TaskId -Verdict $VerificationVerdict -SummaryValue $VerificationSummary -NextActionValue $NextAction
+    Add-PlanEvent -Plan $plan -Type "task_verified" -Message "Task $TaskId verification verdict: $VerificationVerdict." -Data @{ task_id = $TaskId; verdict = $VerificationVerdict; next_action = $NextAction }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "AppendEvent") {
     Add-PlanEvent -Plan $plan -Type $EventType -Message $EventMessage
@@ -268,4 +339,3 @@ if ($OutputJson) {
 } else {
     Write-Output (Get-PlanPath -Id $PlanId)
 }
-

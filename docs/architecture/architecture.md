@@ -36,7 +36,7 @@ Codex Praetor owns:
 
 ## Current Script Layer
 
-The script layer is already functional enough for dry-runs and smoke validation.
+The script layer is functional for dry-runs, real dispatch, background watcher completion, plan state, and smoke validation.
 
 Core scripts:
 
@@ -57,20 +57,31 @@ Worker git worktrees, jobs, plans, locks, and scratch files live under that igno
 
 The first MCP version is intentionally thin. It calls the existing scripts instead of reimplementing dispatch.
 
-Implemented v0 tools:
+Implemented tools:
 
 - `codex_praetor_route_intent`
-- `codex_praetor_list_jobs`
-- `codex_praetor_plan`
 - `codex_praetor_dispatch_dry_run`
+- `codex_praetor_dispatch`
+- `codex_praetor_plan`
+- `codex_praetor_dispatch_plan_task`
+- `codex_praetor_next_ready`
+- `codex_praetor_verify_task`
+- `codex_praetor_list_jobs`
+- `codex_praetor_list_lanes`
+- `codex_praetor_get_lane`
+- `codex_praetor_result`
+- `codex_praetor_detect_conflicts`
 - `codex_praetor_status`
 
-Later tools:
+The key semantic boundary is that worker completion is not final acceptance. A worker job can finish at the process layer and still be unusable. Codex must inspect the worker report, relevant diffs, and the smallest meaningful verification result, then record a verdict:
 
-- `codex_praetor_dispatch`
-- `codex_praetor_collect`
-- `codex_praetor_finalize`
-- `codex_praetor_list_locks`
+- `accepted`: the task can unlock dependent plan tasks.
+- `rejected`: the worker result is not usable.
+- `retry`: the task needs a smaller packet, different worker, or adjusted limit.
+- `human_required`: user account, permission, release, or product judgment is required.
+- `skipped`: the task is intentionally skipped.
+
+Later tools may still add richer lock views, dashboard summaries, or explicit merge helpers. They should build on this dispatch-result-verification loop instead of bypassing it.
 
 ## Plugin Layer
 

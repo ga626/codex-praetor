@@ -15,12 +15,17 @@ const skipDryRun =
 const requiredTools = [
   "codex_praetor_route_intent",
   "codex_praetor_dispatch_dry_run",
+  "codex_praetor_dispatch",
   "codex_praetor_plan",
   "codex_praetor_list_jobs",
   "codex_praetor_list_lanes",
   "codex_praetor_get_lane",
+  "codex_praetor_result",
   "codex_praetor_detect_conflicts",
-  "codex_praetor_status"
+  "codex_praetor_status",
+  "codex_praetor_next_ready",
+  "codex_praetor_dispatch_plan_task",
+  "codex_praetor_verify_task"
 ];
 
 const expectedReadOnlyTools = [
@@ -29,8 +34,10 @@ const expectedReadOnlyTools = [
   "codex_praetor_list_jobs",
   "codex_praetor_list_lanes",
   "codex_praetor_get_lane",
+  "codex_praetor_result",
   "codex_praetor_detect_conflicts",
-  "codex_praetor_status"
+  "codex_praetor_status",
+  "codex_praetor_next_ready"
 ];
 
 const client = new Client({
@@ -64,6 +71,12 @@ try {
   const planTool = tools.tools.find((candidate) => candidate.name === "codex_praetor_plan");
   if (planTool?.annotations?.readOnlyHint !== false || planTool.annotations.destructiveHint !== false) {
     throw new Error("Missing additive non-destructive annotations on MCP tool: codex_praetor_plan");
+  }
+  for (const toolName of ["codex_praetor_dispatch", "codex_praetor_dispatch_plan_task", "codex_praetor_verify_task"]) {
+    const tool = tools.tools.find((candidate) => candidate.name === toolName);
+    if (tool?.annotations?.readOnlyHint !== false || tool.annotations.destructiveHint !== false) {
+      throw new Error(`Missing additive non-destructive annotations on MCP tool: ${toolName}`);
+    }
   }
 
   const routeResult = await client.callTool({

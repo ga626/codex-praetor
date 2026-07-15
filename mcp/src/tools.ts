@@ -29,7 +29,7 @@ export function routeIntentTool(input: {
 export async function dispatchDryRunTool(input: {
   repo: string;
   task: string;
-  provider: "qoder" | "codebuddy" | "mimo";
+  provider: "auto" | "qoder" | "codebuddy" | "mimo";
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
@@ -79,6 +79,223 @@ export async function dispatchDryRunTool(input: {
     plan_root: fields.plan_root ?? "",
     scratch_root: fields.scratch_root ?? "",
     command: fields.command ?? "",
+    stdout: result.stdout,
+    stderr: result.stderr
+  };
+}
+
+function appendOptionalStringArg(args: string[], name: string, value?: string) {
+  if (value?.trim()) {
+    args.push(name, value.trim());
+  }
+}
+
+function appendOptionalNumberArg(args: string[], name: string, value?: number) {
+  if (Number.isFinite(value) && (value ?? 0) > 0) {
+    args.push(name, String(value));
+  }
+}
+
+function buildDispatchArgs(input: {
+  repo: string;
+  task: string;
+  provider: "auto" | "qoder" | "codebuddy" | "mimo";
+  tier?: string;
+  mode?: "readonly" | "edit";
+  run_mode?: "blocking" | "background";
+  dry_run?: boolean;
+  plan_id?: string;
+  task_id?: string;
+  depends_on?: string;
+  acceptance?: string;
+  worktree_name?: string;
+  max_turns?: number;
+  no_notify?: boolean;
+}) {
+  const args = [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    getInvokeScriptPath(),
+    "-Provider",
+    input.provider,
+    "-Repo",
+    input.repo,
+    "-Task",
+    input.task,
+    "-Mode",
+    input.mode ?? "readonly",
+    "-RunMode",
+    input.run_mode ?? "background"
+  ];
+
+  appendOptionalStringArg(args, "-Tier", input.tier);
+  appendOptionalStringArg(args, "-PlanId", input.plan_id);
+  appendOptionalStringArg(args, "-TaskId", input.task_id);
+  appendOptionalStringArg(args, "-DependsOn", input.depends_on);
+  appendOptionalStringArg(args, "-Acceptance", input.acceptance);
+  appendOptionalStringArg(args, "-WorktreeName", input.worktree_name);
+  appendOptionalNumberArg(args, "-MaxTurns", input.max_turns);
+
+  if (input.dry_run) {
+    args.push("-DryRun");
+  }
+  if (input.no_notify ?? true) {
+    args.push("-NoNotify");
+  }
+  return args;
+}
+
+function readTextTail(filePath: string, maxChars = 12_000): string {
+  if (!existsSync(filePath)) {
+    return "";
+  }
+  const text = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return text.slice(text.length - maxChars);
+}
+
+function classifyWorkerOutcome(input: {
+  meta: Record<string, unknown>;
+  completion: Record<string, unknown> | null;
+  stdout_tail: string;
+  stderr_tail: string;
+}) {
+  const completion = input.completion;
+  const metaStatus = String(input.meta.status ?? "");
+  const status = String(completion?.status ?? metaStatus ?? "");
+  const exitCode = completion?.exit_code ?? input.meta.exit_code;
+  const combined = `${input.stdout_tail}\n${input.stderr_tail}`.toLowerCase();
+
+  if (!completion) {
+    if (["starting", "running"].includes(metaStatus)) {
+      return {
+        class: "worker_running",
+        explanation: "worker 还在运行，尚未产生 completion.json。",
+        next_action: "等待 watcher 完成，稍后再读取结果。"
+      };
+    }
+    return {
+      class: "missing_completion",
+      explanation: "job 元数据存在，但没有 completion.json。",
+      next_action: "检查 watcher 日志；如果 watcher 已退出但没有 completion，需要按 watcher 失败处理。"
+    };
+  }
+
+  if (status === "watcher_failed") {
+    return {
+      class: "watcher_failed",
+      explanation: "本地 watcher 没能完成 worker 等待或结果记录。",
+      next_action: "先修复本地 watcher/进程启动问题，再重派任务。"
+    };
+  }
+  if (combined.includes("max turns") || combined.includes("maximum turns") || combined.includes("turns exceeded")) {
+    return {
+      class: "worker_max_turns_exceeded",
+      explanation: "worker 在轮数上限内没有完成任务，不能把它当作有效结果。",
+      next_action: "缩小任务、提高 MaxTurns、换 provider，或由 Codex 接管并记录原因。"
+    };
+  }
+  if (combined.includes("cli not found") || combined.includes("not recognized") || combined.includes("cannot find path")) {
+    return {
+      class: "provider_cli_missing",
+      explanation: "外部 provider CLI 不可用或路径不正确。",
+      next_action: "回到安装向导或本机配置，修复 provider CLI 路径后重试。"
+    };
+  }
+  if (combined.includes("login") || combined.includes("not logged") || combined.includes("unauthorized") || combined.includes("auth")) {
+    return {
+      class: "provider_auth_required",
+      explanation: "provider 需要用户完成登录、扫码、授权或账号配置。",
+      next_action: "让用户按 provider 官方流程完成账号动作，再重跑 canary 或重派任务。"
+    };
+  }
+  if (combined.includes("permission") || combined.includes("denied") || combined.includes("sandbox")) {
+    return {
+      class: "permission_denied",
+      explanation: "worker 被权限、沙箱或工具白名单拦住。",
+      next_action: "检查任务模式、工具白名单和 worktree 权限；不要直接放宽到不受控权限。"
+    };
+  }
+  if (status === "failed" || (typeof exitCode === "number" && exitCode !== 0)) {
+    return {
+      class: "worker_failed",
+      explanation: "worker 进程失败退出。",
+      next_action: "读取 stdout/stderr 摘要，判断是重派、换 provider，还是由 Codex 接管。"
+    };
+  }
+  if (status === "completed") {
+    return {
+      class: "awaiting_codex_verification",
+      explanation: "worker 已完成进程层任务，但还需要 Codex 检查报告、diff 和验证结果。",
+      next_action: "调用验收工具记录 accepted/rejected/retry/human_required。"
+    };
+  }
+
+  return {
+    class: "unknown_worker_state",
+    explanation: "worker 状态无法归入已知分类。",
+    next_action: "读取 job 元数据、completion 和日志摘要后人工判断。"
+  };
+}
+
+export async function dispatchTool(input: {
+  repo: string;
+  task: string;
+  provider?: "auto" | "qoder" | "codebuddy" | "mimo";
+  tier?: string;
+  mode?: "readonly" | "edit";
+  run_mode?: "blocking" | "background";
+  plan_id?: string;
+  task_id?: string;
+  depends_on?: string;
+  acceptance?: string;
+  worktree_name?: string;
+  max_turns?: number;
+  no_notify?: boolean;
+}) {
+  const repo = resolveExistingRepo(input.repo);
+  const runMode = input.run_mode ?? "background";
+  const result = await runPowerShell(
+    buildDispatchArgs({
+      ...input,
+      repo,
+      provider: input.provider ?? "auto",
+      run_mode: runMode,
+      no_notify: input.no_notify ?? true
+    }),
+    { timeoutMs: runMode === "blocking" ? 1_800_000 : 120_000, maxOutputBytes: 512_000 }
+  );
+  const fields = parseKeyValueOutput(result.stdout);
+  const completionPath = fields.completion ?? "";
+  const completion =
+    completionPath && existsSync(completionPath) ? (readJsonFile(completionPath) as Record<string, unknown>) : null;
+
+  return {
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    repo,
+    task: input.task,
+    provider: fields.provider ?? input.provider ?? "auto",
+    tier: fields.tier ?? input.tier ?? "",
+    model: fields.model ?? "",
+    mode: input.mode ?? "readonly",
+    run_mode: fields.run_mode ?? runMode,
+    job_id: fields.job_id ?? "",
+    job_dir: fields.job_dir ?? "",
+    watcher_pid: fields.watcher_pid ?? "",
+    stdout_path: fields.stdout ?? "",
+    stderr_path: fields.stderr ?? "",
+    completion_path: completionPath,
+    completion,
+    command: fields.command ?? "",
+    status_note:
+      runMode === "background"
+        ? "worker 已交给本地 watcher；等待 completion.json 后再由 Codex 验收。"
+        : "blocking worker 已退出；仍需 Codex 验收输出和改动。",
     stdout: result.stdout,
     stderr: result.stderr
   };
@@ -552,5 +769,209 @@ export function statusTool(input: {
     kind: "none",
     repo,
     message: "Provide job_id or plan_id."
+  };
+}
+
+export function resultTool(input: {
+  repo: string;
+  job_id: string;
+  include_log_tails?: boolean;
+  max_log_chars?: number;
+}) {
+  const repo = resolveExistingRepo(input.repo);
+  const jobId = input.job_id.trim();
+  const jobDir = path.join(getJobRoot(repo), jobId);
+  if (!existsSync(jobDir)) {
+    return {
+      found: false,
+      repo,
+      job_id: jobId,
+      path: jobDir,
+      message: "Job not found."
+    };
+  }
+
+  const metaPath = path.join(jobDir, "job.json");
+  const completionPath = path.join(jobDir, "completion.json");
+  const stdoutPath = path.join(jobDir, "stdout.log");
+  const stderrPath = path.join(jobDir, "stderr.log");
+  const meta = existsSync(metaPath) ? readJsonFile(metaPath) : {};
+  const completion = existsSync(completionPath) ? readJsonFile(completionPath) : null;
+  const includeLogTails = input.include_log_tails ?? true;
+  const maxLogChars = Math.max(1_000, Math.min(input.max_log_chars ?? 12_000, 60_000));
+  const stdoutTail = includeLogTails ? readTextTail(stdoutPath, maxLogChars) : "";
+  const stderrTail = includeLogTails ? readTextTail(stderrPath, maxLogChars) : "";
+  const classification = classifyWorkerOutcome({
+    meta,
+    completion,
+    stdout_tail: stdoutTail,
+    stderr_tail: stderrTail
+  });
+
+  return {
+    found: true,
+    repo,
+    job_id: jobId,
+    job_dir: jobDir,
+    meta,
+    completion,
+    classification,
+    log_paths: {
+      stdout: stdoutPath,
+      stderr: stderrPath,
+      watcher: path.join(jobDir, "watcher.log")
+    },
+    stdout_tail: stdoutTail,
+    stderr_tail: stderrTail
+  };
+}
+
+export async function nextReadyTool(input: {
+  repo: string;
+  plan_id: string;
+  limit?: number;
+}) {
+  const repo = resolveExistingRepo(input.repo);
+  const planRoot = getPlanRoot(repo);
+  const result = await runPowerShell(
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      getPlanScriptPath(),
+      "-Action",
+      "NextReady",
+      "-PlanId",
+      input.plan_id,
+      "-PlanRoot",
+      planRoot,
+      "-OutputJson"
+    ],
+    { timeoutMs: 30_000 }
+  );
+  const raw = result.stdout.trim();
+  let parsed: unknown[] = [];
+  if (raw) {
+    const value = JSON.parse(raw) as unknown;
+    parsed = Array.isArray(value) ? value : [value];
+  }
+  const limit = Math.max(1, Math.min(input.limit ?? 20, 100));
+  return {
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    repo,
+    plan_id: input.plan_id,
+    plan_root: planRoot,
+    ready_tasks: parsed.slice(0, limit),
+    count: Math.min(parsed.length, limit),
+    stderr: result.stderr
+  };
+}
+
+function getPlanTask(repo: string, planId: string, taskId: string) {
+  const planDir = path.join(getPlanRoot(repo), planId);
+  const planPath = path.join(planDir, "plan.json");
+  if (!existsSync(planPath)) {
+    throw new Error(`Plan not found: ${planPath}`);
+  }
+  const plan = readJsonFile(planPath);
+  const tasks = Array.isArray(plan.tasks) ? (plan.tasks as Record<string, unknown>[]) : [];
+  const task = tasks.find((candidate) => String(candidate.task_id ?? "") === taskId);
+  if (!task) {
+    throw new Error(`Task not found in plan ${planId}: ${taskId}`);
+  }
+  return { plan, task };
+}
+
+export async function dispatchPlanTaskTool(input: {
+  repo: string;
+  plan_id: string;
+  task_id: string;
+  provider?: "auto" | "qoder" | "codebuddy" | "mimo";
+  tier?: string;
+  mode?: "readonly" | "edit";
+  run_mode?: "blocking" | "background";
+  max_turns?: number;
+  no_notify?: boolean;
+}) {
+  const repo = resolveExistingRepo(input.repo);
+  const taskId = input.task_id.trim();
+  const { task } = getPlanTask(repo, input.plan_id, taskId);
+  const status = String(task.status ?? "");
+  if (status !== "pending") {
+    return {
+      ok: false,
+      repo,
+      plan_id: input.plan_id,
+      task_id: taskId,
+      status,
+      message: "Only pending plan tasks can be dispatched."
+    };
+  }
+
+  const title = String(task.title ?? "");
+  const acceptance = String(task.acceptance ?? "");
+  const dependsOn = Array.isArray(task.depends_on) ? (task.depends_on as unknown[]).map(String).join(",") : "";
+  return dispatchTool({
+    repo,
+    task: title,
+    provider: input.provider ?? "auto",
+    tier: input.tier,
+    mode: input.mode ?? (String(task.mode ?? "") === "edit" ? "edit" : "readonly"),
+    run_mode: input.run_mode ?? "background",
+    plan_id: input.plan_id,
+    task_id: taskId,
+    depends_on: dependsOn,
+    acceptance,
+    max_turns: input.max_turns,
+    no_notify: input.no_notify ?? true
+  });
+}
+
+export async function verifyTaskTool(input: {
+  repo: string;
+  plan_id: string;
+  task_id: string;
+  verdict: "accepted" | "rejected" | "retry" | "human_required" | "skipped";
+  summary: string;
+  next_action?: string;
+}) {
+  const repo = resolveExistingRepo(input.repo);
+  const result = await runPowerShell(
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      getPlanScriptPath(),
+      "-Action",
+      "VerifyTask",
+      "-PlanId",
+      input.plan_id,
+      "-PlanRoot",
+      getPlanRoot(repo),
+      "-TaskId",
+      input.task_id,
+      "-VerificationVerdict",
+      input.verdict,
+      "-VerificationSummary",
+      input.summary,
+      "-NextAction",
+      input.next_action ?? "",
+      "-OutputJson"
+    ],
+    { timeoutMs: 30_000 }
+  );
+
+  return {
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    repo,
+    plan_id: input.plan_id,
+    task_id: input.task_id,
+    verdict: input.verdict,
+    plan: result.stdout.trim() ? JSON.parse(result.stdout) : null,
+    stderr: result.stderr
   };
 }

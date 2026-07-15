@@ -10,7 +10,7 @@
 | 插件能看到，但 MCP 工具不可见 | MCP 配置没刷新，或 Node 不可用 | 运行轻量 reload；确认 Node.js 已安装 |
 | MCP 工具报 `Transport closed` | 当前这一次工具句柄旧了，底层服务不一定坏 | 运行 reload/probe；失败后再重启 Codex 或打开新任务 |
 | 没有 Qoder、CodeBuddy、MiMo | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
-| provider 已安装但真实派工失败 | provider 未登录、权限不够或 CLI 路径不对 | 重新运行向导选择对应 provider，按官方流程登录，再跑 readonly canary |
+| provider 已安装但真实派工失败 | provider 未登录、权限不够、CLI 路径不对、任务超轮数或 worker 无有效产出 | 先读取 worker result 摘要和失败分类；需要账号动作时重新运行向导，任务太大时缩小后重派 |
 | 执行 provider 官方安装时提示网络不可用或超时 | 官方安装源、DNS、代理或系统网络还没准备好 | 检查网络/代理后重试；也可以先跳过 provider，先完成本体安装 |
 
 ## 看不到 Codex Praetor 插件
@@ -65,7 +65,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex
 - status
 - lane/conflict
 
-真实派工需要至少一个外部 CLI。
+真实派工、worker result 读取和计划任务推进需要至少一个外部 CLI。没有 provider 时，MCP 工具仍然可以创建计划、做 dry-run、查 lane/conflict，但不会真的启动 worker。
 
 想配置 provider 时，重新运行 `setup.cmd`，选择“配置全部 provider”或只选择某一家。向导会检测命令；没装时会让你确认是否执行官方安装命令；装好后刷新 PATH、复检命令，等待你完成 provider 自己的登录/授权，然后写入本机配置。
 
@@ -96,6 +96,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 ```
 
 如果 `-Apply` 失败，优先按 provider 官方方式重新登录或修正本地 `cliPath`，不要把 token、cookie、账号页面或本地数据库贴到 issue 或聊天里。
+
+## worker 完成但任务没有继续
+
+这是正常安全边界。
+
+Codex Praetor 现在把“worker 进程完成”和“任务验收通过”分开处理。worker 完成后，计划任务会停在等待 Codex 验收的状态；Codex 必须读取 worker 结果、看必要的文件差异或报告、运行最小验证，然后记录结论。
+
+结论有五种：
+
+- 采信：结果可用，后续依赖任务可以继续。
+- 拒绝：结果不可用，不推进后续任务。
+- 重试：任务需要缩小、换 provider 或提高轮数后重派。
+- 需要人工处理：登录、授权、发布、合并或产品判断需要用户参与。
+- 跳过：这项任务被明确取消或不再需要。
+
+如果 worker 输出里出现 `Max turns exceeded` 或类似超轮数提示，不要把它当作有效完成。正确做法是缩小任务、提高轮数、换 provider，或者让 Codex 接管并说明原因。
 
 provider 说明：
 
