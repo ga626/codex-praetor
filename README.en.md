@@ -4,9 +4,9 @@
 
 Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching bounded work to external CLI worker agents while Codex remains the planner, supervisor, integrator, and final verifier.
 
-Current source version: **0.1.2-alpha prerelease candidate**. The latest user-downloadable GitHub Release is still **0.1.1-alpha** until a new Release zip is built and published after merge.
+Current public version: **0.1.2-alpha**.
 
-[Download 0.1.1-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.1-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
+[Download 0.1.2-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.2-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
 
 ## What It Does
 
@@ -25,9 +25,9 @@ The supported alpha scope is intentionally narrow:
 Download and extract the release zip:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.1-alpha/codex-praetor-setup-0.1.1-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.1-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.1.1-alpha.zip .\codex-praetor-setup-0.1.1-alpha
-cd .\codex-praetor-setup-0.1.1-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.2-alpha/codex-praetor-setup-0.1.2-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.2-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.1.2-alpha.zip .\codex-praetor-setup-0.1.2-alpha
+cd .\codex-praetor-setup-0.1.2-alpha
 ```
 
 Preview the install:

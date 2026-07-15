@@ -23,9 +23,9 @@
 - 不让 worker 自动合并、自动发布或自动替用户确认付费/账号动作。
 - 不默认创建 Codex 原生 subagent。
 
-## 发布验收
+## 发布验收结果
 
-发布前必须验证：
+这一版发布时必须验证：
 
 - 新鲜 Codex 工具上下文能看到 `codex_praetor_dispatch`、`codex_praetor_result`、`codex_praetor_next_ready`、`codex_praetor_dispatch_plan_task` 和 `codex_praetor_verify_task`。
 - MCP protocol smoke 通过。
@@ -34,4 +34,4 @@
 
 ## 发布边界
 
-本说明只是 `0.1.2-alpha` 的发布说明草稿。代码合并不等于产品已交付；只有 GitHub Release 资产构建、上传、下载复验全部通过后，用户才真正拿到这一版。
+`0.1.2-alpha` 的用户入口是 GitHub Release 里的 `codex-praetor-setup-0.1.2-alpha.zip`。代码合并不等于产品已交付；只有 Release 资产、校验文件、公开下载说明和远端下载复验都对应同一个版本，才算用户真正拿到这一版。

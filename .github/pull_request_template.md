@@ -6,9 +6,10 @@
 
 - [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease`
 - [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1`
+- [ ] 如果改公开 README、安装指南、路线图、发布说明或 Release 入口：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease`
 - [ ] `npm test --prefix .\mcp`
-- [ ] 已完成一次不修改文件的 dry-run。
-- [ ] 如果改动安装或发布流程，已验证安装、更新或回滚路径。
+- [ ] 如果改本机 Codex 安装、已安装 skill、provider dry-run 或全局规则联动：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor-dev-env.ps1`
+- [ ] 如果改动安装或发布流程，已验证用户会实际走到的安装、更新或回滚路径。
 
 ## 安全检查
 

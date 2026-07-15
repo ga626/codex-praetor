@@ -3,7 +3,7 @@
 Date: 2026-07-15
 Target release: `0.1.2-alpha`
 
-Status: `v0.1.1-alpha` has already been published. The next delivery-affecting source line is `0.1.2-alpha`; after the orchestration-loop PR is merged, create/update the `v0.1.2-alpha` Release asset and verify the downloaded zip before calling the product delivered.
+Status: `v0.1.2-alpha` is the current public user-downloadable release. For the next delivery-affecting change, use a new version/tag and verify the downloaded zip before calling the product delivered.
 
 This runbook is the safe path for publishing Codex Praetor to GitHub. It assumes Codex does the release work after the user completes only the account-owner actions that cannot be delegated safely.
 
@@ -49,7 +49,8 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    ```powershell
    git status --short
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1 -SkipInstalledSkillCheck
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
    npm test --prefix .\mcp
    ```
 
@@ -75,7 +76,8 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1 -SkipInstalledSkillCheck
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
    npm test --prefix .\mcp
    git diff --check
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\build-codex-praetor-release.ps1 -Apply
@@ -98,19 +100,20 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    gh release create v0.1.2-alpha .\.codex-praetor\releases\codex-praetor-setup-0.1.2-alpha.zip --title "Codex Praetor 0.1.2-alpha" --notes-file .\docs\release\release-notes-0.1.2-alpha.md
    ```
 
-7. After any delivery-affecting PR is merged, rebuild and update the existing release assets from latest `main`:
+7. After any delivery-affecting PR is merged, publish a new version from latest `main` unless the user explicitly approves replacing a broken asset built from the same commit:
 
    ```powershell
    git switch main
    git pull --ff-only
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
    npm test --prefix .\mcp
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Apply
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION -Apply
    ```
 
-   The first command is a dry-run confirmation. The `-Apply` command rebuilds, uploads with `--clobber`, updates Release notes, downloads the GitHub Release zip, and verifies it. Do not say the product is delivered until it passes.
+   The first command is a dry-run confirmation. The `-Apply` command rebuilds, uploads the release asset, updates Release notes, downloads the GitHub Release zip, verifies the asset, and runs the public-entry consistency gate through `scripts\release\verify-github-release-asset.ps1`. Do not say the product is delivered until it passes.
 
 ## Blockers That Stop Publication
 
@@ -120,4 +123,4 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 - Public release scan finds local paths, account data, auth/token/secret material, provider caches, or private evidence.
 - Fresh-context native MCP canary fails.
 - User has not confirmed the first public push/tag/release.
-- The GitHub Release zip or notes differ from latest `main`.
+- The GitHub Release zip, notes, public README, installation guide, or roadmap point to different user-downloadable versions.

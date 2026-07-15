@@ -2,10 +2,16 @@
 
 ## Unreleased
 
+- Separated product validation from developer-environment validation so PR, CI, and release gates no longer depend on the local Codex global rules, installed skill copy, or provider dry-run state by default.
+- Added a public-entry consistency check to keep README, installation docs, roadmap, release notes, and GitHub Release assets aligned after publication.
+- Updated public download documentation to the published `0.1.2-alpha` release.
+
+## 0.1.2-alpha - 2026-07-15
+
 - Added MCP tools for the continuous orchestration loop: real worker dispatch, compact worker result reads, ready plan-task lookup, plan-task dispatch, and Codex verification verdict recording.
 - Changed plan job recording so a completed worker moves the task to `awaiting_verification`; dependent tasks unlock only after Codex records an accepted verdict.
 - Added worker outcome classification for common operator-facing failures such as max-turns exhaustion, missing provider CLI, auth/login requirements, permission denial, watcher failure, and missing completion files.
-- Bumped source/plugin/MCP version metadata toward `0.1.2-alpha`; the published GitHub Release remains `0.1.1-alpha` until a new release asset is built and verified.
+- Bumped source/plugin/MCP version metadata to `0.1.2-alpha` and published the GitHub Release asset.
 - Added a user-facing readonly provider canary command that previews by default and only starts a real provider run with `-Apply`.
 - Documented the canary in README, installation, troubleshooting, provider notes, and the user acceptance checklist.
 - Kept the canary limited to reading `README.md`, checking for a success marker, and verifying that the main repository stays unchanged.
