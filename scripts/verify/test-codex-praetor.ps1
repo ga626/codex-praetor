@@ -133,6 +133,7 @@ $pluginMcpConfig = Join-Path $projectRoot "plugin\.mcp.json"
 $pluginMcpRuntime = Join-Path $projectRoot "plugin\mcp\dist\server.js"
 $pluginMcpPackage = Join-Path $projectRoot "plugin\mcp\package.json"
 $sourceInvoke = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
+$mcpProbeScript = Join-Path $projectRoot "scripts\verify\probe-codex-praetor-mcp.ps1"
 $userInstallScript = Join-Path $projectRoot "scripts\install\install-user.ps1"
 $setupCmd = Join-Path $projectRoot "setup.cmd"
 $setupScript = Join-Path $projectRoot "setup.ps1"
@@ -144,8 +145,18 @@ Assert-Path (Join-Path $projectRoot "mcp") "MCP source directory"
 Assert-Path $pluginManifest "Plugin manifest"
 Assert-Path $pluginMcpConfig "Plugin MCP config"
 Assert-Path $sourceInvoke "Dry-run entrypoint"
+Assert-Path $mcpProbeScript "Native MCP probe"
 Assert-Path $setupCmd "Double-click setup entrypoint"
 Assert-Path $setupScript "Setup wizard script"
+
+$mcpProbeText = Get-Content -LiteralPath $mcpProbeScript -Raw -Encoding UTF8
+$mcpProbeProjectRootIndex = $mcpProbeText.IndexOf('$projectRoot =')
+$mcpProbeInvokerIndex = $mcpProbeText.IndexOf('$appServerInvoker =')
+if ($mcpProbeProjectRootIndex -ge 0 -and $mcpProbeProjectRootIndex -lt $mcpProbeInvokerIndex) {
+    Add-Pass "Native MCP probe initializes project root before resolving the app-server invoker"
+} else {
+    Add-Fail "Native MCP probe must initialize project root before resolving the app-server invoker"
+}
 
 $setupCmdText = Get-Content -LiteralPath $setupCmd -Raw -Encoding UTF8
 if ($setupCmdText -match "setup\.ps1" -and $setupCmdText -match "pause") {

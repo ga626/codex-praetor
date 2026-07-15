@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed the native MCP probe so it resolves the app-server invoker from the repository root before making a fresh-context tool call.
+
 ## 0.1.3-alpha - 2026-07-15
 
 - Separated product validation from developer-environment validation so PR, CI, and release gates no longer depend on the local Codex global rules, installed skill copy, or provider dry-run state by default.
