@@ -132,6 +132,7 @@ $pluginManifest = Join-Path $projectRoot "plugin\.codex-plugin\plugin.json"
 $pluginMcpConfig = Join-Path $projectRoot "plugin\.mcp.json"
 $pluginMcpRuntime = Join-Path $projectRoot "plugin\mcp\dist\server.js"
 $pluginMcpPackage = Join-Path $projectRoot "plugin\mcp\package.json"
+$runtimeContract = Join-Path $projectRoot "config\runtime-contract.json"
 $sourceInvoke = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
 $userInstallScript = Join-Path $projectRoot "scripts\install\install-user.ps1"
 $setupCmd = Join-Path $projectRoot "setup.cmd"
@@ -146,6 +147,7 @@ Assert-Path $pluginMcpConfig "Plugin MCP config"
 Assert-Path $sourceInvoke "Dry-run entrypoint"
 Assert-Path $setupCmd "Double-click setup entrypoint"
 Assert-Path $setupScript "Setup wizard script"
+Assert-Path $runtimeContract "Runtime contract"
 
 $setupCmdText = Get-Content -LiteralPath $setupCmd -Raw -Encoding UTF8
 if ($setupCmdText -match "setup\.ps1" -and $setupCmdText -match "pause") {
@@ -340,7 +342,7 @@ if (-not $SkipDryRun) {
     try {
         $dryRunOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $sourceInvoke `
             -Provider mimo `
-            -Tier mimo-auto-readonly `
+            -Tier mimo-isolated-audit `
             -Repo $Repo `
             -Task "Dry run only. Verify Codex Praetor current project baseline." `
             -Mode readonly `
@@ -349,12 +351,12 @@ if (-not $SkipDryRun) {
 
         $dryRunText = ($dryRunOutput | Out-String)
         if ($LASTEXITCODE -eq 0 -and $dryRunText -match "provider=mimo" -and $dryRunText -match "project_artifact_root=" -and $dryRunText -match "CodexPraetor[\\\/]\.codex-praetor" -and $dryRunText -match "CodexPraetor[\\\/]\.codex-praetor[\\\/]worktrees") {
-            Add-Pass "MiMo readonly dry-run succeeds and resolves in-project artifact and worktree roots"
+            Add-Pass "MiMo isolated-audit dry-run succeeds and resolves in-project artifact and worktree roots"
         } else {
-            Add-Fail "MiMo readonly dry-run returned unexpected output"
+            Add-Fail "MiMo isolated-audit dry-run returned unexpected output"
         }
     } catch {
-        Add-Fail "MiMo readonly dry-run failed: $($_.Exception.Message)"
+        Add-Fail "MiMo isolated-audit dry-run failed: $($_.Exception.Message)"
     }
 }
 

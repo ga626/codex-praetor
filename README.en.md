@@ -1,12 +1,12 @@
-# Codex Praetor
+﻿# Codex Praetor
 
 [简体中文](README.md) | [English](README.en.md)
 
 Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching bounded work to external CLI worker agents while Codex remains the planner, supervisor, integrator, and final verifier.
 
-Current public version: **0.1.3-alpha**.
+Current public version: **0.2.0-alpha**.
 
-[Download 0.1.3-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.1.3-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
+[Download 0.2.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.2.0-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
 
 ## What It Does
 
@@ -25,9 +25,9 @@ The supported alpha scope is intentionally narrow:
 Download and extract the release zip:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.3-alpha/codex-praetor-setup-0.1.3-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.3-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.1.3-alpha.zip .\codex-praetor-setup-0.1.3-alpha
-cd .\codex-praetor-setup-0.1.3-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.2.0-alpha/codex-praetor-setup-0.2.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.2.0-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.2.0-alpha.zip .\codex-praetor-setup-0.2.0-alpha
+cd .\codex-praetor-setup-0.2.0-alpha
 ```
 
 Preview the install:
@@ -56,7 +56,7 @@ Codex Praetor does not install providers, sign in for users, inspect provider ac
 
 Without a provider, Codex Praetor can still validate planning, route-intent, dry-run, job status, lane listing, and conflict detection. Real dispatch needs at least one installed and authenticated provider.
 
-The 0.1.3-alpha source line keeps the continuous orchestration loop and adds isolated product validation, reproducible release packages, and a dry-run-first cleanup path for old local runtime artifacts. A worker process exiting successfully is not enough to advance dependent tasks; Codex must verify and record the result first.
+The 0.2.0-alpha source line keeps the continuous orchestration loop and adds isolated product validation, reproducible release packages, and a dry-run-first cleanup path for old local runtime artifacts. A worker process exiting successfully is not enough to advance dependent tasks; Codex must verify and record the result first.
 
 ## Readonly Provider Canary
 

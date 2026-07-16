@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.2.0-alpha - 2026-07-16
+
+- Added one runtime contract shared by the source MCP, plugin metadata, Skill distribution, and personal-cache health gate.
+- Added provider readiness records tied to CLI path/hash, model, task kind, permission profile, wrapper protocol, and expiry; real dispatch now fails closed without a current matching canary.
+- Kept external network research with Codex and KnowledgeRadar; provider workers are limited to bounded local code work.
+- Changed MiMo audit naming from readonly to isolated audit, and now run every provider task inside a disposable Codex-created worktree.
+- Unified blocking/background execution around durable job metadata, completion files, timeout, safe process-tree cancellation, and semantic failure classification.
+- Added MCP runtime-info, health, job-timeline, and cancel-job tools with user-facing state summaries.
+
 ## 0.1.3-alpha - 2026-07-15
 
 - Separated product validation from developer-environment validation so PR, CI, and release gates no longer depend on the local Codex global rules, installed skill copy, or provider dry-run state by default.

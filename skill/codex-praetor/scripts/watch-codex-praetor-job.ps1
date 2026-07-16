@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string]$JobDir,
 
@@ -23,7 +23,10 @@ param(
 
     [string]$NotifyWorkspace = "",
 
-    [switch]$NoNotify
+    [switch]$NoNotify,
+
+    [ValidateRange(30, 86400)]
+    [int]$TimeoutSeconds = 1200
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,7 +59,7 @@ function Set-JsonProperty {
 function Quote-Arg {
     param([string]$Value)
     if ($null -eq $Value) { return '""' }
-    if ($Value -notmatch '[\s"`&|<>]') { return $Value }
+    if ($Value -notmatch '[\s&|<>]' -and -not $Value.Contains('"')) { return $Value }
     return '"' + ($Value -replace '"', '\"') + '"'
 }
 
@@ -160,6 +163,7 @@ try {
     $exitCode = $null
     $waitError = $null
     $alreadyWaited = $false
+    $timedOut = $false
 
     try {
         if ($StartWorker) {
@@ -193,19 +197,28 @@ try {
             Set-JsonProperty -Object $meta -Name "watcher_pid" -Value $PID
             Set-JsonProperty -Object $meta -Name "status" -Value "running"
             Set-JsonProperty -Object $meta -Name "started_at" -Value (Get-Date).ToString("o")
-            Set-JsonProperty -Object $meta -Name "status_note" -Value "Worker was started and is being waited by the watcher process. No interval polling is used."
+            Set-JsonProperty -Object $meta -Name "status_note" -Value "Worker was started and is being waited by the watcher process."
             Write-JsonFile -Path $metaPath -Value $meta
             Update-LockForWorker -Path $LockPath -JobId $meta.job_id -WorkerProcessId 0
-            $proc = Start-Process -FilePath $Exe -ArgumentList $argumentLine -WorkingDirectory $WorkingDirectory -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath -WindowStyle Hidden -Wait -PassThru
-            $alreadyWaited = $true
+            $proc = Start-Process -FilePath $Exe -ArgumentList $argumentLine -WorkingDirectory $WorkingDirectory -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath -WindowStyle Hidden -PassThru
             $WorkerPid = $proc.Id
             Set-JsonProperty -Object $meta -Name "pid" -Value $WorkerPid
+            Set-JsonProperty -Object $meta -Name "worker_started_at" -Value $proc.StartTime.ToUniversalTime().ToString("o")
             Write-JsonFile -Path $metaPath -Value $meta
         } else {
             $proc = [System.Diagnostics.Process]::GetProcessById($WorkerPid)
         }
         if (-not $alreadyWaited) {
-            $proc.WaitForExit()
+            $waitMs = [Math]::Min([int64]$TimeoutSeconds * 1000, [int64]2147483647)
+            if (-not $proc.WaitForExit([int]$waitMs)) {
+                $timedOut = $true
+                try {
+                    $proc.Kill($true)
+                    $proc.WaitForExit(15000) | Out-Null
+                } catch {
+                    $waitError = "Worker timed out and process tree termination failed: $($_.Exception.Message)"
+                }
+            }
         }
         $proc.Refresh()
         try {
@@ -218,7 +231,23 @@ try {
     }
 
     $status = "completed"
-    if ($null -ne $exitCode -and $exitCode -ne 0) {
+    $semanticFailure = ""
+    $combinedOutput = ""
+    foreach ($outputPath in @([string]$meta.stdout, [string]$meta.stderr)) {
+        if (Test-Path -LiteralPath $outputPath -PathType Leaf) {
+            $combinedOutput += [Environment]::NewLine + (Get-Content -LiteralPath $outputPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
+        }
+    }
+    if ($combinedOutput -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
+        $semanticFailure = "tool_contract_mismatch"
+    } elseif ($combinedOutput -match "(?is)permission denied|permission_denied") {
+        $semanticFailure = "permission_denied"
+    }
+    if ($timedOut) {
+        $status = "timed_out"
+    } elseif (-not [string]::IsNullOrWhiteSpace($semanticFailure)) {
+        $status = "failed"
+    } elseif ($null -ne $exitCode -and $exitCode -ne 0) {
         $status = "failed"
     } elseif ($waitError) {
         $status = "unknown"
@@ -230,7 +259,7 @@ try {
     Set-JsonProperty -Object $meta -Name "exited_at" -Value $now.ToString("o")
     Set-JsonProperty -Object $meta -Name "wait_error" -Value $waitError
     Set-JsonProperty -Object $meta -Name "completion" -Value $completionPath
-    Set-JsonProperty -Object $meta -Name "status_note" -Value "Worker process exit was captured by an OS-level watcher. No interval polling was used."
+    Set-JsonProperty -Object $meta -Name "status_note" -Value "Worker process reached a durable terminal state."
     Write-JsonFile -Path $metaPath -Value $meta
 
     $completion = [ordered]@{
@@ -246,11 +275,14 @@ try {
         mode = $meta.mode
         status = $status
         exit_code = $exitCode
+        failure_class = $semanticFailure
         exited_at = $now.ToString("o")
         stdout = $meta.stdout
         stderr = $meta.stderr
         stderr_nonempty = (-not [string]::IsNullOrWhiteSpace([string]$meta.stderr) -and (Test-Path -LiteralPath ([string]$meta.stderr)) -and ((Get-Item -LiteralPath ([string]$meta.stderr)).Length -gt 0))
         worktree = $meta.execution_repo
+        task_kind = $meta.task_kind
+        contract_hash = $meta.contract_hash
         lock_released = $false
         notify_attempted = $false
         notify_ok = $false
@@ -336,4 +368,3 @@ try {
     "watcher_failed $(Get-Date -Format o) $($_.Exception.Message)" | Add-Content -LiteralPath $watcherLog -Encoding UTF8
     exit 1
 }
-

@@ -1,7 +1,7 @@
-param(
+﻿param(
     [string]$Repo = (Get-Location).Path,
     [string]$Provider = "mimo",
-    [string]$Tier = "mimo-auto-readonly",
+    [string]$Tier = "mimo-isolated-audit",
     [string]$Task = "Read README.md only and summarize the project. Do not modify files."
 )
 

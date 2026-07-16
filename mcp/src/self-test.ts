@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { getInvokeScriptPath } from "./paths.js";
 import {
   detectConflictsTool,
+  jobTimelineTool,
   dispatchPlanTaskTool,
   dispatchDryRunTool,
   dispatchTool,
@@ -14,6 +15,7 @@ import {
   listLanesTool,
   planTool,
   routeIntentTool,
+  runtimeInfoTool,
   statusTool,
   verifyTaskTool
 } from "./tools.js";
@@ -26,6 +28,14 @@ assert.equal(
   routeIntentTool({ request: "拆分一下任务，分配给其他 agent 做只读验收，不要创建 Codex subagent。" }).route,
   "codex_praetor_external_worker"
 );
+assert.equal(
+  routeIntentTool({ request: "做一次外部调研并联网搜索官方资料" }).route,
+  "codex_kr_primary_research"
+);
+const researchRoute = routeIntentTool({ request: "拆分外部调研，分配给其他 agent 找官方资料" });
+assert.equal(researchRoute.worker_research_eligible, true);
+assert.equal(researchRoute.research_authority, "codex_kr_primary");
+assert.equal(runtimeInfoTool().runtime_contract !== null, true);
 assert.equal(
   routeIntentTool({ request: "Use Codex subagent for parallel review", allow_native_codex_subagents: true }).route,
   "native_codex_subagent"
@@ -43,6 +53,9 @@ assert.equal(missingStatus.found, false);
 
 const missingResult = resultTool({ repo, job_id: "missing-job-for-self-test" });
 assert.equal(missingResult.found, false);
+
+const missingTimeline = jobTimelineTool({ repo, job_id: "missing-job-for-self-test" });
+assert.equal(missingTimeline.found, false);
 
 assert.equal(typeof dispatchTool, "function");
 assert.equal(typeof dispatchPlanTaskTool, "function");
@@ -97,13 +110,13 @@ if (process.env.CODEX_PRAETOR_SELF_TEST_DRY_RUN === "1") {
     repo,
     task: "Dry run only. MCP self-test.",
     provider: "mimo",
-    tier: "mimo-auto-readonly",
+    tier: "mimo-isolated-audit",
     mode: "readonly",
     run_mode: "blocking"
   });
   assert.equal(dryRun.ok, true);
   assert.equal(dryRun.provider, "mimo");
-  assert.equal(dryRun.tier, "mimo-auto-readonly");
+  assert.equal(dryRun.tier, "mimo-isolated-audit");
   assert.match(dryRun.command, /mimo/);
 }
 

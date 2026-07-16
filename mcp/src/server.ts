@@ -4,18 +4,31 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+
+const researchContractSchema = z.object({
+  research_authority: z.literal("codex_kr_primary"),
+  worker_research_mode: z.enum(["candidate_discovery", "independent_replication"]),
+  claim_scope: z.array(z.string().min(1)).min(1),
+  source_scope: z.array(z.string().min(1)).min(1),
+  evidence_acceptance: z.literal("supervisor_verified"),
+  freshness: z.enum(["", "day", "week", "month", "year"]).optional()
+});
 import {
   detectConflictsTool,
+  cancelJobTool,
   dispatchPlanTaskTool,
   dispatchDryRunTool,
   dispatchTool,
   getLaneTool,
+  healthTool,
+  jobTimelineTool,
   nextReadyTool,
   resultTool,
   listJobsTool,
   listLanesTool,
   planTool,
   routeIntentTool,
+  runtimeInfoTool,
   statusTool,
   verifyTaskTool
 } from "./tools.js";
@@ -48,7 +61,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.1.3-alpha"
+    version: "0.2.0-alpha"
   });
 
   server.registerTool(
@@ -67,6 +80,30 @@ export function createServer(): McpServer {
   );
 
   server.registerTool(
+    "codex_praetor_runtime_info",
+    {
+      title: "Read Codex Praetor Runtime Contract",
+      description: "Show the installed runtime contract version and expected MCP surface before dispatch.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {}
+    },
+    async () => asJsonContent(runtimeInfoTool())
+  );
+
+  server.registerTool(
+    "codex_praetor_health",
+    {
+      title: "Check Codex Praetor Health",
+      description: "Check install generation, plugin cache, provider readiness, and runtime contract without dispatching a worker.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(await healthTool(input))
+  );
+
+  server.registerTool(
     "codex_praetor_dispatch_dry_run",
     {
       title: "Dry-Run Codex Praetor Dispatch",
@@ -78,7 +115,9 @@ export function createServer(): McpServer {
         provider: z.enum(["auto", "qoder", "codebuddy", "mimo"]),
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
-        run_mode: z.enum(["blocking", "background"]).optional()
+        run_mode: z.enum(["blocking", "background"]).optional(),
+        task_kind: z.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        research_contract: researchContractSchema.optional()
       }
     },
     async (input) => asJsonContent(await dispatchDryRunTool(input))
@@ -97,6 +136,8 @@ export function createServer(): McpServer {
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
+        task_kind: z.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        research_contract: researchContractSchema.optional(),
         plan_id: z.string().optional(),
         task_id: z.string().optional(),
         depends_on: z.string().optional(),
@@ -170,6 +211,34 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(resultTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_job_timeline",
+    {
+      title: "Read Codex Praetor Job Timeline",
+      description: "Show the worker, task contract, durable lifecycle state, and next Codex action for one job.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1),
+        job_id: z.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(jobTimelineTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_cancel_job",
+    {
+      title: "Cancel Codex Praetor Job",
+      description: "Cancel one durable worker job by its job identity and terminate its worker process tree.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: z.string().min(1),
+        job_id: z.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(await cancelJobTool(input))
   );
 
   server.registerTool(

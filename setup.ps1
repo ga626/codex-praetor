@@ -21,7 +21,7 @@ $configTemplate = Join-Path $scriptRoot "config\codex-praetor-tiers.example.json
 $userCodexDir = Join-Path $env:USERPROFILE ".codex"
 $userConfigPath = Join-Path $userCodexDir "codex-praetor.local.json"
 $onboardingStatePath = Join-Path $userCodexDir "codex-praetor.onboarding-state.json"
-$canaryScript = Join-Path $scriptRoot "scripts\verify\test-provider-readonly-canary.ps1"
+$canaryScript = Join-Path $scriptRoot "scripts\verify\test-provider-capability-canary.ps1"
 
 function Write-Section {
     param([string]$Text)
@@ -775,13 +775,13 @@ function Invoke-CanaryStep {
     }
 
     Write-Section "只读 canary"
-    Write-Host "canary 会让外部 agent 只读 README 并返回固定标记，用来证明这家 provider 真能被 Codex Praetor 调起来。"
+    Write-Host "canary 会验证外部 agent 的当前 CLI、模型、权限合同和本地审计任务，成功后才允许真实派工。"
     Write-Host "预览不会启动真实 worker；真实 canary 可能消耗 provider 额度，所以需要你明确确认。"
 
     foreach ($status in $ready) {
         Write-Host ""
         Write-Host "$($status.Name) canary 命令：" -ForegroundColor Cyan
-        Write-Host "powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider $($status.CanaryProvider) -ConfigPath `"$userConfigPath`""
+        Write-Host "powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-capability-canary.ps1 -Provider $($status.CanaryProvider) -ConfigPath `"$userConfigPath`""
 
         if ($NonInteractive) {
             Set-ProviderState -State $State -ProviderId $status.Id -Status "canary_not_run" -ProviderStatus $status -Canary "not_run" -Message "非交互模式未运行 canary"
@@ -939,7 +939,7 @@ if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
 $state = Read-OnboardingState
 
 Write-Section "Codex Praetor 安装向导"
-Write-Host "版本：0.1.3-alpha"
+Write-Host "版本：0.2.0-alpha"
 Write-Host "安装范围：当前 Windows 用户插件目录，不需要管理员权限。"
 Write-Host "这个向导会安装 Codex Praetor 本体，并把 Qoder、CodeBuddy、MiMo 的安装、登录陪跑、复检和 canary 串在同一个命令里。"
 Write-Host "它不会替你登录账号，不会读取 token、cookie、账号数据库，也不会替你确认账单。"

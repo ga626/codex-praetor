@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet("auto", "qoder", "codebuddy", "mimo")]
     [string]$Provider = "auto",
 
@@ -15,6 +15,9 @@ param(
     [ValidateSet("readonly", "edit")]
     [string]$Mode = "readonly",
 
+    [ValidateSet("", "local_audit", "code_change", "external_research")]
+    [string]$TaskKind = "",
+
     [ValidateSet("blocking", "background")]
     [string]$RunMode = "blocking",
 
@@ -23,6 +26,9 @@ param(
     [switch]$PreferQoder,
 
     [int]$MaxTurns = 8,
+
+    [ValidateRange(30, 86400)]
+    [int]$TimeoutSeconds = 1200,
 
     [string]$OutputFormat = "",
 
@@ -62,6 +68,8 @@ param(
 
     [string]$TaskId = "",
 
+    [string]$ResearchContractJson = "",
+
     [string]$DependsOn = "",
 
     [string]$Acceptance = "",
@@ -70,7 +78,15 @@ param(
 
     [string]$ScratchRoot = "",
 
-    [switch]$NoNotify
+    [switch]$NoNotify,
+
+    [string[]]$AllowedPath = @(),
+
+    [string[]]$ForbiddenPath = @(".git/**", ".env*", "auth/**", "node_modules/**"),
+
+    [switch]$AllowWorkerNetwork,
+
+    [switch]$CapabilityCanary
 )
 
 $ErrorActionPreference = "Stop"
@@ -139,6 +155,69 @@ function New-WorkerJobId {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $suffix = [guid]::NewGuid().ToString("N").Substring(0, 8)
     return "$stamp-$ProviderName-$TierName-$suffix"
+}
+
+function Get-TextSha256 {
+    param([string]$Text)
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return (-join ($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }))
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-FileSha256OrEmpty {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return ""
+    }
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+}
+
+function Read-JsonOrNull {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $null
+    }
+    try {
+        return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
+    } catch {
+        return $null
+    }
+}
+
+function Test-ProviderReadiness {
+    param(
+        [string]$ReadinessPath,
+        [string]$ProviderName,
+        [string]$CliPath,
+        [string]$ModelName,
+        [string]$PermissionProfileName,
+        [string]$TaskKindName
+    )
+
+    $state = Read-JsonOrNull -Path $ReadinessPath
+    if ($null -eq $state -or $null -eq $state.entries) {
+        return [ordered]@{ ok = $false; reason = "No capability canary record exists."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
+    }
+
+    $cliHash = Get-FileSha256OrEmpty -Path $CliPath
+    $now = Get-Date
+    foreach ($entry in @($state.entries)) {
+        if ([string]$entry.status -ne "passed") { continue }
+        if ([string]$entry.provider -ne $ProviderName) { continue }
+        if ([string]$entry.cli_path -ne $CliPath) { continue }
+        if ([string]$entry.cli_hash -ne $cliHash) { continue }
+        if ([string]$entry.model -ne $ModelName) { continue }
+        if ([string]$entry.permission_profile -ne $PermissionProfileName) { continue }
+        if ([string]$entry.task_kind -ne $TaskKindName) { continue }
+        if ([string]::IsNullOrWhiteSpace([string]$entry.expires_at)) { continue }
+        if ([DateTime]::Parse([string]$entry.expires_at) -le $now) { continue }
+        return [ordered]@{ ok = $true; reason = "Matching capability canary is current."; cli_hash = $cliHash; entry = $entry }
+    }
+    return [ordered]@{ ok = $false; reason = "No current canary matches this provider tuple."; cli_hash = $cliHash }
 }
 
 function Get-CurrentGitBranch {
@@ -547,7 +626,12 @@ function Invoke-Or-StartWorker {
         [string]$OutputFormatName = "",
         [string]$ProfileRoot = "",
         [string]$StructuredOutput = "",
-        [string]$ModelPolicy = ""
+        [string]$ModelPolicy = "",
+        [string]$TaskKindName = "local_audit",
+        [string]$ContractPath = "",
+        [string]$ContractHash = "",
+        [string]$RequestedJobId = "",
+        [int]$WorkerTimeoutSeconds = 1200
     )
 
     $commandLine = Join-CommandLine $Exe $ArgumentList
@@ -570,31 +654,19 @@ function Invoke-Or-StartWorker {
     Write-Output "scratch_root=$ScratchRoot"
     Write-Output "price_note=$PriceNote"
     Write-Output "run_mode=$RunMode"
+    Write-Output "task_kind=$TaskKindName"
+    if (-not [string]::IsNullOrWhiteSpace($ContractHash)) { Write-Output "contract_hash=$ContractHash" }
+    Write-Output "timeout_seconds=$WorkerTimeoutSeconds"
     Write-Output "command=$commandLine"
 
     if ($DryRun) {
         exit 0
     }
 
-    if ($RunMode -eq "blocking") {
-        $blockingScratch = Join-Path $ScratchRoot ("blocking-{0}-{1}" -f (Get-Date -Format "yyyyMMdd-HHmmss"), [guid]::NewGuid().ToString("N").Substring(0, 8))
-        New-Item -ItemType Directory -Path $blockingScratch -Force | Out-Null
-        $oldTemp = $env:TEMP
-        $oldTmp = $env:TMP
-        $env:TEMP = $blockingScratch
-        $env:TMP = $blockingScratch
-        Push-Location -LiteralPath $WorkingDirectory
-        try {
-            & $Exe @ArgumentList
-            exit $LASTEXITCODE
-        } finally {
-            $env:TEMP = $oldTemp
-            $env:TMP = $oldTmp
-            Pop-Location
-        }
+    $jobId = $RequestedJobId
+    if ([string]::IsNullOrWhiteSpace($jobId)) {
+        $jobId = New-WorkerJobId -ProviderName $ProviderName -TierName $TierName
     }
-
-    $jobId = New-WorkerJobId -ProviderName $ProviderName -TierName $TierName
     $jobDir = Join-Path $JobRoot $jobId
     $jobScratch = Join-Path $ScratchRoot $jobId
     New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
@@ -606,6 +678,11 @@ function Invoke-Or-StartWorker {
     $watcherStderrPath = Join-Path $jobDir "watcher.err.log"
     $completionPath = Join-Path $jobDir "completion.json"
     $argumentListPath = Join-Path $jobDir "worker-args.json"
+    $storedContractPath = Join-Path $jobDir "task-contract.json"
+    if (-not [string]::IsNullOrWhiteSpace($ContractPath) -and (Test-Path -LiteralPath $ContractPath -PathType Leaf)) {
+        Copy-Item -LiteralPath $ContractPath -Destination $storedContractPath -Force
+        $ContractPath = $storedContractPath
+    }
 
     $meta = [ordered]@{
         job_id = $jobId
@@ -633,9 +710,14 @@ function Invoke-Or-StartWorker {
         acceptance = $Acceptance
         plan_root = $PlanRoot
         mode = $Mode
+        task_kind = $TaskKindName
+        task_contract = $ContractPath
+        contract_hash = $ContractHash
         run_mode = $RunMode
         status = "starting"
         created_at = (Get-Date).ToString("o")
+        deadline_at = (Get-Date).AddSeconds($WorkerTimeoutSeconds).ToString("o")
+        timeout_seconds = $WorkerTimeoutSeconds
         stdout = $stdoutPath
         stderr = $stderrPath
         completion = $completionPath
@@ -645,7 +727,8 @@ function Invoke-Or-StartWorker {
         notify_enabled = (-not $NoNotify -and -not [string]::IsNullOrWhiteSpace($NotifyThreadId))
         argument_list = $argumentListPath
         command = $commandLine
-        status_note = "Detached background job. The watcher starts the worker and waits for process exit; do not poll stdout/stderr on a timer."
+        events = @()
+        status_note = "Durable job created. The watcher starts the worker and waits for process exit without log polling."
     }
 
     $meta | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metaPath -Encoding UTF8
@@ -669,7 +752,8 @@ function Invoke-Or-StartWorker {
         "-ArgumentListPath", $argumentListPath,
         "-WorkingDirectory", $WorkingDirectory,
         "-StdoutPath", $stdoutPath,
-        "-StderrPath", $stderrPath
+        "-StderrPath", $stderrPath,
+        "-TimeoutSeconds", "$WorkerTimeoutSeconds"
     )
     if (-not [string]::IsNullOrWhiteSpace($repoEditLockPath)) {
         $watcherArgs += @("-LockPath", $repoEditLockPath)
@@ -726,11 +810,59 @@ function Invoke-Or-StartWorker {
     Write-Output "stdout=$stdoutPath"
     Write-Output "stderr=$stderrPath"
     Write-Output "completion=$completionPath"
+    if ($RunMode -eq "blocking") {
+        $waitMs = [Math]::Min([int64]$WorkerTimeoutSeconds * 1000 + 30000, [int64]2147483647)
+        if (-not $watcher.WaitForExit([int]$waitMs)) {
+            throw "Watcher did not finish before the worker timeout envelope for job $jobId."
+        }
+        $completion = Read-JsonOrNull -Path $completionPath
+        if ($null -eq $completion) {
+            throw "Blocking job exited without completion metadata: $jobId"
+        }
+        Write-Output "completion_status=$($completion.status)"
+        if ([string]$completion.status -ne "completed") {
+            exit 1
+        }
+    }
     exit 0
 }
 
 if (-not (Test-Path -LiteralPath $Repo)) {
     throw "Repo/path does not exist: $Repo"
+}
+
+if ([string]::IsNullOrWhiteSpace($TaskKind)) {
+    if ($Mode -eq "edit") {
+        $TaskKind = "code_change"
+    } else {
+        $TaskKind = "local_audit"
+    }
+}
+if ($TaskKind -eq "external_research" -and $Mode -ne "readonly") {
+    throw "external_research requires -Mode readonly. Codex/KR remains the primary evidence authority."
+}
+if ($TaskKind -eq "external_research" -and -not $AllowWorkerNetwork) {
+    throw "external_research requires -AllowWorkerNetwork and a Codex-approved research contract."
+}
+$researchContract = $null
+if ($TaskKind -eq "external_research") {
+    if ([string]::IsNullOrWhiteSpace($ResearchContractJson)) {
+        throw "external_research requires -ResearchContractJson from Codex."
+    }
+    try {
+        $researchContract = $ResearchContractJson | ConvertFrom-Json
+    } catch {
+        throw "ResearchContractJson is not valid JSON."
+    }
+    if ([string]$researchContract.research_authority -ne "codex_kr_primary" -or [string]$researchContract.evidence_acceptance -ne "supervisor_verified") {
+        throw "external_research requires codex_kr_primary authority and supervisor_verified evidence acceptance."
+    }
+    if (@($researchContract.claim_scope).Count -eq 0 -or @($researchContract.source_scope).Count -eq 0) {
+        throw "external_research requires non-empty claim_scope and source_scope."
+    }
+}
+if ($TaskKind -eq "code_change" -and $Mode -ne "edit") {
+    throw "code_change requires -Mode edit so the worker contract cannot be mistaken for a readonly audit."
 }
 
 $ProjectArtifactRoot = Get-ProjectArtifactRoot -RepoPath $Repo
@@ -747,13 +879,26 @@ if ([string]::IsNullOrWhiteSpace($ScratchRoot)) {
     $ScratchRoot = Join-Path $ProjectArtifactRoot "scratch"
 }
 
+if (-not $DryRun -and -not $CapabilityCanary) {
+    $healthScript = Join-Path $scriptDir "get-codex-praetor-health.ps1"
+    if (-not (Test-Path -LiteralPath $healthScript -PathType Leaf)) {
+        $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
+    }
+    if (Test-Path -LiteralPath $healthScript -PathType Leaf) {
+        $null = & powershell -NoProfile -ExecutionPolicy Bypass -File $healthScript -Repo $Repo -Json 2>$null
+        if ($LASTEXITCODE -eq 2) {
+            throw "Runtime generation health is blocked. Repair the installed plugin/Skill/cache generation before real dispatch."
+        }
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($Tier)) {
     if ($Provider -eq "qoder") {
         if (Test-OffPeak) { $Tier = "qoder-night-cheap" } else { $Tier = "qoder-day-cheap" }
     } elseif ($Provider -eq "codebuddy") {
         $Tier = "codebuddy-free"
     } elseif ($Provider -eq "mimo") {
-        if ($Mode -eq "edit") { $Tier = "mimo-auto-edit" } else { $Tier = "mimo-auto-readonly" }
+        if ($Mode -eq "edit") { $Tier = "mimo-auto-edit" } else { $Tier = "mimo-isolated-audit" }
     } elseif ($PreferQoder) {
         if (Test-OffPeak) { $Tier = $config.policy.defaultNightTier } else { $Tier = $config.policy.defaultPreferQoderDayTier }
     } else {
@@ -761,7 +906,16 @@ if ([string]::IsNullOrWhiteSpace($Tier)) {
     }
 }
 
+if ($Tier -eq "mimo-auto-readonly") {
+    Write-Warning "Tier 'mimo-auto-readonly' is deprecated. Using 'mimo-isolated-audit'; MiMo audit is isolated, not advertised as filesystem-readonly."
+    $Tier = "mimo-isolated-audit"
+}
+
 $tierConfig = $config.tiers.$Tier
+if ($null -eq $tierConfig -and $Tier -eq "mimo-isolated-audit" -and $null -ne $config.tiers."mimo-auto-readonly") {
+    Write-Warning "Local config still uses the legacy MiMo tier key. Reusing its model settings under the new isolated-audit contract."
+    $tierConfig = $config.tiers."mimo-auto-readonly"
+}
 if ($null -eq $tierConfig) {
     $known = ($config.tiers.PSObject.Properties.Name -join ", ")
     throw "Unknown tier '$Tier'. Known tiers: $known"
@@ -789,7 +943,7 @@ if ($resolvedProvider -eq "qoder") {
     }
 }
 
-$requiresWorkerWorktree = ($Mode -eq "edit" -or $resolvedProvider -eq "mimo")
+$requiresWorkerWorktree = $true
 
 $model = [string]$tierConfig.modelCli
 if (-not [string]::IsNullOrWhiteSpace($ModelOverride)) {
@@ -826,6 +980,14 @@ if (-not [string]::IsNullOrWhiteSpace($Agent)) {
 $effectivePermissionProfile = [string]$tierConfig.permissionProfile
 if (-not [string]::IsNullOrWhiteSpace($PermissionProfile)) {
     $effectivePermissionProfile = $PermissionProfile
+} elseif ($TaskKind -eq "code_change" -and $resolvedProvider -ne "mimo") {
+    $effectivePermissionProfile = "edit-worktree-v1"
+} elseif ($TaskKind -eq "local_audit" -and $resolvedProvider -ne "mimo") {
+    $effectivePermissionProfile = "local-audit-v1"
+} elseif ($TaskKind -eq "local_audit" -and $resolvedProvider -eq "mimo") {
+    $effectivePermissionProfile = "mimo-isolated-audit-v1"
+} elseif ($TaskKind -eq "external_research") {
+    $effectivePermissionProfile = "external-research-support-v1"
 }
 
 $effectiveOutputFormat = [string]$tierConfig.outputFormat
@@ -839,9 +1001,26 @@ if ([string]::IsNullOrWhiteSpace($effectiveOutputFormat)) {
     $effectiveOutputFormat = "text"
 }
 
+$providerCliPath = ""
+if ($resolvedProvider -eq "qoder") {
+    $providerCliPath = [string]$config.providers.qoder.cliPath
+} elseif ($resolvedProvider -eq "codebuddy") {
+    $providerCliPath = [string]$config.providers.codebuddy.cliPath
+} elseif ($resolvedProvider -eq "mimo") {
+    $providerCliPath = [string]$config.providers.mimo.cliPath
+}
+$providerReadinessPath = Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
+if (-not $DryRun -and -not $CapabilityCanary) {
+    $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind
+    if (-not $readiness.ok) {
+        throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Run test-provider-capability-canary.ps1 for the exact provider tuple first."
+    }
+}
+
+$dispatchJobId = New-WorkerJobId -ProviderName $resolvedProvider -TierName $Tier
 if ($requiresWorkerWorktree -and [string]::IsNullOrWhiteSpace($WorktreeName)) {
     $safeTier = $Tier -replace '[^A-Za-z0-9_-]', '-'
-    $WorktreeName = "cw-$safeTier-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    $WorktreeName = "cw-$safeTier-$($dispatchJobId.Split('-')[-1])"
 }
 
 $repoEditLockPath = Acquire-RepoEditLock -RepoPath $Repo -ProviderName $resolvedProvider -TierName $Tier
@@ -854,6 +1033,33 @@ try {
         } else {
             $executionRepo = Ensure-WorkerWorktree -RepoPath $Repo -Name $WorktreeName
         }
+    }
+
+    $contract = [ordered]@{
+        schema = "codex-praetor-task-contract/v3"
+        job_id = $dispatchJobId
+        task_kind = $TaskKind
+        repo = (Resolve-Path -LiteralPath $Repo).Path
+        execution_worktree = $executionRepo
+        provider = $resolvedProvider
+        tier = $Tier
+        model = $model
+        permission_profile = $effectivePermissionProfile
+        mode = $Mode
+        allowed_paths = @($AllowedPath)
+        forbidden_paths = @($ForbiddenPath)
+        worker_network = if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }
+        research_contract = $researchContract
+        acceptance = $Acceptance
+        timeout_seconds = $TimeoutSeconds
+        created_at = (Get-Date).ToString("o")
+    }
+    $contractJson = $contract | ConvertTo-Json -Depth 12
+    $contractHash = Get-TextSha256 -Text $contractJson
+    $contractPath = Join-Path $ScratchRoot "$dispatchJobId.contract.json"
+    if (-not $DryRun) {
+        New-Item -ItemType Directory -Path $ScratchRoot -Force | Out-Null
+        Set-Content -LiteralPath $contractPath -Value $contractJson -Encoding UTF8
     }
 
     $supervisedTask = @"
@@ -870,6 +1076,8 @@ Execution worktree: $executionRepo
 Project artifact root: $ProjectArtifactRoot
 Scratch root: $ScratchRoot
 Mode: $Mode
+Task kind: $TaskKind
+Contract hash: $contractHash
 Plan id: $PlanId
 Task id: $TaskId
 Depends on: $DependsOn
@@ -877,6 +1085,8 @@ Acceptance target: $Acceptance
 
 Rules:
 - Complete only this task.
+- Do not perform external network research. Codex owns KnowledgeRadar and all external evidence collection.
+- You may read, search, edit, and run only the actions necessary for the task contract inside this worktree.
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the execution worktree or the project artifact root unless Codex explicitly allowed another path.
 - Do not pause for progress reports. Work autonomously until this task is complete, blocked, or unsafe.
@@ -907,7 +1117,7 @@ Rules:
         }
         $cmdArgs += @("-p", $supervisedTask)
 
-        Invoke-Or-StartWorker -Exe $qoder -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy
+        Invoke-Or-StartWorker -Exe $qoder -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds
     }
 
     if ($resolvedProvider -eq "codebuddy") {
@@ -935,15 +1145,15 @@ Rules:
             $cmdArgs += @("--json-schema", $JsonSchema)
         }
         if ($Mode -eq "readonly") {
-            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep")
+            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep", "--disallowedTools", "Bash,Edit,Write,WebFetch")
         } else {
-            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep,Edit,Write,Bash")
+            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep,Edit,Write,Bash", "--disallowedTools", "WebFetch")
         }
         $cmdArgs += @("-p", $supervisedTask)
 
         $structured = ""
         if (-not [string]::IsNullOrWhiteSpace($JsonSchema)) { $structured = "json_schema" }
-        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -StructuredOutput $structured -ModelPolicy $modelPolicy
+        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -StructuredOutput $structured -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds
     }
 
     if ($resolvedProvider -eq "mimo") {
@@ -975,7 +1185,7 @@ Rules:
         $mimoTaskPacket = ($supervisedTask -replace "\r?\n", " ").Trim()
         $cmdArgs += @($mimoTaskPacket)
 
-        Invoke-Or-StartWorker -Exe $mimo -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "mimo" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $mimoOutputFormat -ProfileRoot $mimoProfileRoot -StructuredOutput "json_event_stream" -ModelPolicy $modelPolicy
+        Invoke-Or-StartWorker -Exe $mimo -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "mimo" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $mimoOutputFormat -ProfileRoot $mimoProfileRoot -StructuredOutput "json_event_stream" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds
     }
 } finally {
     if ($RunMode -eq "blocking" -or $DryRun) {

@@ -1,4 +1,4 @@
-# Codex Praetor 安装指南
+﻿# Codex Praetor 安装指南
 
 这份指南面向普通 Windows 用户。你不需要先理解 MCP、Skill 或插件内部结构，只要按顺序做。
 
@@ -31,15 +31,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.3-alpha/codex-praetor-setup-0.1.3-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.3-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.1.3-alpha.zip .\codex-praetor-setup-0.1.3-alpha
-cd .\codex-praetor-setup-0.1.3-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.2.0-alpha/codex-praetor-setup-0.2.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.2.0-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.2.0-alpha.zip .\codex-praetor-setup-0.2.0-alpha
+cd .\codex-praetor-setup-0.2.0-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.1.3-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.2.0-alpha
 ```
 
 ### 2. 双击安装向导
@@ -102,6 +102,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
 安装脚本会先复制到临时目录，校验文件 hash 后再替换旧目录。旧目录会被移动到备份目录。
+
+正式更新会另外生成一份发布回执。回执会同时记录下载包校验、Skill、插件、缓存、marketplace、重新打开 Codex 后的 MCP 工具面，以及 provider canary。只有回执完整且健康检查通过，才允许真实派工；如果更新中断，系统会拒绝新版本派工，而不会把一组混装文件当作可用版本。
 
 ### 5. 让 Codex 发现插件
 

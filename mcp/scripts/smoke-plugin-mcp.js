@@ -98,7 +98,7 @@ try {
         repo,
         task: "Plugin MCP smoke dry-run. Do not modify files.",
         provider: "mimo",
-        tier: "mimo-auto-readonly",
+        tier: "mimo-isolated-audit",
         mode: "readonly",
         run_mode: "blocking"
       }

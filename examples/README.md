@@ -1,4 +1,4 @@
-# 示例
+﻿# 示例
 
 ## Dry-run
 
@@ -13,7 +13,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\examples\dry-run.ps1 -Repo
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dispatch\invoke-codex-praetor.ps1 `
   -Provider mimo `
-  -Tier mimo-auto-readonly `
+  -Tier mimo-isolated-audit `
   -Repo "<你的仓库路径>" `
   -Mode readonly `
   -Task "只读取 README.md 并总结项目，不要修改文件。" `

@@ -1,5 +1,5 @@
-param(
-    [string]$Version = "0.1.3-alpha",
+﻿param(
+    [string]$Version = "0.2.0-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
@@ -64,6 +64,7 @@ function Test-BlockedReleasePath {
     if ($normalized -like "docs\mcp-tool-handle-transport-closed-research-*.md") { return $true }
     if ($normalized -like "docs\productization-execution-map-*.md") { return $true }
     if ($normalized -like "docs\release-readiness-audit-*.md") { return $true }
+    if ($normalized -like "docs\reports\*") { return $true }
     if ($normalized -like "*\node_modules\*") { return $true }
     if ($normalized -like "mcp\dist\*") { return $true }
     if ($normalized -like "*.local.json") { return $true }
@@ -234,6 +235,25 @@ function New-DeterministicZip {
     }
 }
 
+function Write-ReleaseGenerationManifest {
+    param([string]$StageRoot)
+
+    $generationScript = Join-Path $projectRoot "scripts\release\get-codex-praetor-generation.ps1"
+    if (-not (Test-Path -LiteralPath $generationScript -PathType Leaf)) {
+        throw "Release generation script is missing: $generationScript"
+    }
+    $generationOutput = & $generationScript -ProjectRoot $projectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release generation script failed."
+    }
+    $generationJson = ($generationOutput | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($generationJson)) {
+        throw "Release generation script returned empty output."
+    }
+    $manifestPath = Join-Path $StageRoot "codex-praetor-release-generation.json"
+    [System.IO.File]::WriteAllText($manifestPath, ($generationJson + [Environment]::NewLine), (New-Object System.Text.UTF8Encoding($false)))
+}
+
 $include = @(
     "README.md",
     "README.en.md",
@@ -295,6 +315,7 @@ foreach ($item in $include) {
     Copy-ReleaseItem -RelativePath $item
 }
 
+Write-ReleaseGenerationManifest -StageRoot $stagePath
 Assert-PublicReleaseTree -Root $stagePath
 Assert-PublicMetadataUrls -Root $stagePath
 Assert-CmdFileUsesCrlf -Path (Join-Path $stagePath "setup.cmd") -Label "Release setup.cmd"

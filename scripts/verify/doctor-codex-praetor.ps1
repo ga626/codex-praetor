@@ -128,6 +128,7 @@ function Test-PublicReleaseScanPath {
     if ($normalized -like "docs\mcp-tool-handle-transport-closed-research-*.md") { return $false }
     if ($normalized -like "docs\productization-execution-map-*.md") { return $false }
     if ($normalized -like "docs\release-readiness-audit-*.md") { return $false }
+    if ($normalized -like "docs\reports\*") { return $false }
     if ($normalized -like "plugin\skills\*") { return $false }
     if ($normalized -eq "scripts\verify\doctor-codex-praetor.ps1") { return $false }
     if ($normalized -like "*\node_modules\*") { return $false }
