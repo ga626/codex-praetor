@@ -2,11 +2,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {
   getInvokeScriptPath,
+  getCancelScriptPath,
+  getHealthScriptPath,
   getJobRoot,
   getLockRoot,
   getPlanRoot,
   getPlanScriptPath,
   getProjectArtifactRoot,
+  getRuntimeContractPath,
   resolveExistingRepo
 } from "./paths.js";
 import { parseKeyValueOutput } from "./parse-key-value.js";
@@ -26,6 +29,87 @@ export function routeIntentTool(input: {
   };
 }
 
+export function runtimeInfoTool() {
+  const contractPath = getRuntimeContractPath();
+  const contract = existsSync(contractPath) ? readJsonFile(contractPath) : null;
+  return {
+    display: {
+      阶段: "运行时合同",
+      状态: contract ? "已加载" : "缺失",
+      下一步: contract ? "可继续检查安装态和 provider readiness。" : "修复发布包后重试。"
+    },
+    runtime_contract: contract,
+    contract_path: contractPath
+  };
+}
+
+export async function healthTool(input: { repo: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  const result = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getHealthScriptPath(), "-Repo", repo, "-Json"],
+    { timeoutMs: 30_000 }
+  );
+  const health = result.stdout.trim() ? JSON.parse(result.stdout) : null;
+  return {
+    display: {
+      阶段: "健康检测",
+      状态: health?.status ?? "unknown",
+      下一步: health?.status === "ready" ? "可以检查匹配 task contract 的 provider readiness。" : "先处理 blocked/unknown 检查项。"
+    },
+    health,
+    exit_code: result.exitCode,
+    stderr: result.stderr
+  };
+}
+
+export function jobTimelineTool(input: { repo: string; job_id: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  const jobDir = path.join(getJobRoot(repo), input.job_id);
+  const metaPath = path.join(jobDir, "job.json");
+  const completionPath = path.join(jobDir, "completion.json");
+  if (!existsSync(metaPath)) {
+    return { found: false, repo, job_id: input.job_id };
+  }
+  const meta = readJsonFile(metaPath);
+  const completion = existsSync(completionPath) ? readJsonFile(completionPath) : null;
+  return {
+    found: true,
+    display: {
+      阶段: String(meta.status ?? "unknown"),
+      执行者: String(meta.provider ?? ""),
+      任务类别: String(meta.task_kind ?? ""),
+      下一步: completion ? "由 Codex 读取结果并记录验收结论。" : "等待 worker 到达终态。"
+    },
+    job_id: input.job_id,
+    contract_hash: String(meta.contract_hash ?? ""),
+    events: Array.isArray(meta.events) ? meta.events : [],
+    meta,
+    completion
+  };
+}
+
+export async function cancelJobTool(input: { repo: string; job_id: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  const jobDir = path.join(getJobRoot(repo), input.job_id);
+  const result = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getCancelScriptPath(), "-JobDir", jobDir],
+    { timeoutMs: 30_000 }
+  );
+  return {
+    display: {
+      阶段: "取消任务",
+      状态: result.exitCode === 0 ? "cancelled" : "failed",
+      下一步: result.exitCode === 0 ? "读取 completion 并检查 worktree 是否可清理。" : "读取 job metadata 后人工处理。"
+    },
+    repo,
+    job_id: input.job_id,
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    stdout: result.stdout,
+    stderr: result.stderr
+  };
+}
+
 export async function dispatchDryRunTool(input: {
   repo: string;
   task: string;
@@ -33,6 +117,7 @@ export async function dispatchDryRunTool(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
+  task_kind?: "local_audit" | "code_change";
 }) {
   const repo = resolveExistingRepo(input.repo);
   const args = [
@@ -54,6 +139,10 @@ export async function dispatchDryRunTool(input: {
     "-DryRun",
     "-NoNotify"
   ];
+
+  if (input.task_kind) {
+    args.push("-TaskKind", input.task_kind);
+  }
 
   if (input.tier?.trim()) {
     args.push("-Tier", input.tier.trim());
@@ -103,6 +192,7 @@ function buildDispatchArgs(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
+  task_kind?: "local_audit" | "code_change";
   dry_run?: boolean;
   plan_id?: string;
   task_id?: string;
@@ -129,6 +219,10 @@ function buildDispatchArgs(input: {
     "-RunMode",
     input.run_mode ?? "background"
   ];
+
+  if (input.task_kind) {
+    args.push("-TaskKind", input.task_kind);
+  }
 
   appendOptionalStringArg(args, "-Tier", input.tier);
   appendOptionalStringArg(args, "-PlanId", input.plan_id);
@@ -249,6 +343,7 @@ export async function dispatchTool(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
+  task_kind?: "local_audit" | "code_change";
   plan_id?: string;
   task_id?: string;
   depends_on?: string;
@@ -284,6 +379,7 @@ export async function dispatchTool(input: {
     model: fields.model ?? "",
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
+    task_kind: fields.task_kind ?? input.task_kind ?? "",
     job_id: fields.job_id ?? "",
     job_dir: fields.job_dir ?? "",
     watcher_pid: fields.watcher_pid ?? "",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { build } from "esbuild";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +10,7 @@ const projectRoot = path.resolve(mcpRoot, "..");
 const pluginMcpRoot = path.join(projectRoot, "plugin", "mcp");
 const outdir = path.join(pluginMcpRoot, "dist");
 const outfile = path.join(outdir, "server.js");
+const packageMetadata = JSON.parse(await readFile(path.join(mcpRoot, "package.json"), "utf8"));
 
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
@@ -29,7 +30,7 @@ await writeFile(
   `${JSON.stringify(
     {
       name: "codex-praetor-plugin-mcp",
-      version: "0.1.3-alpha",
+      version: packageMetadata.version,
       private: true,
       type: "module",
       main: "dist/server.js",

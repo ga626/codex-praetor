@@ -1,4 +1,4 @@
-# Codex Praetor 安装指南
+﻿# Codex Praetor 安装指南
 
 这份指南面向普通 Windows 用户。你不需要先理解 MCP、Skill 或插件内部结构，只要按顺序做。
 
@@ -31,15 +31,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.1.3-alpha/codex-praetor-setup-0.1.3-alpha.zip" -OutFile ".\codex-praetor-setup-0.1.3-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.1.3-alpha.zip .\codex-praetor-setup-0.1.3-alpha
-cd .\codex-praetor-setup-0.1.3-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.2.0-alpha/codex-praetor-setup-0.2.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.2.0-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.2.0-alpha.zip .\codex-praetor-setup-0.2.0-alpha
+cd .\codex-praetor-setup-0.2.0-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.1.3-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.2.0-alpha
 ```
 
 ### 2. 双击安装向导

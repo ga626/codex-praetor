@@ -35,6 +35,26 @@ export function getPlanScriptPath(): string {
   return path.join(getScriptRoot(), "manage-codex-praetor-plan.ps1");
 }
 
+export function getHealthScriptPath(): string {
+  const source = path.join(getProjectRoot(), "scripts", "verify", "get-codex-praetor-health.ps1");
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getScriptRoot(), "get-codex-praetor-health.ps1");
+}
+
+export function getCancelScriptPath(): string {
+  return path.join(getScriptRoot(), "cancel-codex-praetor-job.ps1");
+}
+
+export function getRuntimeContractPath(): string {
+  const source = path.join(getProjectRoot(), "config", "runtime-contract.json");
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getProjectRoot(), "runtime-contract.json");
+}
+
 export function resolveExistingRepo(repo: string): string {
   if (!repo || !repo.trim()) {
     throw new Error("repo is required.");

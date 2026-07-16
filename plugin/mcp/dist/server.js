@@ -30989,6 +30989,23 @@ function getInvokeScriptPath() {
 function getPlanScriptPath() {
   return path.join(getScriptRoot(), "manage-codex-praetor-plan.ps1");
 }
+function getHealthScriptPath() {
+  const source = path.join(getProjectRoot(), "scripts", "verify", "get-codex-praetor-health.ps1");
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getScriptRoot(), "get-codex-praetor-health.ps1");
+}
+function getCancelScriptPath() {
+  return path.join(getScriptRoot(), "cancel-codex-praetor-job.ps1");
+}
+function getRuntimeContractPath() {
+  const source = path.join(getProjectRoot(), "config", "runtime-contract.json");
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getProjectRoot(), "runtime-contract.json");
+}
 function resolveExistingRepo(repo) {
   if (!repo || !repo.trim()) {
     throw new Error("repo is required.");
@@ -31150,6 +31167,17 @@ var delegationTerms = [
   "\u5206\u5DE5",
   "\u5206\u6D3E"
 ];
+var externalResearchTerms = [
+  "\u8054\u7F51\u641C\u7D22",
+  "\u5916\u90E8\u8C03\u7814",
+  "\u4E8B\u5B9E\u6838\u67E5",
+  "\u6765\u6E90\u53D1\u73B0",
+  "knowledge radar",
+  "knowledgeradar",
+  "\u5916\u7F51\u7814\u7A76",
+  "web research",
+  "fact check"
+];
 function collectMatches(value, terms) {
   const lower = value.toLowerCase();
   return terms.filter((term) => lower.includes(term.toLowerCase()));
@@ -31181,8 +31209,19 @@ function routeIntent(request, allowNativeCodexSubagents = false) {
   const subagentMatches = collectMatches(trimmed, codexSubagentTerms);
   const praetorMatches = collectMatches(trimmed, codexPraetorTerms);
   const delegationMatches = collectMatches(trimmed, delegationTerms);
-  const allMatches = [.../* @__PURE__ */ new Set([...subagentMatches, ...praetorMatches, ...delegationMatches])];
+  const researchMatches = collectMatches(trimmed, externalResearchTerms);
+  const allMatches = [.../* @__PURE__ */ new Set([...subagentMatches, ...praetorMatches, ...delegationMatches, ...researchMatches])];
   const rejectsNative = subagentMatches.length > 0 && rejectsNativeCodexSubagents(trimmed);
+  if (researchMatches.length > 0) {
+    return {
+      route: "codex_knowledge_radar_research",
+      confidence: "high",
+      reason: "External research and network evidence collection stay with Codex through KnowledgeRadar; provider workers must not replace the primary perception layer.",
+      suggested_next_action: "Use KnowledgeRadar from Codex, then delegate only bounded local code work if needed.",
+      matched_terms: allMatches,
+      native_codex_subagents_allowed: allowNativeCodexSubagents
+    };
+  }
   if (rejectsNative && (praetorMatches.length > 0 || delegationMatches.length > 0)) {
     return {
       route: "codex_praetor_external_worker",
@@ -31242,6 +31281,83 @@ function routeIntentTool(input) {
     repo: input.repo ? path2.resolve(input.repo) : ""
   };
 }
+function runtimeInfoTool() {
+  const contractPath = getRuntimeContractPath();
+  const contract = existsSync2(contractPath) ? readJsonFile(contractPath) : null;
+  return {
+    display: {
+      \u9636\u6BB5: "\u8FD0\u884C\u65F6\u5408\u540C",
+      \u72B6\u6001: contract ? "\u5DF2\u52A0\u8F7D" : "\u7F3A\u5931",
+      \u4E0B\u4E00\u6B65: contract ? "\u53EF\u7EE7\u7EED\u68C0\u67E5\u5B89\u88C5\u6001\u548C provider readiness\u3002" : "\u4FEE\u590D\u53D1\u5E03\u5305\u540E\u91CD\u8BD5\u3002"
+    },
+    runtime_contract: contract,
+    contract_path: contractPath
+  };
+}
+async function healthTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const result = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getHealthScriptPath(), "-Repo", repo, "-Json"],
+    { timeoutMs: 3e4 }
+  );
+  const health = result.stdout.trim() ? JSON.parse(result.stdout) : null;
+  return {
+    display: {
+      \u9636\u6BB5: "\u5065\u5EB7\u68C0\u6D4B",
+      \u72B6\u6001: health?.status ?? "unknown",
+      \u4E0B\u4E00\u6B65: health?.status === "ready" ? "\u53EF\u4EE5\u68C0\u67E5\u5339\u914D task contract \u7684 provider readiness\u3002" : "\u5148\u5904\u7406 blocked/unknown \u68C0\u67E5\u9879\u3002"
+    },
+    health,
+    exit_code: result.exitCode,
+    stderr: result.stderr
+  };
+}
+function jobTimelineTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const jobDir = path2.join(getJobRoot(repo), input.job_id);
+  const metaPath = path2.join(jobDir, "job.json");
+  const completionPath = path2.join(jobDir, "completion.json");
+  if (!existsSync2(metaPath)) {
+    return { found: false, repo, job_id: input.job_id };
+  }
+  const meta3 = readJsonFile(metaPath);
+  const completion = existsSync2(completionPath) ? readJsonFile(completionPath) : null;
+  return {
+    found: true,
+    display: {
+      \u9636\u6BB5: String(meta3.status ?? "unknown"),
+      \u6267\u884C\u8005: String(meta3.provider ?? ""),
+      \u4EFB\u52A1\u7C7B\u522B: String(meta3.task_kind ?? ""),
+      \u4E0B\u4E00\u6B65: completion ? "\u7531 Codex \u8BFB\u53D6\u7ED3\u679C\u5E76\u8BB0\u5F55\u9A8C\u6536\u7ED3\u8BBA\u3002" : "\u7B49\u5F85 worker \u5230\u8FBE\u7EC8\u6001\u3002"
+    },
+    job_id: input.job_id,
+    contract_hash: String(meta3.contract_hash ?? ""),
+    events: Array.isArray(meta3.events) ? meta3.events : [],
+    meta: meta3,
+    completion
+  };
+}
+async function cancelJobTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const jobDir = path2.join(getJobRoot(repo), input.job_id);
+  const result = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getCancelScriptPath(), "-JobDir", jobDir],
+    { timeoutMs: 3e4 }
+  );
+  return {
+    display: {
+      \u9636\u6BB5: "\u53D6\u6D88\u4EFB\u52A1",
+      \u72B6\u6001: result.exitCode === 0 ? "cancelled" : "failed",
+      \u4E0B\u4E00\u6B65: result.exitCode === 0 ? "\u8BFB\u53D6 completion \u5E76\u68C0\u67E5 worktree \u662F\u5426\u53EF\u6E05\u7406\u3002" : "\u8BFB\u53D6 job metadata \u540E\u4EBA\u5DE5\u5904\u7406\u3002"
+    },
+    repo,
+    job_id: input.job_id,
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    stdout: result.stdout,
+    stderr: result.stderr
+  };
+}
 async function dispatchDryRunTool(input) {
   const repo = resolveExistingRepo(input.repo);
   const args = [
@@ -31263,6 +31379,9 @@ async function dispatchDryRunTool(input) {
     "-DryRun",
     "-NoNotify"
   ];
+  if (input.task_kind) {
+    args.push("-TaskKind", input.task_kind);
+  }
   if (input.tier?.trim()) {
     args.push("-Tier", input.tier.trim());
   }
@@ -31318,6 +31437,9 @@ function buildDispatchArgs(input) {
     "-RunMode",
     input.run_mode ?? "background"
   ];
+  if (input.task_kind) {
+    args.push("-TaskKind", input.task_kind);
+  }
   appendOptionalStringArg(args, "-Tier", input.tier);
   appendOptionalStringArg(args, "-PlanId", input.plan_id);
   appendOptionalStringArg(args, "-TaskId", input.task_id);
@@ -31445,6 +31567,7 @@ async function dispatchTool(input) {
     model: fields.model ?? "",
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
+    task_kind: fields.task_kind ?? input.task_kind ?? "",
     job_id: fields.job_id ?? "",
     job_dir: fields.job_dir ?? "",
     watcher_pid: fields.watcher_pid ?? "",
@@ -32052,7 +32175,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.1.3-alpha"
+    version: "0.2.0-alpha"
   });
   server.registerTool(
     "codex_praetor_route_intent",
@@ -32069,6 +32192,28 @@ function createServer() {
     async (input) => asJsonContent(routeIntentTool(input))
   );
   server.registerTool(
+    "codex_praetor_runtime_info",
+    {
+      title: "Read Codex Praetor Runtime Contract",
+      description: "Show the installed runtime contract version and expected MCP surface before dispatch.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {}
+    },
+    async () => asJsonContent(runtimeInfoTool())
+  );
+  server.registerTool(
+    "codex_praetor_health",
+    {
+      title: "Check Codex Praetor Health",
+      description: "Check install generation, plugin cache, provider readiness, and runtime contract without dispatching a worker.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: external_exports.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(await healthTool(input))
+  );
+  server.registerTool(
     "codex_praetor_dispatch_dry_run",
     {
       title: "Dry-Run Codex Praetor Dispatch",
@@ -32080,7 +32225,8 @@ function createServer() {
         provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]),
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
-        run_mode: external_exports.enum(["blocking", "background"]).optional()
+        run_mode: external_exports.enum(["blocking", "background"]).optional(),
+        task_kind: external_exports.enum(["local_audit", "code_change"]).optional()
       }
     },
     async (input) => asJsonContent(await dispatchDryRunTool(input))
@@ -32098,6 +32244,7 @@ function createServer() {
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
+        task_kind: external_exports.enum(["local_audit", "code_change"]).optional(),
         plan_id: external_exports.string().optional(),
         task_id: external_exports.string().optional(),
         depends_on: external_exports.string().optional(),
@@ -32167,6 +32314,32 @@ function createServer() {
       }
     },
     async (input) => asJsonContent(resultTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_job_timeline",
+    {
+      title: "Read Codex Praetor Job Timeline",
+      description: "Show the worker, task contract, durable lifecycle state, and next Codex action for one job.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        job_id: external_exports.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(jobTimelineTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_cancel_job",
+    {
+      title: "Cancel Codex Praetor Job",
+      description: "Cancel one durable worker job by its job identity and terminate its worker process tree.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        job_id: external_exports.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(await cancelJobTool(input))
   );
   server.registerTool(
     "codex_praetor_get_lane",

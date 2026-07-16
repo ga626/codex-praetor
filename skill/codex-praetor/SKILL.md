@@ -25,6 +25,7 @@ Important terminology boundary:
 ## Core Policy
 
 - Keep Codex in charge of decomposition, final judgment, edits merge, and verification.
+- Keep external network research, source discovery, and fact checking with Codex through KnowledgeRadar. A provider worker may search the local repository but must not replace Codex's research perception layer.
 - Treat CodeBuddy, Qoder, and MiMo Code as worker agents, not dumb model APIs. Codex sets the goal, scope, cost/safety rails, and acceptance checks; the worker agent may plan its own internal file reads/searches/edits inside that boundary.
 - Dispatch bounded, inspectable task packets: one outcome, one repo/path scope, explicit no-go areas, and a required summary/diff/test report.
 - Prefer dry runs before real worker execution. Do not spend model credits unless the user asks for a real run or the task is explicitly tiny.
@@ -66,7 +67,7 @@ Hard rails are fixed and must not be crossed:
 Soft choices are selected by Codex per task, then translated by the wrapper:
 
 - Reasoning effort: CodeBuddy `--effort`, Qoder `--reasoning-effort`, MiMo `--variant`.
-- Agent mode: e.g. MiMo `plan` for readonly/planning and `build` for worktree edits.
+- Agent mode: select only a provider mode that has passed the current capability canary. MiMo Build is an isolated worktree worker, not a filesystem-readonly guarantee.
 - Context window: mainly Qoder `--context-window`, only when the task needs it.
 - Output shape: text for normal reports; JSON/schema/event-stream when Codex needs machine-checkable acceptance.
 
@@ -80,12 +81,13 @@ Default routing:
 
 - Beijing time 22:00-08:00: prefer Qoder `qoder-night-cheap` for normal tasks, then `qoder-night-strong` for harder tasks.
 - Beijing time 08:00-22:00: prefer CodeBuddy `codebuddy-free` for normal work. This tier uses the fixed Hy3 model ID `hy3`, not `auto` and not the charged `hy3-preview-agent` route. Use Qoder daytime only when deliberately burning soon-expiring Qoder credits.
-- Use MiMo `mimo-auto-readonly` for free readonly/planning or long-context exploration when it fits the task. MiMo writes `.mimocode` plan/session files even for planning, so the wrapper runs MiMo in a Codex-created worktree for both readonly and edit tasks. Verify that local `mimo stats` still reports `mimo/mimo-auto` cost as zero.
+- Use MiMo `mimo-isolated-audit` only after its exact capability canary is current. MiMo writes `.mimocode` session files and its default Build agent can write, so it always runs in a disposable Codex-created worktree and is not presented as readonly.
 - Avoid Qoder Auto, Qoder DeepSeek/GLM/Kimi/MiniMax, CodeBuddy auto, MiMo paid/old/openai routes, and expensive nonessential models unless the user requests them.
 - Do not use CodeBuddy `auto` by default. It is blocked in the wrapper because it gives model choice back to the provider. Use only the selected fixed CodeBuddy model IDs in `allowedModels`; the local CLI help list is evidence, not permission to route to every listed model.
 - CodeBuddy approved default routes are `hy3`, `deepseek-v4-flash`, and `deepseek-v4-pro`. `hy3-preview-agent` is known but not default-routable; it requires explicit paid fallback approval.
 - For CodeBuddy non-interactive readonly file checks on Windows, use the wrapper's verified `-y --tools Read,Glob,Grep` path. Avoid `--permission-mode plan` for real file checks; it can exceed turns or return unreliable file existence results.
 - For edit tasks, isolate workers in Codex-created `git worktree` checkouts. If `-WorktreeName` is omitted, the wrapper generates one, creates the worktree, and starts the worker inside that directory.
+- Every external worker task, including local audits, uses a disposable worktree. Only Codex may integrate an accepted patch into the main checkout.
 - For multiple concurrent projects, run one worker per project lane by default. Edit tasks now take a per-repo lock by default, so another Codex conversation will not accidentally dispatch a second edit worker to the same repo. Use `-AllowConcurrentRepoEdit` only when file scopes are known not to overlap.
 
 ## Dispatch Workflow
@@ -123,6 +125,10 @@ The implementation now exposes the dispatch loop through the Codex Praetor MCP s
 - `codex_praetor_next_ready` lists plan tasks whose dependencies have been accepted by Codex.
 - `codex_praetor_dispatch_plan_task` starts a worker for one pending plan task and links the job back to the plan.
 - `codex_praetor_verify_task` records Codex's verdict after reading the worker result.
+- `codex_praetor_health` reports install-generation and provider readiness gates.
+- `codex_praetor_runtime_info` reports the expected runtime contract.
+- `codex_praetor_job_timeline` shows provider, contract, lifecycle state, and next Codex action.
+- `codex_praetor_cancel_job` cancels one durable job by identity.
 
 The durable local files remain the recovery source:
 

@@ -56,6 +56,18 @@ const delegationTerms = [
   "分派"
 ];
 
+const externalResearchTerms = [
+  "联网搜索",
+  "外部调研",
+  "事实核查",
+  "来源发现",
+  "knowledge radar",
+  "knowledgeradar",
+  "外网研究",
+  "web research",
+  "fact check"
+];
+
 function collectMatches(value: string, terms: string[]): string[] {
   const lower = value.toLowerCase();
   return terms.filter((term) => lower.includes(term.toLowerCase()));
@@ -93,8 +105,21 @@ export function routeIntent(
   const subagentMatches = collectMatches(trimmed, codexSubagentTerms);
   const praetorMatches = collectMatches(trimmed, codexPraetorTerms);
   const delegationMatches = collectMatches(trimmed, delegationTerms);
-  const allMatches = [...new Set([...subagentMatches, ...praetorMatches, ...delegationMatches])];
+  const researchMatches = collectMatches(trimmed, externalResearchTerms);
+  const allMatches = [...new Set([...subagentMatches, ...praetorMatches, ...delegationMatches, ...researchMatches])];
   const rejectsNative = subagentMatches.length > 0 && rejectsNativeCodexSubagents(trimmed);
+
+  if (researchMatches.length > 0) {
+    return {
+      route: "codex_knowledge_radar_research",
+      confidence: "high",
+      reason:
+        "External research and network evidence collection stay with Codex through KnowledgeRadar; provider workers must not replace the primary perception layer.",
+      suggested_next_action: "Use KnowledgeRadar from Codex, then delegate only bounded local code work if needed.",
+      matched_terms: allMatches,
+      native_codex_subagents_allowed: allowNativeCodexSubagents
+    };
+  }
 
   if (rejectsNative && (praetorMatches.length > 0 || delegationMatches.length > 0)) {
     return {

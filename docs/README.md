@@ -1,4 +1,4 @@
-# Codex Praetor 文档入口
+﻿# Codex Praetor 文档入口
 
 普通用户优先看：
 
@@ -16,7 +16,7 @@
 - [路线图](roadmap.md)
 - [Release gate checklist](release/release-gate-checklist.md)
 - [GitHub publish runbook](release/github-publish-runbook.md)
-- [Release notes 0.1.3-alpha](release/release-notes-0.1.3-alpha.md)
+- [Release notes 0.2.0-alpha](release/release-notes-0.2.0-alpha.md)
 - [Release notes 0.1.2-alpha](release/release-notes-0.1.2-alpha.md)
 - [Release notes 0.1.1-alpha](release/release-notes-0.1.1-alpha.md)
 - [Release notes 0.1.0-alpha](release/release-notes-0.1.0-alpha.md)

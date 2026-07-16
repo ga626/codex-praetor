@@ -1,5 +1,6 @@
 export type RouteKind =
   | "codex_praetor_external_worker"
+  | "codex_knowledge_radar_research"
   | "native_codex_subagent"
   | "no_delegation"
   | "needs_clarification";
@@ -25,6 +26,7 @@ export interface JobSummary {
   tier: string;
   model: string;
   mode: string;
+  task_kind?: string;
   run_mode: string;
   status: string;
   created_at: string;

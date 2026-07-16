@@ -1,5 +1,5 @@
-param(
-    [string]$Version = "0.1.3-alpha",
+﻿param(
+    [string]$Version = "0.2.0-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
@@ -64,6 +64,7 @@ function Test-BlockedReleasePath {
     if ($normalized -like "docs\mcp-tool-handle-transport-closed-research-*.md") { return $true }
     if ($normalized -like "docs\productization-execution-map-*.md") { return $true }
     if ($normalized -like "docs\release-readiness-audit-*.md") { return $true }
+    if ($normalized -like "docs\reports\*") { return $true }
     if ($normalized -like "*\node_modules\*") { return $true }
     if ($normalized -like "mcp\dist\*") { return $true }
     if ($normalized -like "*.local.json") { return $true }

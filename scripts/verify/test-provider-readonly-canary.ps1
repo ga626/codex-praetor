@@ -28,7 +28,7 @@ $wrapper = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
 function Get-DefaultTier {
     param([string]$ProviderName)
     switch ($ProviderName) {
-        "mimo" { return "mimo-auto-readonly" }
+        "mimo" { return "mimo-isolated-audit" }
         "codebuddy" { return "codebuddy-free" }
         default { return "" }
     }

@@ -172,7 +172,7 @@
       "permissionProfile": "readonly-or-worktree",
       "role": "stronger CodeBuddy fallback for harder bounded tasks"
     },
-    "mimo-auto-readonly": {
+    "mimo-isolated-audit": {
       "provider": "mimo",
       "modelDisplay": "MiMo Auto",
       "modelCli": "mimo/mimo-auto",
@@ -181,8 +181,8 @@
       "agent": "",
       "reasoningEffort": "",
       "outputFormat": "json",
-      "permissionProfile": "mimo-readonly",
-      "role": "MiMo readonly worker; do not force --agent plan because current MiMo plan mode can ignore the task packet"
+      "permissionProfile": "mimo-isolated-audit-v1",
+      "role": "MiMo isolated audit worker. This is not a filesystem-readonly promise because the default Build agent can write inside its disposable worktree."
     },
     "mimo-auto-edit": {
       "provider": "mimo",
@@ -193,7 +193,7 @@
       "agent": "build",
       "reasoningEffort": "",
       "outputFormat": "json",
-      "permissionProfile": "mimo-edit-worktree",
+      "permissionProfile": "edit-worktree-v1",
       "role": "MiMo edit worker only inside isolated git worktree"
     }
   }
