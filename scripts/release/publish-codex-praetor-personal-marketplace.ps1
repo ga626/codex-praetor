@@ -48,29 +48,6 @@ function Get-DirectoryChildren {
     return @(Get-ChildItem -LiteralPath $Root -Force | Where-Object { $_.PSIsContainer })
 }
 
-function Remove-DirectoryList {
-    param(
-        [System.Collections.IEnumerable]$Items,
-        [string]$Label
-    )
-
-    $removed = @()
-    foreach ($item in @($Items)) {
-        if (-not $item) {
-            continue
-        }
-        Remove-Item -LiteralPath $item.FullName -Recurse -Force
-        $removed += $item.FullName
-    }
-
-    if ($removed.Count -gt 0) {
-        Write-Host "[PASS] Removed ${Label}:"
-        foreach ($path in $removed) {
-            Write-Host "  - $path"
-        }
-    }
-}
-
 function Test-RealDirectory {
     param([string]$Path, [string]$Label)
     if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
@@ -182,20 +159,17 @@ try {
         throw "Installed plugin manifest missing after publish."
     }
 
-    $stalePublishDirs = @(Get-DirectoryChildren $installParent | Where-Object {
+    $retainedPublishDirs = @(Get-DirectoryChildren $installParent | Where-Object {
         $_.Name -like ".codex-praetor.publish-*.tmp" -or $_.Name -like "codex-praetor.failed-*"
     })
-    $staleBackupDirs = @(Get-DirectoryChildren $backupRoot | Where-Object {
-        $_.Name -like "codex-praetor-*"
-    })
-
-    Remove-DirectoryList -Items $stalePublishDirs -Label "stale marketplace scratch directories"
-    Remove-DirectoryList -Items $staleBackupDirs -Label "stale marketplace backup directories"
+    if ($retainedPublishDirs.Count -gt 0) {
+        Write-Host "[INFO] Retained $($retainedPublishDirs.Count) marketplace scratch/failed directory(s) for retirement reconciliation."
+    }
 
     Write-Host "[PASS] Personal marketplace install copy published."
     Write-Host "[PASS] Plugin version was cachebusted in the install copy: $cachebustedVersion"
     if ($backupMade) {
-        Write-Host "[PASS] Previous install copy was backed up for rollback during publish and pruned after success."
+        Write-Host "[PASS] Previous install copy was retained for retirement reconciliation."
     }
     Write-Host "Next step: codex plugin add codex-praetor@personal"
 } catch {

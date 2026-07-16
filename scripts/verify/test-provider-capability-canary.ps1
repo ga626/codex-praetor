@@ -20,6 +20,8 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $wrapper = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
+$nativeHelper = Join-Path $projectRoot "scripts\maintenance\invoke-codex-praetor-native.ps1"
+. $nativeHelper
 $statePath = Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
 $marker = "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
 
@@ -79,9 +81,9 @@ if (-not $Apply) {
 }
 
 $beforeStatus = (& git -C $Repo status --short 2>$null | Out-String).Trim()
-$output = & powershell @argsList 2>&1
-$exitCode = $LASTEXITCODE
-$outputText = ($output | Out-String)
+$nativeResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList $argsList -WorkingDirectory $projectRoot -TimeoutSeconds 360
+$exitCode = [int]$nativeResult.exit_code
+$outputText = (([string]$nativeResult.stdout) + "`n" + ([string]$nativeResult.stderr)).Trim()
 $afterStatus = (& git -C $Repo status --short 2>$null | Out-String).Trim()
 Write-Output $outputText.Trim()
 

@@ -22,6 +22,13 @@
 %USERPROFILE%\plugins\.codex-praetor-backups
 ```
 
+代际维护脚本和退休清单：
+
+```text
+%USERPROFILE%\.codex\codex-praetor-maintenance
+%USERPROFILE%\.codex\codex-praetor-releases\stable\retirement.json
+```
+
 ## 更新
 
 下载新版 release zip 后，在解压目录里运行：
@@ -31,6 +38,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
 安装脚本会先复制到临时目录，校验后再替换旧目录。旧目录会移动到备份目录。
+
+更新不会立即强制删除旧 generation。确认新版本健康后，维护任务会在登录和每 15 分钟重试安全回收；占用目录会保留并记录原因。
+
+## 卸载自动维护任务
+
+先关闭 Codex，再在 release 解压目录运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install\install-codex-praetor-maintenance.ps1 -Uninstall -Apply
+```
+
+这只注销 Codex Praetor 的用户级维护任务并移除维护脚本，不会替你删除仍可能被旧对话引用的 cache 或备份目录。确认不再需要旧版本后，再按下面的手动卸载步骤处理。
 
 ## 手动卸载
 

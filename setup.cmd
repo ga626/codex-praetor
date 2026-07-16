@@ -2,7 +2,9 @@
 setlocal
 chcp 65001 >nul
 title Codex Praetor 安装向导
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" -Apply
+set "setup_args=-Apply"
+if "%CODEX_PRAETOR_SKIP_MAINTENANCE%"=="1" set "setup_args=-Apply -SkipMaintenance"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" %setup_args%
 set "exit_code=%ERRORLEVEL%"
 echo.
 if not "%exit_code%"=="0" (

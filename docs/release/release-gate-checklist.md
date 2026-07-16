@@ -106,11 +106,13 @@ Before pushing or tagging:
 
 For every delivery-affecting release, run `scripts/release/complete-codex-praetor-release.ps1` in two phases after the new GitHub Release zip and `.sha256` are available:
 
-1. `stage` against the downloaded remote zip. It installs and hashes Skill, plugin, marketplace, and personal cache, then writes only a staged receipt.
-2. Restart Codex and collect required MCP tool names from a new context. Convert the observation into a fresh-context proof with `scripts/verify/new-codex-praetor-fresh-context-proof.ps1`.
+1. `stage` against the downloaded remote zip. It installs and hashes Skill, plugin, marketplace, and personal cache, then writes only a staged receipt. It must not delete old cache generations; old paths go to the retirement/reconcile queue.
+2. If the MCP tool list, tool arguments, Skill/Plugin manifest, plugin source generation, or cache generation changed, ask the user to open one fresh Codex context for this generation. Do not require a new task for ordinary file edits. Collect required MCP tool names and convert the observation into a fresh-context proof with `scripts/verify/new-codex-praetor-fresh-context-proof.ps1`.
 3. Produce a generation-matched provider readiness record from the capability canary, then run `activate` with both evidence files.
+4. `activate` runs the reconcile once. Stable closeout also installs `scripts/install/install-codex-praetor-maintenance.ps1 -Apply`, which copies the maintenance scripts under the user's `.codex` directory and registers a user-level logon plus 15-minute retry task. The task may be inspected with `Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile`.
+5. The reconcile may delete only non-active retired paths that are outside the retention window and not in use; an in-use path remains registered with a retry time. Cleanup failure does not roll back a valid activation and must not be reported as a clean cache. Isolated branch validation must pass `-SkipMaintenance` to avoid registering a real task.
 
-Do not call the product delivered until the active receipt exists and `scripts/verify/get-codex-praetor-health.ps1 -Json` returns `ready`. A branch candidate must use an explicitly isolated `-UserProfileRoot` and must never overwrite the stable profile.
+Do not call the product delivered until the active receipt exists, `scripts/verify/get-codex-praetor-health.ps1 -Json` returns `ready`, the downloaded package passes the normal user path, and retirement status is explicitly `deleted`, `pending`, or `blocked_by_process`. A branch candidate must use an explicitly isolated `-UserProfileRoot` and must never overwrite the stable profile.
 
 ## 6. Final Human Confirmation
 

@@ -24,6 +24,8 @@ $OutputEncoding = $utf8NoBom
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $wrapper = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
+$nativeHelper = Join-Path $projectRoot "scripts\maintenance\invoke-codex-praetor-native.ps1"
+. $nativeHelper
 
 function Get-DefaultTier {
     param([string]$ProviderName)
@@ -109,9 +111,9 @@ if (-not $Apply) {
 }
 
 $beforeStatus = Get-GitStatusText -Path $Repo
-$output = & powershell @argsList 2>&1
-$exitCode = $LASTEXITCODE
-$outputText = ($output | Out-String)
+$nativeResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList $argsList -WorkingDirectory $projectRoot -TimeoutSeconds 360
+$exitCode = [int]$nativeResult.exit_code
+$outputText = (([string]$nativeResult.stdout) + "`n" + ([string]$nativeResult.stderr)).Trim()
 $afterStatus = Get-GitStatusText -Path $Repo
 
 Write-Host $outputText.Trim()

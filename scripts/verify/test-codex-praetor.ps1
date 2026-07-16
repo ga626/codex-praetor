@@ -483,7 +483,8 @@ if (-not $SkipUserInstallSmoke) {
         $setupOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $setupScript `
             -Apply `
             -NonInteractive `
-            -ProviderChoice 2 2>&1
+            -ProviderChoice 2 `
+            -SkipMaintenance 2>&1
         if ($LASTEXITCODE -ne 0) {
             Add-Fail "Setup wizard smoke failed: $($setupOutput | Out-String)"
         } elseif (-not (Test-Path -LiteralPath (Join-Path $setupSmokeInstall ".codex-plugin\plugin.json") -PathType Leaf)) {
@@ -512,7 +513,7 @@ if (-not $SkipUserInstallSmoke) {
     $setupCmdSmokeMarketplace = Join-Path $setupCmdSmokeHome ".agents\plugins\marketplace.json"
     try {
         New-Item -ItemType Directory -Path $setupCmdSmokeHome -Force | Out-Null
-        $setupCmdLine = 'set "USERPROFILE=' + $setupCmdSmokeHome + '" && set "HOME=' + $setupCmdSmokeHome + '" && cd /d "' + $projectRoot + '" && (echo 2&echo.) | setup.cmd'
+        $setupCmdLine = 'set "USERPROFILE=' + $setupCmdSmokeHome + '" && set "HOME=' + $setupCmdSmokeHome + '" && set "CODEX_PRAETOR_SKIP_MAINTENANCE=1" && cd /d "' + $projectRoot + '" && (echo 2&echo.) | setup.cmd'
         $setupCmdOutput = & cmd.exe /d /c $setupCmdLine 2>&1
         $setupCmdOutputText = $setupCmdOutput | Out-String
         if ($LASTEXITCODE -ne 0) {
@@ -554,7 +555,8 @@ if (-not $SkipUserInstallSmoke) {
         $providerSetupOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $setupScript `
             -Apply `
             -NonInteractive `
-            -ProviderChoice 5 2>&1
+            -ProviderChoice 5 `
+            -SkipMaintenance 2>&1
         if ($LASTEXITCODE -ne 0) {
             Add-Fail "Provider setup wizard smoke failed: $($providerSetupOutput | Out-String)"
         } elseif (-not (Test-Path -LiteralPath $providerSetupConfig -PathType Leaf)) {

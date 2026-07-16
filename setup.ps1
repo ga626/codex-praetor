@@ -3,7 +3,8 @@
     [switch]$NonInteractive,
     [ValidateSet("1", "2", "3", "4", "5")]
     [string]$ProviderChoice = "",
-    [switch]$ResetOnboardingState
+    [switch]$ResetOnboardingState,
+    [switch]$SkipMaintenance
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +23,9 @@ $userCodexDir = Join-Path $env:USERPROFILE ".codex"
 $userConfigPath = Join-Path $userCodexDir "codex-praetor.local.json"
 $onboardingStatePath = Join-Path $userCodexDir "codex-praetor.onboarding-state.json"
 $canaryScript = Join-Path $scriptRoot "scripts\verify\test-provider-capability-canary.ps1"
+$maintenanceScript = Join-Path $scriptRoot "scripts\install\install-codex-praetor-maintenance.ps1"
+$nativeHelper = Join-Path $scriptRoot "scripts\maintenance\invoke-codex-praetor-native.ps1"
+. $nativeHelper
 
 function Write-Section {
     param([string]$Text)
@@ -496,27 +500,14 @@ function Invoke-CommandWithTimeout {
         [int]$TimeoutSeconds
     )
 
-    function Quote-ProcessArgument {
-        param([string]$Value)
-        if ($null -eq $Value) { return '""' }
-        if ($Value -notmatch '[\s"]') { return $Value }
-        return '"' + ($Value -replace '\\(?=\\*")', '$0$0' -replace '"', '\"') + '"'
-    }
-
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo.FileName = $FilePath
-    $process.StartInfo.Arguments = (($ArgumentList | ForEach-Object { Quote-ProcessArgument ([string]$_) }) -join " ")
-    $process.StartInfo.UseShellExecute = $false
-    $process.StartInfo.RedirectStandardInput = $true
-    [void]$process.Start()
-    $process.StandardInput.Close()
-    $completed = $process.WaitForExit($TimeoutSeconds * 1000)
-    if (-not $completed) {
-        try { $process.Kill() } catch {}
+    $result = Invoke-CodexPraetorNative -FilePath $FilePath -ArgumentList $ArgumentList -WorkingDirectory $scriptRoot -TimeoutSeconds $TimeoutSeconds
+    if (-not [string]::IsNullOrWhiteSpace([string]$result.stdout)) { Write-Host ([string]$result.stdout).Trim() }
+    if (-not [string]::IsNullOrWhiteSpace([string]$result.stderr)) { Write-Host ([string]$result.stderr).Trim() -ForegroundColor DarkGray }
+    if ($result.timed_out) {
         throw "官方安装命令超过 $TimeoutSeconds 秒仍未结束。请检查网络或代理后重试，也可以先跳过这个 provider。"
     }
-    if ($process.ExitCode -ne 0) {
-        throw "官方安装命令失败，退出码：$($process.ExitCode)"
+    if ([int]$result.exit_code -ne 0) {
+        throw "官方安装命令失败，退出码：$($result.exit_code)"
     }
 }
 
@@ -811,8 +802,10 @@ function Invoke-CanaryStep {
             $mode = "apply"
         }
         try {
-            & powershell @canaryArgs
-            if ($LASTEXITCODE -eq 0) {
+            $canaryResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList $canaryArgs -WorkingDirectory $scriptRoot -TimeoutSeconds 360
+            if (-not [string]::IsNullOrWhiteSpace([string]$canaryResult.stdout)) { Write-Host ([string]$canaryResult.stdout).Trim() }
+            if (-not [string]::IsNullOrWhiteSpace([string]$canaryResult.stderr)) { Write-Host ([string]$canaryResult.stderr).Trim() -ForegroundColor DarkGray }
+            if ([int]$canaryResult.exit_code -eq 0 -and -not $canaryResult.timed_out) {
                 if ($mode -eq "apply") {
                     $status.CanaryApplied = $true
                     Set-ProviderState -State $State -ProviderId $status.Id -Status "ready" -ProviderStatus $status -Canary "passed" -Message "真实只读 canary 通过"
@@ -821,7 +814,7 @@ function Invoke-CanaryStep {
                     Set-ProviderState -State $State -ProviderId $status.Id -Status "canary_previewed" -ProviderStatus $status -Canary "previewed" -Message "canary 预览通过"
                 }
             } else {
-                Set-ProviderState -State $State -ProviderId $status.Id -Status "canary_failed" -ProviderStatus $status -Canary "failed" -Message "canary 退出码：$LASTEXITCODE"
+                Set-ProviderState -State $State -ProviderId $status.Id -Status "canary_failed" -ProviderStatus $status -Canary "failed" -Message "canary 退出码：$($canaryResult.exit_code)"
             }
         } catch {
             Write-Host "canary 未通过：$($_.Exception.Message)" -ForegroundColor Yellow
@@ -1004,9 +997,26 @@ if (-not $NonInteractive) {
 }
 
 Write-Section "正在安装 Codex Praetor 本体"
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -SourcePlugin (Join-Path $scriptRoot "plugin") -Apply
-if ($LASTEXITCODE -ne 0) {
-    throw "插件安装失败，退出码：$LASTEXITCODE"
+$installResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installScript, "-SourcePlugin", (Join-Path $scriptRoot "plugin"), "-Apply") -WorkingDirectory $scriptRoot -TimeoutSeconds 600
+if (-not [string]::IsNullOrWhiteSpace([string]$installResult.stdout)) { Write-Host ([string]$installResult.stdout).Trim() }
+if (-not [string]::IsNullOrWhiteSpace([string]$installResult.stderr)) { Write-Host ([string]$installResult.stderr).Trim() -ForegroundColor DarkGray }
+if ($installResult.timed_out -or [int]$installResult.exit_code -ne 0) {
+    throw "插件安装失败，退出码：$($installResult.exit_code)"
+}
+
+if (-not $SkipMaintenance) {
+    if (-not (Test-Path -LiteralPath $maintenanceScript -PathType Leaf)) {
+        throw "维护脚本缺失：$maintenanceScript"
+    }
+    Write-Section "安装代际自动回收维护"
+    $maintenanceResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $maintenanceScript, "-UserProfileRoot", $env:USERPROFILE, "-SourceRoot", $scriptRoot, "-Apply") -WorkingDirectory $scriptRoot -TimeoutSeconds 120
+    if (-not [string]::IsNullOrWhiteSpace([string]$maintenanceResult.stdout)) { Write-Host ([string]$maintenanceResult.stdout).Trim() }
+    if (-not [string]::IsNullOrWhiteSpace([string]$maintenanceResult.stderr)) { Write-Host ([string]$maintenanceResult.stderr).Trim() -ForegroundColor DarkGray }
+    if ($maintenanceResult.timed_out -or [int]$maintenanceResult.exit_code -ne 0) {
+        throw "代际自动回收维护安装失败，退出码：$($maintenanceResult.exit_code)"
+    }
+} else {
+    Write-Host "[INFO] 已跳过代际自动回收维护安装。仅允许隔离测试或开发验证使用。" -ForegroundColor Yellow
 }
 
 Update-ProviderConfig -Statuses $providerStatuses -State $state
