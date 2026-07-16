@@ -25,7 +25,7 @@ Important terminology boundary:
 ## Core Policy
 
 - Keep Codex in charge of decomposition, final judgment, edits merge, and verification.
-- Keep external network research, source discovery, and fact checking with Codex through KnowledgeRadar. A provider worker may search the local repository but must not replace Codex's research perception layer.
+- Codex plus KnowledgeRadar owns external research routes, evidence authority, conflict resolution, and final synthesis. A provider worker may perform bounded candidate discovery or independent replication only when Codex supplies a readonly research contract with `codex_kr_primary` authority, source/claim scope, and `supervisor_verified` evidence acceptance. Worker output is candidate evidence, never the final research conclusion.
 - Treat CodeBuddy, Qoder, and MiMo Code as worker agents, not dumb model APIs. Codex sets the goal, scope, cost/safety rails, and acceptance checks; the worker agent may plan its own internal file reads/searches/edits inside that boundary.
 - Dispatch bounded, inspectable task packets: one outcome, one repo/path scope, explicit no-go areas, and a required summary/diff/test report.
 - Prefer dry runs before real worker execution. Do not spend model credits unless the user asks for a real run or the task is explicitly tiny.

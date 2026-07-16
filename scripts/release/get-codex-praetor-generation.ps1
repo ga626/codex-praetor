@@ -1,0 +1,107 @@
+param(
+    [string]$ProjectRoot = "",
+    [switch]$Json
+)
+
+$ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $ProjectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
+}
+
+$projectPath = [System.IO.Path]::GetFullPath($ProjectRoot)
+$contractPath = Join-Path $projectPath "config\runtime-contract.json"
+$pluginRoot = Join-Path $projectPath "plugin"
+$skillRoot = Join-Path $projectPath "skill\codex-praetor"
+$pluginManifestPath = Join-Path $pluginRoot ".codex-plugin\plugin.json"
+$mcpPackagePath = Join-Path $pluginRoot "mcp\package.json"
+
+foreach ($path in @($contractPath, $pluginManifestPath, $mcpPackagePath)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Generation input is missing: $path"
+    }
+}
+if (-not (Test-Path -LiteralPath $skillRoot -PathType Container)) {
+    throw "Generation skill root is missing: $skillRoot"
+}
+
+$contract = Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$manifest = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$mcpPackage = Get-Content -LiteralPath $mcpPackagePath -Raw -Encoding UTF8 | ConvertFrom-Json
+$version = [string]$contract.version
+if ([string]::IsNullOrWhiteSpace($version) -or [string]$manifest.version -ne $version -or [string]$mcpPackage.version -ne $version) {
+    throw "Runtime contract, plugin manifest, and MCP package must have one version."
+}
+
+function Get-TreeManifest {
+    param([string]$Root, [string]$Label)
+
+    $files = @(
+        Get-ChildItem -LiteralPath $Root -Recurse -File -Force |
+            Sort-Object FullName |
+            ForEach-Object {
+                $relative = $_.FullName.Substring($Root.Length).TrimStart("\\") -replace "\\", "/"
+                [pscustomobject]@{
+                    path = $relative
+                    sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                }
+            }
+    )
+    $canonical = (($files | ForEach-Object { "$($_.path)|$($_.sha256)" }) -join "`n")
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($canonical)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "").ToLowerInvariant()
+    } finally {
+        $sha.Dispose()
+    }
+    return [pscustomobject]@{
+        label = $Label
+        sha256 = $digest
+        files = $files
+    }
+}
+
+$commit = ""
+try {
+    $commit = ((& git -C $projectPath rev-parse HEAD 2>$null) | Out-String).Trim().ToLowerInvariant()
+} catch {
+    $commit = ""
+}
+if ($commit -notmatch "^[0-9a-f]{40}$") {
+    throw "Generation requires a git commit SHA from the project root."
+}
+
+$skillTree = Get-TreeManifest -Root $skillRoot -Label "skill"
+$pluginTree = Get-TreeManifest -Root $pluginRoot -Label "plugin"
+$contractHash = (Get-FileHash -LiteralPath $contractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$combined = "skill|$($skillTree.sha256)`nplugin|$($pluginTree.sha256)`ncontract|$contractHash"
+$combinedBytes = [System.Text.Encoding]::UTF8.GetBytes($combined)
+$combinedSha = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $contentHash = ([System.BitConverter]::ToString($combinedSha.ComputeHash($combinedBytes))).Replace("-", "").ToLowerInvariant()
+} finally {
+    $combinedSha.Dispose()
+}
+
+$result = [ordered]@{
+    schema = "codex-praetor-release-generation/v1"
+    product = "codex-praetor"
+    version = $version
+    commit = $commit
+    content_manifest_sha256 = $contentHash
+    generation_id = "$version--$($commit.Substring(0, 12))--$($contentHash.Substring(0, 12))"
+    runtime_contract_sha256 = $contractHash
+    required_mcp_tools = @($contract.requiredMcpTools)
+    trees = [ordered]@{
+        skill = $skillTree
+        plugin = $pluginTree
+    }
+}
+
+if ($Json) {
+    $result | ConvertTo-Json -Depth 12
+} else {
+    $result
+}

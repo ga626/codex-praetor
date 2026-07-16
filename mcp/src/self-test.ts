@@ -30,8 +30,11 @@ assert.equal(
 );
 assert.equal(
   routeIntentTool({ request: "做一次外部调研并联网搜索官方资料" }).route,
-  "codex_knowledge_radar_research"
+  "codex_kr_primary_research"
 );
+const researchRoute = routeIntentTool({ request: "拆分外部调研，分配给其他 agent 找官方资料" });
+assert.equal(researchRoute.worker_research_eligible, true);
+assert.equal(researchRoute.research_authority, "codex_kr_primary");
 assert.equal(runtimeInfoTool().runtime_contract !== null, true);
 assert.equal(
   routeIntentTool({ request: "Use Codex subagent for parallel review", allow_native_codex_subagents: true }).route,

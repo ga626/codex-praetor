@@ -15,7 +15,34 @@ import {
 import { parseKeyValueOutput } from "./parse-key-value.js";
 import { runPowerShell } from "./powershell.js";
 import { routeIntent } from "./route-intent.js";
-import type { JobSummary, LaneSummary } from "./types.js";
+import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
+
+function assertResearchContract(input: {
+  task_kind?: "local_audit" | "code_change" | "external_research_support";
+  mode?: "readonly" | "edit";
+  research_contract?: ResearchContract;
+}) {
+  if (input.task_kind !== "external_research_support") {
+    return;
+  }
+  if (input.mode === "edit") {
+    throw new Error("external_research_support requires readonly mode.");
+  }
+  const contract = input.research_contract;
+  if (!contract || contract.research_authority !== "codex_kr_primary" || contract.evidence_acceptance !== "supervisor_verified") {
+    throw new Error("external_research_support requires a Codex/KR primary research contract with supervisor-verified evidence acceptance.");
+  }
+  if (contract.claim_scope.length === 0 || contract.source_scope.length === 0) {
+    throw new Error("external_research_support requires non-empty claim_scope and source_scope.");
+  }
+}
+
+function appendResearchContract(task: string, contract?: ResearchContract): string {
+  if (!contract) {
+    return task;
+  }
+  return `${task}\n\nResearch authority: Codex/KR is primary. You are a bounded supporting worker.\nMode: ${contract.worker_research_mode}\nClaims: ${contract.claim_scope.join("; ")}\nSource scope: ${contract.source_scope.join("; ")}\nEvidence acceptance: supervisor verified only.\nOutput every candidate with URL, retrieval time, excerpt, claim, and uncertainty. Do not present final conclusions.`;
+}
 
 export function routeIntentTool(input: {
   request: string;
@@ -117,9 +144,11 @@ export async function dispatchDryRunTool(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
-  task_kind?: "local_audit" | "code_change";
+  task_kind?: "local_audit" | "code_change" | "external_research_support";
+  research_contract?: ResearchContract;
 }) {
   const repo = resolveExistingRepo(input.repo);
+  assertResearchContract(input);
   const args = [
     "-NoProfile",
     "-ExecutionPolicy",
@@ -131,7 +160,7 @@ export async function dispatchDryRunTool(input: {
     "-Repo",
     repo,
     "-Task",
-    input.task,
+    appendResearchContract(input.task, input.research_contract),
     "-Mode",
     input.mode ?? "readonly",
     "-RunMode",
@@ -141,7 +170,11 @@ export async function dispatchDryRunTool(input: {
   ];
 
   if (input.task_kind) {
-    args.push("-TaskKind", input.task_kind);
+    args.push("-TaskKind", input.task_kind === "external_research_support" ? "external_research" : input.task_kind);
+  }
+  if (input.task_kind === "external_research_support") {
+    args.push("-AllowWorkerNetwork");
+    args.push("-ResearchContractJson", JSON.stringify(input.research_contract));
   }
 
   if (input.tier?.trim()) {
@@ -192,7 +225,8 @@ function buildDispatchArgs(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
-  task_kind?: "local_audit" | "code_change";
+  task_kind?: "local_audit" | "code_change" | "external_research_support";
+  research_contract?: ResearchContract;
   dry_run?: boolean;
   plan_id?: string;
   task_id?: string;
@@ -221,7 +255,11 @@ function buildDispatchArgs(input: {
   ];
 
   if (input.task_kind) {
-    args.push("-TaskKind", input.task_kind);
+    args.push("-TaskKind", input.task_kind === "external_research_support" ? "external_research" : input.task_kind);
+  }
+  if (input.task_kind === "external_research_support") {
+    args.push("-AllowWorkerNetwork");
+    args.push("-ResearchContractJson", JSON.stringify(input.research_contract));
   }
 
   appendOptionalStringArg(args, "-Tier", input.tier);
@@ -343,7 +381,8 @@ export async function dispatchTool(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
-  task_kind?: "local_audit" | "code_change";
+  task_kind?: "local_audit" | "code_change" | "external_research_support";
+  research_contract?: ResearchContract;
   plan_id?: string;
   task_id?: string;
   depends_on?: string;
@@ -353,10 +392,12 @@ export async function dispatchTool(input: {
   no_notify?: boolean;
 }) {
   const repo = resolveExistingRepo(input.repo);
+  assertResearchContract(input);
   const runMode = input.run_mode ?? "background";
   const result = await runPowerShell(
     buildDispatchArgs({
       ...input,
+      task: appendResearchContract(input.task, input.research_contract),
       repo,
       provider: input.provider ?? "auto",
       run_mode: runMode,
@@ -380,6 +421,7 @@ export async function dispatchTool(input: {
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
     task_kind: fields.task_kind ?? input.task_kind ?? "",
+    research_contract: input.research_contract ?? null,
     job_id: fields.job_id ?? "",
     job_dir: fields.job_dir ?? "",
     watcher_pid: fields.watcher_pid ?? "",

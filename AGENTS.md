@@ -51,6 +51,19 @@ Do not add an automatic publish/sync mechanism unless the user explicitly asks f
 
 凡改到 `setup.cmd`、`setup.ps1`、`plugin/`、`skill/`、`mcp/`、安装/排错/发布文档、版本号或安装体验，都算影响发布。用户合并这类 PR 后，必须同步最新 `main`，构建 zip 和 `.sha256`，更新 GitHub Release 资产/说明，再下载远端 zip、解压复验 setup 文件、文档、版本和关键向导行为，才能说产品已交付。
 
+### Release Generation And Closeout
+
+- A release is one immutable generation: version, main commit, release zip SHA256, runtime contract, Skill tree, plugin tree, cache tree, marketplace activation, fresh-context MCP proof, and provider readiness must be recorded in one release receipt.
+- A branch build is a candidate only. It must not overwrite the current user's stable Skill, plugin, cache, marketplace activation, or active receipt. Dev validation uses an explicitly supplied isolated user-profile root.
+- Stable closeout is two phase: stage and hash-verify all local surfaces from the downloaded Release zip, then activate only after a fresh Codex context proves the required native MCP tools and a generation-matched provider readiness record passes.
+- There is no cross-directory filesystem transaction. If stage or activation fails, do not write a new active receipt; keep or restore the previous active generation and report `代码已合并，产品未交付`.
+- Real dispatch must fail closed when the active receipt, any install surface hash, marketplace entry, fresh-context proof, or provider readiness does not match the runtime contract generation.
+
+## Research Authority
+
+- Codex plus KnowledgeRadar owns external research routes and final evidence synthesis. Provider workers may do readonly candidate discovery or independent replication only under a Codex-issued research contract with `codex_kr_primary` authority and `supervisor_verified` acceptance.
+- A worker research result must include source URL, retrieval time, excerpt, claim, and uncertainty. It cannot independently satisfy high-risk fact checks, cross-source conclusions, release decisions, or user-facing recommendations.
+
 ## Safety
 
 Do not commit API keys, auth tokens, provider account files, usage screenshots, or local app databases.

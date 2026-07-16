@@ -3,16 +3,24 @@
   "product": "codex-praetor",
   "version": "0.2.0-alpha",
   "wrapperProtocol": "2",
-  "taskContractSchema": "codex-praetor-task-contract/v2",
+  "taskContractSchema": "codex-praetor-task-contract/v3",
   "requiredMcpTools": [
     "codex_praetor_route_intent",
+    "codex_praetor_runtime_info",
+    "codex_praetor_health",
     "codex_praetor_dispatch_dry_run",
     "codex_praetor_dispatch",
-    "codex_praetor_health",
-    "codex_praetor_runtime_info",
+    "codex_praetor_plan",
+    "codex_praetor_list_jobs",
+    "codex_praetor_list_lanes",
+    "codex_praetor_result",
     "codex_praetor_job_timeline",
     "codex_praetor_cancel_job",
-    "codex_praetor_result",
+    "codex_praetor_get_lane",
+    "codex_praetor_detect_conflicts",
+    "codex_praetor_status",
+    "codex_praetor_next_ready",
+    "codex_praetor_dispatch_plan_task",
     "codex_praetor_verify_task"
   ]
 }

@@ -1,6 +1,6 @@
 export type RouteKind =
   | "codex_praetor_external_worker"
-  | "codex_knowledge_radar_research"
+  | "codex_kr_primary_research"
   | "native_codex_subagent"
   | "no_delegation"
   | "needs_clarification";
@@ -12,6 +12,18 @@ export interface RouteDecision {
   suggested_next_action: string;
   matched_terms: string[];
   native_codex_subagents_allowed: boolean;
+  research_authority?: "codex_kr_primary";
+  worker_research_eligible?: boolean;
+  suggested_worker_research_mode?: "none" | "candidate_discovery" | "independent_replication";
+}
+
+export interface ResearchContract {
+  research_authority: "codex_kr_primary";
+  worker_research_mode: "candidate_discovery" | "independent_replication";
+  claim_scope: string[];
+  source_scope: string[];
+  evidence_acceptance: "supervisor_verified";
+  freshness?: "" | "day" | "week" | "month" | "year";
 }
 
 export interface PowerShellResult {

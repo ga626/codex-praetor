@@ -235,6 +235,25 @@ function New-DeterministicZip {
     }
 }
 
+function Write-ReleaseGenerationManifest {
+    param([string]$StageRoot)
+
+    $generationScript = Join-Path $projectRoot "scripts\release\get-codex-praetor-generation.ps1"
+    if (-not (Test-Path -LiteralPath $generationScript -PathType Leaf)) {
+        throw "Release generation script is missing: $generationScript"
+    }
+    $generationOutput = & $generationScript -ProjectRoot $projectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release generation script failed."
+    }
+    $generationJson = ($generationOutput | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($generationJson)) {
+        throw "Release generation script returned empty output."
+    }
+    $manifestPath = Join-Path $StageRoot "codex-praetor-release-generation.json"
+    [System.IO.File]::WriteAllText($manifestPath, ($generationJson + [Environment]::NewLine), (New-Object System.Text.UTF8Encoding($false)))
+}
+
 $include = @(
     "README.md",
     "README.en.md",
@@ -296,6 +315,7 @@ foreach ($item in $include) {
     Copy-ReleaseItem -RelativePath $item
 }
 
+Write-ReleaseGenerationManifest -StageRoot $stagePath
 Assert-PublicReleaseTree -Root $stagePath
 Assert-PublicMetadataUrls -Root $stagePath
 Assert-CmdFileUsesCrlf -Path (Join-Path $stagePath "setup.cmd") -Label "Release setup.cmd"

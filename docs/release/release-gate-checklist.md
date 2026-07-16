@@ -102,6 +102,16 @@ Before pushing or tagging:
 - After a delivery-affecting PR is merged, publish the next version's GitHub Release zip, `.sha256`, and notes from latest `main` with `scripts/release/publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION -Apply`; it must finish by running `scripts/release/verify-github-release-asset.ps1`, including the public-entry consistency gate.
 - Remote-download validation must prove the downloaded package exposes the intended user-facing behavior before calling the product delivered.
 
+## 5.1 Release Generation Closeout
+
+For every delivery-affecting release, run `scripts/release/complete-codex-praetor-release.ps1` in two phases after the new GitHub Release zip and `.sha256` are available:
+
+1. `stage` against the downloaded remote zip. It installs and hashes Skill, plugin, marketplace, and personal cache, then writes only a staged receipt.
+2. Restart Codex and collect required MCP tool names from a new context. Convert the observation into a fresh-context proof with `scripts/verify/new-codex-praetor-fresh-context-proof.ps1`.
+3. Produce a generation-matched provider readiness record from the capability canary, then run `activate` with both evidence files.
+
+Do not call the product delivered until the active receipt exists and `scripts/verify/get-codex-praetor-health.ps1 -Json` returns `ready`. A branch candidate must use an explicitly isolated `-UserProfileRoot` and must never overwrite the stable profile.
+
 ## 6. Final Human Confirmation
 
 Stop before irreversible public release steps and ask for confirmation when:

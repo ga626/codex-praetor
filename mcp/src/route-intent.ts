@@ -110,14 +110,20 @@ export function routeIntent(
   const rejectsNative = subagentMatches.length > 0 && rejectsNativeCodexSubagents(trimmed);
 
   if (researchMatches.length > 0) {
+    const workerEligible = delegationMatches.length > 0 || praetorMatches.length > 0;
     return {
-      route: "codex_knowledge_radar_research",
+      route: "codex_kr_primary_research",
       confidence: "high",
       reason:
-        "External research and network evidence collection stay with Codex through KnowledgeRadar; provider workers must not replace the primary perception layer.",
-      suggested_next_action: "Use KnowledgeRadar from Codex, then delegate only bounded local code work if needed.",
+        "Codex and KnowledgeRadar own the research route, evidence authority, conflict resolution, and final synthesis. External workers may only provide bounded candidate discovery or independent replication under a Codex research contract.",
+      suggested_next_action: workerEligible
+        ? "Create a Codex/KR research route first, then dispatch only a readonly worker research-support contract with supervisor-verified evidence acceptance."
+        : "Use KnowledgeRadar from Codex to establish the primary evidence route before considering any worker support.",
       matched_terms: allMatches,
-      native_codex_subagents_allowed: allowNativeCodexSubagents
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      research_authority: "codex_kr_primary",
+      worker_research_eligible: workerEligible,
+      suggested_worker_research_mode: workerEligible ? "candidate_discovery" : "none"
     };
   }
 

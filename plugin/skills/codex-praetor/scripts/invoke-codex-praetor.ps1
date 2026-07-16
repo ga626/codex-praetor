@@ -68,6 +68,8 @@
 
     [string]$TaskId = "",
 
+    [string]$ResearchContractJson = "",
+
     [string]$DependsOn = "",
 
     [string]$Acceptance = "",
@@ -836,8 +838,28 @@ if ([string]::IsNullOrWhiteSpace($TaskKind)) {
         $TaskKind = "local_audit"
     }
 }
+if ($TaskKind -eq "external_research" -and $Mode -ne "readonly") {
+    throw "external_research requires -Mode readonly. Codex/KR remains the primary evidence authority."
+}
+if ($TaskKind -eq "external_research" -and -not $AllowWorkerNetwork) {
+    throw "external_research requires -AllowWorkerNetwork and a Codex-approved research contract."
+}
+$researchContract = $null
 if ($TaskKind -eq "external_research") {
-    throw "external_research must stay with Codex and KnowledgeRadar. Do not dispatch external network research to a provider worker."
+    if ([string]::IsNullOrWhiteSpace($ResearchContractJson)) {
+        throw "external_research requires -ResearchContractJson from Codex."
+    }
+    try {
+        $researchContract = $ResearchContractJson | ConvertFrom-Json
+    } catch {
+        throw "ResearchContractJson is not valid JSON."
+    }
+    if ([string]$researchContract.research_authority -ne "codex_kr_primary" -or [string]$researchContract.evidence_acceptance -ne "supervisor_verified") {
+        throw "external_research requires codex_kr_primary authority and supervisor_verified evidence acceptance."
+    }
+    if (@($researchContract.claim_scope).Count -eq 0 -or @($researchContract.source_scope).Count -eq 0) {
+        throw "external_research requires non-empty claim_scope and source_scope."
+    }
 }
 if ($TaskKind -eq "code_change" -and $Mode -ne "edit") {
     throw "code_change requires -Mode edit so the worker contract cannot be mistaken for a readonly audit."
@@ -964,6 +986,8 @@ if (-not [string]::IsNullOrWhiteSpace($PermissionProfile)) {
     $effectivePermissionProfile = "local-audit-v1"
 } elseif ($TaskKind -eq "local_audit" -and $resolvedProvider -eq "mimo") {
     $effectivePermissionProfile = "mimo-isolated-audit-v1"
+} elseif ($TaskKind -eq "external_research") {
+    $effectivePermissionProfile = "external-research-support-v1"
 }
 
 $effectiveOutputFormat = [string]$tierConfig.outputFormat
@@ -1012,7 +1036,7 @@ try {
     }
 
     $contract = [ordered]@{
-        schema = "codex-praetor-task-contract/v2"
+        schema = "codex-praetor-task-contract/v3"
         job_id = $dispatchJobId
         task_kind = $TaskKind
         repo = (Resolve-Path -LiteralPath $Repo).Path
@@ -1025,6 +1049,7 @@ try {
         allowed_paths = @($AllowedPath)
         forbidden_paths = @($ForbiddenPath)
         worker_network = if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }
+        research_contract = $researchContract
         acceptance = $Acceptance
         timeout_seconds = $TimeoutSeconds
         created_at = (Get-Date).ToString("o")

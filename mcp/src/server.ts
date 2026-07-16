@@ -4,6 +4,15 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+
+const researchContractSchema = z.object({
+  research_authority: z.literal("codex_kr_primary"),
+  worker_research_mode: z.enum(["candidate_discovery", "independent_replication"]),
+  claim_scope: z.array(z.string().min(1)).min(1),
+  source_scope: z.array(z.string().min(1)).min(1),
+  evidence_acceptance: z.literal("supervisor_verified"),
+  freshness: z.enum(["", "day", "week", "month", "year"]).optional()
+});
 import {
   detectConflictsTool,
   cancelJobTool,
@@ -107,7 +116,8 @@ export function createServer(): McpServer {
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
-        task_kind: z.enum(["local_audit", "code_change"]).optional()
+        task_kind: z.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        research_contract: researchContractSchema.optional()
       }
     },
     async (input) => asJsonContent(await dispatchDryRunTool(input))
@@ -126,7 +136,8 @@ export function createServer(): McpServer {
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
-        task_kind: z.enum(["local_audit", "code_change"]).optional(),
+        task_kind: z.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        research_contract: researchContractSchema.optional(),
         plan_id: z.string().optional(),
         task_id: z.string().optional(),
         depends_on: z.string().optional(),

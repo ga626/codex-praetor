@@ -31213,13 +31213,17 @@ function routeIntent(request, allowNativeCodexSubagents = false) {
   const allMatches = [.../* @__PURE__ */ new Set([...subagentMatches, ...praetorMatches, ...delegationMatches, ...researchMatches])];
   const rejectsNative = subagentMatches.length > 0 && rejectsNativeCodexSubagents(trimmed);
   if (researchMatches.length > 0) {
+    const workerEligible = delegationMatches.length > 0 || praetorMatches.length > 0;
     return {
-      route: "codex_knowledge_radar_research",
+      route: "codex_kr_primary_research",
       confidence: "high",
-      reason: "External research and network evidence collection stay with Codex through KnowledgeRadar; provider workers must not replace the primary perception layer.",
-      suggested_next_action: "Use KnowledgeRadar from Codex, then delegate only bounded local code work if needed.",
+      reason: "Codex and KnowledgeRadar own the research route, evidence authority, conflict resolution, and final synthesis. External workers may only provide bounded candidate discovery or independent replication under a Codex research contract.",
+      suggested_next_action: workerEligible ? "Create a Codex/KR research route first, then dispatch only a readonly worker research-support contract with supervisor-verified evidence acceptance." : "Use KnowledgeRadar from Codex to establish the primary evidence route before considering any worker support.",
       matched_terms: allMatches,
-      native_codex_subagents_allowed: allowNativeCodexSubagents
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      research_authority: "codex_kr_primary",
+      worker_research_eligible: workerEligible,
+      suggested_worker_research_mode: workerEligible ? "candidate_discovery" : "none"
     };
   }
   if (rejectsNative && (praetorMatches.length > 0 || delegationMatches.length > 0)) {
@@ -31274,6 +31278,34 @@ function routeIntent(request, allowNativeCodexSubagents = false) {
 }
 
 // src/tools.ts
+function assertResearchContract(input) {
+  if (input.task_kind !== "external_research_support") {
+    return;
+  }
+  if (input.mode === "edit") {
+    throw new Error("external_research_support requires readonly mode.");
+  }
+  const contract = input.research_contract;
+  if (!contract || contract.research_authority !== "codex_kr_primary" || contract.evidence_acceptance !== "supervisor_verified") {
+    throw new Error("external_research_support requires a Codex/KR primary research contract with supervisor-verified evidence acceptance.");
+  }
+  if (contract.claim_scope.length === 0 || contract.source_scope.length === 0) {
+    throw new Error("external_research_support requires non-empty claim_scope and source_scope.");
+  }
+}
+function appendResearchContract(task, contract) {
+  if (!contract) {
+    return task;
+  }
+  return `${task}
+
+Research authority: Codex/KR is primary. You are a bounded supporting worker.
+Mode: ${contract.worker_research_mode}
+Claims: ${contract.claim_scope.join("; ")}
+Source scope: ${contract.source_scope.join("; ")}
+Evidence acceptance: supervisor verified only.
+Output every candidate with URL, retrieval time, excerpt, claim, and uncertainty. Do not present final conclusions.`;
+}
 function routeIntentTool(input) {
   const decision = routeIntent(input.request, input.allow_native_codex_subagents ?? false);
   return {
@@ -31360,6 +31392,7 @@ async function cancelJobTool(input) {
 }
 async function dispatchDryRunTool(input) {
   const repo = resolveExistingRepo(input.repo);
+  assertResearchContract(input);
   const args = [
     "-NoProfile",
     "-ExecutionPolicy",
@@ -31371,7 +31404,7 @@ async function dispatchDryRunTool(input) {
     "-Repo",
     repo,
     "-Task",
-    input.task,
+    appendResearchContract(input.task, input.research_contract),
     "-Mode",
     input.mode ?? "readonly",
     "-RunMode",
@@ -31380,7 +31413,11 @@ async function dispatchDryRunTool(input) {
     "-NoNotify"
   ];
   if (input.task_kind) {
-    args.push("-TaskKind", input.task_kind);
+    args.push("-TaskKind", input.task_kind === "external_research_support" ? "external_research" : input.task_kind);
+  }
+  if (input.task_kind === "external_research_support") {
+    args.push("-AllowWorkerNetwork");
+    args.push("-ResearchContractJson", JSON.stringify(input.research_contract));
   }
   if (input.tier?.trim()) {
     args.push("-Tier", input.tier.trim());
@@ -31438,7 +31475,11 @@ function buildDispatchArgs(input) {
     input.run_mode ?? "background"
   ];
   if (input.task_kind) {
-    args.push("-TaskKind", input.task_kind);
+    args.push("-TaskKind", input.task_kind === "external_research_support" ? "external_research" : input.task_kind);
+  }
+  if (input.task_kind === "external_research_support") {
+    args.push("-AllowWorkerNetwork");
+    args.push("-ResearchContractJson", JSON.stringify(input.research_contract));
   }
   appendOptionalStringArg(args, "-Tier", input.tier);
   appendOptionalStringArg(args, "-PlanId", input.plan_id);
@@ -31543,10 +31584,12 @@ ${input.stderr_tail}`.toLowerCase();
 }
 async function dispatchTool(input) {
   const repo = resolveExistingRepo(input.repo);
+  assertResearchContract(input);
   const runMode = input.run_mode ?? "background";
   const result = await runPowerShell(
     buildDispatchArgs({
       ...input,
+      task: appendResearchContract(input.task, input.research_contract),
       repo,
       provider: input.provider ?? "auto",
       run_mode: runMode,
@@ -31568,6 +31611,7 @@ async function dispatchTool(input) {
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
     task_kind: fields.task_kind ?? input.task_kind ?? "",
+    research_contract: input.research_contract ?? null,
     job_id: fields.job_id ?? "",
     job_dir: fields.job_dir ?? "",
     watcher_pid: fields.watcher_pid ?? "",
@@ -32150,6 +32194,14 @@ async function verifyTaskTool(input) {
 }
 
 // src/server.ts
+var researchContractSchema = external_exports.object({
+  research_authority: external_exports.literal("codex_kr_primary"),
+  worker_research_mode: external_exports.enum(["candidate_discovery", "independent_replication"]),
+  claim_scope: external_exports.array(external_exports.string().min(1)).min(1),
+  source_scope: external_exports.array(external_exports.string().min(1)).min(1),
+  evidence_acceptance: external_exports.literal("supervisor_verified"),
+  freshness: external_exports.enum(["", "day", "week", "month", "year"]).optional()
+});
 var readOnlyClosedWorld = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -32226,7 +32278,8 @@ function createServer() {
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
-        task_kind: external_exports.enum(["local_audit", "code_change"]).optional()
+        task_kind: external_exports.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        research_contract: researchContractSchema.optional()
       }
     },
     async (input) => asJsonContent(await dispatchDryRunTool(input))
@@ -32244,7 +32297,8 @@ function createServer() {
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
-        task_kind: external_exports.enum(["local_audit", "code_change"]).optional(),
+        task_kind: external_exports.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        research_contract: researchContractSchema.optional(),
         plan_id: external_exports.string().optional(),
         task_id: external_exports.string().optional(),
         depends_on: external_exports.string().optional(),
