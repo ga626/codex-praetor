@@ -10,7 +10,8 @@ param(
     [string]$ExpectedArtifactSha256 = "",
     [string]$FreshContextProofPath = "",
     [string]$ProviderReadinessPath = "",
-    [switch]$Apply
+    [switch]$Apply,
+    [switch]$SkipMaintenance
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,6 +43,7 @@ $skillPath = Join-Path $codexRoot "skills\codex-praetor"
 $pluginPath = Join-Path $profilePath "plugins\codex-praetor"
 $marketplacePath = Join-Path $profilePath ".agents\plugins\marketplace.json"
 $cacheRoot = Join-Path $codexRoot (Join-Path "plugins" (Join-Path "cache" (Join-Path "personal" "codex-praetor")))
+$skillBackupRoot = Join-Path $codexRoot "codex-praetor-backups\skills"
 $cachePath = Join-Path $cacheRoot ([string]$generation.version)
 $receiptRoot = Join-Path $codexRoot "codex-praetor-releases\$Channel"
 $receiptPath = Join-Path $receiptRoot "receipts\$($generation.generation_id).json"
@@ -207,7 +209,7 @@ if ($Phase -eq "stage") {
     New-Item -ItemType Directory -Path (Split-Path -Parent $skillPath) -Force | Out-Null
     & $installScript -SourcePlugin $stagePluginRoot -InstallRoot $pluginPath -MarketplacePath $marketplacePath -Apply
     if ($LASTEXITCODE -ne 0) { throw "Plugin stage failed." }
-    & $skillPublishScript -SourceSkill $stageSkillRoot -InstalledSkill $skillPath -BackupRoot (Join-Path $receiptRoot "backups\skills") -Apply
+    & $skillPublishScript -SourceSkill $stageSkillRoot -InstalledSkill $skillPath -BackupRoot $skillBackupRoot -Apply
     if ($LASTEXITCODE -ne 0) { throw "Skill stage failed." }
     & $cachePublishScript -InstallRoot $pluginPath -CacheRoot $cacheRoot -Apply
     if ($LASTEXITCODE -ne 0) { throw "Cache stage failed." }
@@ -271,5 +273,17 @@ $receipt.fresh_context = $proof
 $receipt.provider_readiness = $readiness
 Write-JsonAtomically -Path $receiptPath -Value $receipt
 Write-JsonAtomically -Path $activeReceiptPath -Value $receipt
+$reconcileScript = Join-Path $projectPath "scripts\maintenance\reconcile-codex-praetor-generations.ps1"
+if (-not (Test-Path -LiteralPath $reconcileScript -PathType Leaf)) { throw "Generation reconcile script is missing: $reconcileScript" }
+& $reconcileScript -UserProfileRoot $profilePath -Channel $Channel -Apply
+if ($LASTEXITCODE -ne 0) { throw "Generation retirement reconcile failed with exit code $LASTEXITCODE." }
+$maintenanceScript = Join-Path $projectPath "scripts\install\install-codex-praetor-maintenance.ps1"
+if ($Channel -eq "stable" -and -not $SkipMaintenance) {
+    if (-not (Test-Path -LiteralPath $maintenanceScript -PathType Leaf)) { throw "Generation maintenance script is missing: $maintenanceScript" }
+    & $maintenanceScript -UserProfileRoot $profilePath -SourceRoot $projectPath -Apply
+    if ($LASTEXITCODE -ne 0) { throw "Generation maintenance task installation failed with exit code $LASTEXITCODE." }
+} elseif ($SkipMaintenance) {
+    Write-Host "[INFO] Maintenance task installation skipped. Only isolated validation may use this switch." -ForegroundColor Yellow
+}
 Write-Host "[PASS] Active release receipt written. Real dispatch may now rely on the generation health gate."
 Write-Host "active_receipt=$activeReceiptPath"

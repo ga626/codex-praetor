@@ -17,6 +17,7 @@ $profileRoot = Join-Path $testRoot "profile"
 $observedToolsPath = Join-Path $testRoot "observed-tools.json"
 $proofPath = Join-Path $testRoot "fresh-context-proof.json"
 $readinessPath = Join-Path $testRoot "provider-readiness.json"
+$noReceiptProfileRoot = Join-Path $testRoot "no-active-receipt-profile"
 $generationScript = Join-Path $projectPath "scripts\release\get-codex-praetor-generation.ps1"
 $buildScript = Join-Path $projectPath "scripts\release\build-codex-praetor-release.ps1"
 $closeoutScript = Join-Path $projectPath "scripts\release\complete-codex-praetor-release.ps1"
@@ -75,7 +76,7 @@ try {
         tuple = [ordered]@{ cli = "test"; model = "test"; mode = "readonly" }
     }
     $readiness | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $readinessPath -Encoding UTF8
-    & $closeoutScript -Phase activate -Channel stable -ProjectRoot $projectPath -UserProfileRoot $profileRoot -FreshContextProofPath $proofPath -ProviderReadinessPath $readinessPath -Apply
+    & $closeoutScript -Phase activate -Channel stable -ProjectRoot $projectPath -UserProfileRoot $profileRoot -FreshContextProofPath $proofPath -ProviderReadinessPath $readinessPath -Apply -SkipMaintenance
     if ($LASTEXITCODE -ne 0) { throw "Release activation failed in closeout smoke." }
     Assert-True (Test-Path -LiteralPath $activeReceipt -PathType Leaf) "Activation must write an active receipt."
 
@@ -86,7 +87,44 @@ try {
     & $healthScript -Repo $projectPath -Channel stable -UserProfileRoot $profileRoot -Json | Out-Null
     Assert-True ($LASTEXITCODE -eq 2) "Plugin drift must block the health gate."
 
-    Write-Host "[PASS] Release closeout smoke passed: stage, activation, and drift rejection are verified."
+    $cacheRoot = Join-Path $profileRoot (Join-Path ('.' + 'codex') (Join-Path "plugins" (Join-Path "cache" (Join-Path "personal" "codex-praetor"))))
+    $activeCachePath = Join-Path $cacheRoot ([string]$generation.version)
+    Assert-True (Test-Path -LiteralPath $activeCachePath -PathType Container) "Active cache generation must remain present."
+
+    $stalePath = Join-Path $cacheRoot "0.1.0-alpha"
+    New-Item -ItemType Directory -Path $stalePath -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $stalePath "stale.txt") -Value "stale" -Encoding ASCII
+    (Get-Item -LiteralPath $stalePath).LastWriteTimeUtc = [DateTime]::UtcNow.AddMinutes(-2)
+    & (Join-Path $projectPath "scripts\maintenance\reconcile-codex-praetor-generations.ps1") -UserProfileRoot $profileRoot -Channel stable -RetentionDays 0 -Apply
+    Assert-True (-not (Test-Path -LiteralPath $stalePath)) "Expired inactive cache generation must be deleted."
+    Assert-True (Test-Path -LiteralPath $activeCachePath -PathType Container) "Retirement reconcile must not delete the active cache generation."
+
+    $noReceiptCacheRoot = Join-Path $noReceiptProfileRoot (Join-Path ('.' + 'codex') (Join-Path "plugins" (Join-Path "cache" (Join-Path "personal" "codex-praetor"))))
+    $noReceiptStalePath = Join-Path $noReceiptCacheRoot "0.0.1-alpha"
+    New-Item -ItemType Directory -Path $noReceiptStalePath -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $noReceiptStalePath "stale.txt") -Value "stale" -Encoding ASCII
+    & (Join-Path $projectPath "scripts\maintenance\reconcile-codex-praetor-generations.ps1") -UserProfileRoot $noReceiptProfileRoot -Channel stable -RetentionDays 0 -Apply
+    Assert-True (Test-Path -LiteralPath $noReceiptStalePath -PathType Container) "Without an active receipt, retirement must defer deletion."
+
+    $lockedPath = Join-Path $cacheRoot "0.1.1-alpha"
+    $lockedFilePath = Join-Path $lockedPath "locked.txt"
+    New-Item -ItemType Directory -Path $lockedPath -Force | Out-Null
+    Set-Content -LiteralPath $lockedFilePath -Value "locked" -Encoding ASCII
+    (Get-Item -LiteralPath $lockedPath).LastWriteTimeUtc = [DateTime]::UtcNow.AddMinutes(-2)
+    $lockStream = [IO.File]::Open($lockedFilePath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+    try {
+        & (Join-Path $projectPath "scripts\maintenance\reconcile-codex-praetor-generations.ps1") -UserProfileRoot $profileRoot -Channel stable -RetentionDays 0 -Apply
+        $retirementPath = Join-Path $profileRoot ".codex\codex-praetor-releases\stable\retirement.json"
+        $retirementPayload = Get-Content -LiteralPath $retirementPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $lockedEntry = @($retirementPayload.entries | Where-Object { [string]$_.path -ieq ([IO.Path]::GetFullPath($lockedPath)) } | Select-Object -First 1)
+        Assert-True ($lockedEntry.Count -eq 1 -and [string]$lockedEntry[0].status -eq "blocked_by_process") "Locked retired generation must be recorded as blocked_by_process."
+    } finally {
+        $lockStream.Dispose()
+    }
+    & (Join-Path $projectPath "scripts\maintenance\reconcile-codex-praetor-generations.ps1") -UserProfileRoot $profileRoot -Channel stable -RetentionDays 0 -Apply
+    Assert-True (-not (Test-Path -LiteralPath $lockedPath)) "A previously locked retired generation must be removed on a later retry."
+
+    Write-Host "[PASS] Release closeout smoke passed: stage, activation, drift rejection, and retirement lifecycle are verified."
 } finally {
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force

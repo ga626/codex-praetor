@@ -58,6 +58,7 @@ https://github.com/ga626/codex-praetor/releases/tag/v0.2.0-alpha
 - 把已发现的 provider CLI 路径写入当前用户本机配置。
 - 最后给出一张中文状态总览，告诉你本体是否可用、哪些 provider 可继续 canary、哪些还缺安装或登录。
 - 调用现有安装脚本，把插件复制到当前用户目录。
+- 安装用户级代际维护任务：登录时运行一次，之后每 15 分钟重试旧 generation、备份和失败临时目录的安全回收。
 
 向导不会：
 
@@ -102,6 +103,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
 安装脚本会先复制到临时目录，校验文件 hash 后再替换旧目录。旧目录会被移动到备份目录。
+
+旧目录不会在安装瞬间强制删除。维护任务会读取 active receipt，只回收非活动、超过保留窗口且没有被进程占用的目录；占用或临时失败会记录为待重试状态，不会强杀 Codex，也不会影响已激活的新 generation。可以这样查看任务：
+
+```powershell
+Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile
+```
 
 正式更新会另外生成一份发布回执。回执会同时记录下载包校验、Skill、插件、缓存、marketplace、重新打开 Codex 后的 MCP 工具面，以及 provider canary。只有回执完整且健康检查通过，才允许真实派工；如果更新中断，系统会拒绝新版本派工，而不会把一组混装文件当作可用版本。
 
@@ -236,6 +243,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 ```
 
 安装脚本会用新的插件目录替换旧目录，并保留一次备份。
+
+旧 generation、插件备份和失败临时目录由同一个回收清单统一追踪。更新后不需要每次手动清理；如果 Codex 仍在使用旧路径，健康检查会显示延迟回收状态，释放占用后维护任务自动重试。
 
 更新后如果 Codex 看不到插件：
 

@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Repo = (Get-Location).Path,
     [ValidateSet("stable", "dev")]
     [string]$Channel = "stable",
@@ -155,6 +155,33 @@ if ($null -ne $receipt -and [string]$receipt.provider_readiness.status -eq "pass
     Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "Versioned provider readiness is missing or failed; real dispatch must refuse." -Details $activeReceiptPath
 }
 
+$retirementManifestPath = Join-Path (Split-Path -Parent $activeReceiptPath) "retirement.json"
+$retirement = $null
+$retirementSummary = [pscustomobject]@{
+    manifest = $retirementManifestPath
+    status = "not_initialized"
+    counts = [pscustomobject]@{ total = 0; pending = 0; blocked_by_process = 0; deferred = 0; deleted = 0 }
+}
+if (Test-Path -LiteralPath $retirementManifestPath -PathType Leaf) {
+    try {
+        $retirement = Get-Content -LiteralPath $retirementManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $entries = @($retirement.entries)
+        $retirementSummary.counts.total = @($entries).Count
+        $retirementSummary.counts.pending = @($entries | Where-Object { [string]$_.status -eq "pending" }).Count
+        $retirementSummary.counts.blocked_by_process = @($entries | Where-Object { [string]$_.status -eq "blocked_by_process" }).Count
+        $retirementSummary.counts.deferred = @($entries | Where-Object { [string]$_.status -like "deferred_*" }).Count
+        $retirementSummary.counts.deleted = @($entries | Where-Object { [string]$_.status -eq "deleted" }).Count
+        $retirementSummary.status = "readable"
+        Add-HealthCheck -Name "generation_retirement" -Status "ready" -Message "退休回收状态已读取；待回收或占用路径不会阻断当前 active generation。" -Details $retirementSummary
+    } catch {
+        $retirementSummary.status = "invalid"
+        $retirementSummary.error = $_.Exception.Message
+        Add-HealthCheck -Name "generation_retirement" -Status "degraded" -Message "退休清单无法读取；active generation 未回滚，但需要维护任务重试或人工检查。" -Details $retirementSummary
+    }
+} else {
+    Add-HealthCheck -Name "generation_retirement" -Status "ready" -Message "当前没有退休清单；没有待回收代际。" -Details $retirementSummary
+}
+
 $overall = if (@($checks | Where-Object { $_.status -eq "blocked" }).Count -gt 0) { "blocked" } elseif (@($checks | Where-Object { $_.status -ne "ready" }).Count -gt 0) { "degraded" } else { "ready" }
 $payload = [pscustomobject]@{
     schema = "codex-praetor-health/v3"
@@ -163,6 +190,7 @@ $payload = [pscustomobject]@{
     channel = $Channel
     runtime_contract = if ($null -eq $contract) { "" } else { [string]$contract.version }
     active_receipt = $activeReceiptPath
+    generation_retirement = $retirementSummary
     checks = $checks
 }
 if ($Json) { $payload | ConvertTo-Json -Depth 12 } else { Write-Host "Codex Praetor health: $overall"; $checks | ForEach-Object { Write-Host "[$($_.status)] $($_.name): $($_.message)" } }

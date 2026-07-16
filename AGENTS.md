@@ -1,84 +1,66 @@
-# Codex Praetor Project Rules
+# Codex Praetor 项目规则
 
-## Product Boundary
+## 产品边界
 
-Codex Praetor serves Codex. It dispatches bounded work to external lower-cost CLI agents and keeps Codex as the planner, supervisor, and verifier.
+Codex Praetor 服务于 Codex：把边界清楚的工作分配给外部命令行代理，由 Codex 负责规划、监督和验收。除非用户明确改变范围，否则不要扩展为通用多代理平台。
 
-Do not implement a broad generic multi-agent platform unless the user explicitly changes the product scope.
+## 命名与结构
 
-## Naming
+统一使用：产品 `Codex Praetor`，中文名 `Codex 执政官`，仓库/Skill/MCP 服务名 `codex-praetor`，MCP 工具前缀 `codex_praetor_`。
 
-Use these names consistently:
+- `skill/`：Skill 源码。
+- `scripts/`：按 `dispatch/`、`install/`、`verify/`、`release/`、`maintenance/` 分组的脚本。
+- `mcp/`：MCP 源码。
+- `plugin/`：最终插件包结构。
 
-- Product display name: `Codex Praetor`
-- Chinese name: `Codex 执政官`
-- Repository name: `codex-praetor`
-- Skill name: `codex-praetor`
-- MCP server name: `codex-praetor`
-- MCP tool prefix: `codex_praetor_`
-- Local project path: this repository checkout.
+旧名称 `cheap-worker-orchestrator`、`WorkerLane`、`workerlane` 只能出现在迁移记录、审计规则或历史报告中，不得作为活动产品名称或新接口名称。
 
-Do not reintroduce `cheap-worker-orchestrator`, `WorkerLane`, or `workerlane` as active product names.
+## 本地安装边界
 
-## Structure
-
-Keep source and distribution paths separate but shallow:
-
-- `skill/` is the source skill.
-- `scripts/` is the source script set, grouped by role: `dispatch/`, `install/`, `verify/`, `release/`, and `maintenance/`.
-- `mcp/` is the MCP source.
-- `plugin/` is the final Codex plugin package shape.
-
-Prefer updating root-level docs over burying important decisions in deep folders.
-
-## Local Install Boundary
-
-This repository checkout is the development project, not the installed Codex skill path.
-
-The local installed skill remains under the current Windows user's Codex home:
+仓库检出目录是开发项目，不是已安装 Skill。当前用户的已安装 Skill 位于：
 
 ```text
 %USERPROFILE%\.codex\skills\codex-praetor
 ```
 
-Do not replace the installed skill with a symlink, junction, shortcut, or path pointer to D drive.
+已安装 Skill 必须是真实目录，不得链接到仓库检出目录。开发验证使用明确隔离的 `UserProfileRoot`，不得覆盖稳定 Skill、插件、市场、缓存或活动收据。除非用户明确要求，不增加自动发布/同步；更新本地安装必须显式复制并校验。
 
-Do not add an automatic publish/sync mechanism unless the user explicitly asks for it. When local installation needs to be updated, do one explicit copy-and-verify operation.
+## 开发、PR 与发布
 
-## 发布交付边界
+详细发布步骤以 `docs/release/release-gate-checklist.md` 为准；本文件只规定判断边界：
 
-用户入口是 GitHub Release 的 `codex-praetor-setup-*.zip`，不是 `main` 源码树本身。
+用户入口是 GitHub Release 的 `codex-praetor-setup-*.zip`，不是 `main` 源码树。修改 `setup.cmd`、`setup.ps1`、`plugin/`、`skill/`、`mcp/`、安装/排错/发布文档、版本号或安装体验，均属于影响交付的修改。
 
-凡改到 `setup.cmd`、`setup.ps1`、`plugin/`、`skill/`、`mcp/`、安装/排错/发布文档、版本号或安装体验，都算影响发布。用户合并这类 PR 后，必须同步最新 `main`，构建 zip 和 `.sha256`，更新 GitHub Release 资产/说明，再下载远端 zip、解压复验 setup 文件、文档、版本和关键向导行为，才能说产品已交付。
+- **PR 开发中**：只改源码检出目录和隔离验证环境。普通实现修改不需要新建 Codex 任务。
+- **PR 就绪**：基于最新目标分支完成工作树、测试、构建、打包、文档和冲突检查；不启用稳定版本。`PR 就绪` 不等于 `产品已交付`。
+- **PR 合并后**：交付影响修改必须同步最新 `main`，构建并下载 Release zip 和 `.sha256`，stage/hash-verify，完成必要的全新上下文 MCP 验收和 provider readiness，再 activate。
+- **全新上下文触发条件**：只有 MCP 工具名称/参数、Skill 或 Plugin manifest、安装入口、插件来源或工具合同变化时，每个版本代际验收一次；普通实现修改、reload 或文件编辑不触发。
+- **产品已交付**：必须同时有活动收据、健康门禁通过、远端包按普通用户路径复验通过，并记录旧版本代际的回收状态。旧文件被占用时报告“新版本已交付，旧版本自动延迟回收中”，不得声称缓存已全部清空。
 
-### Release Generation And Closeout
+Codex 负责分支、修改、验证、提交和 PR 材料；用户负责 GitHub 权限、创建/合并 PR、发布审批和体验判断。除非用户明确授权，Codex 不代合并或发布。
 
-- A release is one immutable generation: version, main commit, release zip SHA256, runtime contract, Skill tree, plugin tree, cache tree, marketplace activation, fresh-context MCP proof, and provider readiness must be recorded in one release receipt.
-- A branch build is a candidate only. It must not overwrite the current user's stable Skill, plugin, cache, marketplace activation, or active receipt. Dev validation uses an explicitly supplied isolated user-profile root.
-- Stable closeout is two phase: stage and hash-verify all local surfaces from the downloaded Release zip, then activate only after a fresh Codex context proves the required native MCP tools and a generation-matched provider readiness record passes.
-- There is no cross-directory filesystem transaction. If stage or activation fails, do not write a new active receipt; keep or restore the previous active generation and report `代码已合并，产品未交付`.
-- Real dispatch must fail closed when the active receipt, any install surface hash, marketplace entry, fresh-context proof, or provider readiness does not match the runtime contract generation.
+## 版本代际与回收
 
-## Research Authority
+- 发布版本代际不可变；不得原地覆盖可能仍被 Codex 对话引用的目录。
+- 发布器不得直接删除旧缓存、插件、Skill 或备份，必须交给统一的退休/回收机制。
+- 回收机制必须可重复、限定在批准根目录内，并在发布收口、安装、用户登录和后续定时维护时重试。活动版本永远不是回收候选。
+- Windows 报告占用、权限或临时 IO 失败时，保留旧版本，记录原因和下次重试时间；不得强杀 Codex、停止 provider 或把延迟删除报告为成功。
+- 回收失败不得改变活动收据或回滚已通过的 activation。若自动回收机制尚未实现，不得声称产品已交付。
+- 不得用兼容 junction/稳定指针把旧工具合同静默映射到新合同；同合同兼容别名也必须有记录和测试。
 
-- Codex plus KnowledgeRadar owns external research routes and final evidence synthesis. Provider workers may do readonly candidate discovery or independent replication only under a Codex-issued research contract with `codex_kr_primary` authority and `supervisor_verified` acceptance.
-- A worker research result must include source URL, retrieval time, excerpt, claim, and uncertainty. It cannot independently satisfy high-risk fact checks, cross-source conclusions, release decisions, or user-facing recommendations.
+## 原生进程调用
 
-## Safety
+- 原生 CLI 以进程退出后的 `exit_code == 0` 判定成功；`stderr` 只是诊断信息。
+- 需要读取 `$LASTEXITCODE` 时，不得在 `$ErrorActionPreference = "Stop"` 下用 `2>&1` 合并 provider、Git、发布或 app-server 调用的错误流。
+- 统一辅助程序分离捕获 stdout/stderr，记录启动失败、超时、退出码和诊断尾部，兼容 Windows PowerShell 5.1 与 PowerShell 7，避免流死锁。
+- marker、工作树、completion 和 provider readiness 是退出码之后的附加门禁；退出码或 marker 任一失败都必须失败。
 
-Do not commit API keys, auth tokens, provider account files, usage screenshots, or local app databases.
+## 研究与安全
 
-Do not mutate Qoder, CodeBuddy, or MiMo internal databases. Use their official CLI surfaces.
+- 外部研究由 Codex 与 KnowledgeRadar 负责路线和证据综合。Provider 代理只能在 Codex 签发、具有 `codex_kr_primary` 并经 `supervisor_verified` 验收的只读研究契约下工作；结果必须有来源、时间、摘录、主张和不确定性。
+- 不得提交 API 密钥、认证 token、provider 账户文件、截图或本地数据库；不得修改 Qoder、CodeBuddy、MiMo 内部数据库，必须使用官方命令行接口。
+- Codex Praetor 默认不启动 Codex 子代理；节省成本的派工使用外部命令行代理。
 
-Codex Praetor must not spawn Codex subagents by default. For cost-saving delegation, use external CLI workers.
+## 最小验证
 
-## Verification
-
-Before saying a rename or migration is complete:
-
-- Scan for old names: `cheap-worker-orchestrator`, `WorkerLane`, `workerlane`, old script names.
-- Run a dry-run through `scripts/dispatch/invoke-codex-praetor.ps1`.
-- Confirm the skill frontmatter name is `codex-praetor`.
-- Confirm plugin manifest name is `codex-praetor`.
-- Confirm runtime outputs are ignored by Git and stay project-local.
-- Confirm the C drive installed skill is a real directory, not a link to this repo.
+完成代码、迁移或重命名前，必须根据改动范围执行真实文件/命令验证：检查差异和冲突、运行相关测试/构建、确认工作树状态，并确认最终用户路径可用。重命名/迁移还必须：扫描活动产品文件中的旧名称（排除本规则、迁移记录和历史报告）、运行 `scripts/dispatch/invoke-codex-praetor.ps1` 试运行、确认 Skill/plugin manifest 名称、确认运行时输出被 Git 忽略且已安装 Skill 是真实目录。

@@ -36,6 +36,11 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
 
+      - name: Native invocation regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor-native.ps1
+
       - name: Public entry consistency
         shell: pwsh
         run: |
@@ -50,3 +55,8 @@ jobs:
         shell: pwsh
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-package-determinism.ps1
+
+      - name: Isolated release closeout lifecycle
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-closeout.ps1

@@ -12,6 +12,7 @@
 | 没有 Qoder、CodeBuddy、MiMo | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
 | provider 已安装但真实派工失败 | provider 未登录、权限不够、CLI 路径不对、任务超轮数或 worker 无有效产出 | 先读取 worker result 摘要和失败分类；需要账号动作时重新运行向导，任务太大时缩小后重派 |
 | 执行 provider 官方安装时提示网络不可用或超时 | 官方安装源、DNS、代理或系统网络还没准备好 | 检查网络/代理后重试；也可以先跳过 provider，先完成本体安装 |
+| 更新后旧目录仍然存在 | 旧 generation 仍在保留窗口内，或被 Codex/运行时占用 | 查看 health/退休清单；不要强杀 Codex，维护任务会在下次登录或 15 分钟重试 |
 
 ## 看不到 Codex Praetor 插件
 
@@ -51,6 +52,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex
 如果 probe 成功，说明底层 MCP 服务还活着，只是当前这一次模型回合里的工具句柄旧了。可以等待下一轮工具上下文刷新，或重试一次原动作。
 
 如果还是失败，再重启 Codex 或打开新任务。
+
+## 旧 generation 没有立即删除
+
+这是预期的生命周期状态，不代表新版本没有安装成功。发布或更新会先写入新的 immutable generation，再把旧插件、Skill 备份、cache 目录登记到退休清单。只有 active receipt 存在、路径超过保留窗口且没有占用时，维护任务才会删除它。
+
+查看维护任务和退休清单：
+
+```powershell
+Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile
+Get-Content "$env:USERPROFILE\.codex\codex-praetor-releases\stable\retirement.json"
+```
+
+`blocked_by_process` 表示 Windows 拒绝了当前删除尝试；不要手动移动旧目录，也不要强杀 Codex。关闭或退出仍引用旧路径的程序后，任务会自动重试。`active` generation 永远不会进入回收候选。
 
 ## 没有安装 Qoder、CodeBuddy、MiMo
 
