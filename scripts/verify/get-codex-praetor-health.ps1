@@ -97,7 +97,7 @@ if (Test-Path -LiteralPath $activeReceiptPath -PathType Leaf) {
 }
 if ($null -eq $receipt -or [string]$receipt.status -ne "active") {
     Add-HealthCheck -Name "active_receipt" -Status "blocked" -Message "No active release receipt exists for this channel; real dispatch must refuse." -Details $activeReceiptPath
-} elseif ($null -eq $contract -or [string]$receipt.generation.version -ne [string]$contract.version) {
+} elseif ($null -eq $contract -or [string]$receipt.schema -ne "codex-praetor-release-receipt/v2" -or [string]$receipt.generation.version -ne [string]$contract.version -or [string]$receipt.generation.task_contract_schema -ne [string]$contract.taskContractSchema) {
     Add-HealthCheck -Name "active_receipt" -Status "blocked" -Message "Active receipt does not match the runtime contract version." -Details $activeReceiptPath
 } else {
     Add-HealthCheck -Name "active_receipt" -Status "ready" -Message "Active release receipt matches the runtime contract." -Details ([string]$receipt.generation.generation_id)
@@ -149,7 +149,7 @@ if ($null -ne $receipt -and [string]$receipt.fresh_context.status -eq "passed") 
     Add-HealthCheck -Name "fresh_context" -Status "blocked" -Message "Fresh-context MCP proof is missing or failed; real dispatch must refuse." -Details $activeReceiptPath
 }
 
-if ($null -ne $receipt -and [string]$receipt.provider_readiness.status -eq "passed") {
+if ($null -ne $receipt -and [string]$receipt.provider_readiness.status -eq "passed" -and [string]$receipt.provider_readiness.generation_id -eq [string]$receipt.generation.generation_id -and [string]$receipt.provider_readiness.runtime_contract_sha256 -eq [string]$receipt.generation.runtime_contract_sha256) {
     Add-HealthCheck -Name "provider_readiness" -Status "ready" -Message "Provider readiness passed for the active generation." -Details $activeReceiptPath
 } else {
     Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "Versioned provider readiness is missing or failed; real dispatch must refuse." -Details $activeReceiptPath
@@ -184,7 +184,7 @@ if (Test-Path -LiteralPath $retirementManifestPath -PathType Leaf) {
 
 $overall = if (@($checks | Where-Object { $_.status -eq "blocked" }).Count -gt 0) { "blocked" } elseif (@($checks | Where-Object { $_.status -ne "ready" }).Count -gt 0) { "degraded" } else { "ready" }
 $payload = [pscustomobject]@{
-    schema = "codex-praetor-health/v3"
+    schema = "codex-praetor-health/v4"
     status = $overall
     repo = (Resolve-Path -LiteralPath $Repo).Path
     channel = $Channel

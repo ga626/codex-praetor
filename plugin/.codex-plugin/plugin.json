@@ -1,6 +1,6 @@
 {
     "name":  "codex-praetor",
-    "version":  "0.2.0-alpha",
+    "version":  "0.3.0-alpha",
     "description":  "给 Codex 使用的外部 Agent 编排工具。",
     "author":  {
                    "name":  "Codex Praetor"

@@ -51,6 +51,21 @@ $activeReceiptPath = Join-Path $receiptRoot "active.json"
 $artifactRoot = Join-Path $receiptRoot "artifacts"
 $artifactExtractPath = Join-Path $artifactRoot $generation.generation_id
 
+$tagConflict = $false
+if (Test-Path -LiteralPath $activeReceiptPath -PathType Leaf) {
+    try {
+        $existingActive = Get-Content -LiteralPath $activeReceiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$existingActive.release.tag -eq $ReleaseTag -and [string]$existingActive.generation.generation_id -ne [string]$generation.generation_id) {
+            $tagConflict = $true
+        }
+    } catch {
+        throw "Active receipt is unreadable; refusing to decide whether release tag '$ReleaseTag' can be reused: $($_.Exception.Message)"
+    }
+}
+if ($tagConflict) {
+    throw "Release tag '$ReleaseTag' is already active for another generation; immutable release tags cannot be reused."
+}
+
 function Get-TreeDigest {
     param([string]$Root)
     if (-not (Test-Path -LiteralPath $Root -PathType Container)) { throw "Tree is missing: $Root" }
@@ -86,6 +101,8 @@ function Assert-GenerationMatches {
         @("commit", [string]$ArtifactGeneration.commit, [string]$generation.commit),
         @("content_manifest_sha256", [string]$ArtifactGeneration.content_manifest_sha256, [string]$generation.content_manifest_sha256),
         @("runtime_contract_sha256", [string]$ArtifactGeneration.runtime_contract_sha256, [string]$generation.runtime_contract_sha256),
+        @("wrapper_protocol", [string]$ArtifactGeneration.wrapper_protocol, [string]$generation.wrapper_protocol),
+        @("task_contract_schema", [string]$ArtifactGeneration.task_contract_schema, [string]$generation.task_contract_schema),
         @("skill_tree_sha256", [string]$ArtifactGeneration.trees.skill.sha256, [string]$generation.trees.skill.sha256),
         @("plugin_tree_sha256", [string]$ArtifactGeneration.trees.plugin.sha256, [string]$generation.trees.plugin.sha256)
     )
@@ -219,7 +236,7 @@ if ($Phase -eq "stage") {
         throw "Staged install surfaces do not match the source generation."
     }
     $receipt = [ordered]@{
-        schema = "codex-praetor-release-receipt/v1"
+        schema = "codex-praetor-release-receipt/v2"
         status = "staged"
         channel = $Channel
         staged_at = [DateTime]::UtcNow.ToString("o")
@@ -227,7 +244,7 @@ if ($Phase -eq "stage") {
         release = [ordered]@{ tag = $ReleaseTag; artifact = $artifact }
         surfaces = $surfaces
         fresh_context = [ordered]@{ status = "pending" }
-        provider_readiness = [ordered]@{ status = "pending" }
+        provider_readiness = [ordered]@{ status = "pending"; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = [string]$generation.runtime_contract_sha256; task_contract_schema = [string]$generation.task_contract_schema }
         rollback = [ordered]@{ previous_active_receipt = if (Test-Path -LiteralPath $activeReceiptPath) { $activeReceiptPath } else { "" } }
     }
     Write-JsonAtomically -Path $receiptPath -Value $receipt
@@ -248,8 +265,10 @@ $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFr
 $proof = Get-Content -LiteralPath $FreshContextProofPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $readiness = Get-Content -LiteralPath $ProviderReadinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ([string]$receipt.status -ne "staged" -or [string]$receipt.generation.generation_id -ne [string]$generation.generation_id) { throw "Staged receipt does not match the current generation." }
+if ([string]$receipt.schema -ne "codex-praetor-release-receipt/v2") { throw "Staged receipt uses an unsupported schema." }
 if ([string]$proof.status -ne "passed" -or [string]$proof.generation_id -ne [string]$generation.generation_id) { throw "Fresh-context proof does not pass for this generation." }
-if ([string]$readiness.status -ne "passed" -or [string]$readiness.generation_id -ne [string]$generation.generation_id) { throw "Provider readiness does not pass for this generation." }
+if ([string]$readiness.schema -ne "codex-praetor-generation-readiness/v2" -or [string]$readiness.status -ne "passed" -or [string]$readiness.generation_id -ne [string]$generation.generation_id) { throw "Provider readiness does not pass for this generation." }
+if ([string]$readiness.runtime_contract_sha256 -ne [string]$generation.runtime_contract_sha256 -or [string]$readiness.task_contract_schema -ne [string]$generation.task_contract_schema) { throw "Provider readiness does not match the runtime contract." }
 
 $surfaces = Get-Surfaces
 foreach ($surfaceName in @("skill", "plugin", "cache")) {

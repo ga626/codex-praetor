@@ -56,6 +56,21 @@ function Set-JsonProperty {
     }
 }
 
+function Stop-ProcessTree {
+    param([int]$RootProcessId)
+    $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$RootProcessId" -ErrorAction SilentlyContinue)
+    foreach ($child in $children) {
+        Stop-ProcessTree -RootProcessId ([int]$child.ProcessId)
+    }
+    try {
+        $target = [System.Diagnostics.Process]::GetProcessById($RootProcessId)
+        $target.Kill()
+        $target.WaitForExit(15000) | Out-Null
+    } catch {
+        if ($_.Exception.Message -notmatch "exited|no longer running|找不到") { throw }
+    }
+}
+
 function Quote-Arg {
     param([string]$Value)
     if ($null -eq $Value) { return '""' }
@@ -213,8 +228,7 @@ try {
             if (-not $proc.WaitForExit([int]$waitMs)) {
                 $timedOut = $true
                 try {
-                    $proc.Kill($true)
-                    $proc.WaitForExit(15000) | Out-Null
+                    Stop-ProcessTree -RootProcessId $proc.Id
                 } catch {
                     $waitError = "Worker timed out and process tree termination failed: $($_.Exception.Message)"
                 }
@@ -230,6 +244,11 @@ try {
         $waitError = $_.Exception.Message
     }
 
+    $latestMeta = $null
+    try { $latestMeta = Get-Content -LiteralPath $metaPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $latestMeta = $null }
+    $latestCompletion = $null
+    try { if (Test-Path -LiteralPath $completionPath -PathType Leaf) { $latestCompletion = Get-Content -LiteralPath $completionPath -Raw -Encoding UTF8 | ConvertFrom-Json } } catch { $latestCompletion = $null }
+    $cancelledExternally = ($null -ne $latestMeta -and [string]$latestMeta.status -eq "cancelled") -or ($null -ne $latestCompletion -and [string]$latestCompletion.status -eq "cancelled")
     $status = "completed"
     $semanticFailure = ""
     $combinedOutput = ""
@@ -243,7 +262,10 @@ try {
     } elseif ($combinedOutput -match "(?is)permission denied|permission_denied") {
         $semanticFailure = "permission_denied"
     }
-    if ($timedOut) {
+    if ($cancelledExternally) {
+        $status = "cancelled"
+        $semanticFailure = "cancelled_by_operator"
+    } elseif ($timedOut) {
         $status = "timed_out"
     } elseif (-not [string]::IsNullOrWhiteSpace($semanticFailure)) {
         $status = "failed"
@@ -263,6 +285,7 @@ try {
     Write-JsonFile -Path $metaPath -Value $meta
 
     $completion = [ordered]@{
+        schema = "codex-praetor-job-completion/v2"
         job_id = $meta.job_id
         provider = $meta.provider
         tier = $meta.tier
@@ -283,6 +306,12 @@ try {
         worktree = $meta.execution_repo
         task_kind = $meta.task_kind
         contract_hash = $meta.contract_hash
+        task_contract_schema = $meta.task_contract_schema
+        generation_id = $meta.generation_id
+        runtime_contract_sha256 = $meta.runtime_contract_sha256
+        wrapper_protocol = $meta.wrapper_protocol
+        provider_tuple = $meta.provider_tuple
+        terminal_state = $status
         lock_released = $false
         notify_attempted = $false
         notify_ok = $false
@@ -358,9 +387,13 @@ try {
     "completed $(Get-Date -Format o) status=$status exit_code=$exitCode" | Add-Content -LiteralPath $watcherLog -Encoding UTF8
 } catch {
     $failure = [ordered]@{
+        schema = "codex-praetor-job-completion/v2"
         status = "watcher_failed"
         job_dir = $JobDir
         worker_pid = $WorkerPid
+        job_id = if ($null -ne $meta) { [string]$meta.job_id } else { "" }
+        generation_id = if ($null -ne $meta) { [string]$meta.generation_id } else { "" }
+        task_contract_schema = if ($null -ne $meta) { [string]$meta.task_contract_schema } else { "" }
         error = $_.Exception.Message
         at = (Get-Date).ToString("o")
     }

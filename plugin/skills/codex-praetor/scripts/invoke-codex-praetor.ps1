@@ -127,6 +127,32 @@ if ([string]::IsNullOrWhiteSpace($resolvedConfigPath)) {
 }
 
 $config = Get-Content -LiteralPath $resolvedConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$runtimeContractCandidates = @(
+    (Join-Path $scriptGrandparent "config\runtime-contract.json"),
+    (Join-Path $scriptDir "runtime-contract.json")
+)
+$runtimeContractPath = @($runtimeContractCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($runtimeContractPath).Count -ne 1) { throw "Codex Praetor runtime contract is missing." }
+$runtimeContractPath = [string]$runtimeContractPath[0]
+$generationScript = Join-Path $scriptGrandparent "scripts\release\get-codex-praetor-generation.ps1"
+$runtimeContract = Get-Content -LiteralPath $runtimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$runtimeContractHash = (Get-FileHash -LiteralPath $runtimeContractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$generation = $null
+if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
+    $generation = (& $generationScript -ProjectRoot $scriptGrandparent -Json | ConvertFrom-Json)
+} else {
+    $generation = [pscustomobject]@{
+        schema = "codex-praetor-release-generation/v2"
+        product = "codex-praetor"
+        version = [string]$runtimeContract.version
+        commit = "packaged"
+        content_manifest_sha256 = $runtimeContractHash
+        generation_id = "$( [string]$runtimeContract.version )--packaged--$($runtimeContractHash.Substring(0, 12))"
+        runtime_contract_sha256 = $runtimeContractHash
+        wrapper_protocol = [string]$runtimeContract.wrapperProtocol
+        task_contract_schema = [string]$runtimeContract.taskContractSchema
+    }
+}
 
 function Test-OffPeak {
     $now = Get-Date
@@ -199,8 +225,11 @@ function Test-ProviderReadiness {
     )
 
     $state = Read-JsonOrNull -Path $ReadinessPath
-    if ($null -eq $state -or $null -eq $state.entries) {
+    if ($null -eq $state -or [string]$state.schema -ne "codex-praetor-provider-readiness/v2" -or $null -eq $state.entries) {
         return [ordered]@{ ok = $false; reason = "No capability canary record exists."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
+    }
+    if ([string]$state.generation_id -ne [string]$generation.generation_id -or [string]$state.runtime_contract_sha256 -ne $runtimeContractHash -or [string]$state.task_contract_schema -ne [string]$runtimeContract.taskContractSchema) {
+        return [ordered]@{ ok = $false; reason = "Readiness belongs to a different generation or runtime contract."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
     }
 
     $cliHash = Get-FileSha256OrEmpty -Path $CliPath
@@ -213,6 +242,9 @@ function Test-ProviderReadiness {
         if ([string]$entry.model -ne $ModelName) { continue }
         if ([string]$entry.permission_profile -ne $PermissionProfileName) { continue }
         if ([string]$entry.task_kind -ne $TaskKindName) { continue }
+        if ([string]$entry.generation_id -ne [string]$generation.generation_id) { continue }
+        if ([string]$entry.runtime_contract_sha256 -ne $runtimeContractHash) { continue }
+        if ([string]$entry.task_contract_schema -ne [string]$runtimeContract.taskContractSchema) { continue }
         if ([string]::IsNullOrWhiteSpace([string]$entry.expires_at)) { continue }
         if ([DateTime]::Parse([string]$entry.expires_at) -le $now) { continue }
         return [ordered]@{ ok = $true; reason = "Matching capability canary is current."; cli_hash = $cliHash; entry = $entry }
@@ -712,6 +744,11 @@ function Invoke-Or-StartWorker {
         mode = $Mode
         task_kind = $TaskKindName
         task_contract = $ContractPath
+        task_contract_schema = [string]$runtimeContract.taskContractSchema
+        generation_id = [string]$generation.generation_id
+        runtime_contract_sha256 = $runtimeContractHash
+        wrapper_protocol = [string]$runtimeContract.wrapperProtocol
+        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $Exe; model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName }
         contract_hash = $ContractHash
         run_mode = $RunMode
         status = "starting"
@@ -1036,8 +1073,11 @@ try {
     }
 
     $contract = [ordered]@{
-        schema = "codex-praetor-task-contract/v3"
+        schema = [string]$runtimeContract.taskContractSchema
         job_id = $dispatchJobId
+        generation_id = [string]$generation.generation_id
+        runtime_contract_sha256 = $runtimeContractHash
+        wrapper_protocol = [string]$runtimeContract.wrapperProtocol
         task_kind = $TaskKind
         repo = (Resolve-Path -LiteralPath $Repo).Path
         execution_worktree = $executionRepo

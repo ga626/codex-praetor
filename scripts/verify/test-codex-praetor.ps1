@@ -183,10 +183,13 @@ if ($skillText -match "(?m)^name:\s*codex-praetor\s*$") {
 if (-not $SkipGlobalRuleCheck) {
     if (Test-Path -LiteralPath $globalAgents) {
         $globalAgentsText = Get-Content -LiteralPath $globalAgents -Raw -Encoding UTF8
-        if ($globalAgentsText -match "## Codex Praetor Delegation" -and $globalAgentsText -match "Codex subagents are a different Codex-token route") {
+        $hasPraetorRoute = [regex]::IsMatch($globalAgentsText, '(?i)codex[- ]praetor|\u6267\u653f\u5b98')
+        $hasExternalProviderRoute = [regex]::IsMatch($globalAgentsText, '(?i)qoder|codebuddy|mimo')
+        $hasNativeSubagentBoundary = [regex]::IsMatch($globalAgentsText, '(?i)subagent|\u5b50\u4ee3\u7406|\u539f\u751f\s*Codex')
+        if ($hasPraetorRoute -and $hasExternalProviderRoute -and $hasNativeSubagentBoundary) {
             Add-Pass "Global AGENTS has Codex Praetor delegation route"
         } else {
-            Add-Fail "Global AGENTS is missing the Codex Praetor delegation route"
+            Add-Fail "Global AGENTS is missing the semantic Codex Praetor delegation route"
         }
     } else {
         Add-Warn "Global AGENTS not found on this machine: $globalAgents"
@@ -400,7 +403,10 @@ if (-not $SkipPluginMcpPackageCheck) {
 
     if (Test-Path -LiteralPath $pluginMcpRuntime -PathType Leaf) {
         try {
-            $importOutput = & node -e "import('node:url').then(({pathToFileURL})=>import(pathToFileURL(process.argv[1]).href)).then(m=>{if(typeof m.createServer!=='function'){console.error('missing createServer');process.exit(2)}console.log('plugin mcp import ok')})" $pluginMcpRuntime 2>&1
+            $nodeProbe = @'
+import('node:url').then(({pathToFileURL})=>import(pathToFileURL(process.argv[1]).href)).then(m=>{if(typeof m.createServer!=='function'){console.error('missing createServer');process.exit(2)}console.log('plugin mcp import ok')})
+'@
+            $importOutput = & node -e $nodeProbe $pluginMcpRuntime 2>&1
             if ($LASTEXITCODE -eq 0 -and (($importOutput | Out-String) -match "plugin mcp import ok")) {
                 Add-Pass "Plugin MCP bundled runtime imports successfully"
             } else {
@@ -513,7 +519,7 @@ if (-not $SkipUserInstallSmoke) {
     $setupCmdSmokeMarketplace = Join-Path $setupCmdSmokeHome ".agents\plugins\marketplace.json"
     try {
         New-Item -ItemType Directory -Path $setupCmdSmokeHome -Force | Out-Null
-        $setupCmdLine = 'set "USERPROFILE=' + $setupCmdSmokeHome + '" && set "HOME=' + $setupCmdSmokeHome + '" && set "CODEX_PRAETOR_SKIP_MAINTENANCE=1" && cd /d "' + $projectRoot + '" && (echo 2&echo.) | setup.cmd'
+        $setupCmdLine = "set `"USERPROFILE=$setupCmdSmokeHome`" && set `"HOME=$setupCmdSmokeHome`" && set `"CODEX_PRAETOR_SKIP_MAINTENANCE=1`" && cd /d `"$projectRoot`" && (echo 2&echo.) | setup.cmd"
         $setupCmdOutput = & cmd.exe /d /c $setupCmdLine 2>&1
         $setupCmdOutputText = $setupCmdOutput | Out-String
         if ($LASTEXITCODE -ne 0) {

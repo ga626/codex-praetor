@@ -19,7 +19,22 @@
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
-$wrapper = Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"
+$wrapperCandidates = @(
+    (Join-Path $projectRoot "scripts\dispatch\invoke-codex-praetor.ps1"),
+    (Join-Path $scriptDir "invoke-codex-praetor.ps1")
+)
+$wrapper = @($wrapperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+$generationScript = Join-Path $projectRoot "scripts\release\get-codex-praetor-generation.ps1"
+$runtimeContractCandidates = @(
+    (Join-Path $projectRoot "config\runtime-contract.json"),
+    (Join-Path $scriptDir "runtime-contract.json")
+)
+$runtimeContractPath = @($runtimeContractCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+$nativeHelperCandidates = @(
+    (Join-Path $projectRoot "scripts\maintenance\invoke-codex-praetor-native.ps1"),
+    (Join-Path $scriptDir "invoke-codex-praetor-native.ps1")
+)
+$nativeHelper = @($nativeHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 $statePath = Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
 $marker = "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
 
@@ -36,8 +51,23 @@ function Get-ProviderCliPath {
     return [string]$config.providers.$ProviderName.cliPath
 }
 
-if (-not (Test-Path -LiteralPath $wrapper -PathType Leaf)) {
+if (@($wrapper).Count -ne 1) {
     throw "Dispatcher is missing: $wrapper"
+}
+if (@($nativeHelper).Count -ne 1) { throw "Native invocation helper is missing." }
+$wrapper = [string]$wrapper[0]
+$nativeHelper = [string]$nativeHelper[0]
+. $nativeHelper
+if (@($runtimeContractPath).Count -ne 1) { throw "Runtime contract is missing." }
+$runtimeContractPath = [string]$runtimeContractPath[0]
+$runtimeContract = Get-Content -LiteralPath $runtimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$runtimeContractHash = (Get-FileHash -LiteralPath $runtimeContractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$generation = if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
+    (& $generationScript -ProjectRoot $projectRoot -Json | ConvertFrom-Json)
+} else {
+    [pscustomobject]@{
+        generation_id = "$( [string]$runtimeContract.version )--packaged--$($runtimeContractHash.Substring(0, 12))"
+    }
 }
 if (-not (Test-Path -LiteralPath $Repo -PathType Container)) {
     throw "Repository path does not exist: $Repo"
@@ -79,9 +109,9 @@ if (-not $Apply) {
 }
 
 $beforeStatus = (& git -C $Repo status --short 2>$null | Out-String).Trim()
-$output = & powershell @argsList 2>&1
-$exitCode = $LASTEXITCODE
-$outputText = ($output | Out-String)
+$nativeResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList $argsList -WorkingDirectory $projectRoot -TimeoutSeconds 360
+$exitCode = [int]$nativeResult.exit_code
+$outputText = (([string]$nativeResult.stdout) + "`n" + ([string]$nativeResult.stderr)).Trim()
 $afterStatus = (& git -C $Repo status --short 2>$null | Out-String).Trim()
 Write-Output $outputText.Trim()
 
@@ -98,6 +128,9 @@ if ($beforeStatus -ne $afterStatus) { throw "Canary changed the main checkout st
 $cliPath = Get-ProviderCliPath -Path $ConfigPath -ProviderName $Provider
 $cliHash = if (Test-Path -LiteralPath $cliPath -PathType Leaf) { (Get-FileHash -LiteralPath $cliPath -Algorithm SHA256).Hash } else { "" }
 $entry = [pscustomobject]@{
+    generation_id = [string]$generation.generation_id
+    runtime_contract_sha256 = $runtimeContractHash
+    task_contract_schema = [string]$runtimeContract.taskContractSchema
     provider = $Provider
     cli_path = $cliPath
     cli_hash = $cliHash
@@ -107,7 +140,9 @@ $entry = [pscustomobject]@{
     status = "passed"
     passed_at = (Get-Date).ToString("o")
     expires_at = (Get-Date).AddHours($ExpiresAfterHours).ToString("o")
-    wrapper_protocol = "2"
+    wrapper_protocol = [string]$runtimeContract.wrapperProtocol
+    provider_source = "capability_canary"
+    cli_version = Get-Field -Text $outputText -Name "version"
 }
 
 $entries = @()
@@ -128,7 +163,10 @@ $entries = @($entries | Where-Object {
 })
 $entries += $entry
 $state = [pscustomobject]@{
-    schema = "codex-praetor-provider-readiness/v1"
+    schema = "codex-praetor-provider-readiness/v2"
+    generation_id = [string]$generation.generation_id
+    runtime_contract_sha256 = $runtimeContractHash
+    task_contract_schema = [string]$runtimeContract.taskContractSchema
     updated_at = (Get-Date).ToString("o")
     entries = $entries
 }
