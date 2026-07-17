@@ -170,10 +170,20 @@ $entries = @($entries | Where-Object {
 })
 $entries += $entry
 $state = [pscustomobject]@{
-    schema = "codex-praetor-provider-readiness/v2"
+    schema = "codex-praetor-generation-readiness/v2"
+    status = "passed"
     generation_id = [string]$generation.generation_id
     runtime_contract_sha256 = $runtimeContractHash
     task_contract_schema = [string]$runtimeContract.taskContractSchema
+    provider = $Provider
+    tuple = [ordered]@{
+        cli_path = $cliPath
+        cli_hash = $cliHash
+        model = [string]$entry.model
+        permission_profile = [string]$entry.permission_profile
+        task_kind = [string]$entry.task_kind
+    }
+    provider_source = "capability_canary"
     updated_at = (Get-Date).ToString("o")
     entries = $entries
 }

@@ -9,7 +9,7 @@
 - runtime contract 与 MCP/插件版本统一升级到 `0.4.0-alpha`；task ledger 兼容读取旧 plan，但不把旧 `completed` 误当 accepted outcome。
 - watcher 只记录 attempt 的 process/evidence 状态；依赖任务只能在 Codex 写入 `accepted` verdict 后解锁。
 - 取消改为持久化 `cancel_requested`，watcher 成为 terminal projection 的唯一写者，避免取消与 completion 相互覆盖。
-- provider capability canary 和 dispatch 都支持显式 readiness 路径，PR 验证可使用隔离 profile，不会改写稳定安装的准入状态。
+- provider capability canary 写入可直接用于 release activation 的 generation readiness，同时 dispatch 继续按 provider tuple 检查；两者都支持显式 readiness 路径，PR 验证可使用隔离 profile，不会改写稳定安装的准入状态。
 - 默认顺序执行共享 write set；release tag 仍不可复用，产品交付仍要求下载 Release zip、校验 `.sha256`、隔离 fresh-context 和 provider readiness。
 
 ## 边界
