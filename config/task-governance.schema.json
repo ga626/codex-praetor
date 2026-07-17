@@ -44,4 +44,3 @@
     "event": { "type": "object", "required": ["event_id", "at", "type"], "properties": { "event_id": { "type": "string" }, "at": { "type": "string", "format": "date-time" }, "type": { "type": "string" }, "data": { "type": "object" } } }
   }
 }
-

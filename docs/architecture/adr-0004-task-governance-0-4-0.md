@@ -41,4 +41,3 @@ Usage or provider cost is recorded only when supplied by the provider; otherwise
 ## Product Boundary
 
 MCP remains the Codex tool surface. A2A concepts are local schema semantics, not a network server. Existing stage/activate/retirement and fresh-context boundaries remain unchanged. This contract changes the MCP-visible task state and therefore targets `0.4.0-alpha` with a fresh-context proof before release activation.
-
