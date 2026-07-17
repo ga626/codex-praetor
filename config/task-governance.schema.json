@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-praetor.local/schema/task-governance/v1",
+  "title": "Codex Praetor logical task ledger",
+  "type": "object",
+  "required": ["schema", "plan_id", "revision", "contexts", "tasks", "events"],
+  "properties": {
+    "schema": { "const": "codex-praetor-task-ledger/v1" },
+    "plan_id": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "contexts": { "type": "array", "items": { "$ref": "#/$defs/context" } },
+    "tasks": { "type": "array", "items": { "$ref": "#/$defs/task" } },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } }
+  },
+  "$defs": {
+    "context": {
+      "type": "object",
+      "required": ["context_id", "goal", "created_at"],
+      "properties": { "context_id": { "type": "string" }, "goal": { "type": "string" }, "created_at": { "type": "string", "format": "date-time" } }
+    },
+    "task": {
+      "type": "object",
+      "required": ["task_id", "context_id", "title", "mode", "governance_state", "attempts"],
+      "properties": {
+        "task_id": { "type": "string" }, "context_id": { "type": "string" }, "title": { "type": "string" },
+        "mode": { "enum": ["sequential", "parallel", "handoff", "loop"] },
+        "governance_state": { "enum": ["awaiting_supervisor", "accepted", "rejected", "retryable", "blocked", "needs_decision"] },
+        "write_set": { "type": "array", "items": { "type": "string" } },
+        "depends_on": { "type": "array", "items": { "type": "string" } },
+        "acceptance": { "type": "string" }, "budget": { "type": "object" }, "stop_loss": { "type": "object" },
+        "attempts": { "type": "array", "items": { "$ref": "#/$defs/attempt" } }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "required": ["attempt_id", "base_commit", "execution_state", "evidence_state", "created_at"],
+      "properties": {
+        "attempt_id": { "type": "string" }, "base_commit": { "type": "string" },
+        "execution_state": { "enum": ["draft", "queued", "running", "cancel_requested", "process_exited"] },
+        "evidence_state": { "enum": ["report_valid", "artifact_valid", "tests_passed", "evidence_missing"] },
+        "artifacts": { "type": "array", "items": { "type": "object" } }, "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "event": { "type": "object", "required": ["event_id", "at", "type"], "properties": { "event_id": { "type": "string" }, "at": { "type": "string", "format": "date-time" }, "type": { "type": "string" }, "data": { "type": "object" } } }
+  }
+}
+

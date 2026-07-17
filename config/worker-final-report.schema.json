@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-praetor.local/schema/worker-final-report/v1",
+  "title": "Codex Praetor worker final report",
+  "type": "object",
+  "required": ["schema", "attempt_id", "outcome", "summary", "changed_files", "checks", "risks"],
+  "properties": {
+    "schema": { "const": "codex-praetor-worker-report/v1" },
+    "attempt_id": { "type": "string" },
+    "outcome": { "enum": ["completed", "blocked", "failed"] },
+    "summary": { "type": "string" },
+    "changed_files": { "type": "array", "items": { "type": "string" } },
+    "checks": { "type": "array", "items": { "type": "object", "required": ["name", "status"], "properties": { "name": { "type": "string" }, "status": { "enum": ["passed", "failed", "not_run"] }, "evidence": { "type": "string" } } } },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "usage": { "type": "object", "properties": { "input_tokens": { "type": ["integer", "null"] }, "output_tokens": { "type": ["integer", "null"] }, "cost": { "type": ["number", "null"] }, "status": { "enum": ["known", "unknown"] } } }
+  }
+}

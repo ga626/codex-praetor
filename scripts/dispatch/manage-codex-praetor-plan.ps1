@@ -12,7 +12,7 @@ param(
     [string]$TaskId = "",
     [string]$TaskTitle = "",
     [string]$DependsOn = "",
-    [ValidateSet("pending", "running", "awaiting_verification", "completed", "failed", "blocked", "new_problem", "skipped")]
+    [ValidateSet("pending", "running", "awaiting_verification", "completed", "failed", "blocked", "new_problem", "skipped", "retryable", "needs_decision")]
     [string]$Status = "pending",
     [string]$Acceptance = "",
     [string]$JobId = "",
@@ -46,9 +46,13 @@ function Write-JsonFile {
         [Parameter(Mandatory = $true)]
         [object]$Value
     )
-    $tmp = "$Path.tmp"
-    $Value | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $tmp -Encoding UTF8
-    Move-Item -LiteralPath $tmp -Destination $Path -Force
+    $tmp = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $Value | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $tmp -Encoding UTF8
+        Move-Item -LiteralPath $tmp -Destination $Path -Force
+    } finally {
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 function ConvertTo-StringArray {
@@ -62,8 +66,10 @@ function ConvertTo-StringArray {
 function New-EmptyPlan {
     param([string]$Id)
     return [ordered]@{
-        schema = "codex-praetor-plan/v1"
+        schema = "codex-praetor-task-ledger/v1"
         plan_id = $Id
+        revision = 0
+        contexts = @()
         title = ""
         repo = ""
         status = "active"
@@ -85,7 +91,22 @@ function Read-Plan {
     param([string]$Id)
     $path = Get-PlanPath -Id $Id
     if (Test-Path -LiteralPath $path) {
-        return (Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json)
+        $plan = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$plan.schema -eq "codex-praetor-plan/v1") {
+            # Legacy plans retain their historical projection but do not imply accepted outcomes.
+            $plan | Add-Member -NotePropertyName schema -NotePropertyValue "codex-praetor-task-ledger/v1" -Force
+            $plan | Add-Member -NotePropertyName revision -NotePropertyValue 0 -Force
+            $plan | Add-Member -NotePropertyName contexts -NotePropertyValue @() -Force
+            foreach ($task in @($plan.tasks)) {
+                if (-not ($task.PSObject.Properties.Name -contains "governance_state")) {
+                    $state = if ([string]$task.status -eq "completed" -and [string]$task.verification_verdict -eq "accepted") { "accepted" } elseif ([string]$task.status -eq "completed") { "awaiting_supervisor" } elseif ([string]$task.status -eq "failed") { "rejected" } elseif ([string]$task.status -eq "blocked") { "blocked" } else { "awaiting_supervisor" }
+                    $task | Add-Member -NotePropertyName governance_state -NotePropertyValue $state
+                }
+                if (-not ($task.PSObject.Properties.Name -contains "attempts")) { $task | Add-Member -NotePropertyName attempts -NotePropertyValue @() }
+                if (-not ($task.PSObject.Properties.Name -contains "write_set")) { $task | Add-Member -NotePropertyName write_set -NotePropertyValue @() }
+            }
+        }
+        return $plan
     }
     return [pscustomobject](New-EmptyPlan -Id $Id)
 }
@@ -93,6 +114,7 @@ function Read-Plan {
 function Save-Plan {
     param([object]$Plan)
     $Plan.updated_at = (Get-Date).ToString("o")
+    $Plan.revision = [int]$Plan.revision + 1
     Write-JsonFile -Path (Get-PlanPath -Id $Plan.plan_id) -Value $Plan
 }
 
@@ -105,6 +127,7 @@ function Add-PlanEvent {
     )
     $events = @($Plan.events)
     $events += [ordered]@{
+        event_id = [Guid]::NewGuid().ToString("N")
         at = (Get-Date).ToString("o")
         type = $Type
         message = $Message
@@ -162,6 +185,9 @@ function Upsert-Task {
             verification_summary = ""
             verified_at = ""
             next_action = ""
+            governance_state = "awaiting_supervisor"
+            attempts = @()
+            write_set = @()
             created_at = (Get-Date).ToString("o")
             updated_at = (Get-Date).ToString("o")
         }
@@ -233,14 +259,19 @@ function Set-TaskVerification {
 
     if ($Verdict -eq "accepted") {
         Set-DynamicProperty -Target $target -Name "status" -Value "completed"
+        Set-DynamicProperty -Target $target -Name "governance_state" -Value "accepted"
     } elseif ($Verdict -eq "retry") {
         Set-DynamicProperty -Target $target -Name "status" -Value "new_problem"
+        Set-DynamicProperty -Target $target -Name "governance_state" -Value "retryable"
     } elseif ($Verdict -eq "human_required") {
         Set-DynamicProperty -Target $target -Name "status" -Value "blocked"
+        Set-DynamicProperty -Target $target -Name "governance_state" -Value "needs_decision"
     } elseif ($Verdict -eq "skipped") {
         Set-DynamicProperty -Target $target -Name "status" -Value "skipped"
+        Set-DynamicProperty -Target $target -Name "governance_state" -Value "rejected"
     } else {
         Set-DynamicProperty -Target $target -Name "status" -Value "failed"
+        Set-DynamicProperty -Target $target -Name "governance_state" -Value "rejected"
     }
 }
 
@@ -248,7 +279,7 @@ function Get-ReadyTasks {
     param([object]$Plan)
     $done = @{}
     foreach ($task in @($Plan.tasks)) {
-        if ($task.status -eq "completed") {
+        if ([string]$task.governance_state -eq "accepted") {
             $done[$task.task_id] = $true
         }
     }
@@ -300,6 +331,12 @@ if ($Action -eq "Init") {
     $recordStatus = if ($completion.status -eq "completed") { "awaiting_verification" } elseif ($completion.status -eq "failed") { "failed" } else { "blocked" }
     $summaryText = "worker_status=$($completion.status); exit_code=$($completion.exit_code)"
     Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
+    $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
+    if ($recordTask.Count -eq 1) {
+        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; execution_state = "process_exited"; evidence_state = if ($completion.status -eq "completed") { "evidence_missing" } else { "evidence_missing" }; completion = $completionFile; exit_code = $completion.exit_code; created_at = (Get-Date).ToString("o") }
+        $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
+        $recordTask[0].governance_state = "awaiting_supervisor"
+    }
     Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "VerifyTask") {
