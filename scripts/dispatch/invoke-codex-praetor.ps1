@@ -80,6 +80,8 @@
 
     [string]$ReadinessPath = "",
 
+    [string]$UserProfileRoot = "",
+
     [switch]$NoNotify,
 
     [string[]]$AllowedPath = @(),
@@ -924,9 +926,13 @@ if (-not $DryRun -and -not $CapabilityCanary) {
         $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
     }
     if (Test-Path -LiteralPath $healthScript -PathType Leaf) {
-        $null = & powershell -NoProfile -ExecutionPolicy Bypass -File $healthScript -Repo $Repo -Json 2>$null
+        $healthArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $healthScript, "-Repo", $Repo, "-Json")
+        if (-not [string]::IsNullOrWhiteSpace($UserProfileRoot)) {
+            $healthArgs += @("-UserProfileRoot", [System.IO.Path]::GetFullPath($UserProfileRoot))
+        }
+        $null = & powershell @healthArgs 2>$null
         if ($LASTEXITCODE -eq 2) {
-            throw "Runtime generation health is blocked. Repair the installed plugin/Skill/cache generation before real dispatch."
+            throw "Runtime generation health is blocked. Repair the installed plugin/Skill/cache generation in the selected profile before real dispatch."
         }
     }
 }
