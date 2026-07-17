@@ -229,7 +229,7 @@ function Test-ProviderReadiness {
     )
 
     $state = Read-JsonOrNull -Path $ReadinessPath
-    if ($null -eq $state -or [string]$state.schema -ne "codex-praetor-provider-readiness/v2" -or $null -eq $state.entries) {
+    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2") -or $null -eq $state.entries) {
         return [ordered]@{ ok = $false; reason = "No capability canary record exists."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
     }
     if ([string]$state.generation_id -ne [string]$generation.generation_id -or [string]$state.runtime_contract_sha256 -ne $runtimeContractHash -or [string]$state.task_contract_schema -ne [string]$runtimeContract.taskContractSchema) {
