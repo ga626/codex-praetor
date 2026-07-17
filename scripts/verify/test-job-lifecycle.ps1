@@ -50,8 +50,9 @@ try {
     $succeeded = $false
     New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
     $semantic = Invoke-WatchedCase -Name "semantic-exit-zero" -WorkerArguments @("-NoProfile", "-Command", "Write-Error permission denied; exit 0") -TimeoutSeconds 30
-    Assert-True ([string]$semantic.status -eq "failed") "Exit code 0 with permission failure must be failed."
+    Assert-True ([string]$semantic.status -eq "process_exited") "A worker exit must be recorded as process_exited, not a logical outcome."
     Assert-True ([string]$semantic.failure_class -eq "permission_denied") "Semantic permission failure was not classified."
+    Assert-True ([string]$semantic.governance_state -eq "awaiting_supervisor") "Worker exit must await a supervisor verdict."
     $timedOut = Invoke-WatchedCase -Name "timeout" -WorkerArguments @("-NoProfile", "-Command", "Start-Sleep -Seconds 35") -TimeoutSeconds 30
     Assert-True ([string]$timedOut.status -eq "timed_out") "Worker timeout was not classified."
 

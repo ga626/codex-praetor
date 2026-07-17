@@ -248,8 +248,9 @@ try {
     try { $latestMeta = Get-Content -LiteralPath $metaPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $latestMeta = $null }
     $latestCompletion = $null
     try { if (Test-Path -LiteralPath $completionPath -PathType Leaf) { $latestCompletion = Get-Content -LiteralPath $completionPath -Raw -Encoding UTF8 | ConvertFrom-Json } } catch { $latestCompletion = $null }
-    $cancelledExternally = ($null -ne $latestMeta -and [string]$latestMeta.status -eq "cancelled") -or ($null -ne $latestCompletion -and [string]$latestCompletion.status -eq "cancelled")
-    $status = "completed"
+    $cancelledExternally = ($null -ne $latestMeta -and [string]$latestMeta.status -in @("cancel_requested", "cancelled")) -or ($null -ne $latestCompletion -and [string]$latestCompletion.status -eq "cancelled")
+    # A worker exit is execution evidence, not a logical-task acceptance.
+    $status = "process_exited"
     $semanticFailure = ""
     $combinedOutput = ""
     foreach ($outputPath in @([string]$meta.stdout, [string]$meta.stderr)) {
@@ -268,15 +269,18 @@ try {
     } elseif ($timedOut) {
         $status = "timed_out"
     } elseif (-not [string]::IsNullOrWhiteSpace($semanticFailure)) {
-        $status = "failed"
+        $status = "process_exited"
     } elseif ($null -ne $exitCode -and $exitCode -ne 0) {
-        $status = "failed"
+        $status = "process_exited"
     } elseif ($waitError) {
         $status = "unknown"
     }
 
     $now = Get-Date
     Set-JsonProperty -Object $meta -Name "status" -Value $status
+    Set-JsonProperty -Object $meta -Name "process_state" -Value $status
+    Set-JsonProperty -Object $meta -Name "evidence_state" -Value "evidence_missing"
+    Set-JsonProperty -Object $meta -Name "governance_state" -Value "awaiting_supervisor"
     Set-JsonProperty -Object $meta -Name "exit_code" -Value $exitCode
     Set-JsonProperty -Object $meta -Name "exited_at" -Value $now.ToString("o")
     Set-JsonProperty -Object $meta -Name "wait_error" -Value $waitError
@@ -312,6 +316,9 @@ try {
         wrapper_protocol = $meta.wrapper_protocol
         provider_tuple = $meta.provider_tuple
         terminal_state = $status
+        process_state = $status
+        evidence_state = "evidence_missing"
+        governance_state = "awaiting_supervisor"
         lock_released = $false
         notify_attempted = $false
         notify_ok = $false

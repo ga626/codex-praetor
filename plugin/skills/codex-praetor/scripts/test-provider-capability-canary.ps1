@@ -13,6 +13,8 @@
 
     [int]$ExpiresAfterHours = 168,
 
+    [string]$ReadinessPath = "",
+
     [switch]$Apply
 )
 
@@ -35,7 +37,11 @@ $nativeHelperCandidates = @(
     (Join-Path $scriptDir "invoke-codex-praetor-native.ps1")
 )
 $nativeHelper = @($nativeHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
-$statePath = Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
+$statePath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
+    Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
+} else {
+    [System.IO.Path]::GetFullPath($ReadinessPath)
+}
 $marker = "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
 
 function Get-Field {
@@ -98,6 +104,7 @@ $argsList = @(
     "-RunMode", "blocking",
     "-TimeoutSeconds", "300",
     "-ConfigPath", $ConfigPath,
+    "-ReadinessPath", $statePath,
     "-CapabilityCanary",
     "-NoNotify"
 )
@@ -169,6 +176,10 @@ $state = [pscustomobject]@{
     task_contract_schema = [string]$runtimeContract.taskContractSchema
     updated_at = (Get-Date).ToString("o")
     entries = $entries
+}
+$stateDirectory = Split-Path -Parent $statePath
+if (-not (Test-Path -LiteralPath $stateDirectory -PathType Container)) {
+    New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
 }
 $state | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $statePath -Encoding UTF8
 Write-Host "[PASS] Capability canary passed and readiness tuple was recorded."

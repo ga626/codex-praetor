@@ -78,6 +78,8 @@
 
     [string]$ScratchRoot = "",
 
+    [string]$ReadinessPath = "",
+
     [switch]$NoNotify,
 
     [string[]]$AllowedPath = @(),
@@ -857,7 +859,7 @@ function Invoke-Or-StartWorker {
             throw "Blocking job exited without completion metadata: $jobId"
         }
         Write-Output "completion_status=$($completion.status)"
-        if ([string]$completion.status -ne "completed") {
+        if ([string]$completion.status -notin @("process_exited", "cancelled")) {
             exit 1
         }
     }
@@ -1046,7 +1048,11 @@ if ($resolvedProvider -eq "qoder") {
 } elseif ($resolvedProvider -eq "mimo") {
     $providerCliPath = [string]$config.providers.mimo.cliPath
 }
-$providerReadinessPath = Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
+$providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
+    Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
+} else {
+    [System.IO.Path]::GetFullPath($ReadinessPath)
+}
 if (-not $DryRun -and -not $CapabilityCanary) {
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind
     if (-not $readiness.ok) {

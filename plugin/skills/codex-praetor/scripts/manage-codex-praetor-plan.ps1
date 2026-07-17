@@ -328,12 +328,12 @@ if ($Action -eq "Init") {
     }
     $completion = Get-Content -LiteralPath $completionFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $recordTaskId = if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $TaskId } else { [string]$completion.task_id }
-    $recordStatus = if ($completion.status -eq "completed") { "awaiting_verification" } elseif ($completion.status -eq "failed") { "failed" } else { "blocked" }
-    $summaryText = "worker_status=$($completion.status); exit_code=$($completion.exit_code)"
+    $recordStatus = if ($completion.status -eq "process_exited") { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } else { "failed" }
+    $summaryText = "process_state=$($completion.process_state); failure_class=$($completion.failure_class); exit_code=$($completion.exit_code)"
     Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
     $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
     if ($recordTask.Count -eq 1) {
-        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; execution_state = "process_exited"; evidence_state = if ($completion.status -eq "completed") { "evidence_missing" } else { "evidence_missing" }; completion = $completionFile; exit_code = $completion.exit_code; created_at = (Get-Date).ToString("o") }
+        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; created_at = (Get-Date).ToString("o") }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
         $recordTask[0].governance_state = "awaiting_supervisor"
     }
