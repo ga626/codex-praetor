@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.3.0-alpha - 2026-07-17
+
+- Bound generation, provider readiness, task contracts, durable jobs, completion records, and promotion receipts to one runtime contract.
+- Rejected stale readiness evidence and reused release tags; upgraded generation and release receipts to v2.
+- Recorded provider tuples and terminal states across completed, semantic failure, timeout, cancellation, and watcher failure paths.
+- Made packaged Skill canary and native invocation self-contained instead of depending on the source checkout layout.
+- Added the unified productization and reliability report, release notes, and isolated closeout coverage.
+
 ## 0.2.0-alpha - 2026-07-16
 
 - Added one runtime contract shared by the source MCP, plugin metadata, Skill distribution, and personal-cache health gate.

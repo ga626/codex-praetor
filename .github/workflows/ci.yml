@@ -41,6 +41,11 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor-native.ps1
 
+      - name: Durable job lifecycle regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-job-lifecycle.ps1
+
       - name: Public entry consistency
         shell: pwsh
         run: |

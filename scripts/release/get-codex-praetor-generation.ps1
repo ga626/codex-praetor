@@ -86,13 +86,15 @@ try {
 }
 
 $result = [ordered]@{
-    schema = "codex-praetor-release-generation/v1"
+    schema = "codex-praetor-release-generation/v2"
     product = "codex-praetor"
     version = $version
     commit = $commit
     content_manifest_sha256 = $contentHash
     generation_id = "$version--$($commit.Substring(0, 12))--$($contentHash.Substring(0, 12))"
     runtime_contract_sha256 = $contractHash
+    wrapper_protocol = [string]$contract.wrapperProtocol
+    task_contract_schema = [string]$contract.taskContractSchema
     required_mcp_tools = @($contract.requiredMcpTools)
     trees = [ordered]@{
         skill = $skillTree

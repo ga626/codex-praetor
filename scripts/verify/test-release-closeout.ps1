@@ -69,9 +69,11 @@ try {
     & $proofScript -ProjectRoot $projectPath -ObservedToolsPath $observedToolsPath -OutputPath $proofPath -Apply
     if ($LASTEXITCODE -ne 0) { throw "Fresh-context proof failed in closeout smoke." }
     $readiness = [ordered]@{
-        schema = "codex-praetor-generation-readiness/v1"
+        schema = "codex-praetor-generation-readiness/v2"
         status = "passed"
         generation_id = [string]$generation.generation_id
+        runtime_contract_sha256 = [string]$generation.runtime_contract_sha256
+        task_contract_schema = [string]$generation.task_contract_schema
         provider = "test"
         tuple = [ordered]@{ cli = "test"; model = "test"; mode = "readonly" }
     }

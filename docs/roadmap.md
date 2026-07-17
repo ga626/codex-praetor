@@ -1,8 +1,8 @@
 ﻿# Codex Praetor 路线图
 
-## 当前状态：2026-07-15
+## 当前状态：2026-07-17
 
-`v0.2.0-alpha` 是当前已发布给普通用户下载的版本。它保留真实派发和 Codex 验收闭环，并把发布验收与开发者本机状态隔离，让相同源码能稳定构建出相同安装包，同时提供默认只预览的本地运行态清理能力。
+`v0.2.0-alpha` 是上一代已发布版本；本分支统一产品化大 PR 的目标版本是 `v0.3.0-alpha`。本版本把 generation、provider readiness、durable job、completion 和 promotion receipt 绑定到同一 runtime contract，旧证据不能继续驱动新版本派工或激活。
 
 已经完成：
 
@@ -24,6 +24,13 @@
 - 公开入口一致性检查，确保首页、安装说明、路线图、发布说明和 GitHub Release 指向同一版本。
 
 ## 近期目标
+
+本大 PR 一次完成：
+
+- 代际感知的 readiness 和 task contract，拒绝过期 provider 证据。
+- 统一 job/completion 终态，覆盖退出码、语义失败、超时、取消、watcher 失败和锁释放。
+- receipt v2、不可复用 release tag、隔离收口烟测和旧 generation 延迟回收。
+- provider adapter 合同、研究只读边界、MCP 状态面和中文全局规则语义测试。
 
 1. 让新鲜 Codex 工具上下文能看到真实 dispatch、result、next-ready、dispatch-plan-task 和 verify-task 工具。
 2. 让 Codex 在大任务开始时先声明分工：哪些交给 worker，哪些 Codex 自己保留，原因是什么。

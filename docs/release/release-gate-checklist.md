@@ -12,6 +12,7 @@ These checks protect the source repository. They may stay in the repo, but they 
 - GitHub CI: `.github/workflows/ci.yml` runs doctor with the public template, product validation, public-entry consistency, MCP tests, release package build, and release package determinism.
 - Release doctor: draft CI can run `scripts/verify/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders`; final public release must run without `-AllowDraftMetadataPlaceholders`.
 - Product validation: `scripts/verify/test-codex-praetor.ps1`. This default gate must not depend on the current developer's global Codex rules, installed skill copy, provider login state, or local provider account data.
+- Durable job lifecycle regression: `scripts/verify/test-job-lifecycle.ps1` covers exit-code-zero semantic failure, timeout, and cancellation terminal-state preservation.
 - Developer environment validation: `scripts/verify/test-codex-praetor-dev-env.ps1`. Use this when the change specifically touches local Codex installation, installed skill sync, provider dry-run behavior, or global-rule integration.
 - Public entry consistency: `scripts/verify/test-public-entry-consistency.ps1`. Use `-SkipRemoteRelease` before publication and the full remote check during release closeout.
 - Release package determinism: `scripts/verify/test-release-package-determinism.ps1`. The same staged release content must produce the same zip SHA256, stable entry order, and fixed zip entry timestamps.
@@ -36,7 +37,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.2.0-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.3.0-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
