@@ -82,6 +82,9 @@
 
     [string]$UserProfileRoot = "",
 
+    [ValidateSet("stable", "dev")]
+    [string]$RuntimeChannel = "stable",
+
     [switch]$NoNotify,
 
     [string[]]$AllowedPath = @(),
@@ -926,7 +929,7 @@ if (-not $DryRun -and -not $CapabilityCanary) {
         $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
     }
     if (Test-Path -LiteralPath $healthScript -PathType Leaf) {
-        $healthArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $healthScript, "-Repo", $Repo, "-Json")
+        $healthArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $healthScript, "-Repo", $Repo, "-Channel", $RuntimeChannel, "-Json")
         if (-not [string]::IsNullOrWhiteSpace($UserProfileRoot)) {
             $healthArgs += @("-UserProfileRoot", [System.IO.Path]::GetFullPath($UserProfileRoot))
         }

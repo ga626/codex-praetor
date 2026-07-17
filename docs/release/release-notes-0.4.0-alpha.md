@@ -10,6 +10,7 @@
 - watcher 只记录 attempt 的 process/evidence 状态；依赖任务只能在 Codex 写入 `accepted` verdict 后解锁。
 - 取消改为持久化 `cancel_requested`，watcher 成为 terminal projection 的唯一写者，避免取消与 completion 相互覆盖。
 - provider capability canary 写入可直接用于 release activation 的 generation readiness，同时 dispatch 继续按 provider tuple 检查；两者都支持显式 readiness 路径，PR 验证可使用隔离 profile，不会改写稳定安装的准入状态。
+- dispatch 可显式选择 `dev` runtime channel；隔离 PR 验证使用独立 channel/tag，不会复用或覆盖 stable release generation。
 - 默认顺序执行共享 write set；release tag 仍不可复用，产品交付仍要求下载 Release zip、校验 `.sha256`、隔离 fresh-context 和 provider readiness。
 
 ## 边界
