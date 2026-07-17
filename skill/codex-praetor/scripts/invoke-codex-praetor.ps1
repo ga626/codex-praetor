@@ -78,6 +78,13 @@
 
     [string]$ScratchRoot = "",
 
+    [string]$ReadinessPath = "",
+
+    [string]$UserProfileRoot = "",
+
+    [ValidateSet("stable", "dev")]
+    [string]$RuntimeChannel = "stable",
+
     [switch]$NoNotify,
 
     [string[]]$AllowedPath = @(),
@@ -225,7 +232,7 @@ function Test-ProviderReadiness {
     )
 
     $state = Read-JsonOrNull -Path $ReadinessPath
-    if ($null -eq $state -or [string]$state.schema -ne "codex-praetor-provider-readiness/v2" -or $null -eq $state.entries) {
+    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2") -or $null -eq $state.entries) {
         return [ordered]@{ ok = $false; reason = "No capability canary record exists."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
     }
     if ([string]$state.generation_id -ne [string]$generation.generation_id -or [string]$state.runtime_contract_sha256 -ne $runtimeContractHash -or [string]$state.task_contract_schema -ne [string]$runtimeContract.taskContractSchema) {
@@ -857,7 +864,7 @@ function Invoke-Or-StartWorker {
             throw "Blocking job exited without completion metadata: $jobId"
         }
         Write-Output "completion_status=$($completion.status)"
-        if ([string]$completion.status -ne "completed") {
+        if ([string]$completion.status -notin @("process_exited", "cancelled")) {
             exit 1
         }
     }
@@ -922,9 +929,13 @@ if (-not $DryRun -and -not $CapabilityCanary) {
         $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
     }
     if (Test-Path -LiteralPath $healthScript -PathType Leaf) {
-        $null = & powershell -NoProfile -ExecutionPolicy Bypass -File $healthScript -Repo $Repo -Json 2>$null
+        $healthArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $healthScript, "-Repo", $Repo, "-Channel", $RuntimeChannel, "-Json")
+        if (-not [string]::IsNullOrWhiteSpace($UserProfileRoot)) {
+            $healthArgs += @("-UserProfileRoot", [System.IO.Path]::GetFullPath($UserProfileRoot))
+        }
+        $null = & powershell @healthArgs 2>$null
         if ($LASTEXITCODE -eq 2) {
-            throw "Runtime generation health is blocked. Repair the installed plugin/Skill/cache generation before real dispatch."
+            throw "Runtime generation health is blocked. Repair the installed plugin/Skill/cache generation in the selected profile before real dispatch."
         }
     }
 }
@@ -1046,7 +1057,11 @@ if ($resolvedProvider -eq "qoder") {
 } elseif ($resolvedProvider -eq "mimo") {
     $providerCliPath = [string]$config.providers.mimo.cliPath
 }
-$providerReadinessPath = Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
+$providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
+    Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
+} else {
+    [System.IO.Path]::GetFullPath($ReadinessPath)
+}
 if (-not $DryRun -and -not $CapabilityCanary) {
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind
     if (-not $readiness.ok) {

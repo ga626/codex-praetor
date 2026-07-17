@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.4.0-alpha - 2026-07-17
+
+- Added the local task-governance ledger: logical tasks, immutable attempts, evidence state, append-only events, and Codex supervisor verdicts.
+- Stopped treating worker process exit as a completed task; only an accepted verdict can unlock a dependent logical task.
+- Made cancellation request-only until the watcher projects its terminal state, preserving the job artifact record.
+- Added activation-compatible generation readiness with provider-tuple entries and explicit readiness-state paths, so development canaries and PR dispatch stay inside an isolated profile.
+- Updated product version, release notes, roadmap, and release runbook for the `0.4.0-alpha` delivery contract.
+
 ## 0.3.0-alpha - 2026-07-17
 
 - Bound generation, provider readiness, task contracts, durable jobs, completion records, and promotion receipts to one runtime contract.

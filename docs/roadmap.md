@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-17
 
-`v0.2.0-alpha` 是上一代已发布版本；本分支统一产品化大 PR 的目标版本是 `v0.3.0-alpha`。本版本把 generation、provider readiness、durable job、completion 和 promotion receipt 绑定到同一 runtime contract，旧证据不能继续驱动新版本派工或激活。
+`v0.3.0-alpha` 是当前已发布版本；本分支的发布影响 PR 目标版本是 `v0.4.0-alpha`。本版本把 worker 进程、attempt 证据和 logical task 的 Codex 验收分开记录，旧 generation/readiness 不能继续驱动新合同的真实派工。
 
 已经完成：
 
@@ -27,18 +27,19 @@
 
 本大 PR 一次完成：
 
-- 代际感知的 readiness 和 task contract，拒绝过期 provider 证据。
-- 统一 job/completion 终态，覆盖退出码、语义失败、超时、取消、watcher 失败和锁释放。
-- receipt v2、不可复用 release tag、隔离收口烟测和旧 generation 延迟回收。
-- provider adapter 合同、研究只读边界、MCP 状态面和中文全局规则语义测试。
+- logical task、immutable attempt、artifact/evidence 状态和 supervisor verdict 的本地账本；`completed` 只代表 accepted outcome，绝不代表一次进程退出。
+- 默认顺序派工；只有明确不重叠的 write set 才允许并行 edit attempt，并保留 base commit、预算与 stop-loss。
+- 用新账本执行 maintenance、动态 health、runtime inventory、供应链与用户文档这些产品真值工作流。
+- 代际感知的 readiness、统一 job/completion 终态、不可复用 release tag、隔离收口烟测和旧 generation 延迟回收。
 
 1. 让新鲜 Codex 工具上下文能看到真实 dispatch、result、next-ready、dispatch-plan-task 和 verify-task 工具。
 2. 让 Codex 在大任务开始时先声明分工：哪些交给 worker，哪些 Codex 自己保留，原因是什么。
 3. 让 worker 失败进入统一分类：超轮数、provider 缺失、未登录、权限拒绝、测试失败、无有效产出、需要人工处理。
 4. 让计划任务只有经过 Codex 验收后才推进依赖任务。
-5. 保持公开文档中文优先，英文只作为切换页或补充。
-6. Release 页面、README、安装说明和插件展示信息保持同一套口径。
-7. 公开包不包含内部交接材料、本机配置、provider 缓存、运行态任务、个人截图或账号信息。
+5. 让开发验证把 readiness 写入隔离 profile，不能污染稳定安装或其 provider 准入记录。
+6. 保持公开文档中文优先，英文只作为切换页或补充。
+7. Release 页面、README、安装说明和插件展示信息保持同一套口径。
+8. 公开包不包含内部交接材料、本机配置、provider 缓存、运行态任务、个人截图或账号信息。
 
 ## 下一版候选方向
 

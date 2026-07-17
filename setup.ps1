@@ -17,6 +17,8 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $utf8NoBom
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$productVersion = "0.4.0-alpha"
+$runtimeContractPath = Join-Path $scriptRoot "config\runtime-contract.json"
 $installScript = Join-Path $scriptRoot "scripts\install\install-user.ps1"
 $configTemplate = Join-Path $scriptRoot "config\codex-praetor-tiers.example.json"
 $userCodexDir = Join-Path $env:USERPROFILE ".codex"
@@ -26,6 +28,14 @@ $canaryScript = Join-Path $scriptRoot "scripts\verify\test-provider-capability-c
 $maintenanceScript = Join-Path $scriptRoot "scripts\install\install-codex-praetor-maintenance.ps1"
 $nativeHelper = Join-Path $scriptRoot "scripts\maintenance\invoke-codex-praetor-native.ps1"
 . $nativeHelper
+
+if (-not (Test-Path -LiteralPath $runtimeContractPath -PathType Leaf)) {
+    throw "Codex Praetor runtime contract is missing: $runtimeContractPath"
+}
+$runtimeContract = Get-Content -LiteralPath $runtimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ([string]$runtimeContract.version -ne $productVersion) {
+    throw "Installer version $productVersion does not match runtime contract $($runtimeContract.version)."
+}
 
 function Write-Section {
     param([string]$Text)
@@ -932,7 +942,8 @@ if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
 $state = Read-OnboardingState
 
 Write-Section "Codex Praetor 安装向导"
-Write-Host "版本：0.3.0-alpha"
+Write-Item -Label "产品版本" -Value $productVersion -Color "Green"
+Write-Host "版本：$productVersion"
 Write-Host "安装范围：当前 Windows 用户插件目录，不需要管理员权限。"
 Write-Host "这个向导会安装 Codex Praetor 本体，并把 Qoder、CodeBuddy、MiMo 的安装、登录陪跑、复检和 canary 串在同一个命令里。"
 Write-Host "它不会替你登录账号，不会读取 token、cookie、账号数据库，也不会替你确认账单。"

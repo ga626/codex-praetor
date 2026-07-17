@@ -182,6 +182,23 @@ if (Test-Path -LiteralPath $retirementManifestPath -PathType Leaf) {
     Add-HealthCheck -Name "generation_retirement" -Status "ready" -Message "当前没有退休清单；没有待回收代际。" -Details $retirementSummary
 }
 
+$maintenanceTaskName = "CodexPraetor-GenerationReconcile"
+$isIsolatedProfile = -not [string]::Equals($profileRoot, [System.IO.Path]::GetFullPath($env:USERPROFILE), [System.StringComparison]::OrdinalIgnoreCase)
+if ($isIsolatedProfile) {
+    Add-HealthCheck -Name "generation_maintenance" -Status "ready" -Message "隔离 profile 不安装 Windows 维护任务；这不会阻断开发验收。" -Details ([pscustomobject]@{ task_name = $maintenanceTaskName; status = "not_applicable" })
+} elseif (-not (Get-Command -Name Get-ScheduledTask -ErrorAction SilentlyContinue)) {
+    Add-HealthCheck -Name "generation_maintenance" -Status "degraded" -Message "当前 PowerShell 无法读取 Windows 计划任务；需要确认代际回收维护任务。" -Details ([pscustomobject]@{ task_name = $maintenanceTaskName; status = "unavailable" })
+} else {
+    $maintenanceTask = Get-ScheduledTask -TaskName $maintenanceTaskName -ErrorAction SilentlyContinue
+    if ($null -eq $maintenanceTask) {
+        Add-HealthCheck -Name "generation_maintenance" -Status "degraded" -Message "未找到代际回收维护任务；stable 安装后应运行安装向导或维护安装脚本。" -Details ([pscustomobject]@{ task_name = $maintenanceTaskName; status = "missing" })
+    } else {
+        $taskState = [string]$maintenanceTask.State
+        $taskStatus = if ($taskState -in @("Ready", "Running")) { "ready" } else { "degraded" }
+        Add-HealthCheck -Name "generation_maintenance" -Status $taskStatus -Message "代际回收维护任务状态：$taskState" -Details ([pscustomobject]@{ task_name = $maintenanceTaskName; status = $taskState })
+    }
+}
+
 $overall = if (@($checks | Where-Object { $_.status -eq "blocked" }).Count -gt 0) { "blocked" } elseif (@($checks | Where-Object { $_.status -ne "ready" }).Count -gt 0) { "degraded" } else { "ready" }
 $payload = [pscustomobject]@{
     schema = "codex-praetor-health/v4"
