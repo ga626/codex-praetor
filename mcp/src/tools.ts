@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {
@@ -6,9 +7,11 @@ import {
   getHealthScriptPath,
   getJobRoot,
   getLockRoot,
+  getMcpRoot,
   getPlanRoot,
   getPlanScriptPath,
   getProjectArtifactRoot,
+  getProjectRoot,
   getRuntimeContractPath,
   resolveExistingRepo
 } from "./paths.js";
@@ -59,6 +62,10 @@ export function routeIntentTool(input: {
 export function runtimeInfoTool() {
   const contractPath = getRuntimeContractPath();
   const contract = existsSync(contractPath) ? readJsonFile(contractPath) : null;
+  const startedAt = new Date(Date.now() - process.uptime() * 1_000).toISOString();
+  const runtimeContractSha256 = contract
+    ? createHash("sha256").update(readFileSync(contractPath)).digest("hex")
+    : "";
   return {
     display: {
       阶段: "运行时合同",
@@ -66,7 +73,15 @@ export function runtimeInfoTool() {
       下一步: contract ? "可继续检查安装态和 provider readiness。" : "修复发布包后重试。"
     },
     runtime_contract: contract,
-    contract_path: contractPath
+    contract_path: contractPath,
+    runtime_identity: {
+      schema: "codex-praetor-runtime-identity/v1",
+      runtime_contract_sha256: runtimeContractSha256,
+      project_root: getProjectRoot(),
+      mcp_root: getMcpRoot(),
+      process_id: process.pid,
+      process_started_at: startedAt
+    }
   };
 }
 

@@ -14,6 +14,7 @@ const skipDryRun =
 
 const requiredTools = [
   "codex_praetor_route_intent",
+  "codex_praetor_runtime_info",
   "codex_praetor_dispatch_dry_run",
   "codex_praetor_dispatch",
   "codex_praetor_plan",
@@ -89,6 +90,22 @@ try {
   const routePayload = JSON.parse(routeResult.content?.[0]?.text ?? "{}");
   if (routePayload.route !== "codex_praetor_external_worker") {
     throw new Error(`Unexpected route intent: ${routePayload.route}`);
+  }
+
+  const runtimeInfoResult = await client.callTool({
+    name: "codex_praetor_runtime_info",
+    arguments: {}
+  });
+  const runtimeInfoPayload = JSON.parse(runtimeInfoResult.content?.[0]?.text ?? "{}");
+  if (
+    !runtimeInfoPayload.runtime_contract ||
+    !/^[0-9a-f]{64}$/.test(runtimeInfoPayload.runtime_identity?.runtime_contract_sha256 ?? "") ||
+    !Number.isInteger(runtimeInfoPayload.runtime_identity?.process_id) ||
+    runtimeInfoPayload.runtime_identity.process_id <= 0 ||
+    !runtimeInfoPayload.contract_path ||
+    !runtimeInfoPayload.runtime_identity?.project_root
+  ) {
+    throw new Error(`Runtime identity is incomplete: ${JSON.stringify(runtimeInfoPayload)}`);
   }
 
   if (!skipDryRun) {

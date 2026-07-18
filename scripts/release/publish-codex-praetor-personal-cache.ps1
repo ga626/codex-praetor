@@ -125,7 +125,7 @@ try {
     if ($backupMade) {
         Write-Host "[PASS] Previous cache version backed up at $backupPath"
     }
-    Write-Host "Next step: install with Codex from the personal marketplace or reload Codex and check whether codex-praetor tools appear."
+    Write-Host "Next step: refresh the running Codex Desktop host through a supported action or restart Codex, then verify codex_praetor_runtime_info in one native context."
 } catch {
     Write-Host "[FAIL] Cache publish failed: $($_.Exception.Message)"
     if ((Test-Path -LiteralPath $targetPath) -and $backupMade) {

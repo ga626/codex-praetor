@@ -30957,6 +30957,7 @@ import path3 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/tools.ts
+import { createHash } from "node:crypto";
 import { existsSync as existsSync2, readdirSync, readFileSync, statSync } from "node:fs";
 import path2 from "node:path";
 
@@ -31316,6 +31317,8 @@ function routeIntentTool(input) {
 function runtimeInfoTool() {
   const contractPath = getRuntimeContractPath();
   const contract = existsSync2(contractPath) ? readJsonFile(contractPath) : null;
+  const startedAt = new Date(Date.now() - process.uptime() * 1e3).toISOString();
+  const runtimeContractSha256 = contract ? createHash("sha256").update(readFileSync(contractPath)).digest("hex") : "";
   return {
     display: {
       \u9636\u6BB5: "\u8FD0\u884C\u65F6\u5408\u540C",
@@ -31323,7 +31326,15 @@ function runtimeInfoTool() {
       \u4E0B\u4E00\u6B65: contract ? "\u53EF\u7EE7\u7EED\u68C0\u67E5\u5B89\u88C5\u6001\u548C provider readiness\u3002" : "\u4FEE\u590D\u53D1\u5E03\u5305\u540E\u91CD\u8BD5\u3002"
     },
     runtime_contract: contract,
-    contract_path: contractPath
+    contract_path: contractPath,
+    runtime_identity: {
+      schema: "codex-praetor-runtime-identity/v1",
+      runtime_contract_sha256: runtimeContractSha256,
+      project_root: getProjectRoot(),
+      mcp_root: getMcpRoot(),
+      process_id: process.pid,
+      process_started_at: startedAt
+    }
   };
 }
 async function healthTool(input) {
@@ -32227,7 +32238,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.4.0-alpha"
+    version: "0.4.1-alpha"
   });
   server.registerTool(
     "codex_praetor_route_intent",

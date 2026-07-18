@@ -143,10 +143,10 @@ if ($marketplaceOk) {
     Add-HealthCheck -Name "marketplace_activation" -Status "blocked" -Message "Marketplace does not point at the expected Codex Praetor plugin path." -Details $marketplacePath
 }
 
-if ($null -ne $receipt -and [string]$receipt.fresh_context.status -eq "passed") {
+if ($null -ne $receipt -and [string]$receipt.fresh_context.schema -eq "codex-praetor-fresh-context-proof/v2" -and [string]$receipt.fresh_context.status -eq "passed" -and [string]$receipt.fresh_context.generation_id -eq [string]$receipt.generation.generation_id -and [string]$receipt.fresh_context.runtime_identity.runtime_contract_sha256 -eq [string]$receipt.generation.runtime_contract_sha256 -and [string]$receipt.fresh_context.runtime_info.runtime_contract.version -eq [string]$receipt.generation.version -and [int64]$receipt.fresh_context.runtime_identity.process_id -gt 0) {
     Add-HealthCheck -Name "fresh_context" -Status "ready" -Message "Fresh-context MCP proof passed for the active generation." -Details ([string]$receipt.fresh_context.observed_at)
 } else {
-    Add-HealthCheck -Name "fresh_context" -Status "blocked" -Message "Fresh-context MCP proof is missing or failed; real dispatch must refuse." -Details $activeReceiptPath
+    Add-HealthCheck -Name "fresh_context" -Status "blocked" -Message "Fresh-context MCP proof is missing, stale, or lacks runtime identity; real dispatch must refuse." -Details $activeReceiptPath
 }
 
 if ($null -ne $receipt -and [string]$receipt.provider_readiness.status -eq "passed" -and [string]$receipt.provider_readiness.generation_id -eq [string]$receipt.generation.generation_id -and [string]$receipt.provider_readiness.runtime_contract_sha256 -eq [string]$receipt.generation.runtime_contract_sha256) {

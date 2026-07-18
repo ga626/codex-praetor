@@ -31,15 +31,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.4.0-alpha/codex-praetor-setup-0.4.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.4.0-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.4.0-alpha.zip .\codex-praetor-setup-0.4.0-alpha
-cd .\codex-praetor-setup-0.4.0-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.4.1-alpha/codex-praetor-setup-0.4.1-alpha.zip" -OutFile ".\codex-praetor-setup-0.4.1-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.4.1-alpha.zip .\codex-praetor-setup-0.4.1-alpha
+cd .\codex-praetor-setup-0.4.1-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.4.0-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.4.1-alpha
 ```
 
 ### 2. 双击安装向导
@@ -251,7 +251,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 1. 关闭并重新打开 Codex，或新开一个任务。
 2. 运行上面的 doctor 验收命令。
 3. provider 已经安装并登录时，先跑只读 canary，再做真实派工。
-4. 仍然失败时，按 [troubleshooting.zh.md](troubleshooting.zh.md) 的顺序执行 reload 和 probe。
+4. 仍然失败时，按 [troubleshooting.zh.md](troubleshooting.zh.md) 区分独立 host 诊断与正在运行的 Desktop host；不要把新任务当作刷新动作。
 5. 需要恢复旧版时，按 [uninstall.zh.md](uninstall.zh.md) 的“回滚到上一个备份”操作。
 
 ## 卸载和回滚

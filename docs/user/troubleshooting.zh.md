@@ -6,9 +6,9 @@
 
 | 现象 | 通常原因 | 下一步 |
 | --- | --- | --- |
-| 看不到 Codex Praetor 插件 | 插件还没安装，或 Codex 还没刷新插件上下文 | 先确认安装脚本成功，再重启 Codex 或打开新任务 |
-| 插件能看到，但 MCP 工具不可见 | MCP 配置没刷新，或 Node 不可用 | 运行轻量 reload；确认 Node.js 已安装 |
-| MCP 工具报 `Transport closed` | 当前这一次工具句柄旧了，底层服务不一定坏 | 运行 reload/probe；失败后再重启 Codex 或打开新任务 |
+| 看不到 Codex Praetor 插件 | 插件还没安装，或常驻 Desktop host 仍解析旧注册表 | 先确认安装脚本成功；新任务不能刷新 host，使用 Codex 支持的刷新动作或完全退出后重新启动 |
+| 插件能看到，但 MCP 工具不可见 | Desktop host 的插件发现未刷新，或 Node 不可用 | 先确认 Node.js；用独立 host 诊断区分磁盘安装与常驻 Desktop host |
+| MCP 工具报 `Transport closed` | 当前回合的工具句柄旧，或常驻 host 未刷新 | 单独 probe 只能诊断，不能刷新 Desktop；先确认 runtime identity，再按支持的 Desktop 刷新动作恢复 |
 | 没有 Qoder、CodeBuddy、MiMo | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
 | provider 已安装但真实派工失败 | provider 未登录、权限不够、CLI 路径不对、任务超轮数或 worker 无有效产出 | 先读取 worker result 摘要和失败分类；需要账号动作时重新运行向导，任务太大时缩小后重派 |
 | 执行 provider 官方安装时提示网络不可用或超时 | 官方安装源、DNS、代理或系统网络还没准备好 | 检查网络/代理后重试；也可以先跳过 provider，先完成本体安装 |
@@ -16,7 +16,7 @@
 
 ## 看不到 Codex Praetor 插件
 
-先确认你已经运行过安装向导。如果你使用的是 `0.4.0-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
+先确认你已经运行过安装向导。如果你使用的是 `0.4.1-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
@@ -29,15 +29,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 [PASS] Personal marketplace entry is present.
 ```
 
-然后重启 Codex，或者打开一个新任务。
+然后使用 Codex 支持的插件刷新动作，或者完全退出并重新启动 Codex。仅打开一个新任务不保证刷新已经运行数小时的 Desktop host。
 
-插件安装和更新后，Codex 通常需要一个新的工具上下文才能自然看到新插件。
+插件安装和更新后，需要同时满足“Desktop host 已重新解析插件”和“新工具上下文已创建”两个条件。后者不能替代前者。
 
 ## MCP 工具显示了，但调用时报 `Transport closed`
 
 这通常不是你的任务写错了，也不一定是 Codex Praetor 服务坏了。
 
-先运行轻量恢复：
+下面的命令只会启动一个独立 app-server 来诊断磁盘上的安装代际；它不会刷新已经运行的 Codex Desktop。它适合回答“新 host 能否解析当前插件”，不适合作为 Desktop 已修复的证据：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\reload-codex-praetor-mcp.ps1
@@ -49,9 +49,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\reload-code
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex-praetor-mcp.ps1 -AfterDirectHandleFailure
 ```
 
-如果 probe 成功，说明底层 MCP 服务还活着，只是当前这一次模型回合里的工具句柄旧了。可以等待下一轮工具上下文刷新，或重试一次原动作。
+如果 probe 成功，只说明独立 app-server 可以调用该工具；它不能证明当前 Desktop host 已切换。先在 native `codex_praetor_runtime_info` 中核对版本、SHA256 和路径，再完成一次支持的 host 刷新。
 
-如果还是失败，再重启 Codex 或打开新任务。
+如果 native `runtime_info` 仍显示旧版本或旧路径，完全退出并重新启动 Codex 后再做一次 canary；不要靠反复新建任务绕过。
 
 ## 旧 generation 没有立即删除
 

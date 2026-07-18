@@ -18,8 +18,8 @@ function Write-Result {
     if ($Json) {
         $Result | ConvertTo-Json -Depth 10 -Compress
     } else {
-        if ($Result.status -eq "ok") {
-            Write-Host "ok: $($Result.server) found, tools=$($Result.tool_count)"
+        if ($Result.status -eq "separate_host_diagnostic") {
+            Write-Host "separate_host_diagnostic: $($Result.server) is visible in a newly started app-server, tools=$($Result.tool_count)."
         } else {
             Write-Host "$($Result.status): $($Result.message)"
         }
@@ -61,16 +61,12 @@ if (-not (Test-Path -LiteralPath $appServerInvoker -PathType Leaf)) {
     exit 1
 }
 
-$payload = @(
-    @{ id = 1; method = "config/mcpServer/reload"; params = @{} },
-    @{ id = 2; method = "mcpServerStatus/list"; params = @{ detail = "toolsAndAuthOnly"; limit = 100 } }
-) | ConvertTo-Json -Depth 20 -Compress
+$payload = @{ id = 1; method = "mcpServerStatus/list"; params = @{ detail = "toolsAndAuthOnly"; limit = 100 } } | ConvertTo-Json -Depth 20 -Compress
 
 $payloadB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payload))
 $invokeResult = Invoke-AppServerPayload -PayloadB64 $payloadB64 -Timeout $TimeoutMs
 $lines = @($invokeResult.stdout -split "\r?\n")
 
-$reloadOk = $false
 $server = $null
 foreach ($line in $lines) {
     if ([string]::IsNullOrWhiteSpace($line)) { continue }
@@ -80,26 +76,24 @@ foreach ($line in $lines) {
         continue
     }
 
-    if ($message.id -eq 1 -and $null -ne $message.result) {
-        $reloadOk = $true
-    }
-    if ($message.id -eq 2 -and $message.result.data) {
+    if ($message.id -eq 1 -and $message.result.data) {
         $server = @($message.result.data | Where-Object { $_.name -eq $ServerName } | Select-Object -First 1)
     }
 }
 
-if ($reloadOk -and $server.Count -gt 0) {
+if ($server.Count -gt 0) {
     $toolCount = 0
     if ($server[0].tools) {
         $toolCount = @($server[0].tools.PSObject.Properties).Count
     }
     Write-Result @{
-        status = "ok"
+        status = "separate_host_diagnostic"
         server = $ServerName
         tool_count = $toolCount
         version = [string]$server[0].serverInfo.version
         auth_status = [string]$server[0].authStatus
-        message = "MCP server is visible after reload."
+        desktop_host_refreshed = $false
+        message = "A newly started app-server resolved this MCP server. This command cannot refresh the already-running Codex Desktop host."
     }
     exit 0
 }
@@ -107,6 +101,6 @@ if ($reloadOk -and $server.Count -gt 0) {
 Write-Result @{
     status = "manual_reload_needed"
     server = $ServerName
-    message = "Codex app-server reload ran, but $ServerName was not visible in mcpServerStatus/list."
+    message = "A newly started app-server did not resolve $ServerName. This command does not inspect or refresh the already-running Codex Desktop host."
 }
 exit 2

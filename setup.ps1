@@ -17,7 +17,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $utf8NoBom
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$productVersion = "0.4.0-alpha"
+$productVersion = "0.4.1-alpha"
 $runtimeContractPath = Join-Path $scriptRoot "config\runtime-contract.json"
 $installScript = Join-Path $scriptRoot "scripts\install\install-user.ps1"
 $configTemplate = Join-Path $scriptRoot "config\codex-praetor-tiers.example.json"
@@ -888,7 +888,7 @@ function Show-FinalSummary {
 
     Write-Section "最终状态总览"
     if ($Apply) {
-        Write-Item -Label "Codex Praetor 本体" -Value "已安装；重启 Codex 或打开新任务后应能发现插件。" -Color "Green"
+        Write-Item -Label "Codex Praetor 本体" -Value "已安装；需要刷新正在运行的 Codex Desktop host 或重启 Codex。仅打开新任务不保证刷新插件发现。" -Color "Green"
     } else {
         Write-Item -Label "Codex Praetor 本体" -Value "预览模式未安装；加 -Apply 或双击 setup.cmd 执行。" -Color "Yellow"
     }

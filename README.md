@@ -6,9 +6,9 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy、MiMo。Codex 仍然负责规划、风险判断、整合结果和最终验收。
 
-当前产品化目标版本是 **0.4.0-alpha**。这一版把任务从“worker 进程”提升为可验收的 logical task：保留不可变 attempt、证据状态和 Codex 监督 verdict，避免退出码或日志被误当成用户价值已经完成。
+当前产品化目标版本是 **0.4.1-alpha**。这一版让发布验收绑定实际 Desktop runtime identity：磁盘安装、host 插件发现、MCP 进程和 thread canary 必须属于同一个 generation，不能再由同名旧工具误签通过。
 
-[下载 0.4.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.4.0-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
+[下载 0.4.1-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.4.1-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
 
 ## 适合你吗
 
@@ -29,14 +29,14 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 普通 Windows 用户不需要打开 PowerShell。下载并解压 Release 包后，直接双击根目录里的 `setup.cmd`，按中文向导操作即可。
 
-1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.4.0-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.4.0-alpha.zip`。
+1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.4.1-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.4.1-alpha.zip`。
 
    如果你更习惯 PowerShell，也可以运行：
 
    ```powershell
-   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.4.0-alpha/codex-praetor-setup-0.4.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.4.0-alpha.zip"
-   Expand-Archive .\codex-praetor-setup-0.4.0-alpha.zip .\codex-praetor-setup-0.4.0-alpha
-   cd .\codex-praetor-setup-0.4.0-alpha
+   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.4.1-alpha/codex-praetor-setup-0.4.1-alpha.zip" -OutFile ".\codex-praetor-setup-0.4.1-alpha.zip"
+   Expand-Archive .\codex-praetor-setup-0.4.1-alpha.zip .\codex-praetor-setup-0.4.1-alpha
+   cd .\codex-praetor-setup-0.4.1-alpha
    ```
 
 2. 双击 `setup.cmd`。
@@ -221,8 +221,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 常见情况：
 
-- 看不到插件：确认安装成功后，重启 Codex 或打开新任务。
-- MCP 工具显示了但报 `Transport closed`：优先运行轻量 reload/probe；重载 Codex 或新开任务是最后兜底。
+- 看不到插件：确认安装成功后，刷新正在运行的 Desktop host 或重启 Codex；仅打开新任务不保证刷新插件发现。
+- MCP 工具显示了但报 `Transport closed`：先读取 `runtime_info`，再用独立 host 诊断区分安装态和 Desktop host；诊断脚本不负责刷新 Desktop。
 - provider 已安装但没登录：按 provider 自己的官方方式登录，Codex Praetor 不读取账号数据库。
 - WindowsApps `codex.exe` 权限问题：优先使用 Codex Desktop 自己的插件/MCP 发现能力。
 

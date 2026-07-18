@@ -179,7 +179,7 @@ try {
 
     Write-Host "[PASS] Codex Praetor plugin copied to a real local directory."
     Write-Host "[PASS] Personal marketplace entry is present."
-    Write-Host "Next: restart Codex or open a new task once so the plugin can be discovered."
+    Write-Host "Next: refresh the running Codex Desktop host through a supported action or restart Codex. A new task alone does not refresh host plugin discovery."
     Write-Host "After that, ask Codex to split a task for external agents in dry-run mode."
 } catch {
     if (Test-Path -LiteralPath $tempPath) {

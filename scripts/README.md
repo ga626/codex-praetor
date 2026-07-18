@@ -4,7 +4,7 @@
 
 - `dispatch/`：Codex Praetor 的派工入口和 job 管理脚本。这里的核心脚本会同步到 skill/plugin 包里。
 - `install/`：用户安装和 Git hook 安装脚本。
-- `verify/`：doctor、自测、公开入口一致性、发布包确定性、MCP reload/probe 等验证脚本。
+- `verify/`：doctor、自测、公开入口一致性、发布包确定性、Desktop runtime identity 与独立 host 诊断脚本。
 - `release/`：发布包构建、公开元数据更新和本机发布缓存脚本。
 - `maintenance/`：一次性或低频维护脚本，例如运行目录迁移和运行态清理。
 
