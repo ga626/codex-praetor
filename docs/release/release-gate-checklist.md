@@ -37,7 +37,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.4.0-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.4.1-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -75,12 +75,12 @@ Required before release:
 - Protocol smoke can call route-intent, dry-run, lane listing, and conflict detection.
 - Protocol smoke can see the real dispatch loop tools: `codex_praetor_dispatch`, `codex_praetor_result`, `codex_praetor_next_ready`, `codex_praetor_dispatch_plan_task`, and `codex_praetor_verify_task`.
 - A completed worker job does not automatically unblock dependent plan tasks; release validation must confirm plan tasks advance only after a Codex verification verdict.
-- `scripts/verify/reload-codex-praetor-mcp.ps1 -Json` can reload and report the packaged server.
-- `scripts/verify/probe-codex-praetor-mcp.ps1 -Json` can route a dry-run request through the app-server MCP path.
-- `scripts/verify/probe-codex-praetor-mcp.ps1 -AfterDirectHandleFailure -Json` can distinguish stale direct tool handles from a broken MCP service.
+- `scripts/verify/reload-codex-praetor-mcp.ps1 -Json` reports what a separately started app-server resolves; it must state that it does not refresh Desktop.
+- `scripts/verify/probe-codex-praetor-mcp.ps1 -Json` is a separate-host thread probe, not proof that the current Desktop host changed.
+- Native `codex_praetor_runtime_info` from the Desktop canary binds version, contract SHA256, path, PID, and start time to the staged generation.
 - Fresh Codex tool context shows native Codex Praetor MCP tools.
 - Fresh-context native calls succeed for route-intent and dry-run.
-- The current-thread `Transport closed` issue is documented as a reload/cache boundary, not treated as server failure.
+- A stale Desktop host is documented as a host-discovery boundary, not treated as a server failure or solved by repeatedly opening new tasks.
 - The final procedure follows `docs/architecture/fresh-context-native-mcp-canary.md`, and the result is recorded before public publication.
 
 ## 5. GitHub Gate
@@ -108,7 +108,7 @@ Before pushing or tagging:
 For every delivery-affecting release, run `scripts/release/complete-codex-praetor-release.ps1` in two phases after the new GitHub Release zip and `.sha256` are available:
 
 1. `stage` against the downloaded remote zip. It installs and hashes Skill, plugin, marketplace, and personal cache, then writes only a staged receipt. It must not delete old cache generations; old paths go to the retirement/reconcile queue.
-2. If the MCP tool list, tool arguments, Skill/Plugin manifest, plugin source generation, or cache generation changed, ask the user to open one fresh Codex context for this generation. Do not require a new task for ordinary file edits. Collect required MCP tool names and convert the observation into a fresh-context proof with `scripts/verify/new-codex-praetor-fresh-context-proof.ps1`.
+2. If the MCP tool list, tool arguments, Skill/Plugin manifest, plugin source generation, or cache generation changed, first ensure the already-running Desktop host has refreshed its plugin discovery state. A new task alone is not sufficient. Collect native tool names and the full `codex_praetor_runtime_info` response, then convert that observation into a fresh-context proof with `scripts/verify/new-codex-praetor-fresh-context-proof.ps1`.
 3. Produce a generation-matched provider readiness record from the capability canary, then run `activate` with both evidence files.
 4. `activate` runs the reconcile once. Stable closeout also installs `scripts/install/install-codex-praetor-maintenance.ps1 -Apply`, which copies the maintenance scripts under the user's `.codex` directory and registers a user-level logon plus 15-minute retry task. The task may be inspected with `Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile`.
 5. The reconcile may delete only non-active retired paths that are outside the retention window and not in use; an in-use path remains registered with a retry time. Cleanup failure does not roll back a valid activation and must not be reported as a clean cache. Isolated branch validation must pass `-SkipMaintenance` to avoid registering a real task.

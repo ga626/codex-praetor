@@ -35,7 +35,11 @@ assert.equal(
 const researchRoute = routeIntentTool({ request: "拆分外部调研，分配给其他 agent 找官方资料" });
 assert.equal(researchRoute.worker_research_eligible, true);
 assert.equal(researchRoute.research_authority, "codex_kr_primary");
-assert.equal(runtimeInfoTool().runtime_contract !== null, true);
+const runtimeInfo = runtimeInfoTool();
+assert.equal(runtimeInfo.runtime_contract !== null, true);
+assert.match(runtimeInfo.runtime_identity.runtime_contract_sha256, /^[0-9a-f]{64}$/);
+assert.ok(runtimeInfo.runtime_identity.process_id > 0);
+assert.ok(runtimeInfo.runtime_identity.project_root.length > 0);
 assert.equal(
   routeIntentTool({ request: "Use Codex subagent for parallel review", allow_native_codex_subagents: true }).route,
   "native_codex_subagent"

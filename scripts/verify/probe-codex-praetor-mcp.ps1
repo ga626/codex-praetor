@@ -24,10 +24,8 @@ function Write-Result {
     if ($Json) {
         $Result | ConvertTo-Json -Depth 12 -Compress
     } else {
-        if ($Result.status -eq "ok") {
-            Write-Host "ok: codex-praetor route-intent probe succeeded, route=$($Result.route)"
-        } elseif ($Result.status -eq "service_visible_but_direct_handle_stale") {
-            Write-Host "service_visible_but_direct_handle_stale: app-server probe succeeded; retry through app-server or start a fresh turn before using the native handle again."
+        if ($Result.status -eq "separate_host_thread_probe") {
+            Write-Host "separate_host_thread_probe: a newly started app-server resumed the thread and called route-intent, route=$($Result.route)."
         } else {
             Write-Host "$($Result.status): $($Result.message)"
         }
@@ -120,14 +118,15 @@ foreach ($line in $lines) {
 if ($resumeOk -and -not [string]::IsNullOrWhiteSpace($toolText)) {
     try {
         $routePayload = $toolText | ConvertFrom-Json
-        $status = if ($AfterDirectHandleFailure) { "service_visible_but_direct_handle_stale" } else { "ok" }
+        $status = "separate_host_thread_probe"
         Write-Result @{
             status = $status
             thread_id = $ThreadId
             route = [string]$routePayload.route
             confidence = [string]$routePayload.confidence
             native_codex_subagents_allowed = [bool]$routePayload.native_codex_subagents_allowed
-            message = "app-server mcpServer/tool/call succeeded."
+            desktop_host_refreshed = $false
+            message = "A newly started app-server mcpServer/tool/call succeeded. It does not validate or refresh the already-running Codex Desktop host."
         }
         exit 0
     } catch {

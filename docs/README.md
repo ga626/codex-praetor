@@ -17,7 +17,7 @@
 - [Release gate checklist](release/release-gate-checklist.md)
 - [GitHub publish runbook](release/github-publish-runbook.md)
 - [Release notes 0.2.0-alpha](release/release-notes-0.2.0-alpha.md)
-- [0.4.0-alpha 任务治理与产品真值 PR 说明](release/release-notes-0.4.0-alpha.md)
+- [0.4.1-alpha Desktop runtime identity 与发布证明 PR 说明](release/release-notes-0.4.1-alpha.md)
 - [Release notes 0.1.2-alpha](release/release-notes-0.1.2-alpha.md)
 - [Release notes 0.1.1-alpha](release/release-notes-0.1.1-alpha.md)
 - [Release notes 0.1.0-alpha](release/release-notes-0.1.0-alpha.md)

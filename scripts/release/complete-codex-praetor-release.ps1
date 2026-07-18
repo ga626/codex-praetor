@@ -266,7 +266,11 @@ $proof = Get-Content -LiteralPath $FreshContextProofPath -Raw -Encoding UTF8 | C
 $readiness = Get-Content -LiteralPath $ProviderReadinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ([string]$receipt.status -ne "staged" -or [string]$receipt.generation.generation_id -ne [string]$generation.generation_id) { throw "Staged receipt does not match the current generation." }
 if ([string]$receipt.schema -ne "codex-praetor-release-receipt/v2") { throw "Staged receipt uses an unsupported schema." }
-if ([string]$proof.status -ne "passed" -or [string]$proof.generation_id -ne [string]$generation.generation_id) { throw "Fresh-context proof does not pass for this generation." }
+if ([string]$proof.schema -ne "codex-praetor-fresh-context-proof/v2" -or [string]$proof.status -ne "passed" -or [string]$proof.generation_id -ne [string]$generation.generation_id) { throw "Fresh-context proof does not pass for this generation." }
+if ($null -eq $proof.runtime_identity -or [string]$proof.runtime_identity.runtime_contract_sha256 -ne [string]$generation.runtime_contract_sha256 -or [string]$proof.runtime_info.runtime_contract.version -ne [string]$generation.version -or [string]$proof.runtime_info.runtime_contract.taskContractSchema -ne [string]$generation.task_contract_schema) { throw "Fresh-context proof does not attest the staged runtime contract." }
+if ([string]::IsNullOrWhiteSpace([string]$proof.runtime_info.contract_path) -or [string]::IsNullOrWhiteSpace([string]$proof.runtime_identity.project_root) -or [int64]$proof.runtime_identity.process_id -le 0) { throw "Fresh-context proof is missing runtime process identity." }
+$proofStartedAt = [DateTime]::MinValue
+if (-not [DateTime]::TryParse([string]$proof.runtime_identity.process_started_at, [ref]$proofStartedAt)) { throw "Fresh-context proof has an invalid runtime process start time." }
 if ([string]$readiness.schema -ne "codex-praetor-generation-readiness/v2" -or [string]$readiness.status -ne "passed" -or [string]$readiness.generation_id -ne [string]$generation.generation_id) { throw "Provider readiness does not pass for this generation." }
 if ([string]$readiness.runtime_contract_sha256 -ne [string]$generation.runtime_contract_sha256 -or [string]$readiness.task_contract_schema -ne [string]$generation.task_contract_schema) { throw "Provider readiness does not match the runtime contract." }
 

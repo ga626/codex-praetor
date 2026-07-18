@@ -12,7 +12,7 @@
 
 ## 2. Release 包
 
-- [ ] 从 `v0.4.0-alpha` Release 下载 `codex-praetor-setup-0.4.0-alpha.zip`。
+- [ ] 从 `v0.4.1-alpha` Release 下载 `codex-praetor-setup-0.4.1-alpha.zip`。
 - [ ] 校验 SHA256 文件和 zip 匹配。
 - [ ] 解压后根目录能看到 `setup.cmd` 和 `setup.ps1`。
 - [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/user/installation.zh.md`、`docs/user/troubleshooting.zh.md`。
@@ -97,19 +97,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 ## 8. 故障恢复
 
 - [ ] `Transport closed` 说明里不会要求用户每次都新开任务。
-- [ ] 用户能按排错指南先运行 reload：
+- [ ] 用户能按排错指南运行独立 host 诊断，并知道它不会刷新正在运行的 Desktop：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\reload-codex-praetor-mcp.ps1
 ```
 
-- [ ] 在 Codex 线程里可以继续尝试 probe：
+- [ ] 在 Codex 线程里可以继续尝试独立 host thread probe：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\probe-codex-praetor-mcp.ps1 -AfterDirectHandleFailure
 ```
 
-- [ ] reload/probe 失败后，文档才建议重启 Codex 或打开新任务。
+- [ ] 文档明确：native `runtime_info` 仍显示旧 generation 时，先刷新或重启 Desktop host；反复打开新任务不是修复动作。
 
 ## 9. 卸载和回滚
 

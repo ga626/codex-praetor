@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-17
 
-`v0.3.0-alpha` 是当前已发布版本；本分支的发布影响 PR 目标版本是 `v0.4.0-alpha`。本版本把 worker 进程、attempt 证据和 logical task 的 Codex 验收分开记录，旧 generation/readiness 不能继续驱动新合同的真实派工。
+`v0.4.0-alpha` 已公开发布但尚未完成 activation；本分支的发布影响 PR 目标版本是 `v0.4.1-alpha`。这一版把发布 generation、Desktop host 解析、MCP 进程身份和 thread canary 分开验证，旧 generation/readiness 不能继续驱动新合同的真实派工。
 
 已经完成：
 
@@ -43,7 +43,7 @@
 
 ## 下一版候选方向
 
-- 更友好的插件缓存清理和恢复提示。
+- Desktop host runtime identity、刷新状态和恢复提示。
 - 持续跟进 Codex 插件和 MCP 加载机制变化，减少用户手动操作。
 - 清理工具和用户向导之间的提示联动，例如什么时候建议运行清理、哪些内容永远不应清理。
 - 为运行态清理增加更直观的空间占用摘要和保留期说明。

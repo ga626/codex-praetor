@@ -16,6 +16,8 @@ $releaseRootRelative = $releaseRoot.Substring($projectPath.Length).TrimStart("\\
 $profileRoot = Join-Path $testRoot "profile"
 $observedToolsPath = Join-Path $testRoot "observed-tools.json"
 $proofPath = Join-Path $testRoot "fresh-context-proof.json"
+$staleProofPath = Join-Path $testRoot "stale-fresh-context-proof.json"
+$staleObservedToolsPath = Join-Path $testRoot "stale-observed-tools.json"
 $readinessPath = Join-Path $testRoot "provider-readiness.json"
 $noReceiptProfileRoot = Join-Path $testRoot "no-active-receipt-profile"
 $generationScript = Join-Path $projectPath "scripts\release\get-codex-praetor-generation.ps1"
@@ -64,7 +66,30 @@ try {
     Assert-True ([string]$stageReceiptPayload.surfaces.plugin.tree_sha256 -eq [string]$generation.trees.plugin.sha256) "Staged plugin surface must match the release generation."
     Assert-True ([string]$stageReceiptPayload.surfaces.cache.tree_sha256 -eq [string]$generation.trees.plugin.sha256) "Staged cache surface must match the release generation."
 
-    $observed = [ordered]@{ source = "isolated-closeout-smoke"; tool_names = @($generation.required_mcp_tools) }
+    $staleObserved = [ordered]@{
+        source = "isolated-closeout-smoke-stale-runtime"
+        tool_names = @($generation.required_mcp_tools)
+        runtime_info = [ordered]@{
+            contract_path = "C:\\cache\\codex-praetor\\0.3.0-alpha\\runtime-contract.json"
+            runtime_contract = [ordered]@{ version = "0.3.0-alpha"; taskContractSchema = "codex-praetor-task-contract/v4" }
+            runtime_identity = [ordered]@{ runtime_contract_sha256 = ("0" * 64); project_root = "C:\\cache\\codex-praetor\\0.3.0-alpha"; process_id = 42; process_started_at = "2026-07-17T00:00:00.0000000Z" }
+        }
+    }
+    $staleObserved | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $staleObservedToolsPath -Encoding UTF8
+    & $proofScript -ProjectRoot $projectPath -ObservedToolsPath $staleObservedToolsPath -OutputPath $staleProofPath -Apply
+    Assert-True ($LASTEXITCODE -eq 2) "A same-tool stale runtime must fail the fresh-context proof."
+    $staleProof = Get-Content -LiteralPath $staleProofPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$staleProof.status -eq "failed" -and @($staleProof.validation_failures).Count -gt 0) "Stale runtime proof must retain machine-readable failures."
+
+    $observed = [ordered]@{
+        source = "isolated-closeout-smoke"
+        tool_names = @($generation.required_mcp_tools)
+        runtime_info = [ordered]@{
+            contract_path = "C:\\cache\\codex-praetor\\$($generation.version)\\runtime-contract.json"
+            runtime_contract = [ordered]@{ version = [string]$generation.version; taskContractSchema = [string]$generation.task_contract_schema }
+            runtime_identity = [ordered]@{ runtime_contract_sha256 = [string]$generation.runtime_contract_sha256; project_root = "C:\\cache\\codex-praetor\\$($generation.version)"; process_id = 4242; process_started_at = "2026-07-18T00:00:00.0000000Z" }
+        }
+    }
     $observed | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $observedToolsPath -Encoding UTF8
     & $proofScript -ProjectRoot $projectPath -ObservedToolsPath $observedToolsPath -OutputPath $proofPath -Apply
     if ($LASTEXITCODE -ne 0) { throw "Fresh-context proof failed in closeout smoke." }
@@ -81,6 +106,8 @@ try {
     & $closeoutScript -Phase activate -Channel stable -ProjectRoot $projectPath -UserProfileRoot $profileRoot -FreshContextProofPath $proofPath -ProviderReadinessPath $readinessPath -Apply -SkipMaintenance
     if ($LASTEXITCODE -ne 0) { throw "Release activation failed in closeout smoke." }
     Assert-True (Test-Path -LiteralPath $activeReceipt -PathType Leaf) "Activation must write an active receipt."
+    $activeReceiptPayload = Get-Content -LiteralPath $activeReceipt -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$activeReceiptPayload.fresh_context.runtime_identity.runtime_contract_sha256 -eq [string]$generation.runtime_contract_sha256) "Activation must retain the matched runtime identity."
 
     & $healthScript -Repo $projectPath -Channel stable -UserProfileRoot $profileRoot -Json | Out-Null
     Assert-True ($LASTEXITCODE -eq 0) "Healthy isolated generation must pass the health gate."

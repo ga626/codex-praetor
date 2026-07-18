@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.1-alpha - 2026-07-18
+
+- Added runtime identity to `codex_praetor_runtime_info`, including the loaded contract hash, runtime roots, PID, and process start time.
+- Replaced name-only fresh-context evidence with a generation-bound runtime proof; activation and health now reject stale or identity-free proof records.
+- Corrected the separate app-server diagnostic so it no longer claims to reload the already-running Codex Desktop host.
+
 ## 0.4.0-alpha - 2026-07-17
 
 - Added the local task-governance ledger: logical tasks, immutable attempts, evidence state, append-only events, and Codex supervisor verdicts.
