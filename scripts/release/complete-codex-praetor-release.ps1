@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("stage", "activate")]
+    [ValidateSet("stage", "activate", "deliver")]
     [string]$Phase = "stage",
     [ValidateSet("stable", "dev")]
     [string]$Channel = "stable",
@@ -10,6 +10,7 @@ param(
     [string]$ExpectedArtifactSha256 = "",
     [string]$FreshContextProofPath = "",
     [string]$ProviderReadinessPath = "",
+    [string]$UserPathProofPath = "",
     [switch]$Apply,
     [switch]$SkipMaintenance
 )
@@ -245,11 +246,44 @@ if ($Phase -eq "stage") {
         surfaces = $surfaces
         fresh_context = [ordered]@{ status = "pending" }
         provider_readiness = [ordered]@{ status = "pending"; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = [string]$generation.runtime_contract_sha256; task_contract_schema = [string]$generation.task_contract_schema }
+        delivery = [ordered]@{ state = "awaiting_host_refresh"; next_action = "fresh_context_proof"; user_path = [ordered]@{ status = "pending" } }
         rollback = [ordered]@{ previous_active_receipt = if (Test-Path -LiteralPath $activeReceiptPath) { $activeReceiptPath } else { "" } }
     }
     Write-JsonAtomically -Path $receiptPath -Value $receipt
     Write-Host "[PASS] Generation staged. It is not active until fresh-context and provider evidence are accepted."
     Write-Host "receipt=$receiptPath"
+    exit 0
+}
+
+if ($Phase -eq "deliver") {
+    if (-not (Test-Path -LiteralPath $activeReceiptPath -PathType Leaf)) { throw "Active receipt is missing: $activeReceiptPath" }
+    if ([string]::IsNullOrWhiteSpace($UserPathProofPath) -or -not (Test-Path -LiteralPath $UserPathProofPath -PathType Leaf)) {
+        throw "Delivery requires UserPathProofPath."
+    }
+    $active = Get-Content -LiteralPath $activeReceiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $userPath = Get-Content -LiteralPath $UserPathProofPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$active.status -ne "active" -or [string]$active.generation.generation_id -ne [string]$generation.generation_id) {
+        throw "Active receipt does not match the current generation."
+    }
+    if ([string]$userPath.schema -ne "codex-praetor-user-path-proof/v1" -or [string]$userPath.status -ne "passed" -or [string]$userPath.generation_id -ne [string]$generation.generation_id) {
+        throw "User path proof does not pass for this generation."
+    }
+    $userChecks = @($userPath.checks)
+    if ($userChecks.Count -eq 0 -or @($userChecks | Where-Object { [string]$_.status -ne "passed" }).Count -gt 0) {
+        throw "User path proof must contain at least one passed check and no failed checks."
+    }
+    if ($null -eq $active.delivery) {
+        $active | Add-Member -NotePropertyName "delivery" -NotePropertyValue ([ordered]@{}) -Force
+    }
+    $active.delivery.state = "delivered"
+    $active.delivery.next_action = "monitor_and_reconcile"
+    $active.delivery.user_path = $userPath
+    $active.delivery | Add-Member -NotePropertyName "delivered_at" -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
+    $active.delivery | Add-Member -NotePropertyName "user_path_proof_path" -NotePropertyValue ([System.IO.Path]::GetFullPath($UserPathProofPath)) -Force
+    Write-JsonAtomically -Path $activeReceiptPath -Value $active
+    Write-JsonAtomically -Path $receiptPath -Value $active
+    Write-Host "[PASS] User path proof accepted. Product delivery state is now delivered."
+    Write-Host "active_receipt=$activeReceiptPath"
     exit 0
 }
 
@@ -302,6 +336,7 @@ $receipt | Add-Member -NotePropertyName "activated_at" -NotePropertyValue ([Date
 $receipt.surfaces = $surfaces
 $receipt.fresh_context = $proof
 $receipt.provider_readiness = $readiness
+$receipt.delivery = [ordered]@{ state = "active"; next_action = "user_path_proof"; user_path = [ordered]@{ status = "pending" } }
 Write-JsonAtomically -Path $receiptPath -Value $receipt
 Write-JsonAtomically -Path $activeReceiptPath -Value $receipt
 $reconcileScript = Join-Path $projectPath "scripts\maintenance\reconcile-codex-praetor-generations.ps1"

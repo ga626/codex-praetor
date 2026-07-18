@@ -1,17 +1,4 @@
-﻿param(
-    [string]$ReadinessPath = "",
-    [string]$Provider = "",
-    [string]$CliPath = "",
-    [string]$Model = "",
-    [string]$PermissionProfile = "",
-    [string]$TaskKind = "",
-    [string]$GenerationId = "",
-    [string]$RuntimeContractSha256 = "",
-    [string]$TaskContractSchema = "",
-    [switch]$EmitJson
-)
-
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 function Get-CodexPraetorFileSha256 {
     param([string]$Path)
@@ -74,8 +61,5 @@ function Test-CodexPraetorProviderReadiness {
     return [pscustomobject]$result
 }
 
-if ($MyInvocation.InvocationName -ne ".") {
-    if ([string]::IsNullOrWhiteSpace($Provider)) { throw "Provider is required when running this script directly." }
-    $result = Test-CodexPraetorProviderReadiness -Path $ReadinessPath -ProviderName $Provider -Cli $CliPath -ModelName $Model -Permission $PermissionProfile -Kind $TaskKind -ExpectedGeneration $GenerationId -ExpectedRuntimeContract $RuntimeContractSha256 -ExpectedTaskContract $TaskContractSchema
-    if ($EmitJson) { $result | ConvertTo-Json -Depth 20 } else { Write-Output ("[$(if($result.ok){'ready'}else{'blocked'})] $($result.reason)") }
-}
+# Function-only module: dispatch and health dot-source this file. A top-level
+# param block would execute in the caller scope and overwrite its variables.

@@ -185,6 +185,15 @@ if ($null -ne $readinessResult -and $readinessResult.ok) {
     Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "当前 provider readiness 缺失、过期或已漂移；真实派工必须拒绝。" -Details $details
 }
 
+$deliveryState = if ($null -ne $receipt -and $null -ne $receipt.delivery) { [string]$receipt.delivery.state } else { "missing" }
+if ($deliveryState -eq "delivered") {
+    Add-HealthCheck -Name "delivery_state" -Status "ready" -Message "普通用户路径已通过，当前 generation 已交付。" -Details $receipt.delivery
+} elseif ($deliveryState -eq "active") {
+    Add-HealthCheck -Name "delivery_state" -Status "degraded" -Message "generation 已 active，但普通用户路径尚未形成 proof；不能称为产品已交付。" -Details $receipt.delivery
+} else {
+    Add-HealthCheck -Name "delivery_state" -Status "blocked" -Message "交付收据缺少 delivered 状态；真实产品入口仍未完成闭环。" -Details $deliveryState
+}
+
 $retirementManifestPath = Join-Path (Split-Path -Parent $activeReceiptPath) "retirement.json"
 $retirement = $null
 $retirementSummary = [pscustomobject]@{
