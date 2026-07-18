@@ -289,6 +289,14 @@ if (-not $Apply) {
     exit 0
 }
 
+$maintenanceScript = Join-Path $projectPath "scripts\install\install-codex-praetor-maintenance.ps1"
+if ($Channel -eq "stable" -and -not $SkipMaintenance) {
+    if (-not (Test-Path -LiteralPath $maintenanceScript -PathType Leaf)) { throw "Generation maintenance script is missing: $maintenanceScript" }
+    & $maintenanceScript -UserProfileRoot $profilePath -SourceRoot $projectPath -Apply
+    if ($LASTEXITCODE -ne 0) { throw "Generation maintenance task installation failed with exit code $LASTEXITCODE." }
+} elseif ($SkipMaintenance) {
+    Write-Host "[INFO] Maintenance task installation skipped. Only isolated validation may use this switch." -ForegroundColor Yellow
+}
 $receipt.status = "active"
 $receipt | Add-Member -NotePropertyName "activated_at" -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
 $receipt.surfaces = $surfaces
@@ -300,13 +308,5 @@ $reconcileScript = Join-Path $projectPath "scripts\maintenance\reconcile-codex-p
 if (-not (Test-Path -LiteralPath $reconcileScript -PathType Leaf)) { throw "Generation reconcile script is missing: $reconcileScript" }
 & $reconcileScript -UserProfileRoot $profilePath -Channel $Channel -Apply
 if ($LASTEXITCODE -ne 0) { throw "Generation retirement reconcile failed with exit code $LASTEXITCODE." }
-$maintenanceScript = Join-Path $projectPath "scripts\install\install-codex-praetor-maintenance.ps1"
-if ($Channel -eq "stable" -and -not $SkipMaintenance) {
-    if (-not (Test-Path -LiteralPath $maintenanceScript -PathType Leaf)) { throw "Generation maintenance script is missing: $maintenanceScript" }
-    & $maintenanceScript -UserProfileRoot $profilePath -SourceRoot $projectPath -Apply
-    if ($LASTEXITCODE -ne 0) { throw "Generation maintenance task installation failed with exit code $LASTEXITCODE." }
-} elseif ($SkipMaintenance) {
-    Write-Host "[INFO] Maintenance task installation skipped. Only isolated validation may use this switch." -ForegroundColor Yellow
-}
 Write-Host "[PASS] Active release receipt written. Real dispatch may now rely on the generation health gate."
 Write-Host "active_receipt=$activeReceiptPath"

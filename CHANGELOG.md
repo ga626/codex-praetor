@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.2-alpha - 2026-07-18
+
+- Made stable release activation fail closed when the generation-reconciliation maintenance task cannot be registered and verified.
+- Added a `schtasks.exe` XML fallback for Windows images where `Register-ScheduledTask` is denied, with equivalent user-level triggers and post-registration checks.
+- Moved active-receipt writes after maintenance installation so a failed installer cannot be reported as an active generation.
+
 ## 0.4.1-alpha - 2026-07-18
 
 - Added runtime identity to `codex_praetor_runtime_info`, including the loaded contract hash, runtime roots, PID, and process start time.
