@@ -1,6 +1,19 @@
 # Changelog
 
+## 0.5.0-alpha - 2026-07-18
+
+- 统一 logical task、attempt、event、selection、outcome、progress 和 release state 合同。
+- 将 provider readiness、Windows maintenance task 和 runtime inventory 接入动态 health；漂移、过期和缺失均 fail-closed。
+- 保留 `0.4.1-alpha`/`0.4.2-alpha` 历史代际不可变，下一次交付使用新的 `v0.5.0-alpha`。
+- 补充供应链门禁、动作 pin、Dependabot 和 PR 前验收脚本。
+
 ## Unreleased
+
+## 0.4.2-alpha - 2026-07-18
+
+- Made stable release activation fail closed when the generation-reconciliation maintenance task cannot be registered and verified.
+- Added a `schtasks.exe` XML fallback for Windows images where `Register-ScheduledTask` is denied, with equivalent user-level triggers and post-registration checks.
+- Moved active-receipt writes after maintenance installation so a failed installer cannot be reported as an active generation.
 
 ## 0.4.1-alpha - 2026-07-18
 

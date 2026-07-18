@@ -1,5 +1,5 @@
-﻿param(
-    [string]$Version = "0.4.1-alpha",
+param(
+    [string]$Version = "0.5.0-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",

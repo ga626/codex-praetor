@@ -203,6 +203,7 @@ $jsonPaths = @(
     (Join-Path $projectRoot ".agents\plugins\marketplace.json"),
     (Join-Path $sourceSkill "scripts\codex-praetor-tiers.json"),
     (Join-Path $pluginSkill "scripts\codex-praetor-tiers.json"),
+    (Join-Path $projectRoot "config\task-governance.schema.json"),
     $pluginMcpPackage
 )
 foreach ($path in $jsonPaths) {
@@ -442,6 +443,28 @@ import('node:url').then(({pathToFileURL})=>import(pathToFileURL(process.argv[1])
         Add-Fail "Plugin MCP protocol smoke script missing: $pluginMcpSmoke"
     }
 }
+
+$dynamicFactsTest = Join-Path $projectRoot "scripts\verify\test-dynamic-health-facts.ps1"
+if (Test-Path -LiteralPath $dynamicFactsTest -PathType Leaf) {
+    try {
+        $dynamicOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $dynamicFactsTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($dynamicOutput | Out-String) -match "Dynamic readiness")) {
+            Add-Pass "Dynamic readiness and maintenance adapter regression passes"
+        } else {
+            Add-Fail "Dynamic readiness/maintenance regression failed: $($dynamicOutput | Out-String)"
+        }
+    } catch { Add-Fail "Dynamic readiness/maintenance regression failed: $($_.Exception.Message)" }
+} else {
+    Add-Fail "Dynamic readiness regression script missing: $dynamicFactsTest"
+}
+
+$supplyChainTest = Join-Path $projectRoot "scripts\verify\test-supply-chain-controls.ps1"
+if (Test-Path -LiteralPath $supplyChainTest -PathType Leaf) {
+    try {
+        $supplyOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $supplyChainTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($supplyOutput | Out-String) -match "Supply-chain")) { Add-Pass "Supply-chain controls regression passes" } else { Add-Fail "Supply-chain controls regression failed: $($supplyOutput | Out-String)" }
+    } catch { Add-Fail "Supply-chain controls regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Supply-chain regression script missing: $supplyChainTest" }
 
 if (-not $SkipUserInstallSmoke) {
     $installSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-install-smoke-" + [System.Guid]::NewGuid().ToString("N"))

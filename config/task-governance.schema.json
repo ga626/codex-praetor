@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://codex-praetor.local/schema/task-governance/v1",
+  "$id": "https://codex-praetor.local/schema/task-governance/v2",
   "title": "Codex Praetor logical task ledger",
   "type": "object",
   "required": ["schema", "plan_id", "revision", "contexts", "tasks", "events"],
   "properties": {
-    "schema": { "const": "codex-praetor-task-ledger/v1" },
+    "schema": { "const": "codex-praetor-task-ledger/v2" },
     "plan_id": { "type": "string", "minLength": 1 },
     "revision": { "type": "integer", "minimum": 0 },
     "contexts": { "type": "array", "items": { "$ref": "#/$defs/context" } },
@@ -27,7 +27,13 @@
         "governance_state": { "enum": ["awaiting_supervisor", "accepted", "rejected", "retryable", "blocked", "needs_decision"] },
         "write_set": { "type": "array", "items": { "type": "string" } },
         "depends_on": { "type": "array", "items": { "type": "string" } },
-        "acceptance": { "type": "string" }, "budget": { "type": "object" }, "stop_loss": { "type": "object" },
+        "completion_definition": { "$ref": "#/$defs/completion_definition" },
+        "acceptance": { "type": "string" },
+        "budget": { "$ref": "#/$defs/budget" },
+        "stop_loss": { "$ref": "#/$defs/stop_loss" },
+        "selection_id": { "type": "string" },
+        "outcome_ids": { "type": "array", "items": { "type": "string" } },
+        "progress": { "$ref": "#/$defs/progress" },
         "attempts": { "type": "array", "items": { "$ref": "#/$defs/attempt" } }
       }
     },
@@ -36,11 +42,54 @@
       "required": ["attempt_id", "base_commit", "execution_state", "evidence_state", "created_at"],
       "properties": {
         "attempt_id": { "type": "string" }, "base_commit": { "type": "string" },
+        "write_set": { "type": "array", "items": { "type": "string" } },
+        "contract_sha256": { "type": "string" },
         "execution_state": { "enum": ["draft", "queued", "running", "cancel_requested", "process_exited"] },
         "evidence_state": { "enum": ["report_valid", "artifact_valid", "tests_passed", "evidence_missing"] },
-        "artifacts": { "type": "array", "items": { "type": "object" } }, "created_at": { "type": "string", "format": "date-time" }
+        "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } }, "created_at": { "type": "string", "format": "date-time" },
+        "finished_at": { "type": "string", "format": "date-time" }
       }
     },
-    "event": { "type": "object", "required": ["event_id", "at", "type"], "properties": { "event_id": { "type": "string" }, "at": { "type": "string", "format": "date-time" }, "type": { "type": "string" }, "data": { "type": "object" } } }
+    "artifact": {
+      "type": "object",
+      "required": ["artifact_id", "kind", "path", "sha256"],
+      "properties": {
+        "artifact_id": { "type": "string" }, "kind": { "type": "string" }, "path": { "type": "string" },
+        "sha256": { "type": "string" }, "created_at": { "type": "string", "format": "date-time" },
+        "retention": { "enum": ["ephemeral", "audit", "release"] }
+      }
+    },
+    "completion_definition": {
+      "type": "object",
+      "required": ["required_evidence", "required_checks"],
+      "properties": {
+        "required_evidence": { "type": "array", "items": { "type": "string" } },
+        "required_checks": { "type": "array", "items": { "type": "string" } },
+        "success_predicate": { "type": "string" }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "max_attempts": { "type": "integer", "minimum": 1 }, "max_turns": { "type": "integer", "minimum": 1 },
+        "max_wall_seconds": { "type": "integer", "minimum": 1 }, "max_cost": { "type": "number", "minimum": 0 }
+      }
+    },
+    "stop_loss": {
+      "type": "object",
+      "properties": {
+        "on_tool_denied": { "enum": ["stop", "retry", "needs_decision"] },
+        "on_write_set_overlap": { "enum": ["stop", "needs_decision"] },
+        "on_missing_evidence": { "enum": ["stop", "retry", "needs_decision"] }
+      }
+    },
+    "progress": {
+      "type": "object",
+      "properties": {
+        "completed": { "type": "integer", "minimum": 0 }, "total": { "type": "integer", "minimum": 0 },
+        "last_event_id": { "type": "string" }, "summary": { "type": "string" }
+      }
+    },
+    "event": { "type": "object", "required": ["event_id", "at", "type"], "properties": { "event_id": { "type": "string" }, "at": { "type": "string", "format": "date-time" }, "type": { "type": "string" }, "actor": { "enum": ["worker", "watcher", "codex", "controller", "user"] }, "data": { "type": "object" } } }
   }
 }

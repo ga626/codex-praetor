@@ -21,6 +21,7 @@ import {
   dispatchTool,
   getLaneTool,
   healthTool,
+  governanceSummaryTool,
   jobTimelineTool,
   nextReadyTool,
   resultTool,
@@ -61,7 +62,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.4.1-alpha"
+    version: "0.5.0-alpha"
   });
 
   server.registerTool(
@@ -284,6 +285,20 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(statusTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_governance_summary",
+    {
+      title: "Read Governance Summary",
+      description: "Read a compact task, outcome, progress, release-state, and needs-decision summary without dumping the ledger or logs.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1),
+        plan_id: z.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(governanceSummaryTool(input))
   );
 
   server.registerTool(
