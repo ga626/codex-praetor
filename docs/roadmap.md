@@ -1,8 +1,8 @@
-﻿# Codex Praetor 路线图
+# Codex Praetor 路线图
 
 ## 当前状态：2026-07-17
 
-`v0.4.0-alpha` 已公开发布但尚未完成 activation；本分支的发布影响 PR 目标版本是 `v0.4.1-alpha`。这一版把发布 generation、Desktop host 解析、MCP 进程身份和 thread canary 分开验证，旧 generation/readiness 不能继续驱动新合同的真实派工。
+`v0.4.1-alpha` 已公开发布，但维护任务权限失败曾被错误放过，因此未达到产品交付门槛。本分支的发布影响 PR 目标版本是 `v0.4.2-alpha`：维护任务注册、fallback、后验校验和 active receipt 必须形成 fail-closed 闭环。
 
 已经完成：
 
