@@ -19,11 +19,12 @@ $sourceReconcile = Join-Path $sourcePath "scripts\maintenance\reconcile-codex-pr
 $targetRoot = Join-Path $profilePath ".codex\codex-praetor-maintenance"
 $targetRetirement = Join-Path $targetRoot "codex-praetor-retirement.ps1"
 $targetReconcile = Join-Path $targetRoot "reconcile-codex-praetor-generations.ps1"
+$maintenanceDefinitionPath = Join-Path $sourcePath "scripts\maintenance\get-codex-praetor-maintenance-definition.ps1"
+if (Test-Path -LiteralPath $maintenanceDefinitionPath -PathType Leaf) { . $maintenanceDefinitionPath }
+$maintenanceDefinition = if (Get-Command Get-CodexPraetorMaintenanceDefinition -ErrorAction SilentlyContinue) { Get-CodexPraetorMaintenanceDefinition -Profile $profilePath -Source $sourcePath -Name $TaskName } else { $null }
 
-$script:TaskExecutable = "powershell.exe"
-$quotedProfile = '"' + $profilePath.Replace('"', '\"') + '"'
-$quotedScript = '"' + $targetReconcile.Replace('"', '\"') + '"'
-$script:TaskArguments = "-NoProfile -ExecutionPolicy Bypass -File $quotedScript -UserProfileRoot $quotedProfile -Channel stable -Apply"
+$script:TaskExecutable = if ($null -ne $maintenanceDefinition) { [string]$maintenanceDefinition.executable } else { "powershell.exe" }
+$script:TaskArguments = if ($null -ne $maintenanceDefinition) { [string]$maintenanceDefinition.arguments } else { "-NoProfile -ExecutionPolicy Bypass -File `"$targetReconcile`" -UserProfileRoot `"$profilePath`" -Channel stable -Apply" }
 $script:TaskUserId = "$env:USERDOMAIN\$env:USERNAME"
 
 function Build-TaskXml {

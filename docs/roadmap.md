@@ -1,8 +1,8 @@
-# Codex Praetor 路线图
+﻿# Codex Praetor 路线图
 
 ## 当前状态：2026-07-17
 
-`v0.4.1-alpha` 已公开发布，但维护任务权限失败曾被错误放过，因此未达到产品交付门槛。本分支的发布影响 PR 目标版本是 `v0.4.2-alpha`：维护任务注册、fallback、后验校验和 active receipt 必须形成 fail-closed 闭环。
+`v0.4.1-alpha` 已公开发布，但维护任务权限失败曾被错误放过，因此未达到产品交付门槛。本分支的发布影响 PR 目标版本是 `v0.5.0-alpha`：维护任务注册、fallback、后验校验和 active receipt 必须形成 fail-closed 闭环。
 
 已经完成：
 

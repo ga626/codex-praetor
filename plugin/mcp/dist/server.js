@@ -32034,6 +32034,36 @@ function statusTool(input) {
     message: "Provide job_id or plan_id."
   };
 }
+function governanceSummaryTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const planPath = path2.join(getPlanRoot(repo), input.plan_id.trim(), "plan.json");
+  if (!existsSync2(planPath)) {
+    return { found: false, repo, plan_id: input.plan_id, plan_path: planPath };
+  }
+  const plan = readJsonFile(planPath);
+  const tasks = Array.isArray(plan.tasks) ? plan.tasks : [];
+  const outcomes = Array.isArray(plan.outcomes) ? plan.outcomes : [];
+  const counts = {
+    total: tasks.length,
+    accepted: tasks.filter((task) => task.governance_state === "accepted").length,
+    awaiting_supervisor: tasks.filter((task) => task.governance_state === "awaiting_supervisor").length,
+    needs_decision: tasks.filter((task) => task.governance_state === "needs_decision").length,
+    retryable: tasks.filter((task) => task.governance_state === "retryable").length,
+    blocked: tasks.filter((task) => task.governance_state === "blocked").length,
+    outcomes: outcomes.length
+  };
+  return {
+    found: true,
+    repo,
+    plan_id: String(plan.plan_id ?? input.plan_id),
+    revision: Number(plan.revision ?? 0),
+    release_state: String(plan.release_state ?? "draft"),
+    counts,
+    needs_decision: tasks.filter((task) => task.governance_state === "needs_decision").map((task) => ({ task_id: task.task_id, next_action: task.next_action, summary: task.summary })),
+    tasks: tasks.map((task) => ({ task_id: task.task_id, status: task.status, governance_state: task.governance_state, progress: task.progress, next_action: task.next_action })),
+    plan_path: planPath
+  };
+}
 function resultTool(input) {
   const repo = resolveExistingRepo(input.repo);
   const jobId = input.job_id.trim();
@@ -32238,7 +32268,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.4.2-alpha"
+    version: "0.5.0-alpha"
   });
   server.registerTool(
     "codex_praetor_route_intent",
@@ -32447,6 +32477,19 @@ function createServer() {
       }
     },
     async (input) => asJsonContent(statusTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_governance_summary",
+    {
+      title: "Read Governance Summary",
+      description: "Read a compact task, outcome, progress, release-state, and needs-decision summary without dumping the ledger or logs.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(governanceSummaryTool(input))
   );
   server.registerTool(
     "codex_praetor_next_ready",

@@ -925,6 +925,37 @@ export function statusTool(input: {
   };
 }
 
+export function governanceSummaryTool(input: { repo: string; plan_id: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  const planPath = path.join(getPlanRoot(repo), input.plan_id.trim(), "plan.json");
+  if (!existsSync(planPath)) {
+    return { found: false, repo, plan_id: input.plan_id, plan_path: planPath };
+  }
+  const plan = readJsonFile(planPath) as Record<string, unknown>;
+  const tasks = Array.isArray(plan.tasks) ? (plan.tasks as Record<string, unknown>[]) : [];
+  const outcomes = Array.isArray(plan.outcomes) ? plan.outcomes as Record<string, unknown>[] : [];
+  const counts = {
+    total: tasks.length,
+    accepted: tasks.filter((task) => task.governance_state === "accepted").length,
+    awaiting_supervisor: tasks.filter((task) => task.governance_state === "awaiting_supervisor").length,
+    needs_decision: tasks.filter((task) => task.governance_state === "needs_decision").length,
+    retryable: tasks.filter((task) => task.governance_state === "retryable").length,
+    blocked: tasks.filter((task) => task.governance_state === "blocked").length,
+    outcomes: outcomes.length
+  };
+  return {
+    found: true,
+    repo,
+    plan_id: String(plan.plan_id ?? input.plan_id),
+    revision: Number(plan.revision ?? 0),
+    release_state: String(plan.release_state ?? "draft"),
+    counts,
+    needs_decision: tasks.filter((task) => task.governance_state === "needs_decision").map((task) => ({ task_id: task.task_id, next_action: task.next_action, summary: task.summary })),
+    tasks: tasks.map((task) => ({ task_id: task.task_id, status: task.status, governance_state: task.governance_state, progress: task.progress, next_action: task.next_action })),
+    plan_path: planPath
+  };
+}
+
 export function resultTool(input: {
   repo: string;
   job_id: string;

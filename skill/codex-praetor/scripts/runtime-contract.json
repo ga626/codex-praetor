@@ -1,7 +1,7 @@
 {
   "schema": "codex-praetor-runtime-contract/v1",
   "product": "codex-praetor",
-  "version": "0.4.2-alpha",
+  "version": "0.5.0-alpha",
   "wrapperProtocol": "2",
   "taskContractSchema": "codex-praetor-task-contract/v4",
   "requiredMcpTools": [
@@ -19,6 +19,7 @@
     "codex_praetor_get_lane",
     "codex_praetor_detect_conflicts",
     "codex_praetor_status",
+    "codex_praetor_governance_summary",
     "codex_praetor_next_ready",
     "codex_praetor_dispatch_plan_task",
     "codex_praetor_verify_task"

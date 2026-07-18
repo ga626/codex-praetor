@@ -41,6 +41,7 @@ if (-not (Test-Path -LiteralPath $sourceSkillRoot -PathType Container)) {
 }
 
 $profileRoot = [System.IO.Path]::GetFullPath($UserProfileRoot)
+$isIsolatedProfile = -not [string]::Equals($profileRoot, [System.IO.Path]::GetFullPath($env:USERPROFILE), [System.StringComparison]::OrdinalIgnoreCase)
 $codexRoot = Join-Path $profileRoot ('.' + 'codex')
 $installedSkill = Join-Path $codexRoot "skills\codex-praetor"
 $installedPlugin = Join-Path $profileRoot "plugins\codex-praetor"
@@ -48,6 +49,23 @@ $marketplacePath = Join-Path $profileRoot ".agents\plugins\marketplace.json"
 $cacheRoot = Join-Path $codexRoot (Join-Path "plugins" (Join-Path "cache" (Join-Path "personal" "codex-praetor")))
 $activeReceiptPath = Join-Path $codexRoot "codex-praetor-releases\$Channel\active.json"
 $checks = @()
+$readinessHelperCandidates = @(
+    (Join-Path $projectRoot "scripts\verify\resolve-codex-praetor-readiness.ps1"),
+    (Join-Path $scriptDir "resolve-codex-praetor-readiness.ps1")
+)
+$readinessHelperPath = @($readinessHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($readinessHelperPath).Count -eq 1) { . ([string]$readinessHelperPath[0]) }
+$maintenanceHelperCandidates = @(
+    (Join-Path $projectRoot "scripts\maintenance\get-codex-praetor-maintenance-definition.ps1"),
+    (Join-Path $scriptDir "get-codex-praetor-maintenance-definition.ps1")
+)
+$maintenanceHelperPath = @($maintenanceHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($maintenanceHelperPath).Count -eq 1) { . ([string]$maintenanceHelperPath[0]) }
+$inventoryScriptCandidates = @(
+    (Join-Path $projectRoot "scripts\verify\get-codex-praetor-runtime-inventory.ps1"),
+    (Join-Path $scriptDir "get-codex-praetor-runtime-inventory.ps1")
+)
+$inventoryScriptPath = @($inventoryScriptCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 
 function Add-HealthCheck {
     param([string]$Name, [string]$Status, [string]$Message, [object]$Details)
@@ -143,16 +161,28 @@ if ($marketplaceOk) {
     Add-HealthCheck -Name "marketplace_activation" -Status "blocked" -Message "Marketplace does not point at the expected Codex Praetor plugin path." -Details $marketplacePath
 }
 
-if ($null -ne $receipt -and [string]$receipt.fresh_context.status -eq "passed") {
+if ($null -ne $receipt -and [string]$receipt.fresh_context.schema -eq "codex-praetor-fresh-context-proof/v2" -and [string]$receipt.fresh_context.status -eq "passed" -and [string]$receipt.fresh_context.generation_id -eq [string]$receipt.generation.generation_id -and [string]$receipt.fresh_context.runtime_identity.runtime_contract_sha256 -eq [string]$receipt.generation.runtime_contract_sha256 -and [string]$receipt.fresh_context.runtime_info.runtime_contract.version -eq [string]$receipt.generation.version -and [int64]$receipt.fresh_context.runtime_identity.process_id -gt 0) {
     Add-HealthCheck -Name "fresh_context" -Status "ready" -Message "Fresh-context MCP proof passed for the active generation." -Details ([string]$receipt.fresh_context.observed_at)
 } else {
-    Add-HealthCheck -Name "fresh_context" -Status "blocked" -Message "Fresh-context MCP proof is missing or failed; real dispatch must refuse." -Details $activeReceiptPath
+    Add-HealthCheck -Name "fresh_context" -Status "blocked" -Message "Fresh-context MCP proof is missing, stale, or lacks runtime identity; real dispatch must refuse." -Details $activeReceiptPath
 }
 
-if ($null -ne $receipt -and [string]$receipt.provider_readiness.status -eq "passed" -and [string]$receipt.provider_readiness.generation_id -eq [string]$receipt.generation.generation_id -and [string]$receipt.provider_readiness.runtime_contract_sha256 -eq [string]$receipt.generation.runtime_contract_sha256) {
-    Add-HealthCheck -Name "provider_readiness" -Status "ready" -Message "Provider readiness passed for the active generation." -Details $activeReceiptPath
+$readinessPath = Join-Path $profileRoot ".codex\codex-praetor-readiness.json"
+$readinessResult = $null
+if ($isIsolatedProfile -and $null -ne $receipt -and [string]$receipt.provider_readiness.status -eq "passed" -and [string]$receipt.provider_readiness.generation_id -eq [string]$receipt.generation.generation_id) {
+    $readinessResult = [pscustomobject]@{ ok = $true; reason = "隔离验证 profile 使用 activation 时已验收的 provider readiness；真实 stable profile 仍要求动态 canary。"; isolated = $true }
+} elseif ($null -ne $receipt -and $null -ne $receipt.provider_readiness -and (Get-Command Test-CodexPraetorProviderReadiness -ErrorAction SilentlyContinue)) {
+    $tuple = $receipt.provider_readiness.tuple
+    if ($null -eq $tuple -and @($receipt.provider_readiness.entries).Count -gt 0) { $tuple = @($receipt.provider_readiness.entries)[0] }
+    if ($null -ne $tuple) {
+        $readinessResult = Test-CodexPraetorProviderReadiness -Path $readinessPath -ProviderName ([string]$receipt.provider_readiness.provider) -Cli ([string]$tuple.cli_path) -ModelName ([string]$tuple.model) -Permission ([string]$tuple.permission_profile) -Kind ([string]$tuple.task_kind) -ExpectedGeneration ([string]$receipt.generation.generation_id) -ExpectedRuntimeContract ([string]$receipt.generation.runtime_contract_sha256) -ExpectedTaskContract ([string]$receipt.generation.task_contract_schema)
+    }
+}
+if ($null -ne $readinessResult -and $readinessResult.ok) {
+    Add-HealthCheck -Name "provider_readiness" -Status "ready" -Message "当前 provider readiness 与 CLI hash、过期时间和执行 tuple 匹配。" -Details $readinessResult
 } else {
-    Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "Versioned provider readiness is missing or failed; real dispatch must refuse." -Details $activeReceiptPath
+    $details = if ($null -eq $readinessResult) { $activeReceiptPath } else { $readinessResult }
+    Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "当前 provider readiness 缺失、过期或已漂移；真实派工必须拒绝。" -Details $details
 }
 
 $retirementManifestPath = Join-Path (Split-Path -Parent $activeReceiptPath) "retirement.json"
@@ -182,26 +212,33 @@ if (Test-Path -LiteralPath $retirementManifestPath -PathType Leaf) {
     Add-HealthCheck -Name "generation_retirement" -Status "ready" -Message "当前没有退休清单；没有待回收代际。" -Details $retirementSummary
 }
 
+if (@($inventoryScriptPath).Count -eq 1) {
+    try {
+        $inventory = (& powershell -NoProfile -ExecutionPolicy Bypass -File ([string]$inventoryScriptPath[0]) -Repo $Repo -UserProfileRoot $profileRoot -Channel $Channel -Json | Out-String) | ConvertFrom-Json
+        $inventoryStatus = if (@($inventory.items | Where-Object { $_.category -eq "dirty/unmerged" }).Count -gt 0) { "degraded" } else { "ready" }
+        Add-HealthCheck -Name "runtime_inventory" -Status $inventoryStatus -Message "runtime inventory 已生成；当前默认只读且保留 active/dirty/audit 项。" -Details $inventory
+    } catch { Add-HealthCheck -Name "runtime_inventory" -Status "degraded" -Message "runtime inventory 生成失败；不得据此删除任何代际。" -Details $_.Exception.Message }
+} else {
+    Add-HealthCheck -Name "runtime_inventory" -Status "degraded" -Message "runtime inventory adapter 缺失。" -Details $projectRoot
+}
+
 $maintenanceTaskName = "CodexPraetor-GenerationReconcile"
-$isIsolatedProfile = -not [string]::Equals($profileRoot, [System.IO.Path]::GetFullPath($env:USERPROFILE), [System.StringComparison]::OrdinalIgnoreCase)
+ $hasMaintenanceAdapter = $null -ne (Get-Command Get-CodexPraetorMaintenanceDefinition -ErrorAction SilentlyContinue) -and $null -ne (Get-Command Get-CodexPraetorMaintenanceTaskInspection -ErrorAction SilentlyContinue)
 if ($isIsolatedProfile) {
     Add-HealthCheck -Name "generation_maintenance" -Status "ready" -Message "隔离 profile 不安装 Windows 维护任务；这不会阻断开发验收。" -Details ([pscustomobject]@{ task_name = $maintenanceTaskName; status = "not_applicable" })
-} elseif (-not (Get-Command -Name Get-ScheduledTask -ErrorAction SilentlyContinue)) {
-    Add-HealthCheck -Name "generation_maintenance" -Status "degraded" -Message "当前 PowerShell 无法读取 Windows 计划任务；需要确认代际回收维护任务。" -Details ([pscustomobject]@{ task_name = $maintenanceTaskName; status = "unavailable" })
+} elseif ($hasMaintenanceAdapter) {
+    $definition = Get-CodexPraetorMaintenanceDefinition -Profile $profileRoot -Source $projectRoot -Name $maintenanceTaskName
+    $inspection = Get-CodexPraetorMaintenanceTaskInspection -Definition $definition
+    $taskReady = $inspection.exists -and $inspection.enabled -and $inspection.action_matches -and $inspection.triggers_match -and ([string]$inspection.state -in @("Ready", "Running"))
+    $taskStatus = if ($taskReady) { "ready" } elseif (-not $inspection.exists) { "degraded" } else { "blocked" }
+    Add-HealthCheck -Name "generation_maintenance" -Status $taskStatus -Message ([string]$inspection.reason) -Details ([pscustomobject]@{ definition = $definition; inspection = $inspection })
 } else {
-    $maintenanceTask = Get-ScheduledTask -TaskName $maintenanceTaskName -ErrorAction SilentlyContinue
-    if ($null -eq $maintenanceTask) {
-        Add-HealthCheck -Name "generation_maintenance" -Status "degraded" -Message "未找到代际回收维护任务；stable 安装后应运行安装向导或维护安装脚本。" -Details ([pscustomobject]@{ task_name = $maintenanceTaskName; status = "missing" })
-    } else {
-        $taskState = [string]$maintenanceTask.State
-        $taskStatus = if ($taskState -in @("Ready", "Running")) { "ready" } else { "degraded" }
-        Add-HealthCheck -Name "generation_maintenance" -Status $taskStatus -Message "代际回收维护任务状态：$taskState" -Details ([pscustomobject]@{ task_name = $maintenanceTaskName; status = $taskState })
-    }
+    Add-HealthCheck -Name "generation_maintenance" -Status "degraded" -Message "维护任务 adapter 缺失，无法验证任务定义。" -Details $maintenanceTaskName
 }
 
 $overall = if (@($checks | Where-Object { $_.status -eq "blocked" }).Count -gt 0) { "blocked" } elseif (@($checks | Where-Object { $_.status -ne "ready" }).Count -gt 0) { "degraded" } else { "ready" }
 $payload = [pscustomobject]@{
-    schema = "codex-praetor-health/v4"
+    schema = "codex-praetor-health/v5"
     status = $overall
     repo = (Resolve-Path -LiteralPath $Repo).Path
     channel = $Channel

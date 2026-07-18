@@ -1,9 +1,9 @@
-# GitHub Publish Runbook
+﻿# GitHub Publish Runbook
 
 Date: 2026-07-17
-Target release: `0.4.2-alpha`
+Target release: `0.5.0-alpha`
 
-Status: `v0.4.0-alpha` is already published. `v0.4.2-alpha` must merge before its new tag and Release are created from the latest `main`; existing tags are immutable.
+Status: `v0.4.0-alpha` is already published. `v0.5.0-alpha` must merge before its new tag and Release are created from the latest `main`; existing tags are immutable.
 
 This runbook is the safe path for publishing Codex Praetor to GitHub. It assumes Codex does the release work after the user completes only the account-owner actions that cannot be delegated safely.
 
@@ -96,8 +96,8 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    ```powershell
    git switch main
    git pull --ff-only
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version 0.4.2-alpha -Tag v0.4.2-alpha
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version 0.4.2-alpha -Tag v0.4.2-alpha -Apply
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version 0.5.0-alpha -Tag v0.5.0-alpha
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version 0.5.0-alpha -Tag v0.5.0-alpha -Apply
    ```
 
    The apply command creates and pushes the new tag, creates a prerelease with the zip and `.sha256`, then downloads the remote assets and verifies them. Existing tags and Releases are rejected by default.

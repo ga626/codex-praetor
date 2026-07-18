@@ -144,6 +144,12 @@ $runtimeContractPath = [string]$runtimeContractPath[0]
 $generationScript = Join-Path $scriptGrandparent "scripts\release\get-codex-praetor-generation.ps1"
 $runtimeContract = Get-Content -LiteralPath $runtimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $runtimeContractHash = (Get-FileHash -LiteralPath $runtimeContractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$readinessHelperCandidates = @(
+    (Join-Path $scriptGrandparent "scripts\verify\resolve-codex-praetor-readiness.ps1"),
+    (Join-Path $scriptDir "resolve-codex-praetor-readiness.ps1")
+)
+$readinessHelperPath = @($readinessHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($readinessHelperPath).Count -eq 1) { . ([string]$readinessHelperPath[0]) }
 $generation = $null
 if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
     $generation = (& $generationScript -ProjectRoot $scriptGrandparent -Json | ConvertFrom-Json)
@@ -231,32 +237,10 @@ function Test-ProviderReadiness {
         [string]$TaskKindName
     )
 
-    $state = Read-JsonOrNull -Path $ReadinessPath
-    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2") -or $null -eq $state.entries) {
-        return [ordered]@{ ok = $false; reason = "No capability canary record exists."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
+    if (Get-Command Test-CodexPraetorProviderReadiness -ErrorAction SilentlyContinue) {
+        return (Test-CodexPraetorProviderReadiness -Path $ReadinessPath -ProviderName $ProviderName -Cli $CliPath -ModelName $ModelName -Permission $PermissionProfileName -Kind $TaskKindName -ExpectedGeneration ([string]$generation.generation_id) -ExpectedRuntimeContract $runtimeContractHash -ExpectedTaskContract ([string]$runtimeContract.taskContractSchema))
     }
-    if ([string]$state.generation_id -ne [string]$generation.generation_id -or [string]$state.runtime_contract_sha256 -ne $runtimeContractHash -or [string]$state.task_contract_schema -ne [string]$runtimeContract.taskContractSchema) {
-        return [ordered]@{ ok = $false; reason = "Readiness belongs to a different generation or runtime contract."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
-    }
-
-    $cliHash = Get-FileSha256OrEmpty -Path $CliPath
-    $now = Get-Date
-    foreach ($entry in @($state.entries)) {
-        if ([string]$entry.status -ne "passed") { continue }
-        if ([string]$entry.provider -ne $ProviderName) { continue }
-        if ([string]$entry.cli_path -ne $CliPath) { continue }
-        if ([string]$entry.cli_hash -ne $cliHash) { continue }
-        if ([string]$entry.model -ne $ModelName) { continue }
-        if ([string]$entry.permission_profile -ne $PermissionProfileName) { continue }
-        if ([string]$entry.task_kind -ne $TaskKindName) { continue }
-        if ([string]$entry.generation_id -ne [string]$generation.generation_id) { continue }
-        if ([string]$entry.runtime_contract_sha256 -ne $runtimeContractHash) { continue }
-        if ([string]$entry.task_contract_schema -ne [string]$runtimeContract.taskContractSchema) { continue }
-        if ([string]::IsNullOrWhiteSpace([string]$entry.expires_at)) { continue }
-        if ([DateTime]::Parse([string]$entry.expires_at) -le $now) { continue }
-        return [ordered]@{ ok = $true; reason = "Matching capability canary is current."; cli_hash = $cliHash; entry = $entry }
-    }
-    return [ordered]@{ ok = $false; reason = "No current canary matches this provider tuple."; cli_hash = $cliHash }
+    return [ordered]@{ ok = $false; reason = "Readiness helper is missing."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
 }
 
 function Get-CurrentGitBranch {
