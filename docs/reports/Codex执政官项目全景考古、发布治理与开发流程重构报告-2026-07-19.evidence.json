@@ -1,0 +1,96 @@
+{
+  "schema": "knowledgeradar-research-evidence/v1",
+  "artifact": {
+    "report_path": "D:/Projects/CodexPraetor/docs/reports/Codex执政官项目全景考古、发布治理与开发流程重构报告-2026-07-19.md",
+    "created_at": "2026-07-19T00:52:00+08:00",
+    "draft": false,
+    "generator": "Codex + KnowledgeRadar native MCP",
+    "scope": "read_only_project_archaeology_and_external_research"
+  },
+  "budget": {
+    "selected_profile": "deep",
+    "selected_by": "kr_research",
+    "reason": "跨本地源码、运行态、GitHub、官方文档和学术背景进行证据交叉。",
+    "remaining_repair_rounds": 0
+  },
+  "tool_calls": [
+    {"id": "T001", "tool": "mcp__knowledgeradar__health_check", "mode": "summary", "access_path": "native_mcp", "status": "ok"},
+    {"id": "T002", "tool": "mcp__knowledgeradar__get_capabilities", "mode": "summary=true", "access_path": "native_mcp", "status": "ok"},
+    {"id": "T003", "tool": "mcp__knowledgeradar__kr_research", "mode": "deep_route", "budget": "deep", "access_path": "native_mcp", "status": "ok"},
+    {"id": "T004", "tool": "mcp__knowledgeradar__kr_web_search", "query_group": "official Codex, MCP, GitHub, VS Code, release automation, Temporal", "access_path": "native_mcp", "status": "ok"},
+    {"id": "T005", "tool": "mcp__knowledgeradar__extract_web_page", "query_group": "MCP, GitHub, VS Code, JetBrains, release-please, Temporal, NIST", "access_path": "native_mcp", "status": "partial_success"},
+    {"id": "T006", "tool": "mcp__knowledgeradar__search_academic", "query_group": "CI/CD, software supply chain, workflow governance", "access_path": "native_mcp", "status": "ok"},
+    {"id": "T007", "tool": "local_git_and_powershell_probes", "query_group": "repo, receipts, health, tests, GitHub API", "access_path": "native_local", "status": "ok"}
+  ],
+  "evidence_items": [
+    {"id": "L01", "type": "local_code", "title": "main and v0.5.0-alpha", "local_path": "D:/Projects/CodexPraetor", "summary": "main clean at a0b4ccc; v0.5.0-alpha tag exists.", "strength": "strong"},
+    {"id": "L02", "type": "runtime_probe", "title": "stable active receipt", "local_path": "C:/Users/ga990/.codex/codex-praetor-releases/stable/active.json", "summary": "active generation remains 0.4.1-alpha.", "strength": "strong"},
+    {"id": "L03", "type": "runtime_probe", "title": "0.5.0 staged receipt", "local_path": "C:/Users/ga990/.codex/codex-praetor-releases/stable/receipts/0.5.0-alpha--a0b4ccc6a4dd--355a7132b311.json", "summary": "target generation is staged with fresh proof and readiness pending.", "strength": "strong"},
+    {"id": "L04", "type": "runtime_probe", "title": "native runtime_info and health", "local_path": "native Codex Praetor MCP", "summary": "native runtime reports 0.4.1-alpha; health is blocked/degraded and maintenance task is missing.", "strength": "strong"},
+    {"id": "L05", "type": "local_code", "title": "readiness helper composition", "local_path": "scripts/dispatch/invoke-codex-praetor.ps1:147-152,958; scripts/verify/resolve-codex-praetor-readiness.ps1:1", "summary": "dot-sourced helper has a param block and overwrites outer Provider in the real canary path.", "strength": "strong"},
+    {"id": "L06", "type": "local_code", "title": "CI and closeout test boundary", "local_path": ".github/workflows/ci.yml; scripts/verify/test-release-closeout.ps1", "summary": "public CI and isolated closeout use structural or fake readiness evidence, not a target real provider canary.", "strength": "strong"},
+    {"id": "L07", "type": "local_code", "title": "local validation", "local_path": "scripts/verify/test-codex-praetor.ps1; mcp/package.json", "summary": "product structure, parser, MCP self-test and setup smoke pass.", "strength": "strong"},
+    {"id": "L08", "type": "prior_report", "title": "milestone A real dispatch retrospective", "local_path": "docs/reports/Codex执政官里程碑A真实派工测试复盘与控制面整改报告-2026-07-17.md", "summary": "semantic failure, blocking supervision, missing value/outcome ledger were already observed.", "strength": "strong"},
+    {"id": "K01", "type": "web", "source_ecology": "generic_web_ecology", "title": "OpenAI Codex MCP and Plugins", "url": "https://developers.openai.com/codex/mcp", "summary": "Codex clients share host MCP configuration; plugin tools are loaded in plugin/chat context; current host refresh is a lifecycle boundary.", "strength": "medium_strong"},
+    {"id": "K02", "type": "web", "source_ecology": "generic_web_ecology", "title": "MCP Tools 2025-06-18", "url": "https://modelcontextprotocol.io/specification/2025-06-18/server/tools", "summary": "tools.listChanged is an optional capability and notification; it does not promise host reconstruction of an existing conversation.", "strength": "strong"},
+    {"id": "K03", "type": "web", "source_ecology": "generic_web_ecology", "title": "GitHub Immutable Releases", "url": "https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases", "summary": "immutable releases lock tags/assets; GitHub recommends draft, attach all assets, then publish.", "strength": "strong"},
+    {"id": "K04", "type": "web", "source_ecology": "generic_web_ecology", "title": "GitHub Artifact Attestations", "url": "https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations", "summary": "Actions attest can bind binaries and SBOMs to workflow provenance.", "strength": "strong"},
+    {"id": "K05", "type": "web", "source_ecology": "generic_web_ecology", "title": "VS Code Extension Development Host", "url": "https://code.visualstudio.com/api/get-started/your-first-extension", "summary": "extensions are iterated in a separate development host and reloaded explicitly.", "strength": "strong"},
+    {"id": "K06", "type": "web", "source_ecology": "generic_web_ecology", "title": "JetBrains Plugin Verifier", "url": "https://plugins.jetbrains.com/docs/intellij/verifying-plugin-compatibility.html", "summary": "plugin compatibility is verified against target IDE builds in CI.", "strength": "strong"},
+    {"id": "K07", "type": "web", "source_ecology": "generic_web_ecology", "title": "release-please", "url": "https://github.com/googleapis/release-please/blob/main/README.md", "summary": "a maintained Release PR connects merged changes, changelog, version, tag and GitHub Release.", "strength": "strong"},
+    {"id": "K08", "type": "web", "source_ecology": "generic_web_ecology", "title": "Temporal Event History and Non-Retryable Errors", "url": "https://docs.temporal.io/workflow-execution/event", "summary": "append-only event history supports recovery/audit; permanent failures should fail fast rather than retry indefinitely.", "strength": "strong"},
+    {"id": "K09", "type": "web", "source_ecology": "generic_web_ecology", "title": "NIST SSDF", "url": "https://csrc.nist.gov/pubs/sp/800/218/final", "summary": "secure software development provides a common language for supply-chain and SDLC controls.", "strength": "strong"},
+    {"id": "K10", "type": "academic", "source_ecology": "academic_literature_ecology", "title": "CI/CD systematic review", "url": "https://doi.org/10.1109/access.2017.2685629", "summary": "review identifies automated testing, visibility, deployment security and feedback as core continuous-practice concerns.", "strength": "medium"}
+  ],
+  "claims": [
+    {"id": "C01", "text": "0.5.0-alpha is publicly published but not the active user generation and cannot be called delivered.", "importance": "critical", "supporting_evidence_ids": ["L01", "L02", "L03", "L04"]},
+    {"id": "C02", "text": "The release process has separate package, stage, host, readiness and activation truths without one enforced state machine.", "importance": "high", "supporting_evidence_ids": ["L02", "L03", "L04", "L06"]},
+    {"id": "C03", "text": "The 0.5.0 readiness helper has a real composition bug that static and fake closeout tests do not catch.", "importance": "critical", "supporting_evidence_ids": ["L05", "L06", "L07"]},
+    {"id": "C04", "text": "Current Codex/MCP lifecycle cannot guarantee hot replacement of an existing conversation tool snapshot.", "importance": "high", "supporting_evidence_ids": ["K01", "K02", "K05"]},
+    {"id": "C05", "text": "A dev profile plus explicit fresh-context validation is more realistic than attempting to mutate the stable host in place.", "importance": "high", "supporting_evidence_ids": ["K01", "K02", "K05", "K06"]},
+    {"id": "C06", "text": "Long-term release reliability needs immutable artifacts, provenance, PR-driven versioning and append-only task/release evidence.", "importance": "high", "supporting_evidence_ids": ["K03", "K04", "K07", "K08", "K09", "K10"]}
+  ],
+  "claim_evidence_chains": [
+    {"claim_id": "C01", "tool_call_ids": ["T007"], "evidence_ids": ["L01", "L02", "L03", "L04"], "sources": ["local git", "stable receipt", "native runtime_info", "health"], "extracted_facts": "main is a0b4ccc; public v0.5.0 exists; active is 0.4.1; target receipt is staged; native runtime is old.", "inference": "public package and delivered product are different states.", "limitations": "Desktop host refresh remains a supported user action boundary.", "strength": "strong"},
+    {"claim_id": "C02", "tool_call_ids": ["T007"], "evidence_ids": ["L02", "L03", "L04", "L06"], "sources": ["release controller", "health", "CI", "closeout smoke"], "extracted_facts": "different scripts own release, stage, health and simulated closeout states.", "inference": "no single enforced controller owns the complete lifecycle.", "limitations": "Some state transitions are intentionally separate; the gap is the missing canonical projection and precondition.", "strength": "strong"},
+    {"claim_id": "C03", "tool_call_ids": ["T007"], "evidence_ids": ["L05", "L06", "L07"], "sources": ["PowerShell source", "real canary reproduction", "CI/closeout test"], "extracted_facts": "dot-sourced helper param block resets Provider; parser and fake closeout still pass.", "inference": "composition regression is not covered by current gate.", "limitations": "The provider account itself was not re-authenticated in this read-only audit.", "strength": "strong"},
+    {"claim_id": "C04", "tool_call_ids": ["T004", "T005"], "evidence_ids": ["K01", "K02", "K05"], "sources": ["OpenAI search result", "MCP specification", "VS Code official docs"], "extracted_facts": "plugin/MCP loading and development host refresh are context/window lifecycle operations; listChanged is optional.", "inference": "current conversation hot replacement cannot be a product guarantee.", "limitations": "OpenAI official正文抽取受网络错误影响，使用官方搜索摘要。", "strength": "medium_strong"},
+    {"claim_id": "C06", "tool_call_ids": ["T004", "T005", "T006"], "evidence_ids": ["K03", "K04", "K07", "K08", "K09", "K10"], "sources": ["GitHub", "Temporal", "NIST", "CI/CD literature"], "extracted_facts": "immutable release, attestations, release PR, append-only history and non-retryable classification are established patterns.", "inference": "the project should reuse these mechanisms instead of more ad hoc scripts.", "limitations": "Temporal is a design reference, not a recommendation to add a service.", "strength": "strong"}
+  ],
+  "coverage": {
+    "required_surfaces": ["local_code", "runtime_probe", "prior_report", "web", "academic"],
+    "covered_surfaces": ["local_code", "runtime_probe", "prior_report", "web", "academic"],
+    "missing_surfaces": [],
+    "skipped_surfaces": [{"surface": "media_detail", "reason": "not relevant to this software governance question"}],
+    "required_source_ecologies": ["generic_web_ecology", "github_repository_ecology", "academic_literature_ecology"],
+    "covered_source_ecologies": ["generic_web_ecology", "github_repository_ecology", "academic_literature_ecology"],
+    "missing_source_ecologies": [],
+    "skipped_source_ecologies": [{"source_ecology": "platform_search", "reason": "not needed for this engineering governance question"}]
+  },
+  "roadmap": [
+    {"phase": "P0-contract", "task": "冻结 release receipt、provider readiness 和状态转换合同", "method": "ADR、schema、状态机和写入者矩阵", "input": "当前 receipts、health、0.5.0 blocker、历史报告", "output": "合同文件和验收矩阵", "acceptance": "每个现有 blocker 都有唯一状态、证据和恢复动作", "dependency": "无前置依赖"},
+    {"phase": "P0-composition", "task": "修复 readiness helper 和真实 wrapper 组合回归", "method": "移除点源参数污染，加入 PowerShell 作用域测试和真实 canary preview/apply", "input": "L05/L06/L07", "output": "真实 provider tuple gate", "acceptance": "目标 wrapper 不再出现 Provider 为空；无授权时明确 needs_user_action", "dependency": "P0-contract"},
+    {"phase": "P0-controller", "task": "统一 candidate、publish、stage、host refresh、activate、delivered", "method": "canonical controller + append-only receipt/projection", "input": "现有 build/publish/complete/health/retirement scripts", "output": "唯一交付状态机", "acceptance": "不能越过 proof/readiness/user-path 直接写 delivered", "dependency": "P0-contract"},
+    {"phase": "P1-dev-channel", "task": "建立隔离 dev profile 和 fresh-context 验证入口", "method": "dev-stage、host refresh action、runtime_info first、dev receipt", "input": "Codex/MCP lifecycle evidence K01/K02/K05", "output": "最新候选可安全验证而不污染 stable", "acceptance": "dev 可验证；stable active 不被覆盖", "dependency": "P0-controller"},
+    {"phase": "P1-supply-chain", "task": "把 PR、远端构建、attestation、immutable release 和 GitHub ruleset 接起来", "method": "release PR/workflow + required checks + artifact/SBOM attestation", "input": "GitHub K03/K04/K07/K08/K09", "output": "可追溯发布链", "acceptance": "tag、commit、zip、manifest、attestation 和 receipt 一致", "dependency": "P0-controller"}
+  ],
+  "decision_register": {
+    "schema": "knowledgeradar-decision-register/v1",
+    "decisions": [
+      {"id": "D01", "title": "是否继续激活 0.5.0-alpha", "status": "deferred", "options": ["直接绕过证据激活", "保留 staged，先修流程和目标版本"], "recommended_action": "保留 staged，不绕过 fresh proof/readiness。", "decision_record_location": "主报告第 14 节", "next_review": "完成 P0-composition 后"},
+      {"id": "D02", "title": "是否承诺当前 Codex 对话热更新", "status": "rejected", "options": ["承诺当前对话热更新", "dev profile + explicit refresh + new context"], "recommended_action": "采用 dev/stable 双通道，不承诺当前对话热替换。", "decision_record_location": "主报告第 8.3 节", "next_review": "宿主官方生命周期发生变化时"},
+      {"id": "D03", "title": "是否引入 Temporal 等服务化编排平台", "status": "rejected", "options": ["引入完整服务", "借鉴 event history/non-retryable，不引入服务"], "recommended_action": "先实现本地 append-only ledger 和状态投影。", "decision_record_location": "主报告第 7.7 节", "next_review": "出现跨机器、多用户、Codex 未运行仍需持续执行的硬需求时"}
+    ]
+  },
+  "process_quality": {
+    "schema": "knowledgeradar-process-quality/v1",
+    "code_modified": false,
+    "capability_handshake": {"health_check": "mcp__knowledgeradar__health_check(mode=summary)", "get_capabilities": "mcp__knowledgeradar__get_capabilities(summary=true)", "kr_research": "mcp__knowledgeradar__kr_research(mode=deep_route,budget=deep)"},
+    "local_archaeology": {"performed": true, "paths": ["D:/Projects/CodexPraetor", "stable receipts", "native Codex Praetor MCP"], "status": "complete"},
+    "source_ecology_plan": {"considered": ["generic_web_ecology", "github_repository_ecology", "academic_literature_ecology", "platform_search", "media_detail"], "selected": ["generic_web_ecology", "github_repository_ecology", "academic_literature_ecology"], "skipped": [{"id": "platform_search", "reason": "not relevant"}, {"id": "media_detail", "reason": "not relevant"}]},
+    "validation_ladder": {"selected_profile": "report-minimal", "commands": ["kr_report_minimal_check.py --report <report> --evidence <evidence> --json", "git diff --check"], "status": "passed", "reason": "report-only task; no code/runtime gate invoked"},
+    "presentation": {"report_artifact": true, "evidence_register": true, "roadmap_in_report": true, "detailed_roadmap_in_report": true},
+    "preflight_skip_reason": "报告只读收口按 KnowledgeRadar report-minimal 规则执行；不运行 pytest、ruff、write-state、MCP restart 或自动提交。"
+  },
+  "draft_notes": []
+}

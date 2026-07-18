@@ -9,7 +9,9 @@ $maintenance = Join-Path $ProjectRoot "scripts\maintenance\get-codex-praetor-mai
 function Assert-True { param([bool]$Condition, [string]$Message) if (-not $Condition) { throw $Message } }
 try {
     Set-Content -LiteralPath $cli -Value "cli-v1" -Encoding UTF8
+    $providerSentinel = "codebuddy"
     . $helper
+    Assert-True ($providerSentinel -eq "codebuddy") "Readiness helper dot-source must not overwrite caller variables."
     $cliHash = (Get-FileHash $cli -Algorithm SHA256).Hash.ToLowerInvariant()
     $entry = [ordered]@{ generation_id = "gen-1"; runtime_contract_sha256 = "contract-1"; task_contract_schema = "task-v4"; provider = "codebuddy"; cli_path = $cli; cli_hash = $cliHash; model = "hy3"; permission_profile = "local-audit-v1"; task_kind = "local_audit"; status = "passed"; expires_at = (Get-Date).AddHours(1).ToString("o") }
     [ordered]@{ schema = "codex-praetor-provider-readiness/v2"; generation_id = "gen-1"; runtime_contract_sha256 = "contract-1"; entries = @($entry) } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $readiness -Encoding UTF8

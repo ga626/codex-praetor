@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-praetor.local/schema/release-receipt/v2",
+  "title": "Codex Praetor release receipt",
+  "type": "object",
+  "required": ["schema", "status", "channel", "generation", "delivery"],
+  "properties": {
+    "schema": { "const": "codex-praetor-release-receipt/v2" },
+    "status": { "enum": ["staged", "active"] },
+    "channel": { "enum": ["stable", "dev"] },
+    "generation": { "type": "object", "required": ["generation_id", "version", "commit", "runtime_contract_sha256", "task_contract_schema"] },
+    "delivery": {
+      "type": "object",
+      "required": ["state", "next_action", "user_path"],
+      "properties": {
+        "state": { "enum": ["awaiting_host_refresh", "active", "delivered"] },
+        "next_action": { "type": "string", "minLength": 1 },
+        "delivered_at": { "type": "string", "minLength": 1 },
+        "user_path_proof_path": { "type": "string", "minLength": 1 },
+        "user_path": {
+          "type": "object",
+          "required": ["status"],
+          "properties": { "status": { "enum": ["pending", "passed"] } }
+        }
+      }
+    }
+  }
+}

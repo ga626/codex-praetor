@@ -109,6 +109,24 @@ try {
     $activeReceiptPayload = Get-Content -LiteralPath $activeReceipt -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ([string]$activeReceiptPayload.fresh_context.runtime_identity.runtime_contract_sha256 -eq [string]$generation.runtime_contract_sha256) "Activation must retain the matched runtime identity."
 
+    $userPathProof = [ordered]@{
+        schema = "codex-praetor-user-path-proof/v1"
+        status = "passed"
+        generation_id = [string]$generation.generation_id
+        observed_at = [DateTime]::UtcNow.ToString("o")
+        source = "isolated-closeout-smoke"
+        checks = @(
+            [ordered]@{ name = "downloaded_artifact_hash"; status = "passed" },
+            [ordered]@{ name = "setup_entrypoint"; status = "passed" },
+            [ordered]@{ name = "dry_run"; status = "passed" }
+        )
+    }
+    $userPathProof | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $testRoot "user-path-proof.json") -Encoding UTF8
+    & $closeoutScript -Phase deliver -Channel stable -ProjectRoot $projectPath -UserProfileRoot $profileRoot -UserPathProofPath (Join-Path $testRoot "user-path-proof.json") -Apply
+    if ($LASTEXITCODE -ne 0) { throw "User path delivery proof failed in closeout smoke." }
+    $activeReceiptPayload = Get-Content -LiteralPath $activeReceipt -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$activeReceiptPayload.delivery.state -eq "delivered") "Delivery proof must advance the active receipt to delivered."
+
     & $healthScript -Repo $projectPath -Channel stable -UserProfileRoot $profileRoot -Json | Out-Null
     Assert-True ($LASTEXITCODE -eq 0) "Healthy isolated generation must pass the health gate."
 
