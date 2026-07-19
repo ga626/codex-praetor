@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.6.0-alpha`
+Target release: `0.6.1-alpha`
 
-Status: `v0.5.0-alpha` is already published. `v0.6.0-alpha` is declared in the same release-impacting PR and is published automatically by `Release On Main` after that PR reaches `main`; existing tags are immutable.
+Status: `v0.5.0-alpha` is already published. `v0.6.1-alpha` is declared in the same release-impacting PR and is published automatically by `Release On Main` after that PR reaches `main`; existing tags are immutable.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
@@ -118,3 +118,14 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 - Fresh-context native MCP canary fails.
 - `Release On Main` lacks repository write permission or required branch protection.
 - The GitHub Release zip, notes, public README, installation guide, or roadmap point to different user-downloadable versions.
+## 发布事故恢复边界
+
+不要在 `main` 上手工运行发布脚本，也不要从最新分支头部手工 dispatch 发布 workflow。
+
+- 已经创建 tag、draft Release 或公开 Release：在对应的 GitHub Actions run 页面使用 **Re-run jobs**。GitHub 会保留原始 `GITHUB_SHA`，所以它是同一交付物的恢复，不是新代码覆盖旧版本。
+- 在创建 tag 前、且根因是 workflow 定义本身：先登记 `docs/release/incidents/`，再以递增版本建立恢复 PR。该 PR 仍由 `Release On Main` 自动发布。
+- 任何恢复完成后都要重新走远端下载复验和本机交付链路；不能把 workflow 绿灯直接称为产品已交付。
+
+## 依赖更新 PR 的处理
+
+`mcp/`、plugin 或安装包依赖会进入用户下载的 zip，因此属于发布影响变更。Dependabot 可以继续提出候选 PR，但它不会自动填写产品版本、release notes 和 release intent；这类 PR 的失败门禁是预期的“不得直接合并”信号。审阅通过后，把依赖变更纳入下一份显式递增版本的产品 PR，而不是绕过门禁合并。

@@ -1,0 +1,91 @@
+{
+  "schema": "knowledgeradar-research-evidence/v1",
+  "title": "Codex执政官发布收口事故与GitHub-AI协作治理全景审计报告-2026-07-19",
+  "generated_at": "2026-07-19T07:08:00Z",
+  "access_path": "native_mcp",
+  "research_route": {
+    "tool": "kr_research",
+    "mode": "deep_route",
+    "budget": "deep",
+    "source_ecologies": ["generic_web_ecology", "github_repository_ecology", "academic_literature_ecology"],
+    "host_internal_web_wave_used": false
+  },
+  "local_and_remote_observations": [
+    {
+      "source": "GitHub Actions run 29677178250",
+      "url": "https://github.com/ga626/codex-praetor/actions/runs/29677178250",
+      "fact": "Release On Main failed during Set up job because actions/setup-node pinned SHA ...0021 could not be resolved.",
+      "strength": "primary_runtime_evidence"
+    },
+    {
+      "source": "GitHub API / Git CLI",
+      "fact": "PR #27 merged as 6b3cfe30; v0.6.0-alpha tag and Release do not exist.",
+      "strength": "primary_remote_state"
+    },
+    {
+      "source": "GitHub API repository settings",
+      "fact": "main protection is active; Dependabot alerts, automated security fixes, vulnerability alerts and CodeQL default setup are disabled or not configured; secret scanning and push protection are enabled.",
+      "strength": "primary_remote_state"
+    },
+    {
+      "source": "GitHub API user settings",
+      "fact": "Account ga626 reports two_factor_authentication false, no pinned repositories, no public profile README repository, and no public social accounts.",
+      "strength": "primary_remote_state"
+    }
+  ],
+  "external_evidence": [
+    {
+      "url": "https://docs.github.com/en/actions/reference/security/secure-use",
+      "claim": "Use least-privilege GITHUB_TOKEN permissions and elevate only individual jobs.",
+      "strength": "official_primary"
+    },
+    {
+      "url": "https://docs.github.com/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches",
+      "claim": "Branch protection can require pull requests, checks, conversation resolution and other merge controls; duplicate job names can make required checks ambiguous.",
+      "strength": "official_primary"
+    },
+    {
+      "url": "https://docs.github.com/en/code-security/dependabot/dependabot-alerts/about-dependabot-alerts",
+      "claim": "Dependabot alerts are a repository security capability that must be enabled independently of dependabot.yml update configuration.",
+      "strength": "official_primary"
+    },
+    {
+      "url": "https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning",
+      "claim": "Secret scanning and push protection are separate repository security controls.",
+      "strength": "official_primary"
+    },
+    {
+      "url": "https://docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning",
+      "claim": "Code scanning is a distinct security analysis capability and requires setup.",
+      "strength": "official_primary"
+    },
+    {
+      "url": "https://docs.github.com/en/account-and-profile/concepts/personal-profile",
+      "claim": "Profile README and pinned items are first-class public profile surfaces; public information should be deliberately chosen.",
+      "strength": "official_primary"
+    },
+    {
+      "url": "https://developers.openai.com/codex/concepts/customization",
+      "claim": "AGENTS.md, Skills, MCP and Plugins are complementary; keep AGENTS.md small and use the closest persistent layer for each kind of instruction.",
+      "strength": "official_primary"
+    }
+  ],
+  "gaps_and_limits": [
+    {
+      "surface": "OpenAI Codex manual helper",
+      "status": "skipped",
+      "reason": "Official manual HEAD request returned HTTP 403 in this environment; no OpenAI Docs MCP tool was exposed in the thread.",
+      "fallback": "KnowledgeRadar extracted public developers.openai.com pages after route admission."
+    },
+    {
+      "surface": "academic_literature_ecology",
+      "status": "not_used_for_claims",
+      "reason": "OpenAlex results did not reliably match AI coding agent CI governance; irrelevant results were excluded."
+    },
+    {
+      "surface": "account settings unavailable by standard API",
+      "status": "partial",
+      "reason": "Passkeys, recovery codes, default repository visibility and several personal UI preferences require owner-side UI verification."
+    }
+  ]
+}

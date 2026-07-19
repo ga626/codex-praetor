@@ -1,9 +1,10 @@
-﻿param(
-    [string]$Version = "0.6.0-alpha",
+param(
+    [string]$Version = "0.6.1-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$ReplaceExistingAsset,
+    [switch]$ResumeExistingRelease,
     [switch]$AllowDetachedHead,
     [switch]$Apply
 )
@@ -92,7 +93,7 @@ if ($releaseExists) {
         throw "Existing GitHub Release $Tag is unreadable: $($_.Exception.Message)"
     }
 }
-if ($releaseExists -and -not $releaseIsDraft -and -not $ReplaceExistingAsset) {
+if ($releaseExists -and -not $releaseIsDraft -and -not $ReplaceExistingAsset -and -not $ResumeExistingRelease) {
     throw "GitHub Release $Tag already exists. Use a new version, or explicitly approve -ReplaceExistingAsset for a broken asset from the same tagged commit."
 }
 if ($ReplaceExistingAsset -and -not $releaseExists) {
@@ -113,6 +114,16 @@ if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
 if (-not $Apply) {
     Write-Host ""
     Write-Host "Dry run only. Re-run with -Apply after the release preparation PR is merged."
+    exit 0
+}
+
+if ($releaseExists -and -not $releaseIsDraft -and $ResumeExistingRelease) {
+    if ($ReplaceExistingAsset) {
+        throw "-ResumeExistingRelease cannot be combined with -ReplaceExistingAsset. Published immutable assets are verify-only during normal recovery."
+    }
+    Write-Host "[PASS] Published immutable Release already exists for this exact HEAD. Running remote verification only."
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "verify-github-release-asset.ps1") -Version $Version -Tag $Tag -Repository $Repository -OutputRoot $OutputRoot -SkipBuild
+    if ($LASTEXITCODE -ne 0) { throw "Existing immutable GitHub Release verification failed." }
     exit 0
 }
 

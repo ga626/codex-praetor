@@ -18,6 +18,7 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Dev channel isolation validation: `scripts/verify/test-dev-channel-isolation.ps1` stages a candidate into a disposable profile and proves it cannot create a stable active receipt.
 - Release intent validation: `scripts/verify/test-release-intent.ps1` requires every release-impacting PR to carry the version, tag, artifact and auto-on-main release contract.
 - Mainline publication workflow: `.github/workflows/release-on-main.yml` is the only supported path from a merged release-impacting PR to an immutable GitHub Release.
+- Candidate CI and mainline publication must call the same `.github/workflows/release-pipeline.yml`; action pins, setup and package gates may not be maintained as two copies.
 - Public entry consistency: `scripts/verify/test-public-entry-consistency.ps1`. Use `-SkipRemoteRelease` before publication and the full remote check during release closeout.
 - Release package determinism: `scripts/verify/test-release-package-determinism.ps1`. The same staged release content must produce the same zip SHA256, stable entry order, and fixed zip entry timestamps.
 - Continuous orchestration MCP validation: route-intent, dry-run, real dispatch tool listing, result reading, next-ready lookup, plan-task dispatch tool listing, and verify-task recording must pass protocol smoke before release.
@@ -41,7 +42,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.6.0-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.6.1-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -105,6 +106,7 @@ Before pushing or tagging:
 - Preview runtime cleanup with `scripts/maintenance/clean-codex-praetor-runtime.ps1` after merged worker worktrees or completed jobs accumulate. Apply cleanup only after the dry-run output is reviewed.
 - Tag only after a new user path succeeds: clone -> doctor -> dry-run -> optional readonly canary.
 - A release-impacting PR must merge with `config/release-intent.json`, the matching version surfaces, release notes and changelog already committed. After merge, `.github/workflows/release-on-main.yml` automatically builds, publishes and verifies the immutable Release from that exact merge commit. There is no manual post-merge publish command.
+- `previous_version` must equal the target branch intent and `version` must be greater. If a tag/draft/Release exists, recover only by re-running the original Actions run; do not dispatch latest `main`, reuse a tag, or open a version-hiding follow-up PR. A pre-tag workflow-definition failure is the sole exception: record an incident and use one explicitly incremented recovery version.
 - Remote-download validation must prove the downloaded package exposes the intended user-facing behavior before calling the product delivered.
 
 ## 5.1 Release Generation Closeout
