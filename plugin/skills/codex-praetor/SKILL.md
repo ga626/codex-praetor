@@ -143,15 +143,11 @@ It does not create native Codex subagent cards. That is intentional: native suba
 
 Recommended first probes:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\codex-praetor\scripts\invoke-codex-praetor.ps1" -Provider auto -Repo "<repo>" -Task "Read-only probe. Summarize the relevant files only. Do not modify anything." -Mode readonly -DryRun
-```
+Use the bundled `codex_praetor_dispatch_dry_run` MCP tool with `mode="readonly"`. It resolves the active plugin generation and does not depend on a separately installed global Skill.
 
 Force Qoder during the 25-day credit-burn window:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\codex-praetor\scripts\invoke-codex-praetor.ps1" -Provider auto -PreferQoder -Repo "<repo>" -Task "Read-only probe. Do not modify anything." -Mode readonly -DryRun
-```
+Set `provider="qoder"` on the same bundled dry-run tool. Do not invoke a path under `%USERPROFILE%\.codex\skills\codex-praetor`; that path is a retired compatibility copy, not the plugin runtime.
 
 ## Task Packet Shape
 

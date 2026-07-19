@@ -68,8 +68,12 @@ if (@($runtimeContractPath).Count -ne 1) { throw "Runtime contract is missing." 
 $runtimeContractPath = [string]$runtimeContractPath[0]
 $runtimeContract = Get-Content -LiteralPath $runtimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $runtimeContractHash = (Get-FileHash -LiteralPath $runtimeContractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$pluginRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $scriptDir))
+$packagedGenerationPath = Join-Path $pluginRoot "release-generation.json"
 $generation = if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
     (& $generationScript -ProjectRoot $projectRoot -Json | ConvertFrom-Json)
+} elseif (Test-Path -LiteralPath $packagedGenerationPath -PathType Leaf) {
+    Get-Content -LiteralPath $packagedGenerationPath -Raw -Encoding UTF8 | ConvertFrom-Json
 } else {
     [pscustomobject]@{
         generation_id = "$( [string]$runtimeContract.version )--packaged--$($runtimeContractHash.Substring(0, 12))"

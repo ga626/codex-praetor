@@ -15,7 +15,7 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Durable job lifecycle regression: `scripts/verify/test-job-lifecycle.ps1` covers exit-code-zero semantic failure, timeout, and cancellation terminal-state preservation.
 - Developer environment validation: `scripts/verify/test-codex-praetor-dev-env.ps1`. Use this when the change specifically touches local Codex installation, installed skill sync, provider dry-run behavior, or global-rule integration.
 - Release receipt contract validation: `scripts/verify/test-release-receipt-contract.ps1` checks the staged/active/delivered state contract used by closeout receipts.
-- Dev channel isolation validation: `scripts/verify/test-dev-channel-isolation.ps1` stages a candidate into a disposable profile and proves it cannot create a stable active receipt.
+- Plugin-boundary regression: `scripts/verify/test-dev-channel-isolation.ps1` proves the retired closeout command cannot mutate a profile; `test-release-closeout.ps1` verifies that an isolated installation writes only the marketplace source plugin.
 - Release intent validation: `scripts/verify/test-release-intent.ps1` requires every release-impacting PR to carry the version, tag, artifact and auto-on-main release contract.
 - Mainline publication workflow: `.github/workflows/release-on-main.yml` is the only supported path from a merged release-impacting PR to an immutable GitHub Release.
 - Candidate CI and mainline publication must call the same `.github/workflows/release-pipeline.yml`; action pins, setup and package gates may not be maintained as two copies.
@@ -46,7 +46,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.6.3-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.7.0-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -114,18 +114,16 @@ Before pushing or tagging:
 - Remote-download validation must prove the downloaded package exposes the intended user-facing behavior before calling the product delivered.
 - A green source test is not enough: the final zip is the release candidate. If the extracted runtime differs from the canonical contract/generation, the smoke cannot start, or the upload candidate has a different SHA from the verified manifest, publication is blocked before tag/Release creation.
 
-## 5.1 Release Generation Closeout
+## 5.1 Desktop Installation Verification
 
-For every delivery-affecting release, run `scripts/release/complete-codex-praetor-release.ps1` in two phases after the new GitHub Release zip and `.sha256` are available:
+The immutable GitHub Release is the product delivery record. Do not run a second local stage/activate/deliver state machine after publication.
 
-1. `stage` against the downloaded remote zip. It installs and hashes Skill, plugin, marketplace, and personal cache, then writes only a staged receipt. It must not delete old cache generations; old paths go to the retirement/reconcile queue.
-2. If the MCP tool list, tool arguments, Skill/Plugin manifest, plugin source generation, or cache generation changed, first ensure the already-running Desktop host has refreshed its plugin discovery state. A new task alone is not sufficient. Collect native tool names and the full `codex_praetor_runtime_info` response, then convert that observation into a fresh-context proof with `scripts/verify/new-codex-praetor-fresh-context-proof.ps1`.
-3. Produce a generation-matched provider readiness record from the capability canary, then run `activate` with both evidence files.
-4. `activate` runs the reconcile once. Stable closeout also installs `scripts/install/install-codex-praetor-maintenance.ps1 -Apply`, which copies the maintenance scripts under the user's `.codex` directory and registers a user-level logon plus 15-minute retry task. The task may be inspected with `Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile`.
-5. `activate` means only that the generation is active. It does not mean the product is delivered. After the ordinary user path succeeds, write a `codex-praetor-user-path-proof/v1` file and run `complete-codex-praetor-release.ps1 -Phase deliver -UserPathProofPath <proof>`. The receipt reaches `delivered` only in this phase.
-6. The reconcile may delete only non-active retired paths that are outside the retention window and not in use; an in-use path remains registered with a retry time. Cleanup failure does not roll back a valid activation and must not be reported as a clean cache. Isolated branch validation must pass `-SkipMaintenance` to avoid registering a real task.
+1. The normal installer copies only the plugin bundle into the marketplace source directory. It does not install a global Skill and does not write Codex's cache.
+2. If the bundled MCP, Skill, manifest, installation source, or tool contract changed, restart Codex Desktop and open one new chat. Call `codex_praetor_runtime_info` and confirm its version, contract SHA, cache root, and plugin `release-generation.json` agree with the downloaded zip.
+3. Run one readonly `codex_praetor_dispatch_dry_run`. This verifies the ordinary user entry without creating a job or worktree.
+4. A cache directory held by an older Desktop process is normal. Codex owns its cleanup; neither the installer nor release closeout deletes it.
 
-Do not call the product delivered until the active receipt exists, `scripts/verify/get-codex-praetor-health.ps1 -Json` returns `ready`, the downloaded package passes the normal user path, and retirement status is explicitly `deleted`, `pending`, or `blocked_by_process`. A branch candidate must use an explicitly isolated `-UserProfileRoot` and must never overwrite the stable profile.
+The local check proves this one Desktop installation has refreshed. It is not a second publication gate and it cannot change a successful remote Release into a release incident. A branch candidate must use an explicitly isolated `-UserProfileRoot` and must never overwrite the stable profile.
 
 ## 6. Final Human Confirmation
 

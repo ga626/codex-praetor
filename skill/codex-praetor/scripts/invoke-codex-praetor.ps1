@@ -154,7 +154,12 @@ $generation = $null
 if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
     $generation = (& $generationScript -ProjectRoot $scriptGrandparent -Json | ConvertFrom-Json)
 } else {
-    $generation = [pscustomobject]@{
+    $pluginRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $scriptDir))
+    $packagedGenerationPath = Join-Path $pluginRoot "release-generation.json"
+    if (Test-Path -LiteralPath $packagedGenerationPath -PathType Leaf) {
+        $generation = Get-Content -LiteralPath $packagedGenerationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    } else {
+        $generation = [pscustomobject]@{
         schema = "codex-praetor-release-generation/v2"
         product = "codex-praetor"
         version = [string]$runtimeContract.version
@@ -164,6 +169,7 @@ if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
         runtime_contract_sha256 = $runtimeContractHash
         wrapper_protocol = [string]$runtimeContract.wrapperProtocol
         task_contract_schema = [string]$runtimeContract.taskContractSchema
+        }
     }
 }
 

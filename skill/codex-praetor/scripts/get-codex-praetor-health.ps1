@@ -43,7 +43,6 @@ if (-not (Test-Path -LiteralPath $sourceSkillRoot -PathType Container)) {
 $profileRoot = [System.IO.Path]::GetFullPath($UserProfileRoot)
 $isIsolatedProfile = -not [string]::Equals($profileRoot, [System.IO.Path]::GetFullPath($env:USERPROFILE), [System.StringComparison]::OrdinalIgnoreCase)
 $codexRoot = Join-Path $profileRoot ('.' + 'codex')
-$installedSkill = Join-Path $codexRoot "skills\codex-praetor"
 $installedPlugin = Join-Path $profileRoot "plugins\codex-praetor"
 $marketplacePath = Join-Path $profileRoot ".agents\plugins\marketplace.json"
 $cacheRoot = Join-Path $codexRoot (Join-Path "plugins" (Join-Path "cache" (Join-Path "personal" "codex-praetor")))
@@ -106,7 +105,7 @@ if ($sourcePluginInspectable) {
         Add-HealthCheck -Name "source_generation" -Status "blocked" -Message "Source plugin or MCP does not match the runtime contract." -Details "$($manifest.version) | $($package.version) | expected=$($contract.version)"
     }
 } else {
-    Add-HealthCheck -Name "source_generation" -Status "ready" -Message "Source generation is not present in this runtime surface; active receipt is authoritative." -Details $sourcePluginRoot
+    Add-HealthCheck -Name "source_generation" -Status "ready" -Message "Source generation is not present in this runtime surface; the running bundled contract is authoritative." -Details $sourcePluginRoot
 }
 
 $receipt = $null
@@ -114,37 +113,28 @@ if (Test-Path -LiteralPath $activeReceiptPath -PathType Leaf) {
     try { $receipt = Get-Content -LiteralPath $activeReceiptPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $receipt = $null }
 }
 if ($null -eq $receipt -or [string]$receipt.status -ne "active") {
-    Add-HealthCheck -Name "active_receipt" -Status "blocked" -Message "No active release receipt exists for this channel; real dispatch must refuse." -Details $activeReceiptPath
+    Add-HealthCheck -Name "legacy_active_receipt" -Status "degraded" -Message "Legacy local release receipt is absent; published artifact and running plugin remain independently usable." -Details $activeReceiptPath
 } elseif ($null -eq $contract -or [string]$receipt.schema -ne "codex-praetor-release-receipt/v2" -or [string]$receipt.generation.version -ne [string]$contract.version -or [string]$receipt.generation.task_contract_schema -ne [string]$contract.taskContractSchema) {
-    Add-HealthCheck -Name "active_receipt" -Status "blocked" -Message "Active receipt does not match the runtime contract version." -Details $activeReceiptPath
+    Add-HealthCheck -Name "legacy_active_receipt" -Status "degraded" -Message "Legacy local release receipt differs from the running plugin; it is diagnostic only and must not block dispatch." -Details $activeReceiptPath
 } else {
-    Add-HealthCheck -Name "active_receipt" -Status "ready" -Message "Active release receipt matches the runtime contract." -Details ([string]$receipt.generation.generation_id)
+    Add-HealthCheck -Name "legacy_active_receipt" -Status "ready" -Message "Legacy local release receipt matches the runtime contract." -Details ([string]$receipt.generation.generation_id)
 }
 
-$installedSkillDigest = Get-TreeDigest $installedSkill
-$expectedSkillDigest = if ($null -ne $receipt) { [string]$receipt.surfaces.skill.tree_sha256 } else { "" }
-if ($expectedSkillDigest -and $installedSkillDigest -and $expectedSkillDigest -eq $installedSkillDigest) {
-    Add-HealthCheck -Name "installed_skill" -Status "ready" -Message "Installed Skill matches the active release receipt." -Details $installedSkill
-} else {
-    Add-HealthCheck -Name "installed_skill" -Status "blocked" -Message "Installed Skill is missing or differs from the active release receipt." -Details $installedSkill
-}
+Add-HealthCheck -Name "global_skill" -Status "ready" -Message "Global Skill is not a runtime dependency; the active plugin bundles its own Skill." -Details "plugin/skills/codex-praetor"
 
 $installedPluginDigest = Get-TreeDigest $installedPlugin
-$expectedPluginDigest = if ($null -ne $receipt) { [string]$receipt.surfaces.plugin.tree_sha256 } else { "" }
-if ($expectedPluginDigest -and $installedPluginDigest -and $expectedPluginDigest -eq $installedPluginDigest) {
-    Add-HealthCheck -Name "installed_plugin" -Status "ready" -Message "Installed plugin matches the active release receipt." -Details $installedPlugin
+if ($installedPluginDigest) {
+    Add-HealthCheck -Name "installed_plugin" -Status "ready" -Message "Marketplace source plugin is present." -Details $installedPlugin
 } else {
-    Add-HealthCheck -Name "installed_plugin" -Status "blocked" -Message "Installed plugin is missing or differs from the active release receipt." -Details $installedPlugin
+    Add-HealthCheck -Name "installed_plugin" -Status "blocked" -Message "Marketplace source plugin is missing." -Details $installedPlugin
 }
 
 $cachePath = if ($null -ne $contract) { Join-Path $cacheRoot ([string]$contract.version) } else { "" }
-$cacheDigest = Get-TreeDigest $cachePath
-$expectedCacheDigest = if ($null -ne $receipt) { [string]$receipt.surfaces.cache.tree_sha256 } else { "" }
-if ($expectedCacheDigest -and $cacheDigest -and $expectedCacheDigest -eq $cacheDigest) {
-    Add-HealthCheck -Name "plugin_cache_generation" -Status "ready" -Message "Personal cache matches the active release receipt." -Details $cachePath
+if (Test-Path -LiteralPath $cachePath -PathType Container) {
+    Add-HealthCheck -Name "plugin_cache_generation" -Status "ready" -Message "Codex-managed cache contains the running plugin version." -Details $cachePath
 } else {
     $versions = if (Test-Path -LiteralPath $cacheRoot -PathType Container) { @(Get-ChildItem -LiteralPath $cacheRoot -Directory -Force | Where-Object { -not $_.Name.StartsWith(".") } | ForEach-Object Name) } else { @() }
-    Add-HealthCheck -Name "plugin_cache_generation" -Status "blocked" -Message "Personal cache is missing or differs from the active release receipt; real dispatch must refuse." -Details $versions
+    Add-HealthCheck -Name "plugin_cache_generation" -Status "blocked" -Message "Codex-managed cache is missing the runtime contract version." -Details $versions
 }
 
 $marketplaceOk = $false
@@ -164,7 +154,7 @@ if ($marketplaceOk) {
 if ($null -ne $receipt -and [string]$receipt.fresh_context.schema -eq "codex-praetor-fresh-context-proof/v2" -and [string]$receipt.fresh_context.status -eq "passed" -and [string]$receipt.fresh_context.generation_id -eq [string]$receipt.generation.generation_id -and [string]$receipt.fresh_context.runtime_identity.runtime_contract_sha256 -eq [string]$receipt.generation.runtime_contract_sha256 -and [string]$receipt.fresh_context.runtime_info.runtime_contract.version -eq [string]$receipt.generation.version -and [int64]$receipt.fresh_context.runtime_identity.process_id -gt 0) {
     Add-HealthCheck -Name "fresh_context" -Status "ready" -Message "Fresh-context MCP proof passed for the active generation." -Details ([string]$receipt.fresh_context.observed_at)
 } else {
-    Add-HealthCheck -Name "fresh_context" -Status "blocked" -Message "Fresh-context MCP proof is missing, stale, or lacks runtime identity; real dispatch must refuse." -Details $activeReceiptPath
+    Add-HealthCheck -Name "fresh_context" -Status "degraded" -Message "No matching legacy receipt proof is available. Native runtime_info remains the authoritative host observation." -Details $activeReceiptPath
 }
 
 $readinessPath = Join-Path $profileRoot ".codex\codex-praetor-readiness.json"

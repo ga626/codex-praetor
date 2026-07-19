@@ -50,12 +50,27 @@ function Test-VersionGreater([string]$Candidate, [string]$Baseline) {
 if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') {
     $changed = @(& git -C $root diff --name-only "$BaseRef...HEAD")
     if ($LASTEXITCODE -ne 0) { throw "Unable to inspect changed files against base ref $BaseRef." }
+    # Dependabot's TypeScript/tooling bumps change the lockfile but do not
+    # change the bundled runtime. They must still run CI, but must not force a
+    # fake product version/tag release.
+    $nonReleaseDependencyOnly = $false
+    $dependencyFiles = @("mcp/package.json", "mcp/package-lock.json")
+    if ($changed.Count -gt 0 -and @($changed | Where-Object { $_ -notin $dependencyFiles }).Count -eq 0 -and @($changed | Where-Object { $_ -eq "mcp/package.json" }).Count -eq 1) {
+        $basePackageText = & git -C $root show "$BaseRef`:mcp/package.json"
+        if ($LASTEXITCODE -eq 0) {
+            $basePackage = ($basePackageText -join [Environment]::NewLine) | ConvertFrom-Json
+            $currentPackage = Get-Content -LiteralPath (Join-Path $root "mcp\package.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+            $baseRuntime = ($basePackage.dependencies | ConvertTo-Json -Compress)
+            $currentRuntime = ($currentPackage.dependencies | ConvertTo-Json -Compress)
+            $nonReleaseDependencyOnly = $baseRuntime -eq $currentRuntime
+        }
+    }
     $impactPatterns = @(
         '^plugin/', '^skill/', '^mcp/', '^scripts/(dispatch|install|maintenance|release|verify)/',
         '^setup\.(ps1|cmd)$', '^config/runtime-contract\.json$', '^README(\.en)?\.md$',
         '^docs/user/', '^docs/release/', '^docs/roadmap\.md$', '^SECURITY\.md$', '^CHANGELOG\.md$'
     )
-    $impact = @($changed | Where-Object { $path = [string]$_; @($impactPatterns | Where-Object { $path -match $_ }).Count -gt 0 })
+    $impact = if ($nonReleaseDependencyOnly) { @() } else { @($changed | Where-Object { $path = [string]$_; @($impactPatterns | Where-Object { $path -match $_ }).Count -gt 0 }) }
     $intentChanged = @($changed | Where-Object { [string]$_ -eq "config/release-intent.json" }).Count -gt 0
     if ($RequireReleaseImpact -and $impact.Count -gt 0 -and -not $intentChanged) {
         throw "Release-impacting files changed without config/release-intent.json; merge is not allowed."
@@ -70,6 +85,7 @@ if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') 
         Assert-True ([string]$intent.previous_version -eq [string]$baseIntent.version) "Release intent previous_version must equal the target branch version ($($baseIntent.version))."
         Assert-True (Test-VersionGreater -Candidate ([string]$intent.version) -Baseline ([string]$baseIntent.version)) "Release intent version must be greater than the target branch version ($($baseIntent.version))."
     }
+    if ($nonReleaseDependencyOnly) { Write-Host "[PASS] Development-only MCP dependency update does not require a product release." }
 }
 
 if ($CheckRemote) {
