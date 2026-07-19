@@ -52,6 +52,7 @@ $pipelineText = Get-Content -LiteralPath $pipelinePath -Raw -Encoding UTF8
 Assert-True ($ciText -match 'uses:\s*\./\.github/workflows/release-pipeline\.yml') "PR CI must call the shared release pipeline."
 Assert-True ($ciText -match 'publish:\s*false') "PR CI must run the shared pipeline in candidate-only mode."
 Assert-True ($ciText -match '(?ms)permissions:\s*\r?\n\s+contents:\s*read') "PR CI caller must use read-only contents permission."
+Assert-True ($ciText -match "base_ref:\s*\$\{\{\s*github\.event\.pull_request\.base\.sha\s*\|\|\s*'origin/main'\s*\}\}") "Branch-push CI must compare the full candidate against origin/main, not only the previous branch commit."
 Assert-True ($releaseText -match 'uses:\s*\./\.github/workflows/release-pipeline\.yml') "Release On Main must call the shared release pipeline."
 Assert-True ($releaseText -match 'publish:\s*true') "Release On Main must run the shared pipeline in publication mode."
 Assert-True ($releaseText -match '(?ms)permissions:\s*\r?\n\s+contents:\s*write') "Release On Main must explicitly request contents: write."

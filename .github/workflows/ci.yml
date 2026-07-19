@@ -13,4 +13,8 @@ jobs:
     uses: ./.github/workflows/release-pipeline.yml
     with:
       publish: false
-      base_ref: ${{ github.event.pull_request.base.sha || github.event.before }}
+      # A release PR may have several commits. On branch pushes, compare the
+      # whole candidate with the protected target branch, not only its previous
+      # branch commit, otherwise follow-up fixes are falsely rejected for not
+      # carrying a second release intent.
+      base_ref: ${{ github.event.pull_request.base.sha || 'origin/main' }}
