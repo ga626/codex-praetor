@@ -10,13 +10,18 @@ foreach ($workflow in $workflows) {
     $text = Get-Content -LiteralPath $workflow.FullName -Raw -Encoding UTF8
     $uses = [regex]::Matches($text, '(?m)^\s*uses:\s*([^\s#]+)')
     foreach ($match in $uses) { Assert-True ($match.Groups[1].Value -match '@[0-9a-f]{40}$') "Action is not pinned to a full SHA: $($match.Groups[1].Value)" }
-    Assert-True ($text -match '(?ms)permissions:\s*\r?\n\s+contents:\s*read') "Workflow lacks explicit least-privilege contents: read: $($workflow.Name)"
+    if ($workflow.Name -eq "release-on-main.yml") {
+        Assert-True ($text -match '(?ms)permissions:\s*\r?\n\s+contents:\s*write') "Release workflow must explicitly request contents: write for immutable publication."
+        Assert-True ($text -notmatch '(?m)^\s+id-token:\s*write') "Release workflow must not request unused id-token: write."
+    } else {
+        Assert-True ($text -match '(?ms)permissions:\s*\r?\n\s+contents:\s*read') "Workflow lacks explicit least-privilege contents: read: $($workflow.Name)"
+    }
 }
 $dependabot = Join-Path $ProjectRoot ".github\dependabot.yml"
 Assert-True (Test-Path -LiteralPath $dependabot -PathType Leaf) "Dependabot configuration is missing."
 $dependabotText = Get-Content -LiteralPath $dependabot -Raw -Encoding UTF8
 Assert-True ($dependabotText -match 'package-ecosystem: github-actions') "Dependabot does not monitor GitHub Actions."
 Assert-True ($dependabotText -match 'package-ecosystem: npm') "Dependabot does not monitor npm dependencies."
-$releaseNotes = Join-Path $ProjectRoot "docs\release\release-notes-0.5.0-alpha.md"
-Assert-True (Test-Path -LiteralPath $releaseNotes -PathType Leaf) "0.5.0-alpha release notes are missing."
+$releaseNotes = Join-Path $ProjectRoot "docs\release\release-notes-0.6.0-alpha.md"
+Assert-True (Test-Path -LiteralPath $releaseNotes -PathType Leaf) "0.6.0-alpha release notes are missing."
 Write-Host "[PASS] Supply-chain action pinning, least privilege, Dependabot, and release evidence controls are verified."

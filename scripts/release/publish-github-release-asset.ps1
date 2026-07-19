@@ -1,9 +1,10 @@
-param(
-    [string]$Version = "0.5.0-alpha",
+﻿param(
+    [string]$Version = "0.6.0-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$ReplaceExistingAsset,
+    [switch]$AllowDetachedHead,
     [switch]$Apply
 )
 
@@ -45,7 +46,7 @@ Write-Host "SHA256:     $shaPath"
 Write-Host "Notes:      $notesPath"
 Write-Host "Mode:       $(if ($Apply) { 'apply' } else { 'dry-run' })"
 
-if ($branch -ne "main") {
+if ($branch -ne "main" -and -not ($AllowDetachedHead -and $env:GITHUB_ACTIONS -eq "true")) {
     throw "Release assets must be published from main. Current branch: $branch"
 }
 if (-not [string]::IsNullOrWhiteSpace(($status -join "`n"))) {
@@ -77,12 +78,21 @@ $remoteTagExists = @($remoteTagRows | Where-Object { -not [string]::IsNullOrWhit
 $previousErrorActionPreference = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 try {
-    $releaseJson = & gh release view $Tag --repo $Repository --json tagName 2>&1
+    $releaseJson = & gh release view $Tag --repo $Repository --json tagName,isDraft,isPrerelease 2>&1
     $releaseExists = $LASTEXITCODE -eq 0
 } finally {
     $ErrorActionPreference = $previousErrorActionPreference
 }
-if ($releaseExists -and -not $ReplaceExistingAsset) {
+$releaseIsDraft = $false
+if ($releaseExists) {
+    try {
+        $releaseInfo = ($releaseJson | ConvertFrom-Json)
+        $releaseIsDraft = [bool]$releaseInfo.isDraft
+    } catch {
+        throw "Existing GitHub Release $Tag is unreadable: $($_.Exception.Message)"
+    }
+}
+if ($releaseExists -and -not $releaseIsDraft -and -not $ReplaceExistingAsset) {
     throw "GitHub Release $Tag already exists. Use a new version, or explicitly approve -ReplaceExistingAsset for a broken asset from the same tagged commit."
 }
 if ($ReplaceExistingAsset -and -not $releaseExists) {
@@ -94,7 +104,7 @@ if ($releaseExists -and (-not $tagExists -or -not $remoteTagExists)) {
 
 Write-Host "Tag state:   $(if ($tagExists) { "local tag at $tagCommit" } else { 'new local tag' })"
 Write-Host "Remote tag:  $(if ($remoteTagExists) { 'exists' } else { 'will be pushed' })"
-Write-Host "Release:     $(if ($releaseExists) { 'existing asset replacement' } else { 'new prerelease' })"
+Write-Host "Release:     $(if ($releaseExists -and $releaseIsDraft) { 'resume existing draft' } elseif ($releaseExists) { 'existing asset replacement' } else { 'new prerelease' })"
 
 if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
     throw "Release notes missing: $notesPath"
@@ -112,7 +122,12 @@ if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw "Release zip 
 if (-not (Test-Path -LiteralPath $shaPath -PathType Leaf)) { throw "Release SHA256 file missing after build: $shaPath" }
 if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) { throw "Release notes missing: $notesPath" }
 
-if ($releaseExists) {
+if ($releaseExists -and $releaseIsDraft) {
+    & gh release upload $Tag $zipPath $shaPath --repo $Repository --clobber
+    if ($LASTEXITCODE -ne 0) { throw "Failed to resume draft GitHub Release assets." }
+    & gh release edit $Tag --repo $Repository --notes-file $notesPath --draft=false --prerelease
+    if ($LASTEXITCODE -ne 0) { throw "Failed to publish the resumed draft GitHub Release." }
+} elseif ($releaseExists) {
     & gh release upload $Tag $zipPath $shaPath --repo $Repository --clobber
     if ($LASTEXITCODE -ne 0) { throw "Failed to replace GitHub Release assets." }
     & gh release edit $Tag --repo $Repository --notes-file $notesPath
@@ -126,8 +141,12 @@ if ($releaseExists) {
         & git -C $projectRoot push origin $Tag
         if ($LASTEXITCODE -ne 0) { throw "Failed to push tag $Tag." }
     }
-    & gh release create $Tag $zipPath $shaPath --repo $Repository --title "Codex Praetor $Version" --notes-file $notesPath --prerelease --verify-tag
-    if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release $Tag." }
+    & gh release create $Tag --repo $Repository --title "Codex Praetor $Version" --notes-file $notesPath --draft --prerelease --verify-tag
+    if ($LASTEXITCODE -ne 0) { throw "Failed to create draft GitHub Release $Tag." }
+    & gh release upload $Tag $zipPath $shaPath --repo $Repository
+    if ($LASTEXITCODE -ne 0) { throw "Failed to upload draft GitHub Release assets." }
+    & gh release edit $Tag --repo $Repository --draft=false --prerelease
+    if ($LASTEXITCODE -ne 0) { throw "Failed to publish GitHub Release $Tag." }
 }
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "verify-github-release-asset.ps1") -Version $Version -Tag $Tag -Repository $Repository -OutputRoot $OutputRoot -SkipBuild

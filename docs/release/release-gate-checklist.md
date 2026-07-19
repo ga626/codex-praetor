@@ -1,4 +1,4 @@
-﻿# Codex Praetor Release Gate Checklist
+# Codex Praetor Release Gate Checklist
 
 Date: 2026-07-13
 
@@ -16,6 +16,8 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Developer environment validation: `scripts/verify/test-codex-praetor-dev-env.ps1`. Use this when the change specifically touches local Codex installation, installed skill sync, provider dry-run behavior, or global-rule integration.
 - Release receipt contract validation: `scripts/verify/test-release-receipt-contract.ps1` checks the staged/active/delivered state contract used by closeout receipts.
 - Dev channel isolation validation: `scripts/verify/test-dev-channel-isolation.ps1` stages a candidate into a disposable profile and proves it cannot create a stable active receipt.
+- Release intent validation: `scripts/verify/test-release-intent.ps1` requires every release-impacting PR to carry the version, tag, artifact and auto-on-main release contract.
+- Mainline publication workflow: `.github/workflows/release-on-main.yml` is the only supported path from a merged release-impacting PR to an immutable GitHub Release.
 - Public entry consistency: `scripts/verify/test-public-entry-consistency.ps1`. Use `-SkipRemoteRelease` before publication and the full remote check during release closeout.
 - Release package determinism: `scripts/verify/test-release-package-determinism.ps1`. The same staged release content must produce the same zip SHA256, stable entry order, and fixed zip entry timestamps.
 - Continuous orchestration MCP validation: route-intent, dry-run, real dispatch tool listing, result reading, next-ready lookup, plan-task dispatch tool listing, and verify-task recording must pass protocol smoke before release.
@@ -39,7 +41,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.5.0-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.6.0-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -102,7 +104,7 @@ Before pushing or tagging:
 - Run the release package determinism check when the release builder or package contents change.
 - Preview runtime cleanup with `scripts/maintenance/clean-codex-praetor-runtime.ps1` after merged worker worktrees or completed jobs accumulate. Apply cleanup only after the dry-run output is reviewed.
 - Tag only after a new user path succeeds: clone -> doctor -> dry-run -> optional readonly canary.
-- After a delivery-affecting PR is merged, publish the next version's GitHub Release zip, `.sha256`, and notes from latest `main` with `scripts/release/publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION -Apply`; it must finish by running `scripts/release/verify-github-release-asset.ps1`, including the public-entry consistency gate.
+- A release-impacting PR must merge with `config/release-intent.json`, the matching version surfaces, release notes and changelog already committed. After merge, `.github/workflows/release-on-main.yml` automatically builds, publishes and verifies the immutable Release from that exact merge commit. There is no manual post-merge publish command.
 - Remote-download validation must prove the downloaded package exposes the intended user-facing behavior before calling the product delivered.
 
 ## 5.1 Release Generation Closeout

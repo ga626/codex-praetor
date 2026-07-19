@@ -1,19 +1,20 @@
-﻿# GitHub Publish Runbook
+# GitHub Publish Runbook
 
-Date: 2026-07-17
-Target release: `0.5.0-alpha`
+Date: 2026-07-19
+Target release: `0.6.0-alpha`
 
-Status: `v0.4.0-alpha` is already published. `v0.5.0-alpha` must merge before its new tag and Release are created from the latest `main`; existing tags are immutable.
+Status: `v0.5.0-alpha` is already published. `v0.6.0-alpha` is declared in the same release-impacting PR and is published automatically by `Release On Main` after that PR reaches `main`; existing tags are immutable.
 
-This runbook is the safe path for publishing Codex Praetor to GitHub. It assumes Codex does the release work after the user completes only the account-owner actions that cannot be delegated safely.
+This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
 ## Hard Rules
 
 - Do not paste GitHub Personal Access Tokens into Codex, docs, scripts, issues, release notes, or config files.
 - If a token is pasted into any chat, issue, log, or terminal transcript, revoke it immediately in GitHub before continuing.
 - Prefer GitHub CLI browser/device login over raw token handling.
-- Codex may create the repository, set remotes, push, tag, and create releases only after a safe local GitHub auth state exists.
-- Codex must stop before the first public push, tag, or release unless the user has explicitly confirmed that public publication may proceed.
+- The repository must have a protected `main` branch, required CI checks, and `contents: write` permission for the `Release On Main` workflow.
+- Release tags and assets are immutable. A version already tagged on another commit is a hard failure, never an asset replacement.
+- The automatic workflow is the only supported public release path; do not run the old manual sequence after merge.
 
 ## User-Owned One-Time Actions
 
@@ -89,35 +90,24 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    docs/architecture/fresh-context-native-mcp-canary.md
    ```
 
-6. Prepare the release through a normal PR. Version metadata, public download links, release notes, changelog, roadmap, and script defaults must all name the new version. Codex creates the branch, commits, pushes, and provides the Chinese PR title and description; the user creates and merges the PR on GitHub.
-
-7. After the release PR is merged, return to the latest clean `main`. Preview the publication first, then publish:
+6. Prepare the release through the same PR that changes the product. Run the version updater, commit `config/release-intent.json`, the matching release notes and changelog, then run:
 
    ```powershell
-   git switch main
-   git pull --ff-only
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version 0.5.0-alpha -Tag v0.5.0-alpha
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version 0.5.0-alpha -Tag v0.5.0-alpha -Apply
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\set-codex-praetor-version.ps1 -Version NEXT_VERSION -Apply
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent.ps1 -BaseRef origin/main -RequireReleaseImpact
    ```
 
-   The apply command creates and pushes the new tag, creates a prerelease with the zip and `.sha256`, then downloads the remote assets and verifies them. Existing tags and Releases are rejected by default.
+7. After the PR merges, `Release On Main` performs, in one idempotent workflow:
 
-8. Only when repairing a broken asset for the exact same tagged commit, and only after explicit user approval, add `-ReplaceExistingAsset`. It must never be used to put newer source under an older tag.
+   - checkout of the exact merge commit;
+   - release-intent, source, MCP, product, public-entry and deterministic package gates;
+   - creation of the tag and a draft Release;
+   - upload of zip and `.sha256` before publishing the immutable Release;
+   - download/hash/entry/notes verification through `verify-github-release-asset.ps1`.
 
-9. After any later delivery-affecting PR is merged, repeat the same process with a new version unless the user explicitly approves replacing a broken asset built from the same commit:
+   A workflow failure is a delivery incident with an explicit run URL, not a hidden manual tail. It must be retried or fixed before the next release-impacting PR.
 
-   ```powershell
-   git switch main
-   git pull --ff-only
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
-   npm test --prefix .\mcp
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 -Version NEXT_VERSION -Tag vNEXT_VERSION -Apply
-   ```
-
-   The first command is a dry-run confirmation. The `-Apply` command builds, publishes, downloads, and verifies the GitHub Release assets, then runs the public-entry consistency gate through `scripts\release\verify-github-release-asset.ps1`. Do not say the product is delivered until it passes.
+8. `-ReplaceExistingAsset` is forbidden in the normal path. It is reserved for a broken asset from the exact same tagged commit and requires explicit incident approval; it can never put newer source under an older tag.
 
 ## Blockers That Stop Publication
 
@@ -126,5 +116,5 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 - Public metadata still contains placeholder URLs.
 - Public release scan finds local paths, account data, auth/token/secret material, provider caches, or private evidence.
 - Fresh-context native MCP canary fails.
-- User has not confirmed the first public push/tag/release.
+- `Release On Main` lacks repository write permission or required branch protection.
 - The GitHub Release zip, notes, public README, installation guide, or roadmap point to different user-downloadable versions.
