@@ -9,6 +9,8 @@ const mcpRoot = path.resolve(scriptDir, "..");
 const projectRoot = path.resolve(mcpRoot, "..");
 const runtimePath = path.resolve(process.argv[2] ?? path.join(projectRoot, "plugin", "mcp", "dist", "server.js"));
 const repo = path.resolve(process.argv[3] ?? projectRoot);
+const expectedVersionIndex = process.argv.indexOf("--expected-version");
+const expectedVersion = expectedVersionIndex >= 0 ? process.argv[expectedVersionIndex + 1] : "";
 const skipDryRun =
   process.argv.includes("--skip-dry-run") || process.env.CODEX_PRAETOR_SKIP_PROVIDER_DRY_RUN === "1";
 
@@ -106,6 +108,13 @@ try {
     !runtimeInfoPayload.runtime_identity?.project_root
   ) {
     throw new Error(`Runtime identity is incomplete: ${JSON.stringify(runtimeInfoPayload)}`);
+  }
+  if (expectedVersion) {
+    const contractVersion = runtimeInfoPayload.runtime_contract?.version;
+    const serverVersion = typeof client.getServerVersion === "function" ? client.getServerVersion()?.version : "";
+    if (contractVersion !== expectedVersion || serverVersion !== expectedVersion) {
+      throw new Error(`Packaged MCP version mismatch: contract=${contractVersion} server=${serverVersion} expected=${expectedVersion}`);
+    }
   }
 
   if (!skipDryRun) {

@@ -93,6 +93,12 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-package-determinism.ps1
 
+      - name: Final artifact runtime acceptance
+        shell: pwsh
+        run: |
+          $intent = Get-Content .\config\release-intent.json -Raw | ConvertFrom-Json
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-artifact-runtime.ps1 -Version "$($intent.version)"
+
       - name: Isolated release closeout lifecycle
         shell: pwsh
         run: |

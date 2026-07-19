@@ -242,7 +242,8 @@ function Write-ReleaseGenerationManifest {
     if (-not (Test-Path -LiteralPath $generationScript -PathType Leaf)) {
         throw "Release generation script is missing: $generationScript"
     }
-    $generationOutput = & $generationScript -ProjectRoot $projectRoot -Json
+    $commit = ((& git -C $projectRoot rev-parse HEAD 2>$null) | Out-String).Trim()
+    $generationOutput = & $generationScript -ProjectRoot $projectRoot -ContentRoot $StageRoot -Commit $commit -Json
     if ($LASTEXITCODE -ne 0) {
         throw "Release generation script failed."
     }
@@ -252,6 +253,32 @@ function Write-ReleaseGenerationManifest {
     }
     $manifestPath = Join-Path $StageRoot "codex-praetor-release-generation.json"
     [System.IO.File]::WriteAllText($manifestPath, ($generationJson + [Environment]::NewLine), (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Build-PackagedMcpRuntime {
+    $mcpRoot = Join-Path $projectRoot "mcp"
+    $packageJson = Join-Path $mcpRoot "package.json"
+    if (-not (Test-Path -LiteralPath $packageJson -PathType Leaf)) {
+        throw "MCP package metadata is missing: $packageJson"
+    }
+    Write-Host "Building bundled MCP runtime from mcp/src..."
+    & npm run build:plugin --prefix $mcpRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bundled MCP runtime build failed."
+    }
+}
+
+function Assert-PackagedMcpRuntime {
+    param([string]$RuntimeRoot)
+    $smoke = Join-Path $projectRoot "mcp\scripts\smoke-plugin-mcp.js"
+    $runtime = Join-Path $RuntimeRoot "plugin\mcp\dist\server.js"
+    if (-not (Test-Path -LiteralPath $runtime -PathType Leaf)) {
+        throw "Release stage is missing bundled MCP runtime: $runtime"
+    }
+    & node $smoke $runtime $RuntimeRoot --skip-dry-run --expected-version $Version
+    if ($LASTEXITCODE -ne 0) {
+        throw "Packaged MCP runtime protocol/version smoke failed."
+    }
 }
 
 $include = @(
@@ -301,6 +328,8 @@ if (-not $Apply) {
     exit 0
 }
 
+Build-PackagedMcpRuntime
+
 Assert-UnderProject -Path $outputRootPath
 Assert-UnderProject -Path $stagePath
 Assert-UnderProject -Path $zipPath
@@ -319,6 +348,7 @@ Write-ReleaseGenerationManifest -StageRoot $stagePath
 Assert-PublicReleaseTree -Root $stagePath
 Assert-PublicMetadataUrls -Root $stagePath
 Assert-CmdFileUsesCrlf -Path (Join-Path $stagePath "setup.cmd") -Label "Release setup.cmd"
+Assert-PackagedMcpRuntime -RuntimeRoot $stagePath
 New-DeterministicZip -SourceRoot $stagePath -DestinationPath $zipPath -EntryTimestamp $deterministicTimestamp
 $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 [System.IO.File]::WriteAllText($sha256Path, "$zipHash  $releaseName.zip$([Environment]::NewLine)", (New-Object System.Text.UTF8Encoding($false)))

@@ -62,6 +62,7 @@ Assert-True ($pipelineText -match 'test-release-intent\.ps1\s+@arguments') "Shar
 Assert-True ($pipelineText -match 'test-release-workflow-readiness\.ps1\s+-CheckRemoteActionPins') "Shared pipeline must preflight action pins before publication."
 Assert-True ($pipelineText -match 'publish-github-release-asset\.ps1') "Shared pipeline must own the only publication command."
 Assert-True ($pipelineText -match 'ResumeExistingRelease') "A retry at the original SHA must verify an existing immutable Release instead of overwriting it."
+Assert-True ($pipelineText -match 'test-release-artifact-runtime\.ps1') "Shared pipeline must execute final zip runtime acceptance before publication."
 
 $pins = @(Get-ActionPins -Path $ciPath) + @(Get-ActionPins -Path $releasePath) + @(Get-ActionPins -Path $pipelinePath)
 Assert-True ($pins.Count -gt 0) "No external action pins were discovered."

@@ -11,7 +11,7 @@
                     "build":  "tsc -p tsconfig.json",
                     "build:plugin":  "node scripts/package-plugin-mcp.js",
                     "start":  "node dist/server.js",
-                    "test":  "tsc -p tsconfig.json \u0026\u0026 node dist/self-test.js"
+                    "test":  "tsc -p tsconfig.json \u0026\u0026 npm run build:plugin \u0026\u0026 node dist/self-test.js"
                 },
     "keywords":  [
                      "codex",

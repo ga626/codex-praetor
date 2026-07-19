@@ -1,10 +1,10 @@
 {
-    "name":  "codex-praetor-plugin-mcp",
-    "version":  "0.6.1-alpha",
-    "private":  true,
-    "type":  "module",
-    "main":  "dist/server.js",
-    "bin":  {
-                "codex-praetor-mcp":  "dist/server.js"
-            }
+  "name": "codex-praetor-plugin-mcp",
+  "version": "0.6.1-alpha",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "codex-praetor-mcp": "dist/server.js"
+  }
 }
