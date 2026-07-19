@@ -1,8 +1,9 @@
 param(
-    [string]$Version = "0.6.2-alpha",
+    [string]$Version = "0.6.3-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
+    [string]$ArtifactManifestPath = "",
     [switch]$SkipBuild
 )
 
@@ -22,6 +23,8 @@ $outputRootPath = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $OutputR
 $localZip = Join-Path $outputRootPath "$releaseName.zip"
 $localSha = Join-Path $outputRootPath "$releaseName.zip.sha256"
 $localNotes = Join-Path $projectRoot "docs\release\release-notes-$Version.md"
+if ([string]::IsNullOrWhiteSpace($ArtifactManifestPath)) { $ArtifactManifestPath = Join-Path $outputRootPath "$releaseName.artifact.json" }
+$ArtifactManifestPath = [IO.Path]::GetFullPath($ArtifactManifestPath)
 
 function Assert-Command {
     param([string]$Name)
@@ -77,6 +80,10 @@ if (-not $SkipBuild) {
     if ($LASTEXITCODE -ne 0) {
         throw "Local release package build failed."
     }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path (Split-Path -Parent $scriptDir) "verify\test-release-artifact-runtime.ps1") -Version $Version -OutputRoot $OutputRoot -ArtifactManifestPath $ArtifactManifestPath -MarkVerified
+    if ($LASTEXITCODE -ne 0) {
+        throw "Local final artifact runtime acceptance failed."
+    }
 }
 
 if (-not (Test-Path -LiteralPath $localZip -PathType Leaf)) {
@@ -88,6 +95,9 @@ if (-not (Test-Path -LiteralPath $localSha -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $localNotes -PathType Leaf)) {
     throw "Local release notes missing: $localNotes"
 }
+if (-not (Test-Path -LiteralPath $ArtifactManifestPath -PathType Leaf)) { throw "Artifact manifest is missing: $ArtifactManifestPath" }
+$artifactManifest = Get-Content -LiteralPath $ArtifactManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ([string]$artifactManifest.status -ne "artifact_verified" -or [string]$artifactManifest.verification.status -ne "passed") { throw "Remote verification requires an artifact_verified manifest." }
 
 $releaseJson = & gh release view $Tag --repo $Repository --json tagName,isDraft,isPrerelease,assets,body 2>&1
 if ($LASTEXITCODE -ne 0) {
@@ -120,6 +130,7 @@ try {
     if ($localZipHash -ne $remoteZipHash) {
         throw "Remote release zip is stale or different. Local=$localZipHash Remote=$remoteZipHash"
     }
+    if ($remoteZipHash -ne [string]$artifactManifest.artifact.sha256) { throw "Remote release zip is not the verified artifact. Remote=$remoteZipHash Verified=$($artifactManifest.artifact.sha256)" }
 
     $remoteShaText = Read-TextNormalized -Path $remoteSha
     if ($remoteShaText -notlike "$localZipHash*") {
@@ -141,7 +152,7 @@ try {
     Assert-CmdFileUsesCrlf -Path (Join-Path $unzip "setup.cmd") -Label "Remote setup.cmd"
     $runtimeSmoke = Join-Path $projectRoot "mcp\scripts\smoke-plugin-mcp.js"
     $remoteRuntime = Join-Path $unzip "plugin\mcp\dist\server.js"
-    & node $runtimeSmoke $remoteRuntime $unzip --skip-dry-run --expected-version $Version
+    & node $runtimeSmoke $remoteRuntime $unzip --skip-dry-run --expected-version $Version --expected-contract (Join-Path $unzip "config\runtime-contract.json") --expected-generation (Join-Path $unzip "codex-praetor-release-generation.json")
     if ($LASTEXITCODE -ne 0) {
         throw "Downloaded GitHub Release MCP runtime acceptance failed."
     }

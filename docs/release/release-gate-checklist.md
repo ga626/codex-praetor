@@ -25,7 +25,10 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider mimo`.
 - MCP source tests: `npm test` under `mcp/`.
 - Plugin protocol smoke: `mcp/scripts/smoke-plugin-mcp.js` against the packaged runtime.
-- Final artifact runtime acceptance: `scripts/verify/test-release-artifact-runtime.ps1` extracts the exact zip and starts its `plugin/mcp/dist/server.js`; it must verify the handshake version, runtime contract, required MCP tools and generation manifest before publication.
+- Runtime contract generation: `config/runtime-contract.json` is the only editable contract; `scripts/release/sync-codex-praetor-runtime-contract.ps1` generates the plugin and Skill copies, and CI rejects drift.
+- Final artifact runtime acceptance: `scripts/verify/test-release-artifact-runtime.ps1` extracts the exact zip and starts its `plugin/mcp/dist/server.js`; it must verify the handshake version, runtime contract SHA, exact bidirectional MCP tool set and generation manifest before publication, then mark that zip's artifact manifest `artifact_verified`.
+- Artifact promotion: the publisher may upload only the zip and SHA recorded by the verified artifact manifest. It must not run a second build; remote download verification must compare the same SHA and rerun the contract proof.
+- Historical release-assurance mutations: `scripts/verify/test-runtime-contract-mutations.ps1` must fail when the packaged contract omits the historically missed governance tool.
 - Public marker scan: no personal account paths, auth files, local caches, or token-bearing artifacts in public paths.
 
 ## 2. User-Facing Release Package
@@ -43,7 +46,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.6.2-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.6.3-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -109,7 +112,7 @@ Before pushing or tagging:
 - A release-impacting PR must merge with `config/release-intent.json`, the matching version surfaces, release notes and changelog already committed. After merge, `.github/workflows/release-on-main.yml` automatically builds, publishes and verifies the immutable Release from that exact merge commit. There is no manual post-merge publish command.
 - `previous_version` must equal the target branch intent and `version` must be greater. If a tag/draft/Release exists, recover only by re-running the original Actions run; do not dispatch latest `main`, reuse a tag, or open a version-hiding follow-up PR. A pre-tag workflow-definition failure is the sole exception: record an incident and use one explicitly incremented recovery version.
 - Remote-download validation must prove the downloaded package exposes the intended user-facing behavior before calling the product delivered.
-- A green source test is not enough: the final zip is the release candidate. If the extracted runtime differs from source or the smoke cannot start, publication is blocked before tag/Release creation.
+- A green source test is not enough: the final zip is the release candidate. If the extracted runtime differs from the canonical contract/generation, the smoke cannot start, or the upload candidate has a different SHA from the verified manifest, publication is blocked before tag/Release creation.
 
 ## 5.1 Release Generation Closeout
 

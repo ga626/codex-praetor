@@ -25,6 +25,7 @@ $buildScript = Join-Path $projectPath "scripts\release\build-codex-praetor-relea
 $closeoutScript = Join-Path $projectPath "scripts\release\complete-codex-praetor-release.ps1"
 $proofScript = Join-Path $projectPath "scripts\verify\new-codex-praetor-fresh-context-proof.ps1"
 $healthScript = Join-Path $projectPath "scripts\verify\get-codex-praetor-health.ps1"
+$artifactRuntimeScript = Join-Path $projectPath "scripts\verify\test-release-artifact-runtime.ps1"
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -41,6 +42,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Release build failed in closeout smoke." }
     $releaseZip = Join-Path $releaseRoot "codex-praetor-setup-$version.zip"
     Assert-True (Test-Path -LiteralPath $releaseZip -PathType Leaf) "Closeout smoke release zip is missing."
+    & $artifactRuntimeScript -Version $version -OutputRoot $releaseRootRelative -ObservedToolsPath $observedToolsPath -MarkVerified -ProjectRoot $projectPath
+    if ($LASTEXITCODE -ne 0) { throw "Final artifact runtime proof failed in closeout smoke." }
 
     $invalidZip = Join-Path $testRoot "invalid.zip"
     [IO.File]::WriteAllText($invalidZip, "not a release zip", (New-Object Text.UTF8Encoding($false)))
@@ -81,16 +84,6 @@ try {
     $staleProof = Get-Content -LiteralPath $staleProofPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ([string]$staleProof.status -eq "failed" -and @($staleProof.validation_failures).Count -gt 0) "Stale runtime proof must retain machine-readable failures."
 
-    $observed = [ordered]@{
-        source = "isolated-closeout-smoke"
-        tool_names = @($generation.required_mcp_tools)
-        runtime_info = [ordered]@{
-            contract_path = "C:\\cache\\codex-praetor\\$($generation.version)\\runtime-contract.json"
-            runtime_contract = [ordered]@{ version = [string]$generation.version; taskContractSchema = [string]$generation.task_contract_schema }
-            runtime_identity = [ordered]@{ runtime_contract_sha256 = [string]$generation.runtime_contract_sha256; project_root = "C:\\cache\\codex-praetor\\$($generation.version)"; process_id = 4242; process_started_at = "2026-07-18T00:00:00.0000000Z" }
-        }
-    }
-    $observed | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $observedToolsPath -Encoding UTF8
     & $proofScript -ProjectRoot $projectPath -ObservedToolsPath $observedToolsPath -OutputPath $proofPath -Apply
     if ($LASTEXITCODE -ne 0) { throw "Fresh-context proof failed in closeout smoke." }
     $readiness = [ordered]@{
@@ -171,7 +164,7 @@ try {
     & (Join-Path $projectPath "scripts\maintenance\reconcile-codex-praetor-generations.ps1") -UserProfileRoot $profileRoot -Channel stable -RetentionDays 0 -Apply
     Assert-True (-not (Test-Path -LiteralPath $lockedPath)) "A previously locked retired generation must be removed on a later retry."
 
-    Write-Host "[PASS] Release closeout smoke passed: stage, activation, drift rejection, and retirement lifecycle are verified."
+    Write-Host "[PASS] Release closeout smoke passed: final artifact runtime proof, stage, activation, drift rejection, and retirement lifecycle are verified."
 } finally {
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force

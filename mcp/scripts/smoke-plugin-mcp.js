@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +13,12 @@ const runtimePath = path.resolve(process.argv[2] ?? path.join(projectRoot, "plug
 const repo = path.resolve(process.argv[3] ?? projectRoot);
 const expectedVersionIndex = process.argv.indexOf("--expected-version");
 const expectedVersion = expectedVersionIndex >= 0 ? process.argv[expectedVersionIndex + 1] : "";
+const expectedContractIndex = process.argv.indexOf("--expected-contract");
+const expectedContractPath = expectedContractIndex >= 0 ? path.resolve(process.argv[expectedContractIndex + 1]) : "";
+const expectedGenerationIndex = process.argv.indexOf("--expected-generation");
+const expectedGenerationPath = expectedGenerationIndex >= 0 ? path.resolve(process.argv[expectedGenerationIndex + 1]) : "";
+const observedOutputIndex = process.argv.indexOf("--observed-tools-output");
+const observedOutputPath = observedOutputIndex >= 0 ? path.resolve(process.argv[observedOutputIndex + 1]) : "";
 const skipDryRun =
   process.argv.includes("--skip-dry-run") || process.env.CODEX_PRAETOR_SKIP_PROVIDER_DRY_RUN === "1";
 
@@ -30,6 +38,20 @@ const requiredTools = [
   "codex_praetor_dispatch_plan_task",
   "codex_praetor_verify_task"
 ];
+
+function sameSet(left, right) {
+  return left.length === right.length && left.every((item) => right.includes(item));
+}
+
+function readExpectedContract() {
+  if (!expectedContractPath) return null;
+  const bytes = readFileSync(expectedContractPath);
+  return {
+    path: expectedContractPath,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    payload: JSON.parse(bytes.toString("utf8"))
+  };
+}
 
 const expectedReadOnlyTools = [
   "codex_praetor_route_intent",
@@ -59,7 +81,9 @@ try {
 
   const tools = await client.listTools();
   const toolNames = tools.tools.map((tool) => tool.name);
-  const missingTools = requiredTools.filter((toolName) => !toolNames.includes(toolName));
+  const expectedContract = readExpectedContract();
+  const expectedToolNames = expectedContract ? expectedContract.payload.requiredMcpTools : requiredTools;
+  const missingTools = expectedToolNames.filter((toolName) => !toolNames.includes(toolName));
   if (missingTools.length > 0) {
     throw new Error(`Missing MCP tools: ${missingTools.join(", ")}`);
   }
@@ -115,6 +139,34 @@ try {
     if (contractVersion !== expectedVersion || serverVersion !== expectedVersion) {
       throw new Error(`Packaged MCP version mismatch: contract=${contractVersion} server=${serverVersion} expected=${expectedVersion}`);
     }
+  }
+  if (expectedContract) {
+    const contractTools = expectedContract.payload.requiredMcpTools;
+    if (!sameSet([...toolNames].sort(), [...contractTools].sort())) {
+      const missing = contractTools.filter((name) => !toolNames.includes(name));
+      const extra = toolNames.filter((name) => !contractTools.includes(name));
+      throw new Error(`MCP tool contract mismatch: missing=${missing.join(",")} extra=${extra.join(",")}`);
+    }
+    if (runtimeInfoPayload.runtime_identity?.runtime_contract_sha256 !== expectedContract.sha256) {
+      throw new Error(`Runtime contract SHA256 mismatch: runtime=${runtimeInfoPayload.runtime_identity?.runtime_contract_sha256} expected=${expectedContract.sha256}`);
+    }
+    if (JSON.stringify(runtimeInfoPayload.runtime_contract) !== JSON.stringify(expectedContract.payload)) {
+      throw new Error("Runtime contract payload differs from the canonical contract.");
+    }
+    if (expectedGenerationPath) {
+      const generation = JSON.parse(readFileSync(expectedGenerationPath, "utf8"));
+      if (generation.runtime_contract_sha256 !== expectedContract.sha256 || !sameSet([...(generation.required_mcp_tools ?? [])].sort(), [...contractTools].sort())) {
+        throw new Error("Release generation manifest differs from the canonical runtime contract.");
+      }
+    }
+  }
+  if (observedOutputPath) {
+    writeFileSync(observedOutputPath, `${JSON.stringify({
+      schema: "codex-praetor-observed-runtime/v1",
+      source: "final-artifact-bundled-mcp",
+      tool_names: toolNames,
+      runtime_info: runtimeInfoPayload
+    }, null, 2)}\n`, "utf8");
   }
 
   if (!skipDryRun) {

@@ -15,6 +15,7 @@ $workflowRoot = Join-Path $root ".github\workflows"
 $ciPath = Join-Path $workflowRoot "ci.yml"
 $releasePath = Join-Path $workflowRoot "release-on-main.yml"
 $pipelinePath = Join-Path $workflowRoot "release-pipeline.yml"
+$publisherPath = Join-Path $root "scripts\release\publish-github-release-asset.ps1"
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -44,10 +45,12 @@ function Get-ActionPins {
 foreach ($path in @($ciPath, $releasePath, $pipelinePath)) {
     Assert-True (Test-Path -LiteralPath $path -PathType Leaf) "Required workflow is missing: $path"
 }
+Assert-True (Test-Path -LiteralPath $publisherPath -PathType Leaf) "Release publisher is missing: $publisherPath"
 
 $ciText = Get-Content -LiteralPath $ciPath -Raw -Encoding UTF8
 $releaseText = Get-Content -LiteralPath $releasePath -Raw -Encoding UTF8
 $pipelineText = Get-Content -LiteralPath $pipelinePath -Raw -Encoding UTF8
+$publisherText = Get-Content -LiteralPath $publisherPath -Raw -Encoding UTF8
 
 Assert-True ($ciText -match 'uses:\s*\./\.github/workflows/release-pipeline\.yml') "PR CI must call the shared release pipeline."
 Assert-True ($ciText -match 'publish:\s*false') "PR CI must run the shared pipeline in candidate-only mode."
@@ -64,6 +67,10 @@ Assert-True ($pipelineText -match 'test-release-workflow-readiness\.ps1\s+-Check
 Assert-True ($pipelineText -match 'publish-github-release-asset\.ps1') "Shared pipeline must own the only publication command."
 Assert-True ($pipelineText -match 'ResumeExistingRelease') "A retry at the original SHA must verify an existing immutable Release instead of overwriting it."
 Assert-True ($pipelineText -match 'test-release-artifact-runtime\.ps1') "Shared pipeline must execute final zip runtime acceptance before publication."
+Assert-True ($pipelineText -match 'test-release-artifact-runtime\.ps1.+-MarkVerified') "Shared pipeline must mark the verified artifact before publication."
+Assert-True ($pipelineText -notmatch 'OutputRoot\s+"\.codex-praetor\\ci-release"') "Publication must not switch to a second ci-release build output."
+Assert-True ($publisherText -match 'artifact_verified') "Publisher must require an artifact_verified manifest."
+Assert-True ($publisherText -notmatch 'build-codex-praetor-release\.ps1') "Publisher must not rebuild a second upload artifact."
 
 $pins = @(Get-ActionPins -Path $ciPath) + @(Get-ActionPins -Path $releasePath) + @(Get-ActionPins -Path $pipelinePath)
 Assert-True ($pins.Count -gt 0) "No external action pins were discovered."

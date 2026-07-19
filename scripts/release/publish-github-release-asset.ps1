@@ -1,9 +1,9 @@
 param(
-    [string]$Version = "0.6.2-alpha",
+    [string]$Version = "0.6.3-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
-    [switch]$ReplaceExistingAsset,
+    [string]$ArtifactManifestPath = "",
     [switch]$ResumeExistingRelease,
     [switch]$AllowDetachedHead,
     [switch]$Apply
@@ -24,6 +24,7 @@ $releaseName = "codex-praetor-setup-$Version"
 $outputRootPath = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $OutputRoot))
 $zipPath = Join-Path $outputRootPath "$releaseName.zip"
 $shaPath = Join-Path $outputRootPath "$releaseName.zip.sha256"
+$defaultArtifactManifestPath = Join-Path $outputRootPath "$releaseName.artifact.json"
 $notesPath = Join-Path $projectRoot "docs\release\release-notes-$Version.md"
 
 function Assert-Command {
@@ -46,6 +47,8 @@ Write-Host "Zip:        $zipPath"
 Write-Host "SHA256:     $shaPath"
 Write-Host "Notes:      $notesPath"
 Write-Host "Mode:       $(if ($Apply) { 'apply' } else { 'dry-run' })"
+if ([string]::IsNullOrWhiteSpace($ArtifactManifestPath)) { $ArtifactManifestPath = $defaultArtifactManifestPath }
+$ArtifactManifestPath = [IO.Path]::GetFullPath($ArtifactManifestPath)
 
 if ($branch -ne "main" -and -not ($AllowDetachedHead -and $env:GITHUB_ACTIONS -eq "true")) {
     throw "Release assets must be published from main. Current branch: $branch"
@@ -93,11 +96,8 @@ if ($releaseExists) {
         throw "Existing GitHub Release $Tag is unreadable: $($_.Exception.Message)"
     }
 }
-if ($releaseExists -and -not $releaseIsDraft -and -not $ReplaceExistingAsset -and -not $ResumeExistingRelease) {
-    throw "GitHub Release $Tag already exists. Use a new version, or explicitly approve -ReplaceExistingAsset for a broken asset from the same tagged commit."
-}
-if ($ReplaceExistingAsset -and -not $releaseExists) {
-    throw "-ReplaceExistingAsset was requested, but GitHub Release $Tag does not exist."
+if ($releaseExists -and -not $releaseIsDraft -and -not $ResumeExistingRelease) {
+    throw "GitHub Release $Tag already exists. Published releases are verify-only; use a new version for a source or artifact defect."
 }
 if ($releaseExists -and (-not $tagExists -or -not $remoteTagExists)) {
     throw "GitHub Release $Tag exists, but its local or remote tag is missing."
@@ -110,6 +110,13 @@ Write-Host "Release:     $(if ($releaseExists -and $releaseIsDraft) { 'resume ex
 if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
     throw "Release notes missing: $notesPath"
 }
+if (-not (Test-Path -LiteralPath $ArtifactManifestPath -PathType Leaf)) { throw "Verified artifact manifest is missing: $ArtifactManifestPath" }
+$artifactManifest = Get-Content -LiteralPath $ArtifactManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ([string]$artifactManifest.status -ne "artifact_verified" -or [string]$artifactManifest.verification.status -ne "passed") {
+    throw "Publisher only accepts an artifact_verified manifest; run final artifact runtime acceptance first."
+}
+if ([IO.Path]::GetFullPath([string]$artifactManifest.artifact.path) -ne [IO.Path]::GetFullPath($zipPath)) { throw "Artifact manifest zip path differs from the publisher zip path." }
+if ((Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$artifactManifest.artifact.sha256) { throw "Artifact manifest SHA256 differs from the upload candidate." }
 
 if (-not $Apply) {
     Write-Host ""
@@ -118,19 +125,14 @@ if (-not $Apply) {
 }
 
 if ($releaseExists -and -not $releaseIsDraft -and $ResumeExistingRelease) {
-    if ($ReplaceExistingAsset) {
-        throw "-ResumeExistingRelease cannot be combined with -ReplaceExistingAsset. Published immutable assets are verify-only during normal recovery."
-    }
     Write-Host "[PASS] Published immutable Release already exists for this exact HEAD. Running remote verification only."
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "verify-github-release-asset.ps1") -Version $Version -Tag $Tag -Repository $Repository -OutputRoot $OutputRoot -SkipBuild
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "verify-github-release-asset.ps1") -Version $Version -Tag $Tag -Repository $Repository -OutputRoot $OutputRoot -ArtifactManifestPath $ArtifactManifestPath -SkipBuild
     if ($LASTEXITCODE -ne 0) { throw "Existing immutable GitHub Release verification failed." }
     exit 0
 }
 
-& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "build-codex-praetor-release.ps1") -Version $Version -OutputRoot $OutputRoot -Apply
-if ($LASTEXITCODE -ne 0) { throw "Release package build failed." }
-if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw "Release zip missing after build: $zipPath" }
-if (-not (Test-Path -LiteralPath $shaPath -PathType Leaf)) { throw "Release SHA256 file missing after build: $shaPath" }
+if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw "Verified release zip is missing: $zipPath" }
+if (-not (Test-Path -LiteralPath $shaPath -PathType Leaf)) { throw "Verified release SHA256 file is missing: $shaPath" }
 if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) { throw "Release notes missing: $notesPath" }
 
 if ($releaseExists -and $releaseIsDraft) {
@@ -139,10 +141,7 @@ if ($releaseExists -and $releaseIsDraft) {
     & gh release edit $Tag --repo $Repository --notes-file $notesPath --draft=false --prerelease
     if ($LASTEXITCODE -ne 0) { throw "Failed to publish the resumed draft GitHub Release." }
 } elseif ($releaseExists) {
-    & gh release upload $Tag $zipPath $shaPath --repo $Repository --clobber
-    if ($LASTEXITCODE -ne 0) { throw "Failed to replace GitHub Release assets." }
-    & gh release edit $Tag --repo $Repository --notes-file $notesPath
-    if ($LASTEXITCODE -ne 0) { throw "Failed to update GitHub Release notes." }
+    throw "Published GitHub Releases are verify-only. Use a new version for recovery."
 } else {
     if (-not $tagExists) {
         & git -C $projectRoot tag $Tag $head
@@ -160,5 +159,5 @@ if ($releaseExists -and $releaseIsDraft) {
     if ($LASTEXITCODE -ne 0) { throw "Failed to publish GitHub Release $Tag." }
 }
 
-& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "verify-github-release-asset.ps1") -Version $Version -Tag $Tag -Repository $Repository -OutputRoot $OutputRoot -SkipBuild
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "verify-github-release-asset.ps1") -Version $Version -Tag $Tag -Repository $Repository -OutputRoot $OutputRoot -ArtifactManifestPath $ArtifactManifestPath -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw "Remote GitHub Release verification failed after upload." }

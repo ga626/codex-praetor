@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.3-alpha - 2026-07-20
+
+- Recovered from the `0.6.2-alpha` release incident with a new version; the published 0.6.2 artifact is retained and is not activated or overwritten.
+- Made `config/runtime-contract.json` the canonical runtime contract and generate all plugin/Skill contract surfaces from it.
+- Required the final zip's real bundled MCP to match the canonical contract SHA, exact tool set, server version, and generation manifest.
+- Bound publication to one `artifact_verified` manifest and SHA; the publisher no longer rebuilds a different upload candidate.
+- Replaced successful closeout's fabricated runtime observation with a final-zip runtime proof and added a regression mutation for the historical contract split.
+
 ## 0.6.1-alpha - 2026-07-19
 
 - Repaired the failed `0.6.0-alpha` release bootstrap with a new immutable version; the failed candidate never created a tag or Release.

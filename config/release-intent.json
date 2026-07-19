@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.6.2-alpha",
-    "previous_version":  "0.6.1-alpha",
-    "tag":  "v0.6.2-alpha",
+    "version":  "0.6.3-alpha",
+    "previous_version":  "0.6.2-alpha",
+    "tag":  "v0.6.3-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.6.2-alpha.zip",
-    "reason":  "把最终 zip 的 bundled MCP 真实启动验收前移到 PR 与自动发布链路，阻断源码、生成物和用户下载包的版本分叉，确保合并后的发布收口可验证。"
+    "artifact":  "codex-praetor-setup-0.6.3-alpha.zip",
+    "reason":  "修复 0.6.2-alpha 的合同分叉与二次构建发布缺口：合同副本由单一来源生成，最终 zip 的真实运行时合同与 generation 必须一致，发布器只晋升已验收同一 SHA 的 artifact。"
 }
