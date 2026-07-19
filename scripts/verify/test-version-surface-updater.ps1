@@ -6,6 +6,12 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 $root = [IO.Path]::GetFullPath($ProjectRoot)
 $scratch = Join-Path ([IO.Path]::GetTempPath()) ("codex-praetor-version-updater-" + [guid]::NewGuid().ToString("N"))
+$sourceIntent = Get-Content -LiteralPath (Join-Path $root "config\release-intent.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+$sourceVersion = [string]$sourceIntent.version
+if ($sourceVersion -notmatch '^(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)(?:-[0-9A-Za-z.-]+)?$') {
+    throw "Fixture source version is not semantic: $sourceVersion"
+}
+$targetVersion = "$($Matches.major).$($Matches.minor).$([int]$Matches.patch + 1)-alpha"
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -32,16 +38,17 @@ try {
         "docs\roadmap.md", "SECURITY.md", "scripts\release\build-codex-praetor-release.ps1",
         "scripts\release\publish-github-release-asset.ps1", "scripts\release\verify-github-release-asset.ps1",
         "scripts\verify\test-public-entry-consistency.ps1", "scripts\verify\test-release-package-determinism.ps1",
+        "scripts\verify\test-release-artifact-runtime.ps1",
         "scripts\verify\test-supply-chain-controls.ps1", "docs\release\github-publish-runbook.md",
         "docs\release\release-gate-checklist.md", "scripts\release\set-codex-praetor-version.ps1"
     )
     foreach ($fixture in $fixtures) { Copy-RelativeFile $fixture }
 
-    $sourceNotes = Join-Path $root "docs\release\release-notes-0.6.1-alpha.md"
-    $targetNotes = Join-Path $scratch "docs\release\release-notes-0.6.2-alpha.md"
+    $sourceNotes = Join-Path $root "docs\release\release-notes-$sourceVersion.md"
+    $targetNotes = Join-Path $scratch "docs\release\release-notes-$targetVersion.md"
     Copy-Item -LiteralPath $sourceNotes -Destination $targetNotes -Force
 
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scratch "scripts\release\set-codex-praetor-version.ps1") -ProjectRoot $scratch -Version "0.6.2-alpha" -Apply
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scratch "scripts\release\set-codex-praetor-version.ps1") -ProjectRoot $scratch -Version $targetVersion -Apply
     if ($LASTEXITCODE -ne 0) { throw "Version surface updater failed in its isolated fixture." }
 
     $setupPath = Join-Path $scratch "setup.ps1"
@@ -54,9 +61,9 @@ try {
 
     $intent = Get-Content -LiteralPath (Join-Path $scratch "config\release-intent.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $contract = Get-Content -LiteralPath (Join-Path $scratch "config\runtime-contract.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-True ($intent.version -eq "0.6.2-alpha" -and $intent.previous_version -eq "0.6.1-alpha") "Version updater did not advance the release intent correctly."
-    Assert-True ($intent.tag -eq "v0.6.2-alpha" -and $intent.artifact -eq "codex-praetor-setup-0.6.2-alpha.zip") "Version updater did not synchronize tag and artifact."
-    Assert-True ($contract.version -eq "0.6.2-alpha") "Version updater did not synchronize the runtime contract."
+    Assert-True ($intent.version -eq $targetVersion -and $intent.previous_version -eq $sourceVersion) "Version updater did not advance the release intent correctly."
+    Assert-True ($intent.tag -eq "v$targetVersion" -and $intent.artifact -eq "codex-praetor-setup-$targetVersion.zip") "Version updater did not synchronize tag and artifact."
+    Assert-True ($contract.version -eq $targetVersion) "Version updater did not synchronize the runtime contract."
     Write-Host "[PASS] Version surface updater preserves encoding and advances the release contract in an isolated fixture."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
