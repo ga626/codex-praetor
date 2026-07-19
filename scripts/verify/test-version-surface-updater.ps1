@@ -38,7 +38,7 @@ try {
         "docs\roadmap.md", "SECURITY.md", "scripts\release\build-codex-praetor-release.ps1",
         "scripts\release\publish-github-release-asset.ps1", "scripts\release\verify-github-release-asset.ps1",
         "scripts\verify\test-public-entry-consistency.ps1", "scripts\verify\test-release-package-determinism.ps1",
-        "scripts\verify\test-release-artifact-runtime.ps1",
+        "scripts\verify\test-release-artifact-runtime.ps1", "scripts\release\sync-codex-praetor-runtime-contract.ps1",
         "scripts\verify\test-supply-chain-controls.ps1", "docs\release\github-publish-runbook.md",
         "docs\release\release-gate-checklist.md", "scripts\release\set-codex-praetor-version.ps1"
     )
@@ -64,6 +64,8 @@ try {
     Assert-True ($intent.version -eq $targetVersion -and $intent.previous_version -eq $sourceVersion) "Version updater did not advance the release intent correctly."
     Assert-True ($intent.tag -eq "v$targetVersion" -and $intent.artifact -eq "codex-praetor-setup-$targetVersion.zip") "Version updater did not synchronize tag and artifact."
     Assert-True ($contract.version -eq $targetVersion) "Version updater did not synchronize the runtime contract."
+    $derivedContract = Get-Content -LiteralPath (Join-Path $scratch "plugin\runtime-contract.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ($derivedContract.version -eq $targetVersion -and @($derivedContract.requiredMcpTools).Count -eq @($contract.requiredMcpTools).Count) "Version updater did not regenerate derived runtime contracts from the canonical source."
     Write-Host "[PASS] Version surface updater preserves encoding and advances the release contract in an isolated fixture."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }

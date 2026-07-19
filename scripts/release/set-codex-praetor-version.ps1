@@ -22,9 +22,6 @@ if ($currentVersion -eq $Version) { throw "Target version must differ from the c
 
 $jsonFiles = @(
     "config\runtime-contract.json",
-    "plugin\runtime-contract.json",
-    "plugin\skills\codex-praetor\scripts\runtime-contract.json",
-    "skill\codex-praetor\scripts\runtime-contract.json",
     "plugin\.codex-plugin\plugin.json",
     "mcp\package.json",
     "plugin\mcp\package.json"
@@ -47,6 +44,7 @@ $textFiles = @(
     "scripts\verify\test-public-entry-consistency.ps1",
     "scripts\verify\test-release-package-determinism.ps1",
     "scripts\verify\test-release-artifact-runtime.ps1",
+    "scripts\release\sync-codex-praetor-runtime-contract.ps1",
     "scripts\verify\test-supply-chain-controls.ps1",
     "docs\release\github-publish-runbook.md",
     "docs\release\release-gate-checklist.md",
@@ -83,6 +81,8 @@ if ($Apply) {
     Set-JsonStringProperty -path $intentPath -property "version" -value $Version
     Set-JsonStringProperty -path $intentPath -property "tag" -value "v$Version"
     Set-JsonStringProperty -path $intentPath -property "artifact" -value "codex-praetor-setup-$Version.zip"
+    & (Join-Path $root "scripts\release\sync-codex-praetor-runtime-contract.ps1") -ProjectRoot $root -Apply
+    if ($LASTEXITCODE -ne 0) { throw "Runtime contract surface generation failed after version update." }
 } else { Write-Host "would-update config\\release-intent.json" }
 
 foreach ($relative in $textFiles) {

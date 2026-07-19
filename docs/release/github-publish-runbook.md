@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.6.2-alpha`
+Target release: `0.6.3-alpha`
 
-Status: `v0.5.0-alpha` is already published. `v0.6.2-alpha` is declared in the same release-impacting PR and is published automatically by `Release On Main` after that PR reaches `main`; existing tags are immutable.
+Status: `v0.6.2-alpha` is a public release incident and must not be activated or overwritten. `v0.6.3-alpha` is the explicit recovery version and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
@@ -14,6 +14,7 @@ This runbook defines the single merge-to-release pipeline. A release-impacting P
 - Prefer GitHub CLI browser/device login over raw token handling.
 - The repository must have a protected `main` branch, required CI checks, and `contents: write` permission for the `Release On Main` workflow.
 - Release tags and assets are immutable. A version already tagged on another commit is a hard failure, never an asset replacement.
+- A publishable artifact must have an `artifact_verified` manifest matching its zip SHA; the publisher may not rebuild a second upload candidate.
 - The automatic workflow is the only supported public release path; do not run the old manual sequence after merge.
 
 ## User-Owned One-Time Actions
@@ -102,12 +103,12 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    - checkout of the exact merge commit;
    - release-intent, source, MCP, product, public-entry and deterministic package gates;
    - creation of the tag and a draft Release;
-   - upload of zip and `.sha256` before publishing the immutable Release;
+   - real bundled-MCP proof of the final zip, then upload of that same SHA and `.sha256` before publishing the immutable Release;
    - download/hash/entry/notes verification through `verify-github-release-asset.ps1`.
 
    A workflow failure is a delivery incident with an explicit run URL, not a hidden manual tail. It must be retried or fixed before the next release-impacting PR.
 
-8. `-ReplaceExistingAsset` is forbidden in the normal path. It is reserved for a broken asset from the exact same tagged commit and requires explicit incident approval; it can never put newer source under an older tag.
+8. 已公开 Release 只能下载复验，不能替换资产或修改说明。源代码、合同或 artifact 有缺陷时，必须使用递增版本的恢复 PR。
 
 ## Blockers That Stop Publication
 

@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.6.2-alpha",
+    [string]$Version = "0.6.3-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
@@ -17,6 +17,7 @@ $releaseName = "codex-praetor-setup-$Version"
 $stagePath = Join-Path $outputRootPath $releaseName
 $zipPath = Join-Path $outputRootPath "$releaseName.zip"
 $sha256Path = Join-Path $outputRootPath "$releaseName.zip.sha256"
+$artifactManifestPath = Join-Path $outputRootPath "$releaseName.artifact.json"
 $deterministicTimestamp = [System.DateTimeOffset]::new(2024, 1, 1, 0, 0, 0, [System.TimeSpan]::Zero)
 
 function Assert-UnderProject {
@@ -275,10 +276,33 @@ function Assert-PackagedMcpRuntime {
     if (-not (Test-Path -LiteralPath $runtime -PathType Leaf)) {
         throw "Release stage is missing bundled MCP runtime: $runtime"
     }
-    & node $smoke $runtime $RuntimeRoot --skip-dry-run --expected-version $Version
+    & node $smoke $runtime $RuntimeRoot --skip-dry-run --expected-version $Version --expected-contract (Join-Path $RuntimeRoot "config\runtime-contract.json") --expected-generation (Join-Path $RuntimeRoot "codex-praetor-release-generation.json")
     if ($LASTEXITCODE -ne 0) {
         throw "Packaged MCP runtime protocol/version smoke failed."
     }
+}
+
+function Write-ArtifactManifest {
+    param([string]$ZipPath, [string]$ManifestPath)
+    $generationPath = Join-Path $stagePath "codex-praetor-release-generation.json"
+    $generation = Get-Content -LiteralPath $generationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $payload = [ordered]@{
+        schema = "codex-praetor-release-artifact/v1"
+        status = "built"
+        artifact = [ordered]@{
+            path = [IO.Path]::GetFullPath($ZipPath)
+            sha256 = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            sidecar_sha256_path = [IO.Path]::GetFullPath($sha256Path)
+        }
+        generation = [ordered]@{
+            id = [string]$generation.generation_id
+            commit = [string]$generation.commit
+            runtime_contract_sha256 = [string]$generation.runtime_contract_sha256
+            required_mcp_tools = @($generation.required_mcp_tools)
+        }
+        verification = [ordered]@{ status = "pending" }
+    }
+    [IO.File]::WriteAllText($ManifestPath, (($payload | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
 }
 
 $include = @(
@@ -330,6 +354,9 @@ if (-not $Apply) {
 
 Build-PackagedMcpRuntime
 
+& (Join-Path $projectRoot "scripts\release\sync-codex-praetor-runtime-contract.ps1") -ProjectRoot $projectRoot -Apply
+if ($LASTEXITCODE -ne 0) { throw "Canonical runtime contract generation failed." }
+
 Assert-UnderProject -Path $outputRootPath
 Assert-UnderProject -Path $stagePath
 Assert-UnderProject -Path $zipPath
@@ -352,10 +379,12 @@ Assert-PackagedMcpRuntime -RuntimeRoot $stagePath
 New-DeterministicZip -SourceRoot $stagePath -DestinationPath $zipPath -EntryTimestamp $deterministicTimestamp
 $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 [System.IO.File]::WriteAllText($sha256Path, "$zipHash  $releaseName.zip$([Environment]::NewLine)", (New-Object System.Text.UTF8Encoding($false)))
+Write-ArtifactManifest -ZipPath $zipPath -ManifestPath $artifactManifestPath
 
 $zipItem = Get-Item -LiteralPath $zipPath
 Write-Host "[PASS] Release package created: $($zipItem.FullName)"
 Write-Host "[PASS] Size bytes: $($zipItem.Length)"
 Write-Host "[PASS] SHA256: $zipHash"
+Write-Host "[PASS] Artifact manifest: $artifactManifestPath"
 Write-Host "[PASS] Deterministic zip entry timestamp: $($deterministicTimestamp.ToString("o"))"
 Write-Host "[PASS] Release tree passed blocked-path and private-marker checks."

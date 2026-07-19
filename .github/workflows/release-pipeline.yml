@@ -97,7 +97,12 @@ jobs:
         shell: pwsh
         run: |
           $intent = Get-Content .\config\release-intent.json -Raw | ConvertFrom-Json
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-artifact-runtime.ps1 -Version "$($intent.version)"
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-artifact-runtime.ps1 -Version "$($intent.version)" -MarkVerified
+
+      - name: Historical release-assurance mutations
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-runtime-contract-mutations.ps1
 
       - name: Isolated release closeout lifecycle
         shell: pwsh
@@ -114,7 +119,6 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 `
             -Version "$($intent.version)" `
             -Tag "$($intent.tag)" `
-            -OutputRoot ".codex-praetor\ci-release" `
             -AllowDetachedHead `
             -ResumeExistingRelease `
             -Apply

@@ -14,6 +14,11 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 
 $projectPath = [System.IO.Path]::GetFullPath($ProjectRoot)
 $contentPath = if ([string]::IsNullOrWhiteSpace($ContentRoot)) { $projectPath } else { [System.IO.Path]::GetFullPath($ContentRoot) }
+$syncScript = Join-Path $projectPath "scripts\release\sync-codex-praetor-runtime-contract.ps1"
+if ($contentPath -eq $projectPath -and (Test-Path -LiteralPath $syncScript -PathType Leaf)) {
+    & $syncScript -ProjectRoot $projectPath
+    if ($LASTEXITCODE -ne 0) { throw "Runtime contract surfaces are not generated from the canonical source." }
+}
 $contractPath = Join-Path $contentPath "config\runtime-contract.json"
 if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) {
     $contractPath = Join-Path $contentPath "plugin\runtime-contract.json"

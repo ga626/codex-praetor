@@ -1,0 +1,150 @@
+{
+  "schema": "knowledgeradar-research-evidence/v1",
+  "title": "Codex执政官收口事故根因与交付保证体系研究报告-2026-07-19",
+  "scope": "只读本地考古与外部研究；未修改产品代码、规则或 GitHub 设置。",
+  "research_access": {
+    "access_path": "native_mcp",
+    "route_tool": "mcp__knowledgeradar__kr_research",
+    "route_mode": "deep_route",
+    "budget": "deep",
+    "health": "ok",
+    "host_internal_web_wave": "not used"
+  },
+  "local_evidence": [
+    {
+      "id": "L01",
+      "path": "config/runtime-contract.json",
+      "fact": "SHA256=1a4027962ee397bcdfb3eddca97b5cb7f89de7f07fcca72067997fd3d39a59d0；requiredMcpTools=18。",
+      "strength": "direct_file"
+    },
+    {
+      "id": "L02",
+      "path": "plugin/runtime-contract.json",
+      "fact": "SHA256=8a2c8a6feffd2ca764eafbd6da4b69ce7056d61b30256e098f34865c1bb20a14；requiredMcpTools=17；缺少 codex_praetor_governance_summary。",
+      "strength": "direct_file"
+    },
+    {
+      "id": "L03",
+      "path": "git show a0b4ccc -- config/runtime-contract.json plugin/runtime-contract.json mcp/src/server.ts",
+      "fact": "0.5.0-alpha 引入 governance_summary 时修改 config/server，未修改 plugin 合同。",
+      "strength": "git_history"
+    },
+    {
+      "id": "L04",
+      "path": "mcp/src/paths.ts",
+      "fact": "运行时先找 projectRoot/config/runtime-contract.json，缺失时回退 projectRoot/runtime-contract.json。发布 MCP 的 projectRoot 为 plugin 根。",
+      "strength": "source_code"
+    },
+    {
+      "id": "L05",
+      "path": "C:/Users/ga990/.codex/plugins/cache/personal/codex-praetor/0.6.2-alpha/mcp/dist/server.js",
+      "fact": "真实启动后 server_version=0.6.2-alpha、tool_count=18，但 runtime_info 返回 plugin/runtime-contract.json 的 17 工具合同及 SHA 8a2c...0a14。",
+      "strength": "runtime_probe"
+    },
+    {
+      "id": "L06",
+      "path": "C:/Users/ga990/.codex/codex-praetor-releases/stable/receipts/0.6.2-alpha--21dfaa089e29--0e04fe645f85.json",
+      "fact": "staged receipt 的 generation runtime contract SHA 为 1a402...a59d0，delivery.state=awaiting_host_refresh。",
+      "strength": "runtime_state"
+    },
+    {
+      "id": "L07",
+      "path": "mcp/scripts/smoke-plugin-mcp.js; scripts/verify/test-release-artifact-runtime.ps1; scripts/verify/test-release-closeout.ps1",
+      "fact": "smoke 维护手写小工具集；artifact test 未比对 runtime contract；closeout test 构造理想 observed runtime_info。",
+      "strength": "source_code"
+    },
+    {
+      "id": "L08",
+      "path": ".github/workflows/release-pipeline.yml; scripts/release/publish-github-release-asset.ps1",
+      "fact": "artifact runtime acceptance 使用默认 releases 输出；publisher 以 ci-release 为输出根并内部再次 build，已验收对象与上传对象不是同一文件身份。",
+      "strength": "source_code"
+    },
+    {
+      "id": "L09",
+      "path": "gh release view v0.6.2-alpha; gh run list --commit 21dfaa0",
+      "fact": "Release On Main run 29683550744 成功，远端 zip digest=08ce...a197；Release isImmutable=false。",
+      "strength": "remote_api"
+    }
+  ],
+  "external_evidence": [
+    {
+      "id": "E01",
+      "url": "https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases",
+      "fact": "不可变 Release 在发布后锁定 tag 和 asset；建议 draft、上传所有 asset、再 publish。",
+      "strength": "official_primary",
+      "access_path": "native_mcp:extract_web_page"
+    },
+    {
+      "id": "E02",
+      "url": "https://docs.github.com/en/actions/concepts/security/artifact-attestations",
+      "fact": "attestation 提供构建 provenance；官方明确它不保证 artifact 安全或语义正确，消费者仍必须验证自己的策略。",
+      "strength": "official_primary",
+      "access_path": "native_mcp:extract_web_page"
+    },
+    {
+      "id": "E03",
+      "url": "https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/increase-security-rating",
+      "fact": "reusable workflow 与 attestation 可建立更强的 build provenance，并可用 gh attestation verify 验证 signer workflow。",
+      "strength": "official_primary",
+      "access_path": "native_mcp:extract_web_page"
+    },
+    {
+      "id": "E04",
+      "url": "https://slsa.dev/spec/v1.0/levels",
+      "fact": "Build L1/L2/L3 分别关注 provenance、签名 hosted build、hardened build platform；不覆盖产品语义合同。",
+      "strength": "standards_primary",
+      "access_path": "native_mcp:extract_web_page"
+    },
+    {
+      "id": "E05",
+      "url": "https://docs.pact.io/provider",
+      "fact": "provider contract verification 应在本地或 CI 中针对实际运行 provider 执行；过度 stub 会让垃圾输入也通过。",
+      "strength": "official_primary",
+      "access_path": "native_mcp:extract_web_page"
+    },
+    {
+      "id": "E06",
+      "url": "https://reproducible-builds.org/docs/definition/",
+      "fact": "可复现构建要求同源码、环境、指令产生逐字一致 artifact，并以安全哈希比对。",
+      "strength": "standards_primary",
+      "access_path": "native_mcp:extract_web_page"
+    },
+    {
+      "id": "E07",
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle",
+      "fact": "MCP 初始化包含版本/能力协商，后续操作必须尊重已协商能力；连接生命周期是有状态边界。",
+      "strength": "protocol_primary",
+      "access_path": "native_mcp:extract_web_page"
+    },
+    {
+      "id": "E08",
+      "url": "https://code.visualstudio.com/api/working-with-extensions/testing-extension",
+      "fact": "扩展集成测试应在隔离的 Extension Development Host 中运行，而不仅是 unit test。",
+      "strength": "official_primary",
+      "access_path": "native_mcp:extract_web_page"
+    },
+    {
+      "id": "E09",
+      "url": "https://research.google/pubs/canary-analysis-service/",
+      "fact": "canary 是有限、限时部署后根据可观测指标决定前进、回滚、告警或等待人工。",
+      "strength": "research_primary",
+      "access_path": "native_mcp:extract_web_page"
+    }
+  ],
+  "skipped_or_degraded": [
+    {
+      "surface": "Mutation Testing DOI 10.1002/stvr.1675 full text",
+      "reason": "DOI 页面 HTTP 403 anti_bot_or_blocked；未将搜索摘要当正文证据。",
+      "impact": "不影响本报告关于故障注入的工程建议；该建议以历史事故的可复现性和开放方法资料为主。"
+    }
+  ],
+  "saturation_check": {
+    "criteria": [
+      "每个已确认事故已映射到至少一个不变量。",
+      "每个不变量在恢复 PR 中必须对应至少一个会失败的 mutation。",
+      "外部边界与仓库内可消除缺陷已分开。",
+      "尚未把无法验证的官方 Codex 页面摘要作为强证据。"
+    ],
+    "result": "达到设计研究的证据饱和；不声称数学上穷尽所有未来缺陷。"
+  }
+}
