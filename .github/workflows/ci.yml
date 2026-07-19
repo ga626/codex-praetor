@@ -4,77 +4,13 @@ on:
   push:
   pull_request:
 
+# The candidate and publication paths deliberately share one reusable workflow.
+# A release-only action pin cannot be green in PR CI and fail only after merge.
 jobs:
   validate:
     permissions:
       contents: read
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          # The release-intent gate compares the PR head with its base commit.
-          # A default shallow checkout omits that base object on pull_request runs.
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: mcp/package-lock.json
-
-      - name: Install MCP dependencies
-        working-directory: mcp
-        run: npm ci
-
-      - name: MCP tests
-        working-directory: mcp
-        run: npm test
-
-      - name: Doctor with public template
-        shell: pwsh
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders -ConfigPath .\config\codex-praetor-tiers.example.json
-
-      - name: Release intent gate
-        shell: pwsh
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent.ps1 -BaseRef "$env:BASE_REF" -RequireReleaseImpact
-
-      - name: Product validation
-        shell: pwsh
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
-
-      - name: Native invocation regression
-        shell: pwsh
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor-native.ps1
-
-      - name: Durable job lifecycle regression
-        shell: pwsh
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-job-lifecycle.ps1
-
-      - name: Public entry consistency
-        shell: pwsh
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
-
-      - name: Release package build
-        shell: pwsh
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\build-codex-praetor-release.ps1 -Apply -AllowDraftMetadataPlaceholders
-
-      - name: Release package determinism
-        shell: pwsh
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-package-determinism.ps1
-
-      - name: Isolated release closeout lifecycle
-        shell: pwsh
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-closeout.ps1
+    uses: ./.github/workflows/release-pipeline.yml
+    with:
+      publish: false
+      base_ref: ${{ github.event.pull_request.base.sha || github.event.before }}

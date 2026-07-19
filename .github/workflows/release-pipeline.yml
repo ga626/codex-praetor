@@ -1,0 +1,114 @@
+name: Release Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        description: "Publish the already-validated candidate from main."
+        required: true
+        type: boolean
+      base_ref:
+        description: "Target branch commit used for release-impact comparison."
+        required: false
+        type: string
+
+# Permissions are supplied by each caller. CI supplies contents: read; the
+# protected main caller alone supplies contents: write for GitHub Release API.
+jobs:
+  candidate_or_release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install MCP dependencies
+        working-directory: mcp
+        run: npm ci
+
+      - name: Release intent and immutable-tag gate
+        shell: pwsh
+        run: |
+          $arguments = @('-BaseRef', '${{ inputs.base_ref }}', '-RequireReleaseImpact', '-CheckRemote')
+          if ('${{ inputs.publish }}' -eq 'true') { $arguments += '-AllowExistingTagAtHead' }
+          & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent.ps1 @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Release workflow readiness
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-workflow-readiness.ps1 -CheckRemoteActionPins
+
+      - name: Version surface updater regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-version-surface-updater.ps1
+
+      - name: MCP tests
+        working-directory: mcp
+        run: npm test
+
+      - name: Doctor with public template
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders -ConfigPath .\config\codex-praetor-tiers.example.json
+
+      - name: Product validation
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
+
+      - name: Native invocation regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor-native.ps1
+
+      - name: Durable job lifecycle regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-job-lifecycle.ps1
+
+      - name: Public entry consistency
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
+
+      - name: Release package build
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\build-codex-praetor-release.ps1 -Apply -AllowDraftMetadataPlaceholders
+
+      - name: Release package determinism
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-package-determinism.ps1
+
+      - name: Isolated release closeout lifecycle
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-closeout.ps1
+
+      - name: Publish immutable Release from this exact main commit
+        if: ${{ inputs.publish }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $intent = Get-Content .\config\release-intent.json -Raw | ConvertFrom-Json
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 `
+            -Version "$($intent.version)" `
+            -Tag "$($intent.tag)" `
+            -OutputRoot ".codex-praetor\ci-release" `
+            -AllowDetachedHead `
+            -ResumeExistingRelease `
+            -Apply

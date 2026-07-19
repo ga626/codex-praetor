@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths:
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/release-on-main.yml"
+      - ".github/workflows/release-pipeline.yml"
       - "config/release-intent.json"
       - "config/runtime-contract.json"
       - "plugin/**"
@@ -19,74 +22,19 @@ on:
       - "docs/roadmap.md"
       - "SECURITY.md"
       - "CHANGELOG.md"
-  workflow_dispatch:
-
-permissions:
-  contents: write
 
 concurrency:
   group: codex-praetor-release-main
   cancel-in-progress: false
 
+# Do not provide workflow_dispatch. A release incident after a tag or draft
+# exists must be re-run from the original workflow run, which preserves its
+# exact SHA. A new branch head must never revive an older version/tag.
 jobs:
   release:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout merged main
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820021 # v4.4.0
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: mcp/package-lock.json
-
-      - name: Install MCP dependencies
-        working-directory: mcp
-        run: npm ci
-
-      - name: Read release intent
-        id: intent
-        shell: pwsh
-        run: |
-          $intent = Get-Content .\config\release-intent.json -Raw | ConvertFrom-Json
-          "version=$($intent.version)" >> $env:GITHUB_OUTPUT
-          "tag=$($intent.tag)" >> $env:GITHUB_OUTPUT
-
-      - name: Validate merged release intent
-        shell: pwsh
-        env:
-          BASE_REF: ${{ github.event.before }}
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent.ps1 -BaseRef "$env:BASE_REF" -CheckRemote -RequireReleaseImpact
-
-      - name: MCP tests
-        working-directory: mcp
-        run: npm test
-
-      - name: Product validation
-        shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
-
-      - name: Public entry consistency
-        shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -Version "${{ steps.intent.outputs.version }}" -SkipRemoteRelease
-
-      - name: Release package determinism
-        shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-package-determinism.ps1
-
-      - name: Publish immutable Release from this merge commit
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 `
-            -Version "${{ steps.intent.outputs.version }}" `
-            -Tag "${{ steps.intent.outputs.tag }}" `
-            -OutputRoot ".codex-praetor\ci-release" `
-            -AllowDetachedHead `
-            -Apply
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-pipeline.yml
+    with:
+      publish: true
+      base_ref: ${{ github.event.before }}

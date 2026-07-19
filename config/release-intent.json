@@ -1,11 +1,11 @@
 {
-  "schema": "codex-praetor-release-intent/v1",
-  "product": "codex-praetor",
-  "version": "0.6.0-alpha",
-  "previous_version": "0.5.0-alpha",
-  "tag": "v0.6.0-alpha",
-  "release_required": true,
-  "release_mode": "auto_on_main",
-  "artifact": "codex-praetor-setup-0.6.0-alpha.zip",
-  "reason": "合并即发布闭环、版本一致性与交付状态治理"
+    "schema":  "codex-praetor-release-intent/v1",
+    "product":  "codex-praetor",
+    "version":  "0.6.1-alpha",
+    "previous_version":  "0.6.0-alpha",
+    "tag":  "v0.6.1-alpha",
+    "release_required":  true,
+    "release_mode":  "auto_on_main",
+    "artifact":  "codex-praetor-setup-0.6.1-alpha.zip",
+    "reason":  "修复 0.6.0-alpha 发布工作流启动事故；以共享候选/发布流水线、递增版本和原 SHA 重跑边界恢复自动交付。"
 }

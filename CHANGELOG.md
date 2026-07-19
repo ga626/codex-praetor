@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1-alpha - 2026-07-19
+
+- Repaired the failed `0.6.0-alpha` release bootstrap with a new immutable version; the failed candidate never created a tag or Release.
+- Made PR candidate validation and mainline publication call one reusable release pipeline, including real remote action-pin resolution before merge.
+- Required every release-impacting PR to increment from the exact target-branch release intent, and limited post-publication recovery to a re-run of the original workflow SHA.
+
 ## 0.6.0-alpha - 2026-07-19
 
 - 将发布意图、版本一致性、PR 门禁和 `main` 合并后自动 Release 串成一条流水线。

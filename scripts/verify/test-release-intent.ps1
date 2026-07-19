@@ -2,6 +2,7 @@
     [string]$ProjectRoot = "",
     [string]$BaseRef = "",
     [switch]$CheckRemote,
+    [switch]$AllowExistingTagAtHead,
     [switch]$RequireReleaseImpact
 )
 
@@ -31,6 +32,21 @@ Assert-True ([string]$intent.tag -eq "v$($intent.version)") "Release intent tag 
 Assert-True ([string]$intent.previous_version -ne [string]$intent.version) "Release intent previous_version must differ from version."
 Assert-True ([string]$intent.artifact -eq "codex-praetor-setup-$($intent.version).zip") "Release intent artifact does not match version."
 
+function ConvertTo-VersionTuple([string]$Value) {
+    if ($Value -notmatch '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid semantic version: $Value" }
+    return @([int]$Matches.major, [int]$Matches.minor, [int]$Matches.patch)
+}
+
+function Test-VersionGreater([string]$Candidate, [string]$Baseline) {
+    $candidateTuple = ConvertTo-VersionTuple $Candidate
+    $baselineTuple = ConvertTo-VersionTuple $Baseline
+    for ($index = 0; $index -lt 3; $index++) {
+        if ($candidateTuple[$index] -gt $baselineTuple[$index]) { return $true }
+        if ($candidateTuple[$index] -lt $baselineTuple[$index]) { return $false }
+    }
+    return $false
+}
+
 if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') {
     $changed = @(& git -C $root diff --name-only "$BaseRef...HEAD")
     if ($LASTEXITCODE -ne 0) { throw "Unable to inspect changed files against base ref $BaseRef." }
@@ -47,13 +63,30 @@ if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') 
     if ($RequireReleaseImpact -and $intentChanged -and $impact.Count -eq 0) {
         throw "Release intent changed without a release-impacting file; classify the PR as non-release or add the intended product change."
     }
+    if ($RequireReleaseImpact -and $impact.Count -gt 0) {
+        $baseIntentText = & git -C $root show "$BaseRef`:config/release-intent.json"
+        if ($LASTEXITCODE -ne 0) { throw "Unable to read the base release intent from $BaseRef." }
+        $baseIntent = ($baseIntentText -join [Environment]::NewLine) | ConvertFrom-Json
+        Assert-True ([string]$intent.previous_version -eq [string]$baseIntent.version) "Release intent previous_version must equal the target branch version ($($baseIntent.version))."
+        Assert-True (Test-VersionGreater -Candidate ([string]$intent.version) -Baseline ([string]$baseIntent.version)) "Release intent version must be greater than the target branch version ($($baseIntent.version))."
+    }
 }
 
 if ($CheckRemote) {
     $remoteTag = @(& git -C $root ls-remote --tags origin "refs/tags/$($intent.tag)")
     if ($LASTEXITCODE -ne 0) { throw "Unable to inspect remote tag $($intent.tag)." }
     if (@($remoteTag | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {
-        throw "Remote tag $($intent.tag) already exists. Bump release-intent version in this PR; immutable tags cannot be reused."
+        if (-not $AllowExistingTagAtHead) {
+            throw "Remote tag $($intent.tag) already exists. Bump release-intent version in this PR; immutable tags cannot be reused."
+        }
+        & git -C $root fetch origin --tags
+        if ($LASTEXITCODE -ne 0) { throw "Unable to fetch existing remote tag $($intent.tag)." }
+        $tagCommit = (& git -C $root rev-parse "$($intent.tag)^{commit}").Trim()
+        if ($LASTEXITCODE -ne 0) { throw "Unable to resolve existing tag $($intent.tag) to a commit." }
+        $headCommit = (& git -C $root rev-parse HEAD).Trim()
+        if ($LASTEXITCODE -ne 0) { throw "Unable to resolve HEAD for release intent retry." }
+        Assert-True ($tagCommit -eq $headCommit) "Remote tag $($intent.tag) belongs to $tagCommit, not current HEAD $headCommit. A release retry must never reuse another commit's tag."
+        Write-Host "[PASS] Existing remote tag matches current HEAD and may be resumed: $($intent.tag)"
     }
 }
 
