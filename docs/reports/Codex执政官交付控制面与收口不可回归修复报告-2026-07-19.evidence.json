@@ -1,0 +1,62 @@
+{
+  "schema": "knowledgeradar-research-evidence/v1",
+  "report": "Codex执政官交付控制面与收口不可回归修复报告-2026-07-19.md",
+  "retrieved_at": "2026-07-19T17:25:00+08:00",
+  "research_route": "mcp__knowledgeradar__kr_research(mode=deep_route,budget=deep)",
+  "coverage": {
+    "local_archaeology": [
+      "mcp/package.json",
+      "mcp/scripts/package-plugin-mcp.js",
+      "mcp/src/server.ts",
+      "plugin/mcp/dist/server.js",
+      "scripts/release/build-codex-praetor-release.ps1",
+      "scripts/verify/test-public-entry-consistency.ps1",
+      ".github/workflows/release-pipeline.yml"
+    ],
+    "external_ecologies": ["generic_web_ecology", "github_repository_ecology", "academic_literature_ecology"],
+    "external_sources": 7,
+    "failed_or_downgraded": [
+      {
+        "url": "https://reproducible-builds.org/docs/reproducible-builds/",
+        "reason": "HTTP 404 from current extractor; reproducibility claim kept at GitHub line-ending and local build evidence, not promoted from this URL."
+      }
+    ]
+  },
+  "claims": [
+    {
+      "id": "immutable-draft-assets",
+      "claim": "GitHub recommends draft -> upload all assets -> publish for immutable releases.",
+      "sources": ["https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases"],
+      "strength": "strong_official正文"
+    },
+    {
+      "id": "attestation-provenance",
+      "claim": "Artifact attestations bind an artifact to workflow, repository, commit and event; reusable workflows can support stronger SLSA build guarantees.",
+      "sources": ["https://docs.github.com/en/actions/concepts/security/artifact-attestations", "https://slsa.dev/spec/v1.0/levels"],
+      "strength": "strong_cross_source"
+    },
+    {
+      "id": "workflow-reuse",
+      "claim": "Reusable workflows use workflow_call and same-repository calls can resolve to the caller commit.",
+      "sources": ["https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows"],
+      "strength": "strong_official正文"
+    },
+    {
+      "id": "mcp-host-lifecycle",
+      "claim": "MCP hosts establish client/server connections, negotiate capabilities during initialization, and discover tools through tools/list; updating a local server is not equivalent to hot-replacing an existing host connection.",
+      "sources": ["https://modelcontextprotocol.io/docs/learn/architecture", "https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle"],
+      "strength": "strong_official正文"
+    },
+    {
+      "id": "windows-line-endings",
+      "claim": "Repository-level .gitattributes is the stable way to control line endings across contributors; setup.cmd needs explicit CRLF.",
+      "sources": ["https://docs.github.com/en/get-started/git-basics/configuring-git-to-handle-line-endings?platform=windows"],
+      "strength": "strong_official正文"
+    }
+  ],
+  "uncertainty": [
+    "GitHub Actions and API outages remain external transient failures.",
+    "Codex Desktop host refresh and provider login are local user-session boundaries.",
+    "Artifact attestations are researched and planned but not yet enabled in this PR."
+  ]
+}

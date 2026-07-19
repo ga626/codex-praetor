@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.6.1-alpha",
+    [string]$Version = "0.6.2-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
@@ -139,6 +139,12 @@ try {
         throw "Remote release zip is missing setup.ps1."
     }
     Assert-CmdFileUsesCrlf -Path (Join-Path $unzip "setup.cmd") -Label "Remote setup.cmd"
+    $runtimeSmoke = Join-Path $projectRoot "mcp\scripts\smoke-plugin-mcp.js"
+    $remoteRuntime = Join-Path $unzip "plugin\mcp\dist\server.js"
+    & node $runtimeSmoke $remoteRuntime $unzip --skip-dry-run --expected-version $Version
+    if ($LASTEXITCODE -ne 0) {
+        throw "Downloaded GitHub Release MCP runtime acceptance failed."
+    }
     $setupText = Get-Content -LiteralPath $setupPath -Raw -Encoding UTF8
     Assert-Contains -Text $setupText -Needle "Get-ProviderDefinitions" -Label "provider definitions"
     Assert-Contains -Text $setupText -Needle "Invoke-OfficialInstallCommand" -Label "official installer execution"

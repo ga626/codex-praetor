@@ -46,6 +46,7 @@ $textFiles = @(
     "scripts\release\verify-github-release-asset.ps1",
     "scripts\verify\test-public-entry-consistency.ps1",
     "scripts\verify\test-release-package-determinism.ps1",
+    "scripts\verify\test-release-artifact-runtime.ps1",
     "scripts\verify\test-supply-chain-controls.ps1",
     "docs\release\github-publish-runbook.md",
     "docs\release\release-gate-checklist.md",

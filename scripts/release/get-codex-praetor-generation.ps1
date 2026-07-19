@@ -1,5 +1,7 @@
 param(
     [string]$ProjectRoot = "",
+    [string]$ContentRoot = "",
+    [string]$Commit = "",
     [switch]$Json
 )
 
@@ -11,9 +13,13 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $projectPath = [System.IO.Path]::GetFullPath($ProjectRoot)
-$contractPath = Join-Path $projectPath "config\runtime-contract.json"
-$pluginRoot = Join-Path $projectPath "plugin"
-$skillRoot = Join-Path $projectPath "skill\codex-praetor"
+$contentPath = if ([string]::IsNullOrWhiteSpace($ContentRoot)) { $projectPath } else { [System.IO.Path]::GetFullPath($ContentRoot) }
+$contractPath = Join-Path $contentPath "config\runtime-contract.json"
+if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) {
+    $contractPath = Join-Path $contentPath "plugin\runtime-contract.json"
+}
+$pluginRoot = Join-Path $contentPath "plugin"
+$skillRoot = Join-Path $contentPath "skill\codex-praetor"
 $pluginManifestPath = Join-Path $pluginRoot ".codex-plugin\plugin.json"
 $mcpPackagePath = Join-Path $pluginRoot "mcp\package.json"
 
@@ -63,11 +69,13 @@ function Get-TreeManifest {
     }
 }
 
-$commit = ""
-try {
-    $commit = ((& git -C $projectPath rev-parse HEAD 2>$null) | Out-String).Trim().ToLowerInvariant()
-} catch {
-    $commit = ""
+$commit = $Commit.Trim().ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($commit)) {
+    try {
+        $commit = ((& git -C $projectPath rev-parse HEAD 2>$null) | Out-String).Trim().ToLowerInvariant()
+    } catch {
+        $commit = ""
+    }
 }
 if ($commit -notmatch "^[0-9a-f]{40}$") {
     throw "Generation requires a git commit SHA from the project root."
