@@ -33,6 +33,13 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders -ConfigPath .\config\codex-praetor-tiers.example.json
 
+      - name: Release intent gate
+        shell: pwsh
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent.ps1 -BaseRef "$env:BASE_REF" -RequireReleaseImpact
+
       - name: Product validation
         shell: pwsh
         run: |

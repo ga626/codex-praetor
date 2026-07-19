@@ -205,6 +205,8 @@ $jsonPaths = @(
     (Join-Path $pluginSkill "scripts\codex-praetor-tiers.json"),
     (Join-Path $projectRoot "config\task-governance.schema.json"),
     (Join-Path $projectRoot "config\release-receipt.schema.json"),
+    (Join-Path $projectRoot "config\release-intent.json"),
+    (Join-Path $projectRoot "config\release-intent.schema.json"),
     $pluginMcpPackage
 )
 foreach ($path in $jsonPaths) {
@@ -466,6 +468,14 @@ if (Test-Path -LiteralPath $receiptContractTest -PathType Leaf) {
         if ($LASTEXITCODE -eq 0 -and (($receiptOutput | Out-String) -match "Release receipt contract")) { Add-Pass "Release receipt contract regression passes" } else { Add-Fail "Release receipt contract regression failed: $($receiptOutput | Out-String)" }
     } catch { Add-Fail "Release receipt contract regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Release receipt contract script missing: $receiptContractTest" }
+
+$releaseIntentTest = Join-Path $projectRoot "scripts\verify\test-release-intent.ps1"
+if (Test-Path -LiteralPath $releaseIntentTest -PathType Leaf) {
+    try {
+        $intentOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $releaseIntentTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($intentOutput | Out-String) -match "Release intent is valid")) { Add-Pass "Release intent contract regression passes" } else { Add-Fail "Release intent contract regression failed: $($intentOutput | Out-String)" }
+    } catch { Add-Fail "Release intent contract regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Release intent contract script missing: $releaseIntentTest" }
 
 $devIsolationTest = Join-Path $projectRoot "scripts\verify\test-dev-channel-isolation.ps1"
 if (Test-Path -LiteralPath $devIsolationTest -PathType Leaf) {

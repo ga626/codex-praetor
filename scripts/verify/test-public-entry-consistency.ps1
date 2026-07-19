@@ -1,5 +1,5 @@
-param(
-    [string]$Version = "0.5.0-alpha",
+﻿param(
+    [string]$Version = "0.6.0-alpha",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ProjectRoot = "",
     [switch]$SkipRemoteRelease
@@ -63,6 +63,21 @@ function Assert-NotContains {
     }
 }
 
+function Assert-JsonVersion {
+    param([string]$RelativePath, [string]$Label)
+    $path = Join-Path $ProjectRoot $RelativePath
+    try {
+        $json = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$json.version -eq $Version) {
+            Add-Pass "$Label version is $Version"
+        } else {
+            Add-Fail "$Label version is $($json.version), expected $Version"
+        }
+    } catch {
+        Add-Fail "$Label JSON version check failed: $($_.Exception.Message)"
+    }
+}
+
 if (-not $SkipRemoteRelease) {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
         Add-Fail "GitHub CLI is required to verify the public Release."
@@ -119,10 +134,10 @@ Assert-Contains -Text $roadmap -Needle $tag -Label "docs/roadmap.md"
 Assert-Contains -Text $releaseNotes -Needle $Version -Label $releaseNotesPath
 Assert-Contains -Text $security -Needle $Version -Label "SECURITY.md"
 Assert-Contains -Text $setup -Needle $Version -Label "setup.ps1"
-Assert-Contains -Text $mcpPackage -Needle ('"version": "' + $Version + '"') -Label "mcp/package.json"
+Assert-JsonVersion -RelativePath "mcp\package.json" -Label "mcp/package.json"
 Assert-Contains -Text $mcpServer -Needle ('version: "' + $Version + '"') -Label "mcp/src/server.ts"
-Assert-Contains -Text $pluginManifest -Needle ('"version":  "' + $Version + '"') -Label "plugin/.codex-plugin/plugin.json"
-Assert-Contains -Text $pluginMcpPackage -Needle ('"version": "' + $Version + '"') -Label "plugin/mcp/package.json"
+Assert-JsonVersion -RelativePath "plugin\.codex-plugin\plugin.json" -Label "plugin/.codex-plugin/plugin.json"
+Assert-JsonVersion -RelativePath "plugin\mcp\package.json" -Label "plugin/mcp/package.json"
 Assert-Contains -Text $releaseBuilder -Needle ('[string]$Version = "' + $Version + '"') -Label "release package builder"
 Assert-Contains -Text $releasePublisher -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release publisher"
 Assert-Contains -Text $releaseVerifier -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release verifier"

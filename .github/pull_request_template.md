@@ -2,6 +2,12 @@
 
 - 
 
+## 发布意图
+
+- [ ] 本 PR 不改变用户入口、安装包、Skill、Plugin、MCP、provider wrapper 或发布流程。
+- [ ] 本 PR 属于发布影响变更，已在同一个 PR 更新 `config/release-intent.json`、版本面和发布说明；合并到 `main` 后会由 Release On Main 自动发布。
+- [ ] 已确认版本/tag 不复用已有不可变 Release。
+
 ## 验证
 
 - [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease`

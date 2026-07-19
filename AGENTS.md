@@ -23,7 +23,7 @@ Codex Praetor 服务于 Codex：把边界清楚的工作分配给外部命令行
 %USERPROFILE%\.codex\skills\codex-praetor
 ```
 
-已安装 Skill 必须是真实目录，不得链接到仓库检出目录。开发验证使用明确隔离的 `UserProfileRoot`，不得覆盖稳定 Skill、插件、市场、缓存或活动收据。除非用户明确要求，不增加自动发布/同步；更新本地安装必须显式复制并校验。
+已安装 Skill 必须是真实目录，不得链接到仓库检出目录。开发验证使用明确隔离的 `UserProfileRoot`，不得覆盖稳定 Skill、插件、市场、缓存或活动收据。稳定发布由受保护的 `Release On Main` workflow 自动执行；本地安装仍必须显式复制并校验。
 
 ## 开发、PR 与发布
 
@@ -31,13 +31,13 @@ Codex Praetor 服务于 Codex：把边界清楚的工作分配给外部命令行
 
 用户入口是 GitHub Release 的 `codex-praetor-setup-*.zip`，不是 `main` 源码树。修改 `setup.cmd`、`setup.ps1`、`plugin/`、`skill/`、`mcp/`、安装/排错/发布文档、版本号或安装体验，均属于影响交付的修改。
 
-- **PR 开发中**：只改源码检出目录和隔离验证环境。普通实现修改不需要新建 Codex 任务。
-- **PR 就绪**：基于最新目标分支完成工作树、测试、构建、打包、文档和冲突检查；不启用稳定版本。`PR 就绪` 不等于 `产品已交付`。
-- **PR 合并后**：交付影响修改必须同步最新 `main`，构建并下载 Release zip 和 `.sha256`，stage/hash-verify，完成必要的全新上下文 MCP 验收和 provider readiness，再 activate。
+- **PR 开发中**：只改源码检出目录和隔离验证环境。发布影响变更必须在同一个 PR 内更新 `config/release-intent.json`、版本面、release notes 和 changelog。
+- **PR 就绪**：基于最新目标分支完成工作树、测试、构建、打包、文档、release-intent、冲突和不可复用 tag 检查；缺少 release intent 的发布影响 PR 不得合并。
+- **PR 合并后**：受保护的 `Release On Main` workflow 从精确合并提交自动构建、创建 draft、上传资产、发布不可变 Release 并下载复验；不得再靠人工补发版。GitHub 的外部 API/网络存在不可消除的瞬时失败，因此 workflow 必须可重试且失败状态必须公开，不能静默进入下一次开发。
 - **全新上下文触发条件**：只有 MCP 工具名称/参数、Skill 或 Plugin manifest、安装入口、插件来源或工具合同变化时，每个版本代际验收一次；普通实现修改、reload 或文件编辑不触发。
 - **产品已交付**：必须同时有活动收据、健康门禁通过、远端包按普通用户路径复验通过，并记录旧版本代际的回收状态。旧文件被占用时报告“新版本已交付，旧版本自动延迟回收中”，不得声称缓存已全部清空。
 
-Codex 负责分支、修改、验证、提交和 PR 材料；用户负责 GitHub 权限、创建/合并 PR、发布审批和体验判断。除非用户明确授权，Codex 不代合并或发布。
+Codex 负责分支、修改、验证、提交、推送和 PR 材料；用户负责 GitHub 创建/合并 PR 以及一次性仓库权限配置。合并后的发布由受保护 workflow 自动完成，不再要求用户或 Codex 另开发布尾巴。
 
 ## 版本代际与回收
 

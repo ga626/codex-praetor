@@ -1,5 +1,5 @@
-param(
-    [string]$Version = "0.5.0-alpha",
+﻿param(
+    [string]$Version = "0.6.0-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
@@ -94,6 +94,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Unable to read GitHub Release $Repository@$Tag. Output: $releaseJson"
 }
 $release = $releaseJson | ConvertFrom-Json
+if ([bool]$release.isDraft) {
+    throw "GitHub Release $Tag is still a draft; public release verification cannot pass."
+}
 $assetNames = @($release.assets | ForEach-Object { $_.name })
 if ($assetNames -notcontains "$releaseName.zip") {
     throw "GitHub Release is missing asset: $releaseName.zip"

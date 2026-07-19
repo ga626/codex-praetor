@@ -1,0 +1,30 @@
+{
+  "schema": "knowledgeradar-research-evidence/v1",
+  "report": "Codex执政官合并即发布、版本一致性与交付闭环重构报告-2026-07-19.md",
+  "generated_at": "2026-07-19",
+  "access_paths": ["native_mcp", "native_local"],
+  "evidence_items": [
+    {"id":"L01","type":"local_git","path":"origin/main, refs/tags/v0.5.0-alpha","claim":"合并 main 为 f292431，旧 tag 仍指向 a0b4ccc","strength":"strong"},
+    {"id":"L02","type":"local_release","path":".codex-praetor/post-merge-release/codex-praetor-setup-0.5.0-alpha.zip","claim":"合并后本地候选 hash 与远端旧包不同","strength":"strong"},
+    {"id":"L03","type":"local_runtime","path":"%USERPROFILE%/.codex/codex-praetor-releases/stable/active.json","claim":"stable active 仍为 0.4.1-alpha","strength":"strong"},
+    {"id":"L04","type":"local_ci","path":".github/workflows/ci.yml","claim":"原流程只有 validate，没有 main 合并后 Release job","strength":"strong"},
+    {"id":"L05","type":"local_code","path":"scripts/release/publish-github-release-asset.ps1","claim":"发布依赖人工运行且拒绝复用已有 Release/tag","strength":"strong"},
+    {"id":"E01","type":"official","url":"https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases","claim":"immutable Release 锁定 tag/assets，建议 draft 后上传全部资产再 publish","strength":"strong"},
+    {"id":"E02","type":"official","url":"https://docs.github.com/en/actions/concepts/security/artifact-attestations","claim":"attestation 将 workflow、repo、environment、commit 和 artifact provenance 绑定","strength":"strong"},
+    {"id":"E03","type":"official","url":"https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments","claim":"GitHub Environments 支持 required reviewers、wait timer、部署分支和 secrets","strength":"strong"},
+    {"id":"E04","type":"upstream_code","url":"https://github.com/googleapis/release-please/blob/main/docs/design.md","claim":"release-please 用 release PR 汇总版本/changelog，合并后创建 Release","strength":"strong"},
+    {"id":"E05","type":"upstream_code","url":"https://changesets-docs.vercel.app/command-line-options.html","claim":"Changesets 分离 changeset/version/publish，并建议 version 变更先合并","strength":"strong"},
+    {"id":"E06","type":"official","url":"https://trunkbaseddevelopment.com/branch-for-release/","claim":"高吞吐 CD 从 trunk 发布，release branch 只在必要时临时创建","strength":"medium"},
+    {"id":"E07","type":"official","url":"https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/","claim":"Git desired state 驱动自动同步并观察 live health","strength":"strong"},
+    {"id":"E08","type":"protocol","url":"https://modelcontextprotocol.io/specification/draft/server/tools","claim":"tools/list_changed 是通知能力，不承诺已有对话热替换","strength":"strong"},
+    {"id":"E09","type":"academic","url":"https://doi.org/10.1109/access.2017.2685629","claim":"CI/CD 系统综述强调测试、透明度、基础设施和部署可靠性","strength":"strong"},
+    {"id":"E10","type":"academic","url":"https://doi.org/10.1109/saner.2016.108","claim":"release engineering 是集成、CI、构建、部署、发布的完整链路","strength":"strong"}
+  ],
+  "coverage": {
+    "local_archaeology": true,
+    "official_docs": true,
+    "upstream_implementations": true,
+    "academic": true,
+    "known_gaps": ["没有在本轮修改 GitHub ruleset/permissions", "没有运行真实 stable provider apply 或重启 Desktop"]
+  }
+}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0-alpha - 2026-07-19
+
+- 将发布意图、版本一致性、PR 门禁和 `main` 合并后自动 Release 串成一条流水线。
+- 发布 workflow 自动构建、验证、上传不可变 Release 资产并复验远端 hash。
+- 增加 release intent schema、版本面更新脚本和流程回归测试。
+
 ## 0.5.0-alpha - 2026-07-18
 
 - 统一 logical task、attempt、event、selection、outcome、progress 和 release state 合同。

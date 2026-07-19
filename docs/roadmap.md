@@ -1,8 +1,8 @@
-﻿# Codex Praetor 路线图
+# Codex Praetor 路线图
 
-## 当前状态：2026-07-17
+## 当前状态：2026-07-19
 
-`v0.4.1-alpha` 已公开发布，但维护任务权限失败曾被错误放过，因此未达到产品交付门槛。本分支的发布影响 PR 目标版本是 `v0.5.0-alpha`：维护任务注册、fallback、后验校验和 active receipt 必须形成 fail-closed 闭环。
+`v0.5.0-alpha` 已公开发布，但它不包含本轮发布闭环治理。当前目标是 `v0.6.0-alpha`：发布影响 PR 必须在同一个 PR 内提交版本和 release intent，合并后由 Release On Main 自动创建、发布和复验不可变 Release。stable 本机仍需独立完成 stage、fresh-context、provider readiness 和 user-path proof。
 
 已经完成：
 
@@ -22,8 +22,12 @@
 - 本地运行态清理预览：识别已合并且干净的 worker worktree、过期完成任务和 scratch 内容，默认只预览，确认后才删除或归档。
 - 产品验收与开发者本机检查分离，PR 和发布门禁不再被全局规则、本机 skill 副本或 provider 登录状态误伤。
 - 公开入口一致性检查，确保首页、安装说明、路线图、发布说明和 GitHub Release 指向同一版本。
+- release intent、版本面一致性和 main 合并后自动发布 workflow。
 
 ## 近期目标
+
+- 将“合并 -> 自动 Release -> 远端复验”作为唯一公开发布路径，禁止合并后的人工补发版。
+- 将本机 stable 更新与 Desktop host refresh 明确为独立投影；自动发布成功后，不能伪称当前对话已热更新。
 
 本大 PR 一次完成：
 
