@@ -8,7 +8,7 @@ Codex Praetor 服务于 Codex：把边界清楚的工作分配给外部命令行
 
 统一使用：产品 `Codex Praetor`，中文名 `Codex 执政官`，仓库/Skill/MCP 服务名 `codex-praetor`，MCP 工具前缀 `codex_praetor_`。
 
-- `skill/`：Skill 源码。
+- `skill/`：从 `plugin/skills/` 派生的兼容镜像；不构成安装入口或运行时依赖。
 - `scripts/`：按 `dispatch/`、`install/`、`verify/`、`release/`、`maintenance/` 分组的脚本。
 - `mcp/`：MCP 源码。
 - `plugin/`：最终插件包结构。
@@ -17,13 +17,13 @@ Codex Praetor 服务于 Codex：把边界清楚的工作分配给外部命令行
 
 ## 本地安装边界
 
-仓库检出目录是开发项目，不是已安装 Skill。当前用户的已安装 Skill 位于：
+仓库检出目录是开发项目，不是已安装插件。产品运行入口只有 personal marketplace 指向的真实插件目录：
 
 ```text
-%USERPROFILE%\.codex\skills\codex-praetor
+%USERPROFILE%\plugins\codex-praetor
 ```
 
-已安装 Skill 必须是真实目录，不得链接到仓库检出目录。开发验证使用明确隔离的 `UserProfileRoot`，不得覆盖稳定 Skill、插件、市场、缓存或活动收据。稳定发布由受保护的 `Release On Main` workflow 自动执行；本地安装仍必须显式复制并校验。
+插件包内的 `skills/codex-praetor` 与 MCP 一起由 Codex 加载。`%USERPROFILE%\.codex\skills\codex-praetor` 是迁移期兼容副本，不能作为健康门禁、派工前提或发布收据的一部分。Codex 管理 `%USERPROFILE%\.codex\plugins\cache`；发布器不得手工写入、覆盖或删除缓存。开发验证使用明确隔离的 `UserProfileRoot`，不得覆盖稳定 marketplace 来源或用户配置。稳定发布由受保护的 `Release On Main` workflow 自动执行。
 
 ## 开发、PR 与发布
 
@@ -33,13 +33,13 @@ Codex Praetor 服务于 Codex：把边界清楚的工作分配给外部命令行
 
 - **PR 开发中**：只改源码检出目录和隔离验证环境。发布影响变更必须在同一个 PR 内更新 `config/release-intent.json`、版本面、release notes 和 changelog。
 - **PR 就绪**：基于最新目标分支完成工作树、测试、构建、打包、文档、release-intent、冲突和不可复用 tag 检查；缺少 release intent 的发布影响 PR 不得合并。
-- **PR 合并后**：受保护的 `Release On Main` workflow 从精确合并提交自动构建、创建 draft、上传资产、发布不可变 Release 并下载复验；不得再靠人工补发版。候选 CI 与发布必须调用同一份 reusable pipeline。若 tag/draft/Release 已存在而后段失败，只能重跑原 GitHub Actions run（它保留原 SHA）；若在创建 tag 前发现 workflow 定义错误，才允许一份显式递增版本的恢复 PR。GitHub 的外部 API/网络存在不可消除的瞬时失败，因此失败状态必须公开，不能静默进入下一次开发。
+- **PR 合并后**：受保护的 `Release On Main` workflow 从精确合并提交自动构建、创建 draft、上传资产、发布不可变 Release 并下载复验；不得再靠人工补发版。候选 CI 与发布必须调用同一份 reusable pipeline。若 tag/draft/Release 已存在而后段失败，只能重跑原 GitHub Actions run（它保留原 SHA）；若在创建 tag 前发现 workflow 定义错误，才允许一份显式递增版本的恢复 PR。GitHub 的外部 API/网络存在不可消除的瞬时失败，因此失败状态必须公开，不能静默进入下一次开发。本机 Desktop 是否已经重启并载入新缓存属于单机安装状态，不得反向判定公开 Release 未交付。
 - **Artifact-first 不变量**：任何发布影响 PR 必须在合并前从最终 stage/zip 启动 bundled MCP，校验 `serverInfo.version`、runtime contract SHA、工具集合和 generation manifest；源码、`mcp/dist`、`plugin/mcp/dist`、最终 zip 任何一层版本不一致都必须失败。运行时合同只有 `config/runtime-contract.json` 一个可手写来源，plugin/Skill 副本必须由生成器派生并在 CI 拒绝漂移。`npm test`、发布器和共享 workflow 必须使用同一份构建入口，不能把生成产物当作手工维护副本。
 - **同一 artifact 晋升**：main release run 只能构建一个带 SHA 的 artifact manifest；真实 runtime 验收、Release 上传、远端下载复验和 attestation 必须引用这同一份 zip。发布器不得隐式 rebuild 或上传未通过 `artifact_verified` 验收的文件。
 - **历史事故必杀**：每宗 release incident 都必须增加可重复的故障注入测试，并映射到一条合同或 artifact 不变量；模拟的 runtime/proof JSON 只能覆盖解析器单元测试，不能作为完整收口通过证据。
-- **收口不可回归**：合并后的产品状态只有两种合法结果：`产品已交付`，或 `代码已合并，产品未交付（release incident）`。后者必须停住下一次发布影响 PR，优先重跑原 SHA 或修复自动发布路径；不得为同一版本另开“收口修复 PR”，不得手工上传替代包。外部 GitHub API、网络、权限和本机 Desktop host 刷新无法由仓库代码消除，必须进入显式 `blocked/needs_user_action` 状态并保留恢复动作。
+- **收口不可回归**：合并后的公开产品状态只有两种合法结果：`产品已交付`，或 `代码已合并，产品未交付（release incident）`。后者必须停住下一次发布影响 PR，优先重跑原 SHA 或修复自动发布路径；不得为同一版本另开“收口修复 PR”，不得手工上传替代包。公开 Release 已通过远端下载复验后即为产品交付；本机 Desktop host 刷新是用户安装后的 `needs_user_action`，不能制造新的 release incident 或阻断下一次开发。
 - **全新上下文触发条件**：只有 MCP 工具名称/参数、Skill 或 Plugin manifest、安装入口、插件来源或工具合同变化时，每个版本代际验收一次；普通实现修改、reload 或文件编辑不触发。
-- **产品已交付**：必须同时有活动收据、健康门禁通过、远端包按普通用户路径复验通过，并记录旧版本代际的回收状态。旧文件被占用时报告“新版本已交付，旧版本自动延迟回收中”，不得声称缓存已全部清空。
+- **产品已交付**：必须有同一 artifact 的构建、runtime、上传和远端普通用户下载复验通过。活动收据只能记录发布证据，不能要求全局 Skill、人工复制缓存或单台 Desktop 的刷新。旧缓存由 Codex 退休；被占用时报告“新版本已交付，旧版本自动延迟回收中”，不得声称缓存已全部清空。
 
 Codex 负责分支、修改、验证、提交、推送和 PR 材料；用户负责 GitHub 创建/合并 PR 以及一次性仓库权限配置。合并后的发布由受保护 workflow 自动完成，不再要求用户或 Codex 另开发布尾巴。
 

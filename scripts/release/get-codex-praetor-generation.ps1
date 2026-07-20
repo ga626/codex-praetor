@@ -24,7 +24,7 @@ if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) {
     $contractPath = Join-Path $contentPath "plugin\runtime-contract.json"
 }
 $pluginRoot = Join-Path $contentPath "plugin"
-$skillRoot = Join-Path $contentPath "skill\codex-praetor"
+$skillRoot = Join-Path $pluginRoot "skills\codex-praetor"
 $pluginManifestPath = Join-Path $pluginRoot ".codex-plugin\plugin.json"
 $mcpPackagePath = Join-Path $pluginRoot "mcp\package.json"
 
@@ -34,7 +34,7 @@ foreach ($path in @($contractPath, $pluginManifestPath, $mcpPackagePath)) {
     }
 }
 if (-not (Test-Path -LiteralPath $skillRoot -PathType Container)) {
-    throw "Generation skill root is missing: $skillRoot"
+    throw "Bundled plugin Skill root is missing: $skillRoot"
 }
 
 $contract = Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8 | ConvertFrom-Json

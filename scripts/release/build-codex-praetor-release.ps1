@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.6.3-alpha",
+    [string]$Version = "0.7.0-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
@@ -252,8 +252,16 @@ function Write-ReleaseGenerationManifest {
     if ([string]::IsNullOrWhiteSpace($generationJson)) {
         throw "Release generation script returned empty output."
     }
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $manifestText = $generationJson + [Environment]::NewLine
     $manifestPath = Join-Path $StageRoot "codex-praetor-release-generation.json"
-    [System.IO.File]::WriteAllText($manifestPath, ($generationJson + [Environment]::NewLine), (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText($manifestPath, $manifestText, $utf8NoBom)
+
+    # The runtime is launched from plugin/, not the archive root.  Keep the
+    # exact promoted generation beside the bundled Skill so installed scripts
+    # never fall back to a synthetic "--packaged--" identity.
+    $pluginManifestPath = Join-Path $StageRoot "plugin\release-generation.json"
+    [System.IO.File]::WriteAllText($pluginManifestPath, $manifestText, $utf8NoBom)
 }
 
 function Build-PackagedMcpRuntime {
@@ -327,8 +335,7 @@ $include = @(
     "mcp\src",
     "mcp\tsconfig.json",
     "plugin",
-    "scripts",
-    "skill"
+    "scripts"
 )
 
 Write-Host "Codex Praetor release package plan"

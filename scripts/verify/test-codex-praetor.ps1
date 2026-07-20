@@ -481,7 +481,7 @@ $devIsolationTest = Join-Path $projectRoot "scripts\verify\test-dev-channel-isol
 if (Test-Path -LiteralPath $devIsolationTest -PathType Leaf) {
     try {
         $devOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $devIsolationTest -ProjectRoot $projectRoot 2>&1
-        if ($LASTEXITCODE -eq 0 -and (($devOutput | Out-String) -match "Dev channel stages")) { Add-Pass "Dev channel isolation regression passes" } else { Add-Fail "Dev channel isolation regression failed: $($devOutput | Out-String)" }
+        if ($LASTEXITCODE -eq 0 -and (($devOutput | Out-String) -match "Retired multi-surface release commands are absent")) { Add-Pass "Plugin-only installation boundary regression passes" } else { Add-Fail "Plugin-only installation boundary regression failed: $($devOutput | Out-String)" }
     } catch { Add-Fail "Dev channel isolation regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Dev channel isolation script missing: $devIsolationTest" }
 

@@ -12,6 +12,8 @@ on:
       - "plugin/**"
       - "skill/**"
       - "mcp/**"
+      - "!mcp/package.json"
+      - "!mcp/package-lock.json"
       - "scripts/**"
       - "setup.ps1"
       - "setup.cmd"
