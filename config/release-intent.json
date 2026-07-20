@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.7.0-alpha",
-    "previous_version":  "0.6.3-alpha",
-    "tag":  "v0.7.0-alpha",
+    "version":  "0.7.1-alpha",
+    "previous_version":  "0.7.0-alpha",
+    "tag":  "v0.7.1-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.7.0-alpha.zip",
-    "reason":  "修复 0.6.2-alpha 的合同分叉与二次构建发布缺口：合同副本由单一来源生成，最终 zip 的真实运行时合同与 generation 必须一致，发布器只晋升已验收同一 SHA 的 artifact。"
+    "artifact":  "codex-praetor-setup-0.7.1-alpha.zip",
+    "reason":  "修复更新后运行中插件被旧 active receipt 错误阻断的 P0 可用性缺陷：health/readiness 以当前 bundled generation 和 runtime contract 为准，旧收据仅保留发布诊断与回收用途；合并后自动发布 0.7.1-alpha 的同一已验收 artifact。"
 }

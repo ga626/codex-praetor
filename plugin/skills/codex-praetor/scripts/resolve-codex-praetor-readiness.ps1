@@ -61,5 +61,51 @@ function Test-CodexPraetorProviderReadiness {
     return [pscustomobject]$result
 }
 
+function Get-CodexPraetorCurrentReadinessEntries {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$ExpectedGeneration,
+        [string]$ExpectedRuntimeContract,
+        [string]$ExpectedTaskContract
+    )
+
+    $state = Read-CodexPraetorJson -Path $Path
+    $result = [ordered]@{
+        ok = $false; reason = ""; readiness_path = $Path
+        generation_id = $ExpectedGeneration; runtime_contract_sha256 = $ExpectedRuntimeContract
+        task_contract_schema = $ExpectedTaskContract; entries = @(); checked_at = (Get-Date).ToString("o")
+    }
+    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2") -or $null -eq $state.entries) {
+        $result.reason = "缺少可解析的 readiness canary。"
+        return [pscustomobject]$result
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedGeneration) -and [string]$state.generation_id -ne $ExpectedGeneration) {
+        $result.reason = "readiness generation 与当前运行 generation 不一致。"
+        return [pscustomobject]$result
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedRuntimeContract) -and [string]$state.runtime_contract_sha256 -ne $ExpectedRuntimeContract) {
+        $result.reason = "readiness runtime contract 已漂移。"
+        return [pscustomobject]$result
+    }
+
+    $valid = New-Object System.Collections.Generic.List[object]
+    foreach ($entry in @($state.entries)) {
+        if ([string]$entry.status -ne "passed") { continue }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedGeneration) -and [string]$entry.generation_id -ne $ExpectedGeneration) { continue }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedRuntimeContract) -and [string]$entry.runtime_contract_sha256 -ne $ExpectedRuntimeContract) { continue }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedTaskContract) -and [string]$entry.task_contract_schema -ne $ExpectedTaskContract) { continue }
+        $cliPath = [string]$entry.cli_path
+        $cliHash = Get-CodexPraetorFileSha256 -Path $cliPath
+        if ([string]::IsNullOrWhiteSpace($cliHash) -or $cliHash -ne [string]$entry.cli_hash) { continue }
+        try { $expires = [DateTime]::Parse([string]$entry.expires_at) } catch { continue }
+        if ($expires -le (Get-Date)) { continue }
+        $valid.Add($entry)
+    }
+    $result.entries = $valid.ToArray()
+    $result.ok = $valid.Count -gt 0
+    $result.reason = if ($result.ok) { "当前运行 generation 存在未过期且 CLI hash 匹配的 readiness tuple。" } else { "没有当前运行 generation 的有效 readiness tuple。" }
+    return [pscustomobject]$result
+}
+
 # Function-only module: dispatch and health dot-source this file. A top-level
 # param block would execute in the caller scope and overwrite its variables.

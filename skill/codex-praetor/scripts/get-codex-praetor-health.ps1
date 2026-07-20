@@ -94,6 +94,36 @@ if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) {
     $contract = Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Add-HealthCheck -Name "runtime_contract" -Status "ready" -Message "Runtime contract is loaded." -Details ([string]$contract.version)
 }
+$runtimeContractHash = if ($null -eq $contract) { "" } else { (Get-FileHash -LiteralPath $contractPath -Algorithm SHA256).Hash.ToLowerInvariant() }
+
+function Resolve-RunningGeneration {
+    if ($null -eq $contract) { return $null }
+    $generationScript = Join-Path $projectRoot "scripts\release\get-codex-praetor-generation.ps1"
+    if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
+        try { return (& $generationScript -ProjectRoot $projectRoot -Json | ConvertFrom-Json) } catch { }
+    }
+    $manifestCandidates = @(
+        (Join-Path $sourcePluginRoot "release-generation.json"),
+        (Join-Path $projectRoot "release-generation.json")
+    )
+    foreach ($path in @($manifestCandidates | Select-Object -Unique)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+        try { return (Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { }
+    }
+    return [pscustomobject]@{
+        generation_id = "$( [string]$contract.version )--runtime-contract--$($runtimeContractHash.Substring(0, 12))"
+        version = [string]$contract.version
+        runtime_contract_sha256 = $runtimeContractHash
+        task_contract_schema = [string]$contract.taskContractSchema
+    }
+}
+
+$runningGeneration = Resolve-RunningGeneration
+if ($null -ne $runningGeneration -and [string]$runningGeneration.version -eq [string]$contract.version -and [string]$runningGeneration.runtime_contract_sha256 -eq $runtimeContractHash -and [string]$runningGeneration.task_contract_schema -eq [string]$contract.taskContractSchema -and -not [string]::IsNullOrWhiteSpace([string]$runningGeneration.generation_id)) {
+    Add-HealthCheck -Name "running_generation" -Status "ready" -Message "当前运行插件 generation 与其 bundled runtime contract 一致。" -Details ([string]$runningGeneration.generation_id)
+} else {
+    Add-HealthCheck -Name "running_generation" -Status "blocked" -Message "当前运行插件 generation 缺失，或与 bundled runtime contract 不一致。" -Details $sourcePluginRoot
+}
 
 $sourcePluginInspectable = $null -ne $contract -and (Test-Path -LiteralPath (Join-Path $sourcePluginRoot ".codex-plugin\plugin.json") -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $sourcePluginRoot "mcp\package.json") -PathType Leaf)
 if ($sourcePluginInspectable) {
@@ -151,28 +181,22 @@ if ($marketplaceOk) {
     Add-HealthCheck -Name "marketplace_activation" -Status "blocked" -Message "Marketplace does not point at the expected Codex Praetor plugin path." -Details $marketplacePath
 }
 
-if ($null -ne $receipt -and [string]$receipt.fresh_context.schema -eq "codex-praetor-fresh-context-proof/v2" -and [string]$receipt.fresh_context.status -eq "passed" -and [string]$receipt.fresh_context.generation_id -eq [string]$receipt.generation.generation_id -and [string]$receipt.fresh_context.runtime_identity.runtime_contract_sha256 -eq [string]$receipt.generation.runtime_contract_sha256 -and [string]$receipt.fresh_context.runtime_info.runtime_contract.version -eq [string]$receipt.generation.version -and [int64]$receipt.fresh_context.runtime_identity.process_id -gt 0) {
+if ($null -ne $receipt -and [string]$receipt.fresh_context.schema -eq "codex-praetor-fresh-context-proof/v2" -and [string]$receipt.fresh_context.status -eq "passed" -and [string]$receipt.fresh_context.generation_id -eq [string]$runningGeneration.generation_id -and [string]$receipt.fresh_context.runtime_identity.runtime_contract_sha256 -eq $runtimeContractHash -and [string]$receipt.fresh_context.runtime_info.runtime_contract.version -eq [string]$contract.version -and [int64]$receipt.fresh_context.runtime_identity.process_id -gt 0) {
     Add-HealthCheck -Name "fresh_context" -Status "ready" -Message "Fresh-context MCP proof passed for the active generation." -Details ([string]$receipt.fresh_context.observed_at)
 } else {
-    Add-HealthCheck -Name "fresh_context" -Status "degraded" -Message "No matching legacy receipt proof is available. Native runtime_info remains the authoritative host observation." -Details $activeReceiptPath
+    Add-HealthCheck -Name "fresh_context" -Status "degraded" -Message "No running-generation proof is stored in the legacy receipt. Native runtime_info remains the authoritative host observation." -Details $activeReceiptPath
 }
 
 $readinessPath = Join-Path $profileRoot ".codex\codex-praetor-readiness.json"
 $readinessResult = $null
-if ($isIsolatedProfile -and $null -ne $receipt -and [string]$receipt.provider_readiness.status -eq "passed" -and [string]$receipt.provider_readiness.generation_id -eq [string]$receipt.generation.generation_id) {
-    $readinessResult = [pscustomobject]@{ ok = $true; reason = "隔离验证 profile 使用 activation 时已验收的 provider readiness；真实 stable profile 仍要求动态 canary。"; isolated = $true }
-} elseif ($null -ne $receipt -and $null -ne $receipt.provider_readiness -and (Get-Command Test-CodexPraetorProviderReadiness -ErrorAction SilentlyContinue)) {
-    $tuple = $receipt.provider_readiness.tuple
-    if ($null -eq $tuple -and @($receipt.provider_readiness.entries).Count -gt 0) { $tuple = @($receipt.provider_readiness.entries)[0] }
-    if ($null -ne $tuple) {
-        $readinessResult = Test-CodexPraetorProviderReadiness -Path $readinessPath -ProviderName ([string]$receipt.provider_readiness.provider) -Cli ([string]$tuple.cli_path) -ModelName ([string]$tuple.model) -Permission ([string]$tuple.permission_profile) -Kind ([string]$tuple.task_kind) -ExpectedGeneration ([string]$receipt.generation.generation_id) -ExpectedRuntimeContract ([string]$receipt.generation.runtime_contract_sha256) -ExpectedTaskContract ([string]$receipt.generation.task_contract_schema)
-    }
+if ($null -ne $runningGeneration -and (Get-Command Get-CodexPraetorCurrentReadinessEntries -ErrorAction SilentlyContinue)) {
+    $readinessResult = Get-CodexPraetorCurrentReadinessEntries -Path $readinessPath -ExpectedGeneration ([string]$runningGeneration.generation_id) -ExpectedRuntimeContract $runtimeContractHash -ExpectedTaskContract ([string]$contract.taskContractSchema)
 }
 if ($null -ne $readinessResult -and $readinessResult.ok) {
-    Add-HealthCheck -Name "provider_readiness" -Status "ready" -Message "当前 provider readiness 与 CLI hash、过期时间和执行 tuple 匹配。" -Details $readinessResult
+    Add-HealthCheck -Name "provider_readiness" -Status "ready" -Message "当前运行 generation 已有有效 provider readiness tuple；真实派工仍会逐项校验实际选择的 tuple。" -Details $readinessResult
 } else {
-    $details = if ($null -eq $readinessResult) { $activeReceiptPath } else { $readinessResult }
-    Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "当前 provider readiness 缺失、过期或已漂移；真实派工必须拒绝。" -Details $details
+    $details = if ($null -eq $readinessResult) { $readinessPath } else { $readinessResult }
+    Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "当前运行 generation 没有有效 readiness tuple；先真实运行一次 capability canary，再派工。" -Details $details
 }
 
 $retirementManifestPath = Join-Path (Split-Path -Parent $activeReceiptPath) "retirement.json"

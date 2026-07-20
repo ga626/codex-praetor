@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-19
 
-`v0.5.0-alpha` 已公开发布，但它不包含本轮发布闭环治理。当前目标是 `v0.7.0-alpha`：发布影响 PR 必须在同一个 PR 内提交版本和 release intent，合并后由 Release On Main 自动创建、发布和复验不可变 Release。stable 本机仍需独立完成 stage、fresh-context、provider readiness 和 user-path proof。
+`v0.7.0-alpha` 已公开发布并完成自动发布闭环。当前目标是 `v0.7.1-alpha`：修复运行中插件被旧本地收据误阻断的可用性问题。发布影响 PR 必须在同一个 PR 内提交版本和 release intent，合并后由 Release On Main 自动创建、发布和复验不可变 Release；本机验证以运行中的 generation、当前 provider readiness 和真实用户路径为准。
 
 已经完成：
 
