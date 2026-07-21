@@ -40,6 +40,10 @@ $nativeHelperCandidates = @(
     (Join-Path $projectRoot "scripts\maintenance\invoke-codex-praetor-native.ps1"),
     (Join-Path $scriptDir "invoke-codex-praetor-native.ps1")
 )
+$runningGenerationHelperCandidates = @(
+    (Join-Path $projectRoot "scripts\verify\resolve-codex-praetor-running-generation.ps1"),
+    (Join-Path $scriptDir "resolve-codex-praetor-running-generation.ps1")
+)
 $nativeHelper = @($nativeHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 $statePath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
     Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
@@ -71,17 +75,14 @@ if (@($nativeHelper).Count -ne 1) { throw "Native invocation helper is missing."
 $wrapper = if ($wrapper -is [array]) { [string]$wrapper[0] } else { [string]$wrapper }
 $nativeHelper = [string]$nativeHelper[0]
 . $nativeHelper
+$runningGenerationHelperPath = @($runningGenerationHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($runningGenerationHelperPath).Count -ne 1) { throw "Running generation helper is missing." }
+. ([string]$runningGenerationHelperPath[0])
 if (@($runtimeContractPath).Count -ne 1) { throw "Runtime contract is missing." }
 $runtimeContractPath = [string]$runtimeContractPath[0]
 $runtimeContract = Get-Content -LiteralPath $runtimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $runtimeContractHash = (Get-FileHash -LiteralPath $runtimeContractPath -Algorithm SHA256).Hash.ToLowerInvariant()
-$generation = if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
-    (& $generationScript -ProjectRoot $projectRoot -Json | ConvertFrom-Json)
-} else {
-    [pscustomobject]@{
-        generation_id = "$( [string]$runtimeContract.version )--packaged--$($runtimeContractHash.Substring(0, 12))"
-    }
-}
+$generation = Resolve-CodexPraetorRunningGeneration -RuntimeContractPath $runtimeContractPath -ProjectRoot $projectRoot -ScriptDirectory $scriptDir
 if (-not (Test-Path -LiteralPath $Repo -PathType Container)) {
     throw "Repository path does not exist: $Repo"
 }

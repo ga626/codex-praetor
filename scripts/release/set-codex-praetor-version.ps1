@@ -41,6 +41,7 @@ $textFiles = @(
     "scripts\release\build-codex-praetor-release.ps1",
     "scripts\release\publish-github-release-asset.ps1",
     "scripts\release\verify-github-release-asset.ps1",
+    "scripts\release\activate-published-codex-praetor-release.ps1",
     "scripts\verify\test-public-entry-consistency.ps1",
     "scripts\verify\test-release-package-determinism.ps1",
     "scripts\verify\test-release-artifact-runtime.ps1",

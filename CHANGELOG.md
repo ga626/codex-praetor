@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2-alpha - 2026-07-22
+
+- Unified bundled health and capability-canary generation resolution, so a valid Release generation proof is no longer rejected as a synthetic runtime-contract generation.
+- Added the verified published-Release activation command: it downloads the immutable zip, checks its SHA256 and tag generation, runs the bundled installer, invokes official `codex plugin add`, installs maintenance, and reports the explicit host-refresh boundary.
+- Allowed isolated worker worktrees from detached acceptance checkouts by branching from the resolved `HEAD` commit.
+- Added packaged-generation, published-activation, and detached-worktree regressions.
+
 ## 0.8.1-alpha - 2026-07-21
 
 - Added an explicit stable-install -> host-refresh -> runtime-identity -> canary state machine, with isolated regression coverage for old installs and old hosts.

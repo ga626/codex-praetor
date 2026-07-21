@@ -4,7 +4,6 @@ $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) { $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
 $profile = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-health-profile-" + [Guid]::NewGuid().ToString("N"))
 $cli = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-health-cli-" + [Guid]::NewGuid().ToString("N") + ".bin")
-$healthScript = Join-Path $ProjectRoot "scripts\verify\get-codex-praetor-health.ps1"
 $generationScript = Join-Path $ProjectRoot "scripts\release\get-codex-praetor-generation.ps1"
 $contractPath = Join-Path $ProjectRoot "config\runtime-contract.json"
 
@@ -21,6 +20,8 @@ try {
     $installedPlugin = Join-Path $profile "plugins\codex-praetor"
     New-Item -ItemType Directory -Path (Split-Path -Parent $installedPlugin) -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $ProjectRoot "plugin") -Destination $installedPlugin -Recurse -Force
+    $generation | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $installedPlugin "release-generation.json") -Encoding UTF8
+    $healthScript = Join-Path $installedPlugin "skills\codex-praetor\scripts\get-codex-praetor-health.ps1"
     $codexRoot = Join-Path $profile ('.' + 'codex')
     $cacheRoot = Join-Path $codexRoot (Join-Path "plugins" (Join-Path "cache" (Join-Path "personal" "codex-praetor")))
     New-Item -ItemType Directory -Path (Join-Path $cacheRoot ([string]$contract.version)) -Force | Out-Null
@@ -51,8 +52,26 @@ try {
     $readiness = Find-Check -Payload $payload -Name "provider_readiness"
     Assert-True ([string]$legacy.status -eq "degraded") "An old active receipt must remain diagnostic only."
     Assert-True ([string]$running.status -eq "ready") "Health must resolve the running generation from the current plugin contract."
+    Assert-True ([string]$running.details -eq [string]$generation.generation_id) "Bundled health must resolve the packaged Release generation, not a synthetic runtime-contract ID."
     Assert-True ([string]$readiness.status -eq "ready") "Current-generation readiness must pass even when active.json is old."
     Assert-True ([string]$payload.status -ne "blocked") "Old receipt plus current plugin/readiness must not block health."
+
+    $entry.generation_id = "wrong-generation"
+    [ordered]@{
+        schema = "codex-praetor-generation-readiness/v2"; status = "passed"; generation_id = "wrong-generation"
+        runtime_contract_sha256 = $contractHash; task_contract_schema = [string]$contract.taskContractSchema; entries = @($entry)
+    } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $profile ".codex\codex-praetor-readiness.json") -Encoding UTF8
+    $previousErrorAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $wrongPayload = ((& powershell -NoProfile -ExecutionPolicy Bypass -File $healthScript -Repo $ProjectRoot -UserProfileRoot $profile -Json | Out-String) | ConvertFrom-Json)
+        $wrongExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+    }
+    $wrongReadiness = Find-Check -Payload $wrongPayload -Name "provider_readiness"
+    Assert-True ($wrongExitCode -ne 0) "A readiness proof for another generation must fail closed."
+    Assert-True ([string]$wrongReadiness.status -eq "blocked") "Wrong-generation readiness proof must be blocked."
     Write-Host "[PASS] Running generation is the health readiness authority."
 } finally {
     foreach ($path in @($profile, $cli)) { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue } }

@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.8.1-alpha",
-    "previous_version":  "0.8.0-alpha",
-    "tag":  "v0.8.1-alpha",
+    "version":  "0.8.2-alpha",
+    "previous_version":  "0.8.1-alpha",
+    "tag":  "v0.8.2-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.8.1-alpha.zip",
-    "reason":  "把发布后的本机更新验收固化为安装身份、host runtime 与 provider canary 的顺序门禁；区分 CI 同一 artifact 校验与公开 Release 校验，防止旧本地候选包误报远端发布过期；合并后自动发布 0.8.1-alpha 的同一已验收 artifact。"
+    "artifact":  "codex-praetor-setup-0.8.2-alpha.zip",
+    "reason":  "修复 bundled health 与 canary generation 解析漂移；把公开 Release 的下载验真、稳定安装、官方 plugin add、maintenance 与本机状态输出固化为一个入口；支持 detached HEAD 的隔离 worker worktree。"
 }

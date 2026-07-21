@@ -489,6 +489,20 @@ if (Test-Path -LiteralPath $runningGenerationHealthTest -PathType Leaf) {
     Add-Fail "Running-generation health authority regression script missing: $runningGenerationHealthTest"
 }
 
+$publishedActivationTest = Join-Path $projectRoot "scripts\verify\test-published-release-activation.ps1"
+if (Test-Path -LiteralPath $publishedActivationTest -PathType Leaf) {
+    try {
+        $activationOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $publishedActivationTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($activationOutput | Out-String) -match "Published Release activation")) {
+            Add-Pass "Published Release local-activation regression passes"
+        } else {
+            Add-Fail "Published Release local-activation regression failed: $($activationOutput | Out-String)"
+        }
+    } catch { Add-Fail "Published Release local-activation regression failed: $($_.Exception.Message)" }
+} else {
+    Add-Fail "Published Release local-activation regression script missing: $publishedActivationTest"
+}
+
 $receiptContractTest = Join-Path $projectRoot "scripts\verify\test-release-receipt-contract.ps1"
 if (Test-Path -LiteralPath $receiptContractTest -PathType Leaf) {
     try {
