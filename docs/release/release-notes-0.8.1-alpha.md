@@ -8,6 +8,7 @@
 - 新增安装身份观察器：只会给出 `needs_install`、`needs_host_restart` 或 `needs_canary`，不会修改 cache、readiness、provider 或认证数据。
 - 安装向导不再在 host 身份未知时运行真实 canary；正确顺序是安装身份一致、刷新 host、`runtime_info` 一致、再 canary。
 - GitHub Release 校验分为 CI 的同一 artifact 模式和发布后的公开 artifact 模式。本地候选旧时标记 `local_candidate_stale`，不再误称远端 Release 过期。
+- 产品验证会拒绝含非 ASCII 文本但缺少 UTF-8 BOM 的 PowerShell 脚本，避免本机与 GitHub Windows runner 的代码页差异。
 
 ## 用户影响
 

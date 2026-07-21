@@ -5,6 +5,7 @@
 - Added an explicit stable-install -> host-refresh -> runtime-identity -> canary state machine, with isolated regression coverage for old installs and old hosts.
 - Separated same-artifact CI verification from published-artifact verification, so a stale local candidate cannot be misreported as a stale GitHub Release.
 - Stopped the setup wizard from running a real canary before the Desktop host has loaded the installed generation.
+- Added a Windows PowerShell encoding gate for non-ASCII `.ps1` files after CI exposed a UTF-8-without-BOM parser failure.
 
 ## 0.8.0-alpha - 2026-07-21
 

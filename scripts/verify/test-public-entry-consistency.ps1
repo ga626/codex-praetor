@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "0.8.1-alpha",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ProjectRoot = "",

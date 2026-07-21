@@ -26,6 +26,7 @@
 
 - 版本和 tag 不可变；不覆盖可能被对话引用的目录，不用 junction/稳定指针把旧合同映射为新合同。旧版本由限定根目录、可重试的回收机制处理；占用或权限失败只记录并延期，不强杀 Codex，也不改变交付结论。
 - 原生 CLI 成功以退出码 `0` 为前提；再检查 marker、工作树、completion 和 readiness。统一进程辅助程序分离 stdout/stderr，记录启动、超时、退出码和诊断尾部，兼容 Windows PowerShell 5.1/7。
+- PowerShell 脚本优先 ASCII；含非 ASCII 文本必须 UTF-8 BOM，并由产品验证扫描，避免本机中文代码页与 GitHub Windows runner 的解析差异。
 - `process_exited`、`timed_out`、`watcher_failed`、`unknown` 都不是运行中；“等待 Codex 验收”不等于 worker 运行中。非发布 dependency PR 仍构建/测试，但不进入 release-intent 或 immutable-tag 门禁。
 - 外部研究由 Codex + KnowledgeRadar 综合；外部 provider 仅可在只读、可追溯、经监督验收的研究契约中工作。不得提交密钥、token、账户文件、截图或本地数据库。
 
