@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getInvokeScriptPath } from "./paths.js";
+import { decodeUtf8Chunks } from "./powershell.js";
 import {
+  classifyWorkerOutcome,
   detectConflictsTool,
+  isActiveStatus,
   jobTimelineTool,
   dispatchPlanTaskTool,
   dispatchDryRunTool,
@@ -63,6 +66,31 @@ assert.equal(missingTimeline.found, false);
 
 assert.equal(typeof dispatchTool, "function");
 assert.equal(typeof dispatchPlanTaskTool, "function");
+const chinese = Buffer.from("当前运行 generation", "utf8");
+assert.equal(decodeUtf8Chunks([chinese.subarray(0, 4), chinese.subarray(4, 7), chinese.subarray(7)]), "当前运行 generation");
+assert.equal(isActiveStatus("running"), true);
+assert.equal(isActiveStatus("process_exited"), false);
+assert.equal(isActiveStatus("timed_out"), false);
+assert.equal(isActiveStatus("watcher_failed"), false);
+assert.equal(isActiveStatus("unknown"), false);
+assert.equal(
+  classifyWorkerOutcome({
+    meta: { status: "process_exited" },
+    completion: { status: "process_exited", exit_code: 0 },
+    stdout_tail: "worker report",
+    stderr_tail: ""
+  }).class,
+  "awaiting_codex_verification"
+);
+assert.equal(
+  classifyWorkerOutcome({
+    meta: { status: "timed_out" },
+    completion: { status: "timed_out", exit_code: 124 },
+    stdout_tail: "",
+    stderr_tail: ""
+  }).class,
+  "worker_timed_out"
+);
 
 const planId = "mcp-self-test";
 const plan = await planTool({

@@ -47,6 +47,7 @@ function Test-VersionGreater([string]$Candidate, [string]$Baseline) {
     return $false
 }
 
+$releaseImpact = $true
 if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') {
     $changed = @(& git -C $root diff --name-only "$BaseRef...HEAD")
     if ($LASTEXITCODE -ne 0) { throw "Unable to inspect changed files against base ref $BaseRef." }
@@ -71,6 +72,7 @@ if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') 
         '^docs/user/', '^docs/release/', '^docs/roadmap\.md$', '^SECURITY\.md$', '^CHANGELOG\.md$'
     )
     $impact = if ($nonReleaseDependencyOnly) { @() } else { @($changed | Where-Object { $path = [string]$_; @($impactPatterns | Where-Object { $path -match $_ }).Count -gt 0 }) }
+    $releaseImpact = $impact.Count -gt 0
     $intentChanged = @($changed | Where-Object { [string]$_ -eq "config/release-intent.json" }).Count -gt 0
     if ($RequireReleaseImpact -and $impact.Count -gt 0 -and -not $intentChanged) {
         throw "Release-impacting files changed without config/release-intent.json; merge is not allowed."
@@ -88,7 +90,16 @@ if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') 
     if ($nonReleaseDependencyOnly) { Write-Host "[PASS] Development-only MCP dependency update does not require a product release." }
 }
 
-if ($CheckRemote) {
+# The candidate classification is computed once above and owns every
+# release-only gate below. Non-release dependency PRs still build and test in
+# the shared pipeline, but never pretend they need a new immutable product tag.
+if ($releaseImpact) {
+    Write-Host "[PASS] Pipeline classification: release_impact"
+} else {
+    Write-Host "[PASS] Pipeline classification: non_release"
+}
+
+if ($CheckRemote -and $releaseImpact) {
     $remoteTag = @(& git -C $root ls-remote --tags origin "refs/tags/$($intent.tag)")
     if ($LASTEXITCODE -ne 0) { throw "Unable to inspect remote tag $($intent.tag)." }
     if (@($remoteTag | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {

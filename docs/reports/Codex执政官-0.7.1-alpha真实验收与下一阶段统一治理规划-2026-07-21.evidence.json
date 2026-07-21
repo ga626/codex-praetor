@@ -1,0 +1,113 @@
+{
+  "schema": "codex-praetor-research-evidence/v1",
+  "subject": "0.8.0-alpha PR decision and post-release destructive code-change acceptance plan",
+  "generated_at": "2026-07-21T17:18:00+08:00",
+  "access_path": "native_mcp_and_kr",
+  "local_evidence": [
+    {
+      "kind": "git_state",
+      "path": "D:/Projects/CodexPraetor",
+      "fact": "Branch codex/runtime-acceptance-governance is at c4080674125d7a00b83162434ae7a69b4c3a7952, is pushed, and was clean before this report rewrite.",
+      "strength": "direct"
+    },
+    {
+      "kind": "branch_diff",
+      "base": "origin/main@4877ecb9d04278f1d1e1fab4c613921f516c963e",
+      "fact": "The 0.8.0-alpha branch changes runtime canary evidence, terminal job/lane interpretation, UTF-8 process decoding, release-impact CI routing, release metadata, docs and artifact verification together.",
+      "strength": "direct"
+    },
+    {
+      "kind": "github_actions",
+      "url": "https://github.com/ga626/codex-praetor/actions/runs/29813789807",
+      "fact": "The pushed 0.8.0-alpha branch CI run succeeded before this report rewrite.",
+      "strength": "direct"
+    },
+    {
+      "kind": "github_pr_state",
+      "fact": "No open GitHub pull request existed for codex/runtime-acceptance-governance at the latest local check; it is not merged or released.",
+      "strength": "direct"
+    },
+    {
+      "kind": "prior_real_acceptance",
+      "path": "D:/Projects/CodexPraetor/docs/reports/Codex执政官-0.7.0-alpha-本机真实验收-2026-07-21.md",
+      "fact": "A single real readonly dispatch attempt for the current 0.7.1-alpha host was blocked before job creation because only a prior generation had readiness. No readiness, receipt or cache state was edited to force execution.",
+      "strength": "direct"
+    },
+    {
+      "kind": "source_inspection",
+      "path": "D:/Projects/CodexPraetor/scripts/verify/test-provider-capability-canary.ps1",
+      "fact": "The prior canary could reject otherwise successful provider evidence when whole-main-checkout status changed during execution. The 0.8.0-alpha branch adds separate canary-evidence regression coverage.",
+      "strength": "direct"
+    }
+  ],
+  "external_evidence": [
+    {
+      "access_path": "native_mcp",
+      "tool": "kr_research",
+      "url": "KnowledgeRadar deep route: generic_web_ecology + academic_literature_ecology + github_repository_ecology",
+      "fact": "The research route required official, implementation and academic evidence and explicitly separates search candidates from extracted evidence.",
+      "strength": "method"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://git-scm.com/docs/git-worktree",
+      "fact": "Git documents linked worktrees, throwaway detached worktrees for experiments, and explicit worktree remove/prune management.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://www.swebench.com/SWE-bench/guides/evaluation/",
+      "fact": "SWE-bench applies generated patches to real repositories and runs repository tests in a reproducible containerized environment.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://developers.openai.com/blog/eval-skills",
+      "fact": "OpenAI recommends evaluating skills as prompt to captured trace and artifacts to a small check set and comparable score, including outcome, process, style and efficiency checks.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations",
+      "fact": "GitHub describes artifact attestations as build provenance that establishes where and how artifacts were built.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://developers.openai.com/codex/plugins/build",
+      "fact": "OpenAI documents plugins as packaging skills and/or MCP-backed apps and distinguishes iterative local workflows from a stable shared package.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://developers.openai.com/codex/mcp",
+      "fact": "OpenAI documents that Desktop, CLI and IDE extension share MCP configuration for a Codex host and describes host-local MCP server behavior.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "search_academic",
+      "url": "https://arxiv.org/abs/2505.23419",
+      "fact": "SWE-bench Live reports overfitting and contamination risk in static evaluation and uses recent real issues with dedicated reproducible environments.",
+      "strength": "academic_metadata_and_abstract"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "kr_web_search",
+      "url": "https://github.com/OpenHands/benchmarks",
+      "fact": "Repository search found an actively maintained standardized benchmark infrastructure for OpenHands; this is implementation context, not a normative source.",
+      "strength": "implementation_discovery"
+    }
+  ],
+  "research_limitations": [
+    "No local canary or worker was rerun during this planning pass. Current provider readiness remains an execution-time fact and must be checked after the released 0.8.0-alpha generation is installed.",
+    "The repository search result for OpenHands was not used to make technical guarantees; only official Git, GitHub, OpenAI and SWE-bench texts support the normative design choices.",
+    "Artifact provenance, host refresh, provider readiness and successful code-change execution are separate evidence layers. No one layer proves the others."
+  ]
+}

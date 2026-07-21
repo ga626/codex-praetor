@@ -31064,6 +31064,7 @@ function parseKeyValueOutput(stdout) {
 
 // src/powershell.ts
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 function runPowerShell(args, options = {}) {
   const timeoutMs = options.timeoutMs ?? 12e4;
   const maxOutputBytes = options.maxOutputBytes ?? 256e3;
@@ -31074,6 +31075,8 @@ function runPowerShell(args, options = {}) {
     });
     let stdout = "";
     let stderr = "";
+    const stdoutDecoder = new StringDecoder("utf8");
+    const stderrDecoder = new StringDecoder("utf8");
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) {
@@ -31084,13 +31087,13 @@ function runPowerShell(args, options = {}) {
       reject(new Error(`PowerShell command timed out after ${timeoutMs} ms.`));
     }, timeoutMs);
     child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
+      stdout += stdoutDecoder.write(chunk);
       if (Buffer.byteLength(stdout, "utf8") > maxOutputBytes) {
         stdout = stdout.slice(0, maxOutputBytes);
       }
     });
     child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
+      stderr += stderrDecoder.write(chunk);
       if (Buffer.byteLength(stderr, "utf8") > maxOutputBytes) {
         stderr = stderr.slice(0, maxOutputBytes);
       }
@@ -31109,6 +31112,8 @@ function runPowerShell(args, options = {}) {
       }
       settled = true;
       clearTimeout(timer);
+      stdout += stdoutDecoder.end();
+      stderr += stderrDecoder.end();
       resolve({ exitCode, stdout, stderr });
     });
   });
@@ -31573,11 +31578,32 @@ ${input.stderr_tail}`.toLowerCase();
       next_action: "\u68C0\u67E5\u4EFB\u52A1\u6A21\u5F0F\u3001\u5DE5\u5177\u767D\u540D\u5355\u548C worktree \u6743\u9650\uFF1B\u4E0D\u8981\u76F4\u63A5\u653E\u5BBD\u5230\u4E0D\u53D7\u63A7\u6743\u9650\u3002"
     };
   }
+  if (status === "timed_out") {
+    return {
+      class: "worker_timed_out",
+      explanation: "worker \u5DF2\u8D85\u65F6\u5E76\u8FDB\u5165\u7EC8\u6001\uFF0C\u4E0D\u518D\u5360\u7528\u6267\u884C lane\u3002",
+      next_action: "\u68C0\u67E5\u4EFB\u52A1\u8303\u56F4\u3001\u8D85\u65F6\u548C provider \u8F93\u51FA\u540E\uFF0C\u518D\u51B3\u5B9A\u91CD\u6D3E\u6216\u7531 Codex \u63A5\u7BA1\u3002"
+    };
+  }
+  if (status === "unknown") {
+    return {
+      class: "worker_terminal_state_unknown",
+      explanation: "watcher \u5DF2\u7ED3\u675F\uFF0C\u4F46\u65E0\u6CD5\u53EF\u9760\u5224\u5B9A worker \u7684\u6700\u7EC8\u6267\u884C\u72B6\u6001\u3002",
+      next_action: "\u68C0\u67E5 watcher \u65E5\u5FD7\u548C completion \u540E\u4EBA\u5DE5\u5904\u7406\uFF1B\u4E0D\u8981\u628A\u5B83\u5F53\u4F5C\u4ECD\u5728\u8FD0\u884C\u3002"
+    };
+  }
   if (status === "failed" || typeof exitCode === "number" && exitCode !== 0) {
     return {
       class: "worker_failed",
       explanation: "worker \u8FDB\u7A0B\u5931\u8D25\u9000\u51FA\u3002",
       next_action: "\u8BFB\u53D6 stdout/stderr \u6458\u8981\uFF0C\u5224\u65AD\u662F\u91CD\u6D3E\u3001\u6362 provider\uFF0C\u8FD8\u662F\u7531 Codex \u63A5\u7BA1\u3002"
+    };
+  }
+  if (status === "process_exited") {
+    return {
+      class: "awaiting_codex_verification",
+      explanation: "worker \u8FDB\u7A0B\u5DF2\u9000\u51FA\uFF0C\u6267\u884C\u8BC1\u636E\u5DF2\u8BB0\u5F55\uFF0C\u4F46\u4ECD\u9700\u8981 Codex \u68C0\u67E5\u62A5\u544A\u3001diff \u548C\u4E1A\u52A1\u7ED3\u679C\u3002",
+      next_action: "\u8C03\u7528\u9A8C\u6536\u5DE5\u5177\u8BB0\u5F55 accepted/rejected/retry/human_required\u3002"
     };
   }
   if (status === "completed") {
@@ -31762,7 +31788,7 @@ function summarizeJob(jobDir) {
   };
 }
 function isActiveStatus(status) {
-  return !["completed", "failed", "blocked", "skipped", "cancelled"].includes(status);
+  return ["starting", "queued", "running", "cancel_requested"].includes(status);
 }
 function isProcessAlive(pid) {
   if (!Number.isFinite(pid) || pid <= 0) {
@@ -32268,7 +32294,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.7.1-alpha"
+    version: "0.8.0-alpha"
   });
   server.registerTool(
     "codex_praetor_route_intent",

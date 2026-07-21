@@ -38,6 +38,8 @@ Codex Praetor 服务于 Codex：把边界清楚的工作分配给外部命令行
 - **同一 artifact 晋升**：main release run 只能构建一个带 SHA 的 artifact manifest；真实 runtime 验收、Release 上传、远端下载复验和 attestation 必须引用这同一份 zip。发布器不得隐式 rebuild 或上传未通过 `artifact_verified` 验收的文件。
 - **历史事故必杀**：每宗 release incident 都必须增加可重复的故障注入测试，并映射到一条合同或 artifact 不变量；模拟的 runtime/proof JSON 只能覆盖解析器单元测试，不能作为完整收口通过证据。
 - **收口不可回归**：合并后的公开产品状态只有两种合法结果：`产品已交付`，或 `代码已合并，产品未交付（release incident）`。后者必须停住下一次发布影响 PR，优先重跑原 SHA 或修复自动发布路径；不得为同一版本另开“收口修复 PR”，不得手工上传替代包。公开 Release 已通过远端下载复验后即为产品交付；本机 Desktop host 刷新是用户安装后的 `needs_user_action`，不能制造新的 release incident 或阻断下一次开发。
+- **canary 证据边界**：真实 provider canary 开始前必须使用干净仓库或隔离 checkout；当前 generation 的真实 provider proof、worker/worktree 证据和仓库状态观察必须分别记录。运行中出现 checkout drift 时，记录 `external_repo_drift_observed` 并要求后续审查，不能把它伪装成 provider 失败或丢弃已获 proof；不得手写 readiness、receipt 或借用旧 generation proof。
+- **任务终态与流水线分流**：`process_exited`、`timed_out`、`watcher_failed`、`unknown` 都不是 active execution lane；“等待 Codex 验收”不等于 worker 仍在运行。reusable pipeline 必须只计算一次 release-impact，非发布 dependency-only PR 仍跑构建/测试，但不得进入 release intent 递增或 immutable-tag 检查。
 - **全新上下文触发条件**：只有 MCP 工具名称/参数、Skill 或 Plugin manifest、安装入口、插件来源或工具合同变化时，每个版本代际验收一次；普通实现修改、reload 或文件编辑不触发。
 - **产品已交付**：必须有同一 artifact 的构建、runtime、上传和远端普通用户下载复验通过。活动收据只能记录发布证据，不能要求全局 Skill、人工复制缓存或单台 Desktop 的刷新。旧缓存由 Codex 退休；被占用时报告“新版本已交付，旧版本自动延迟回收中”，不得声称缓存已全部清空。
 

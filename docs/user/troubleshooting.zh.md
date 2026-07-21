@@ -12,12 +12,13 @@
 | 没有 Qoder、CodeBuddy、MiMo | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
 | provider 已安装但真实派工失败 | provider 未登录、权限不够、CLI 路径不对、任务超轮数或 worker 无有效产出 | 先读取 worker result 摘要和失败分类；需要账号动作时重新运行向导，任务太大时缩小后重派 |
 | 更新后 health 提示当前 generation 没有 readiness | 新插件已加载，但还没有为这一个运行版本完成真实只读 canary | 对已登录的 provider 真实运行一次 capability canary；不要编辑 `active.json` 或 readiness 文件 |
+| canary 提示仓库有变动 | 开始前已有未提交改动，或运行中有其他流程改动仓库 | 开始前变脏时清理、提交或改用隔离 checkout；运行中变动会被记录，先审查后再编辑，不要伪造 readiness |
 | 执行 provider 官方安装时提示网络不可用或超时 | 官方安装源、DNS、代理或系统网络还没准备好 | 检查网络/代理后重试；也可以先跳过 provider，先完成本体安装 |
 | 更新后旧目录仍然存在 | 旧 generation 仍在保留窗口内，或被 Codex/运行时占用 | 查看 health/退休清单；不要强杀 Codex，维护任务会在下次登录或 15 分钟重试 |
 
 ## 看不到 Codex Praetor 插件
 
-先确认你已经运行过安装向导。如果你使用的是 `0.7.1-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
+先确认你已经运行过安装向导。如果你使用的是 `0.8.0-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
@@ -111,6 +112,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 ```
 
 如果 `-Apply` 失败，优先按 provider 官方方式重新登录或修正本地 `cliPath`。插件更新、版本、模型或权限合同变化后，需要对当前运行版本重新运行一次 canary；旧 `active.json` 只用于发布历史和回收诊断，不是派工准入依据。不要把 token、cookie、账号页面或本地数据库贴到 issue 或聊天里。
+
+canary 的自然语言任务本身很短，只读取 `README.md` 并返回成功标记；权限、模型、CLI hash、generation、日志和仓库观察由插件的外围协议验证。这样既是真实 provider 路径，又不会把一大份测试规程塞给 worker。
 
 ## worker 完成但任务没有继续
 

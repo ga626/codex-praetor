@@ -31,15 +31,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.7.1-alpha/codex-praetor-setup-0.7.1-alpha.zip" -OutFile ".\codex-praetor-setup-0.7.1-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.7.1-alpha.zip .\codex-praetor-setup-0.7.1-alpha
-cd .\codex-praetor-setup-0.7.1-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.8.0-alpha/codex-praetor-setup-0.8.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.8.0-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.8.0-alpha.zip .\codex-praetor-setup-0.8.0-alpha
+cd .\codex-praetor-setup-0.8.0-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.7.1-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.8.0-alpha
 ```
 
 ### 2. 双击安装向导
@@ -152,7 +152,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
 ```
 
-这个 canary 只读取 `README.md`，并检查主仓库状态是否保持不变。它通过后，再考虑真实派工。真实派工完成后不代表任务自动完成；Codex 还要读取 worker 结果，确认输出能采信，必要时看 diff、跑验证，再把任务标成采信、拒绝、重试、需要人工处理或跳过。
+这个 canary 只读取 `README.md`。开始前主仓库必须是干净的；如果运行期间有其他流程改动仓库，系统会保留真实 provider 结果并记录这次仓库变动，先审查变动再进入编辑任务。它通过后，再考虑真实派工。真实派工完成后不代表任务自动完成；Codex 还要读取 worker 结果，确认输出能采信，必要时看 diff、跑验证，再把任务标成采信、拒绝、重试、需要人工处理或跳过。
 
 ## 从源码安装
 

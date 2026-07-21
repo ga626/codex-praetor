@@ -49,6 +49,11 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-workflow-readiness.ps1 -CheckRemoteActionPins
 
+      - name: Release-impact classification regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent-classification.ps1
+
       - name: Version surface updater regression
         shell: pwsh
         run: |
@@ -72,6 +77,11 @@ jobs:
         shell: pwsh
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor-native.ps1
+
+      - name: Capability canary evidence regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-canary-evidence.ps1
 
       - name: Durable job lifecycle regression
         shell: pwsh

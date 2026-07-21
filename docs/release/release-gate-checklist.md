@@ -22,7 +22,7 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Public entry consistency: `scripts/verify/test-public-entry-consistency.ps1`. Use `-SkipRemoteRelease` before publication and the full remote check during release closeout.
 - Release package determinism: `scripts/verify/test-release-package-determinism.ps1`. The same staged release content must produce the same zip SHA256, stable entry order, and fixed zip entry timestamps.
 - Continuous orchestration MCP validation: route-intent, dry-run, real dispatch tool listing, result reading, next-ready lookup, plan-task dispatch tool listing, and verify-task recording must pass protocol smoke before release.
-- Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider mimo`.
+- Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider mimo`. Apply runs require a clean starting repository or isolated checkout; drift observed during a run is recorded separately from provider proof and must be reviewed before edit work.
 - MCP source tests: `npm test` under `mcp/`.
 - Plugin protocol smoke: `mcp/scripts/smoke-plugin-mcp.js` against the packaged runtime.
 - Runtime contract generation: `config/runtime-contract.json` is the only editable contract; `scripts/release/sync-codex-praetor-runtime-contract.ps1` generates the plugin and Skill copies, and CI rejects drift.
@@ -46,7 +46,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.7.1-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.8.0-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -70,7 +70,7 @@ Before release, a normal Windows user should see clear doctor states:
 - Local config write: discovered provider CLI paths are written only to ignored user/local config and never include token, cookie, PAT, API key, account DB paths, balance pages, or screenshots.
 - Capability mismatch: version/help probe fails or required flags are not accepted.
 - No providers installed: local planning/dry-run/status still works, real dispatch is disabled.
-- Provider installed and logged in: readonly canary can run with `-Apply`, return `CODEX_PRAETOR_CANARY_OK`, and leave the main repository clean.
+- Provider installed and logged in: readonly canary can run with `-Apply`, return `CODEX_PRAETOR_CANARY_OK`, start from a clean repository, and record any concurrent repository drift without misclassifying it as a provider failure.
 
 Codex Praetor must not silently install providers, log in for the user, read provider auth databases, or promise free/cheap routing that depends on the user's account. It may guide users to official provider installation/authentication, wait for their manual action, re-check, and record non-secret CLI paths.
 
