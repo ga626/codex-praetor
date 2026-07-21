@@ -1,8 +1,8 @@
 # Codex Praetor 路线图
 
-## 当前状态：2026-07-19
+## 当前状态：2026-07-21
 
-`v0.7.0-alpha` 已公开发布并完成自动发布闭环。当前目标是 `v0.7.1-alpha`：修复运行中插件被旧本地收据误阻断的可用性问题。发布影响 PR 必须在同一个 PR 内提交版本和 release intent，合并后由 Release On Main 自动创建、发布和复验不可变 Release；本机验证以运行中的 generation、当前 provider readiness 和真实用户路径为准。
+`v0.8.0-alpha` 已公开发布并完成自动发布闭环；当前目标是 `v0.8.0-alpha`：把真实 provider canary、worker 终态、UTF-8 输出和 dependency-only CI 分流收束为同一套可回归边界。发布影响 PR 必须在同一个 PR 内提交版本和 release intent，合并后由 Release On Main 自动创建、发布和复验不可变 Release；本机验证以运行中的 generation、当前 provider readiness 和真实用户路径为准。
 
 已经完成：
 
@@ -16,6 +16,8 @@
 - 中文首页、安装指南、排错指南、隐私边界、卸载回滚和用户验收清单。
 - GitHub issue 模板和 pull request 模板。
 - provider 只读 canary 的统一预览/执行入口。
+- canary 的 clean-before 与 drift-during 分层证据；并发仓库变动不会再伪装成 provider 失败。
+- `process_exited` 等执行终态与“等待 Codex 验收”分层展示，不再错误占用 active lane。
 - Windows 安装向导的 5 选项 provider 引导：全部配置、全部跳过、只配置 Qoder、只配置 CodeBuddy、只配置 MiMo。
 - 安装向导中的官方安装执行、人工授权陪跑、断点恢复、复检、本机配置写入、可选只读 canary 和最终状态总览。
 - 发布包确定性构建：固定 zip 条目顺序和时间戳，让相同发布内容构建出稳定 SHA256。

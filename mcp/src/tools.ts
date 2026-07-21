@@ -305,7 +305,7 @@ function readTextTail(filePath: string, maxChars = 12_000): string {
   return text.slice(text.length - maxChars);
 }
 
-function classifyWorkerOutcome(input: {
+export function classifyWorkerOutcome(input: {
   meta: Record<string, unknown>;
   completion: Record<string, unknown> | null;
   stdout_tail: string;
@@ -367,11 +367,32 @@ function classifyWorkerOutcome(input: {
       next_action: "检查任务模式、工具白名单和 worktree 权限；不要直接放宽到不受控权限。"
     };
   }
+  if (status === "timed_out") {
+    return {
+      class: "worker_timed_out",
+      explanation: "worker 已超时并进入终态，不再占用执行 lane。",
+      next_action: "检查任务范围、超时和 provider 输出后，再决定重派或由 Codex 接管。"
+    };
+  }
+  if (status === "unknown") {
+    return {
+      class: "worker_terminal_state_unknown",
+      explanation: "watcher 已结束，但无法可靠判定 worker 的最终执行状态。",
+      next_action: "检查 watcher 日志和 completion 后人工处理；不要把它当作仍在运行。"
+    };
+  }
   if (status === "failed" || (typeof exitCode === "number" && exitCode !== 0)) {
     return {
       class: "worker_failed",
       explanation: "worker 进程失败退出。",
       next_action: "读取 stdout/stderr 摘要，判断是重派、换 provider，还是由 Codex 接管。"
+    };
+  }
+  if (status === "process_exited") {
+    return {
+      class: "awaiting_codex_verification",
+      explanation: "worker 进程已退出，执行证据已记录，但仍需要 Codex 检查报告、diff 和业务结果。",
+      next_action: "调用验收工具记录 accepted/rejected/retry/human_required。"
     };
   }
   if (status === "completed") {
@@ -595,8 +616,10 @@ function summarizeJob(jobDir: string): JobSummary {
   };
 }
 
-function isActiveStatus(status: string): boolean {
-  return !["completed", "failed", "blocked", "skipped", "cancelled"].includes(status);
+export function isActiveStatus(status: string): boolean {
+  // A supervisor verdict may still be required after a process exit, but it
+  // must never keep an execution lane active or create a false edit conflict.
+  return ["starting", "queued", "running", "cancel_requested"].includes(status);
 }
 
 function isProcessAlive(pid: number): boolean {

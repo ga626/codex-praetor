@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0-alpha - 2026-07-21
+
+- Separated capability-canary provider proof from concurrent checkout drift: dirty-before is rejected, drift-during is durable evidence rather than a false provider failure.
+- Corrected terminal worker lifecycle presentation: `process_exited`, timeout, watcher failure and unknown states no longer occupy active lanes; successful exits explicitly await Codex verification.
+- Made shared release CI distinguish release-impact candidates from dependency-only candidates before immutable-tag checks.
+- Added UTF-8 pipe-chunk decoding regression coverage and fault-injection coverage for canary drift and CI classification.
+
 ## 0.7.1-alpha - 2026-07-21
 
 - Made the running plugin generation and bundled runtime contract authoritative for provider-readiness health; legacy `active.json` is now diagnostic-only and cannot block a newer loaded plugin.

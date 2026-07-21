@@ -1,0 +1,131 @@
+{
+  "schema": "codex-praetor-research-evidence/v1",
+  "subject": "0.7.1-alpha real acceptance and next-stage unified governance plan",
+  "generated_at": "2026-07-21T14:55:00+08:00",
+  "access_path": "native_mcp_and_kr",
+  "local_evidence": [
+    {
+      "kind": "git_state",
+      "path": "D:/Projects/CodexPraetor",
+      "fact": "main is 4877ecb and the working tree was clean during this audit.",
+      "strength": "direct"
+    },
+    {
+      "kind": "prior_acceptance",
+      "path": "D:/Projects/CodexPraetor/docs/reports/Codex执政官-0.7.0-alpha-本机真实验收-2026-07-21.md",
+      "fact": "0.7.0-alpha host and dry-run passed; one normal dispatch was blocked before job creation by legacy receipt authority; a CodeBuddy canary worker itself returned exit code 0 and the required marker but did not write readiness after concurrent main-checkout drift.",
+      "strength": "direct"
+    },
+    {
+      "kind": "native_runtime_probe",
+      "tool": "codex_praetor_runtime_info",
+      "fact": "The current Desktop process loads 0.7.1-alpha from the Codex-managed personal plugin cache with runtime contract SHA256 8abc88e40a463839b1b340121bf7e3955141138f9e3f7360600edeac71a9f3f5.",
+      "strength": "direct"
+    },
+    {
+      "kind": "native_health_probe",
+      "tool": "codex_praetor_health",
+      "fact": "The installed plugin, cache and marketplace are ready; provider_readiness is blocked because the current generation has no matching readiness tuple. Legacy receipt is diagnostic only. Maintenance and inventory are degraded, not the direct dispatch blocker.",
+      "strength": "direct"
+    },
+    {
+      "kind": "source_inspection",
+      "path": "D:/Projects/CodexPraetor/scripts/verify/test-provider-capability-canary.ps1",
+      "fact": "The script compares the entire main checkout git status before and after a successful worker run, then aborts before writing readiness if the status differs.",
+      "strength": "direct"
+    },
+    {
+      "kind": "source_inspection",
+      "path": "D:/Projects/CodexPraetor/mcp/src/tools.ts",
+      "fact": "isActiveStatus excludes completed/failed/blocked/skipped/cancelled but not process_exited, timed_out, watcher_failed or unknown, so exited jobs can be returned as active lanes.",
+      "strength": "direct"
+    },
+    {
+      "kind": "github_release",
+      "url": "https://github.com/ga626/codex-praetor/releases/tag/v0.7.1-alpha",
+      "fact": "v0.7.1-alpha is published with the setup zip and SHA256 sidecar. The zip asset digest is sha256:519028b8da926f53512638421dad56fd9ae50d6b7177ea64129da467fc4a35fb.",
+      "strength": "direct"
+    },
+    {
+      "kind": "github_actions",
+      "url": "https://github.com/ga626/codex-praetor/actions/runs/29805251545",
+      "fact": "CI for merge commit 4877ecb succeeded.",
+      "strength": "direct"
+    },
+    {
+      "kind": "github_actions",
+      "url": "https://github.com/ga626/codex-praetor/actions/runs/29805251577",
+      "fact": "Release On Main for merge commit 4877ecb succeeded.",
+      "strength": "direct"
+    },
+    {
+      "kind": "github_ci_failure",
+      "url": "https://github.com/ga626/codex-praetor/actions/runs/29805377102",
+      "fact": "Dependabot TypeScript update CI failed at test-release-intent because it demanded a new release tag after the script had already classified the change as development-only.",
+      "strength": "direct"
+    },
+    {
+      "kind": "github_ci_failure",
+      "url": "https://github.com/ga626/codex-praetor/actions/runs/29805369705",
+      "fact": "Dependabot @types/node update failed for the same release-intent/tag-gating reason, before compatibility tests.",
+      "strength": "direct"
+    }
+  ],
+  "external_evidence": [
+    {
+      "access_path": "native_mcp",
+      "tool": "kr_research",
+      "url": "KnowledgeRadar deep route: generic_web_ecology + github_repository_ecology",
+      "fact": "The research route admitted official documentation, implementation evidence and GitHub issue evidence, and required an evidence register.",
+      "strength": "method"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://code.visualstudio.com/api/working-with-extensions/testing-extension",
+      "fact": "VS Code describes extension integration tests as running in a special Extension Development Host; it documents isolated user-data configurations for deterministic trust-state runs.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://modelcontextprotocol.io/docs/tools/inspector",
+      "fact": "MCP Inspector documents connection, capability negotiation, tool schema/input/result testing, logs and edge-case testing.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://sre.google/workbook/canarying-releases/",
+      "fact": "Google SRE defines canarying as a partial, time-limited change evaluation and stresses attributable, isolated signals and explicit evaluation metrics.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "url": "https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations",
+      "fact": "GitHub documents attestation of built artifacts and verification with gh attestation verify.",
+      "strength": "official_direct"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "kr_web_search",
+      "url": "https://developers.openai.com/codex/plugins",
+      "fact": "Search result states installed plugins add skills, connectors and MCP tools to new chats. Direct body extraction returned HTTP 403, so this is treated as discovery-level confirmation only.",
+      "strength": "official_search_snippet",
+      "gap": "Direct page extraction was blocked by HTTP 403; no stronger claim is made."
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "kr_web_search",
+      "url": "https://developers.openai.com/codex/mcp",
+      "fact": "Search result states local Codex clients can connect directly to MCP servers and share configuration for the same Codex host. Direct body extraction returned HTTP 403.",
+      "strength": "official_search_snippet",
+      "gap": "Direct page extraction was blocked by HTTP 403; no stronger claim is made."
+    }
+  ],
+  "research_limitations": [
+    "OpenAI Codex manual helper and direct OpenAI page extraction both encountered HTTP 403 in this environment; the report uses only their search snippets for narrow discovery claims.",
+    "A clean-worktree acceptance ran one real dispatch attempt for 0.7.1-alpha. It was blocked before worker creation because the current generation has no matching readiness tuple; no readiness or receipt was edited during the read-only acceptance."
+  ]
+}

@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.7.1-alpha`
+Target release: `0.8.0-alpha`
 
-Status: `v0.6.2-alpha` is a public release incident and must not be activated or overwritten. `v0.7.1-alpha` is the explicit recovery version and is published automatically by `Release On Main` after this PR reaches `main`.
+Status: `v0.6.2-alpha` is a public release incident and must not be activated or overwritten. `v0.8.0-alpha` is the explicit recovery version and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 

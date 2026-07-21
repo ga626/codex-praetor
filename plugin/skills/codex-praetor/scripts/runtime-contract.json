@@ -1,7 +1,7 @@
 {
     "schema":  "codex-praetor-runtime-contract/v1",
     "product":  "codex-praetor",
-    "version":  "0.7.1-alpha",
+    "version":  "0.8.0-alpha",
     "wrapperProtocol":  "2",
     "taskContractSchema":  "codex-praetor-task-contract/v4",
     "requiredMcpTools":  [

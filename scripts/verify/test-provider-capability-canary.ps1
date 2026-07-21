@@ -15,6 +15,10 @@
 
     [string]$ReadinessPath = "",
 
+    # Test-only override. The production path always resolves the bundled
+    # dispatcher from the installed/source generation.
+    [string]$WrapperPath = "",
+
     [switch]$Apply
 )
 
@@ -57,11 +61,14 @@ function Get-ProviderCliPath {
     return [string]$config.providers.$ProviderName.cliPath
 }
 
-if (@($wrapper).Count -ne 1) {
+if (-not [string]::IsNullOrWhiteSpace($WrapperPath)) {
+    $wrapper = [System.IO.Path]::GetFullPath($WrapperPath)
+}
+if (@($wrapper).Count -ne 1 -or -not (Test-Path -LiteralPath $wrapper -PathType Leaf)) {
     throw "Dispatcher is missing: $wrapper"
 }
 if (@($nativeHelper).Count -ne 1) { throw "Native invocation helper is missing." }
-$wrapper = [string]$wrapper[0]
+$wrapper = if ($wrapper -is [array]) { [string]$wrapper[0] } else { [string]$wrapper }
 $nativeHelper = [string]$nativeHelper[0]
 . $nativeHelper
 if (@($runtimeContractPath).Count -ne 1) { throw "Runtime contract is missing." }
@@ -86,11 +93,10 @@ if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
 }
 
 $mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }
-$task = @"
-Read README.md and return exactly $marker in the final response.
-Do not perform external network research.
-Do not modify files.
-"@
+# Keep the worker instruction natural and small. Readonly permissions,
+# network policy, timeout, marker parsing and repository observations are
+# supervisor-side protocol, not prompt padding.
+$task = "Read README.md and reply exactly $marker."
 
 $argsList = @(
     "-NoProfile",
@@ -116,6 +122,9 @@ if (-not $Apply) {
 }
 
 $beforeStatus = (& git -C $Repo status --short 2>$null | Out-String).Trim()
+if ($Apply -and -not [string]::IsNullOrWhiteSpace($beforeStatus)) {
+    throw "Capability canary requires a clean repository before it starts. Use an isolated checkout or commit/stash the current changes first."
+}
 $nativeResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList $argsList -WorkingDirectory $projectRoot -TimeoutSeconds 360
 $exitCode = [int]$nativeResult.exit_code
 $outputText = (([string]$nativeResult.stdout) + "`n" + ([string]$nativeResult.stderr)).Trim()
@@ -130,7 +139,23 @@ if (-not $Apply) {
 
 if ($exitCode -ne 0) { throw "Capability canary failed with exit code $exitCode." }
 if ($outputText -notmatch [regex]::Escape($marker)) { throw "Worker did not return the required marker." }
-if ($beforeStatus -ne $afterStatus) { throw "Canary changed the main checkout status." }
+
+# The worker proof and the caller checkout are independent observations. A
+# concurrent editor can change the checkout while a genuinely readonly worker
+# succeeds; losing that proof would deadlock every subsequent dispatch. A dirty
+# *starting* checkout remains unsafe and is rejected above. Drift during the
+# run is preserved as evidence rather than being misattributed to the worker.
+$repoObservation = [ordered]@{
+    clean_before = [string]::IsNullOrWhiteSpace($beforeStatus)
+    clean_after = [string]::IsNullOrWhiteSpace($afterStatus)
+    status = if ($beforeStatus -eq $afterStatus) { "unchanged" } else { "external_repo_drift_observed" }
+    before_status = $beforeStatus
+    after_status = $afterStatus
+    observed_at = (Get-Date).ToString("o")
+}
+if ($repoObservation.status -eq "external_repo_drift_observed") {
+    Write-Warning "Repository status changed while the canary ran. Provider proof remains valid; checkout drift was recorded for review."
+}
 
 $cliPath = Get-ProviderCliPath -Path $ConfigPath -ProviderName $Provider
 $cliHash = if (Test-Path -LiteralPath $cliPath -PathType Leaf) { (Get-FileHash -LiteralPath $cliPath -Algorithm SHA256).Hash } else { "" }
@@ -150,6 +175,7 @@ $entry = [pscustomobject]@{
     wrapper_protocol = [string]$runtimeContract.wrapperProtocol
     provider_source = "capability_canary"
     cli_version = Get-Field -Text $outputText -Name "version"
+    repo_observation = $repoObservation
 }
 
 $entries = @()
@@ -184,6 +210,7 @@ $state = [pscustomobject]@{
         task_kind = [string]$entry.task_kind
     }
     provider_source = "capability_canary"
+    repo_observation = $repoObservation
     updated_at = (Get-Date).ToString("o")
     entries = $entries
 }

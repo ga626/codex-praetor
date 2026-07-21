@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.7.1-alpha",
-    "previous_version":  "0.7.0-alpha",
-    "tag":  "v0.7.1-alpha",
+    "version":  "0.8.0-alpha",
+    "previous_version":  "0.7.1-alpha",
+    "tag":  "v0.8.0-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.7.1-alpha.zip",
-    "reason":  "修复更新后运行中插件被旧 active receipt 错误阻断的 P0 可用性缺陷：health/readiness 以当前 bundled generation 和 runtime contract 为准，旧收据仅保留发布诊断与回收用途；合并后自动发布 0.7.1-alpha 的同一已验收 artifact。"
+    "artifact":  "codex-praetor-setup-0.8.0-alpha.zip",
+    "reason":  "统一修复真实 provider canary 的并发仓库漂移误伤、worker 终态 lane 失真、分段 UTF-8 输出乱码与 dependency-only PR 被错误要求不可变 tag 的问题；合并后自动发布 0.8.0-alpha 的同一已验收 artifact。"
 }
