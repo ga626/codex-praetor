@@ -1,219 +1,150 @@
-# Codex 执政官 0.7.1-alpha 真实验收与下一阶段统一治理规划
+# Codex 执政官：从“只读试跑”到真实改码验收的统一计划
 
 > 日期：2026-07-21
-> 类型：只读考古、外部调研与下一阶段设计。本文不修改产品运行态，不把推测写成验收结论。
+> 性质：只读考古、外部调研与执行设计；本文不修改产品运行态、provider 凭据、readiness 或缓存。
+> 面向：希望判断“现在该不该提 PR、发布后怎样真验收、失败后会不会又变成收口补丁”的读者。
 
-## 一句话结论
+## 先说结论
 
-上一轮“修复运行中插件被旧收据阻断”的 PR 已经完成：`v0.7.1-alpha` 已公开发布，当前 Codex Desktop 也已经实际加载这个版本。此前那次真实验收并没有证明产品可用：它在 `0.7.0-alpha` 上发现了旧 `active.json` 错误阻断这一缺陷，随后真实任务在创建前停止。当前 `0.7.1-alpha` 的阻断原因已经不同且合理：新运行代际尚未完成一次真正成功的 provider capability canary，所以系统拒绝开始真实派工。
+**当前 `0.8.0-alpha` 分支应该现在提交 PR，不再把真实改码验收继续塞进这一个 PR。**
 
-下一步不是绕过安全门禁，也不是再开一串收口补丁。应当先在一个新的、已刷新宿主任务中执行一次标准真实验收；然后以它的证据为输入，做一个单独但完整的 `v0.8.0-alpha` 运行态可用性与验收治理 PR。这个 PR 一次解决 canary 并发误伤、任务终态/活跃 lane 失真、维护与库存可观测性、文本编码回归，以及非发布依赖 PR 被错误套用发布 tag 门禁的问题。
+这不是放弃验收，反而是把两类事情分开，避免再次混乱：
 
-## 1. 两条工作线到底各做了什么
+1. 当前 PR 修的是“发布、canary、任务状态和 CI 怎样正确工作”。它已经完成本地制品验证并通过远端 CI。
+2. 真实改码验收要验证的是“普通用户拿到已发布插件后，外部 worker 能否在隔离仓库里真正修改代码并把证据交回来”。它必须基于公开发布的 `0.8.0-alpha` 制品和当前代际的真实 provider proof 才有意义。
+3. 所以先合并并让自动发布完成；发布收口只做公开制品的下载复验。随后再做本机 provider 激活与真实改码验收。它们是**发布后的单机验收**，不是同版本的发布尾巴，更不是为收口准备的补丁。
+4. 如果真实改码验收发现确定性的产品缺陷，再把同一条链路的问题集中成下一份完整 PR；如果只是登录、权限、CLI 或 provider 不可用，则标为本机环境问题，不误报为发布失败或产品代码缺陷。
 
-| 工作线 | 已完成的事 | 没有完成的事 | 现状 |
-| --- | --- | --- | --- |
-| 运行中 readiness 修复 PR | 修复 health/readiness 把历史 `active.json` 当作当前运行代际权威的问题；补回归测试；合并、自动发布并下载复验同一 zip | 不能替代新版本的真实 provider 验收 | **已交付** |
-| 本机真实验收 | 在 `0.7.0-alpha` 上验证 host 已加载、dry-run 可用、CodeBuddy canary worker 能运行；精确找出旧收据权威错误 | 没能让正常真实派工创建 job，也没有证明 `0.7.1-alpha` 的真实任务可用 | **部分完成，结论不可迁移** |
+这套安排回答了一个容易混淆的问题：**产品已交付**证明 GitHub 上的用户已经能下载正确制品；**本机真实派工通过**证明这台机器、这个账号和这个 provider tuple 也能完成工作。前者不能等后者，后者也不能伪造前者。
 
-此前报告看起来像“没有启动”，实际并非如此：`0.7.0-alpha` 的 CodeBuddy canary 进程返回了成功 marker，真正的审计任务则在创建 job **之前**被 health 门禁挡住。根因是 health 在声明“运行 generation 为权威”的同时，仍把 `0.4.1-alpha` 的旧 receipt generation/contract 传入 readiness 校验。该矛盾已由 `0.7.1-alpha` 修复。
+## 1. 当前到底是什么状态
 
-## 2. 当前事实快照
-
-### 2.1 已经交付的部分
-
-- `main` 当前为 `4877ecb 修复运行中插件的 readiness 权威链 (#32)`，工作树干净。
-- GitHub Release `v0.7.1-alpha` 已公开发布：`codex-praetor-setup-0.7.1-alpha.zip`，资产 SHA256 为 `519028b8da926f53512638421dad56fd9ae50d6b7177ea64129da467fc4a35fb`。
-- 本次 main 的 CI 与 `Release On Main` 均成功；远端下载、zip SHA256、解压后的 bundled MCP 合同均已在收口时复验。
-- 当前原生 `codex_praetor_runtime_info` 返回 `0.7.1-alpha`，运行根为 `%USERPROFILE%\.codex\plugins\cache\personal\codex-praetor\0.7.1-alpha`，因此 Desktop 已完成 host 刷新。
-
-这四项共同说明：**代码已合并、公开产品已交付、当前本机 host 已加载新插件**。它们不等同于“本机真实派工已经验收通过”。
-
-### 2.2 当前真实可用性状态
-
-| 检查 | 当前结果 | 含义 |
+| 项目 | 真实状态 | 说明 |
 | --- | --- | --- |
-| runtime contract / marketplace / plugin cache | ready | 安装源、缓存和当前运行合同一致 |
-| legacy `active.json` | degraded，仅诊断 | 仍指向旧历史代际，但不再参与 dispatch 权威判断 |
-| provider readiness | blocked | 当前 `0.7.1-alpha` 没有与自身 generation、合同、CLI hash、模型、权限和任务类型匹配的成功 canary |
-| fresh-context 历史收据 | degraded | 旧 receipt 没有新 generation 的 proof；当前原生 `runtime_info` 已是 host 的直接观察 |
-| generation maintenance | degraded | `CodexPraetor-GenerationReconcile` 在本机不存在 |
-| runtime inventory | degraded | 存在历史 worktree、job 与审计保留项；不是派工阻断原因 |
+| 当前分支 | `codex/runtime-acceptance-governance` | 已推送至远端 |
+| 当前提交 | `c408067` | 包含 `0.8.0-alpha` 的治理修复和发布面更新 |
+| 工作树 | 干净 | 本报告重写前没有未提交改动 |
+| 远端 CI | 通过 | [run 29813789807](https://github.com/ga626/codex-praetor/actions/runs/29813789807) 成功 |
+| GitHub PR | 尚未创建 | 因此尚未合并、尚未发布 `0.8.0-alpha` |
+| 公开产品 | `0.7.1-alpha` 已交付 | 不应把它误称为 `0.8.0-alpha` 已交付 |
 
-因此当前 `health=blocked` 的唯一关键原因是“尚未对 **这个版本** 成功完成 provider canary”。这是刻意的安全条件：不允许旧版本、旧 CLI 或过期凭据给新版本背书。它不是发布事故，也不是把旧 `active.json` 再次错误用于拦截。
+当前分支已修复的重点是：canary 不再把别的写入者造成的仓库变化错误归咎于自己；已退出或超时的 worker 不再伪装成仍在运行；PowerShell 到 MCP 的 UTF-8 分段输出有回归保护；依赖更新 PR 不再误走 release tag 门禁。它还同步了版本、release intent、文档、测试和最终 zip 验收。
 
-## 3. 为什么此前测试没跑完
+## 2. 上一次真实验收做了什么，为什么没有成功
 
-### 3.1 第一个阻断：已修复的实现缺陷
+上一次验收不是“worker 做坏了”，也不是“只读任务就没价值”。它完成了一个必要但不充分的检查：确认 `0.7.1-alpha` 已被 Desktop 加载、安装源和 runtime contract 一致、dry-run 可用，并且只真正尝试了一次派工。
 
-`0.7.0-alpha` 的 readiness 文件本身已经包含当前 generation 的有效 CodeBuddy tuple，但 health 又读取旧 `active.json` 并把旧 generation/contract 当成期望值。结果是：真实 dispatch 在创建 job 前返回“运行 generation health blocked”。这不是 provider、账号或安全策略失败，而是 health 权威链自相矛盾。`0.7.1-alpha` 已将当前 bundled generation 与 runtime contract 设为唯一权威，并有旧 receipt/新 generation 回归测试。
+真实任务在创建 job **之前**被安全门禁停止。原因是运行 generation 已是 `0.7.1-alpha`，而本机只有 `0.7.0-alpha` 的 provider readiness。旧版本的成功记录不能替新版本、不同合同、不同 CLI 或不同权限状态背书，这个 fail-closed 行为本身是正确的。
 
-### 3.2 第二个阻断：canary 的并发耦合
+因此，当时没有产生 `job_id`、lane、worker diff 或 completion。它不能被称为“真实 worker 执行失败”，更不能把手写 readiness 当作解决办法。真正需要修的是：让一次已成功执行的 canary 不会因为主仓库被别的流程同时改动而丢失自身 provider proof；这正是当前 `0.8.0-alpha` PR 已经处理和测试的内容。
 
-上一轮 canary 真正启动了 CodeBuddy worker，worker `exit_code=0`、marker 存在、stderr 为空、worktree 干净。但脚本在写 readiness 前做了主检出 `git status` 前后完全相等检查。验收期间另一条工作流在主检出写入文件，于是脚本抛出：
+## 3. 为什么现在不能直接做“更破坏性的真实改码验收”
+
+用户想要的方向是对的：下一次不应只让 worker 读文件，而要让它在可丢弃环境中读代码、改代码、跑测试、交回 diff，并让 Codex 独立验收。
+
+但它不应现在在未发布分支上进行，原因有四个：
+
+- **不能代表用户制品。** 当前源码分支并不是普通用户安装到的 zip；在这里成功，只能证明开发检出可用，不能证明发布包可用。
+- **当前 generation 还没有真实 proof。** 强行继续只会再次被正确的 health gate 拦住；手写 proof 会让安全门禁失去意义。
+- **会把 PR 无限扩容。** 当前 PR 的范围已经是完整的运行态治理与发布修复；把一次探索性压力验收及其所有发现继续塞入，会回到“为了收口不断开补丁”的旧模式。
+- **失败归因会混在一起。** 未发布源码、发布逻辑、账号登录、外部 CLI、模型权限和工作任务失败会彼此混淆，最后谁也无法知道真正的问题在哪。
+
+正确顺序是：先让当前 PR 交付正确的公开制品；再对这台机器做一次可归因的激活；最后才让真实 worker 改代码。
+
+## 4. 当前 PR 应怎样推进
+
+这是一个发布影响 PR。现在应创建 PR，而不是继续扩大实现范围。
+
+合并前的最后核对只需确认：目标分支仍是最新 `main`、本报告和证据侧车已纳入变更、工作树干净、PR 页面没有新的冲突或失败检查。现有本地构建、最终 zip runtime 验收和远端 CI 已是前置证据，不需要为了创建 PR 再重复一次大规模测试。
+
+合并后，`Release On Main` 必须从精确合并提交构建并发布 `v0.8.0-alpha`，然后下载公开的 `codex-praetor-setup-0.8.0-alpha.zip` 复验同一 artifact。只有这一步通过，状态才是“产品已交付”。
+
+如果 release workflow 失败，合法状态是“代码已合并，产品未交付（release incident）”。应重跑同一 SHA 的 workflow 或按规则处理 workflow 缺陷；**不得**为同一版本手工补传 zip，也不得新开“收口修复 PR”。
+
+## 5. 发布后如何做真正的改码验收
+
+这里的“更真实”不等于允许 worker 碰主仓库。它意味着让 worker 在隔离 worktree 中完成一件完整、可验证、可丢弃的开发工作。
+
+### 5.1 第一关：当前代际激活（不是新的 PR）
+
+进入条件：`v0.8.0-alpha` 已公开发布，并已完成远端下载复验。
+
+执行：安装公开 zip，完全刷新 Codex Desktop，创建一个干净任务，调用 `runtime_info` 确认插件版本、合同 SHA、运行目录和 generation 一致；随后执行一次真实 provider capability canary，让系统自己写入当前 generation 的 readiness。
+
+退出条件：health 中 provider readiness 只引用当前 generation 的真实 proof。不能手改 `active.json`、readiness、receipt 或缓存。
+
+若失败：只取一次底层证据并分类为登录、CLI、权限/模型合同、网络、provider 运行失败或产品 gate 缺陷。前四类不是产品发布失败；最后一类才进入下一份产品 PR 候选。
+
+### 5.2 第二关：真实项目 worktree 验收（不是新的 PR）
+
+只有第一关通过后才开始。由调度器在 disposable linked worktree 中以 `code_change` 模式派发外部 CLI worker；主仓库、`.git`、账号文件、插件缓存和 `node_modules` 都是禁止写入区域。worktree 只用于验收，永不合并。
+
+给 worker 的自然语言保持短，不把验收协议塞进提示词：
 
 ```text
-Canary changed the main checkout status.
+在这个项目里完成一个小而完整的改进，修改代码并运行相关测试；完成后说明改了什么、测试结果和剩余风险。
 ```
 
-这条检查原本是为了证明“只读 canary 没有污染主仓库”，却把“其他人同时修改主仓库”也判成“canary 失败”。两件事不等价：前者影响 canary 是否安全，后者只影响本次能否声称主仓库静止。它导致 provider 的真实成功证据不能写入 readiness，随后所有真实任务必然被新 generation 的门禁挡住。
+外围调度器而非提示词负责限制 allowed paths、记录任务类型、版本、超时、测试命令和证据位置。Codex 最终必须独立检查：
 
-### 3.3 这次不能把门禁关掉
+- 真实 job、worktree 与 worker 启动记录存在；
+- diff 只在允许路径内，且主仓库没有变化；
+- worker 的测试确实执行，必要时由 Codex 重跑关键测试；
+- completion、result、timeline 和 stdout/stderr 相互一致；
+- 清理后 worktree 已解除注册、job 已归档、主工作树仍干净。
 
-不能手改 `active.json`、readiness 或伪造 marker；那只会把“未经真实 provider 验证”的版本错误标成可派工。正确处理是：
+### 5.3 第三关：真实问题型 fixture 压力验收（建议与第二关同一验收窗口）
 
-1. 在没有其他写入者的窗口运行一次真实 canary；
-2. canary 成功后，系统自动写入这一 generation 的 tuple；
-3. 再执行一次有真实业务价值的只读任务；
-4. 如果 canary 因登录、CLI、权限或 provider 自身失败，停止真实派工，精确记录失败类别；不重试空转。
+真实项目任务验证“能不能在本项目工作”；fixture 验证“是否真的能完成问题闭环”。建立一个一次性 Git fixture：初始状态有一个真实失败测试，worker 必须阅读代码、修改实现，并让该测试从 fail 变 pass。
 
-## 4. 仍未解决、但应纳入下一大 PR 的问题
+这不是造假的“永远能通过”脚本。它要记录修改前失败、worker diff、修改后通过、completion/result/timeline、Codex 复核和清理回执。SWE-bench 的核心方法正是把模型补丁应用到真实仓库并运行仓库测试，而不是相信模型的文字回答。
 
-### P0：0.7.1-alpha 真实派工尚未验收
+## 6. 完整路线图：哪些是 PR，哪些不是
 
-这是当前最大的未知，不是已证明的代码缺陷。必须通过一次成功的 current-generation canary 和一次真实只读 job 才能关闭。若 canary 合法失败，结果应为“本机 provider 未就绪”，而不是对产品代码下结论。
+| 阶段 | 是否 PR | 目标 | 成功出口 | 失败后怎么走 |
+| --- | --- | --- | --- | --- |
+| PR 1：`0.8.0-alpha` | 是，现在提交 | 修复验收/发布治理本身 | 合并、同 SHA 自动发布、公开下载复验 | release incident：只重跑原 SHA 或修自动发布路径 |
+| 单机激活 | 否 | 新 generation 真实 canary 与 readiness | 当前 generation 的 provider proof | 登录/CLI/权限/provider 问题留在本机；产品 gate 缺陷进入问题清单 |
+| 真实改码验收 | 否 | 隔离 worktree 真实 diff + 测试 + 清理 | Codex 独立验收通过且主仓库无变化 | 收集证据，不立即补丁、不重复盲跑 |
+| PR 2：验收发现的集中修复 | 仅有确定性产品缺陷时 | 修复同一链路的全部可复现缺陷与故障注入 | 新 artifact-first PR 完整通过 | 按正常发布流程，不称为 PR 1 的“收口修复” |
+| 长期 eval harness | 可单独规划 | 把真实验收变成可重复的产品能力 | 固定短任务、固定 fixture、可比结果 | 逐步扩充样本，不一次性制造大平台 |
 
-### P1：canary 将无关并发修改误判成自身污染
+这意味着：当前 PR 合并后不会留下“产品没有发布”的尾巴；真实派工发现问题也不会偷偷变成当前版本的发布尾巴。它只会产生两种清晰结果：本机环境待处理，或下一份完整产品 PR 的明确输入。
 
-`test-provider-capability-canary.ps1` 与用户向导的 readonly canary 都直接比较主检出前后 git status。下一版应拆成两条证据：
+## 7. 验收体系的边界和证据标准
 
-- provider/worktree 证明：worker 成功、marker、completion、stderr、worktree diff、tuple 与 CLI hash；这是写 readiness 的依据。
-- 仓库静止观察：clean-before、clean-after、外部 drift 明细；它只决定“能否宣称主仓库保持干净”，不否定已经完成的 provider 能力证明。
+没有一次测试能证明“以后绝不会出任何问题”。可执行的严谨标准是：每个可控链路都有进入条件、真实证据、退出条件和明确归因；不可控依赖不会被伪装成产品缺陷或发布失败。
 
-若开始前主仓库已经脏，canary 应明确拒绝或要求隔离验证；若运行中出现外部 drift，应记录 `external_repo_drift_observed`，而不是把 provider 成功改写成失败。两种行为都要有故障注入测试。
-
-### P1：已退出 job 被错误展示为 active
-
-现有 `isActiveStatus` 只排除 `completed/failed/blocked/skipped/cancelled`，遗漏 `process_exited`、`timed_out`、`watcher_failed` 和 `unknown`。因此完成记录虽然正确写成 `process_exited`，lane 列表仍标 `active=true`。这会污染冲突检测、库存和人的判断。
-
-下一版应将“进程是否在跑”与“逻辑任务是否待验收”分开显示：
-
-- `running` / `queued` / `cancel_requested` 才是 active；
-- `process_exited` 应是 terminal + `awaiting_verification`，不能占用 active lane；
-- `timed_out`、`watcher_failed`、`unknown` 必须显示为失败或需要人工处理；
-- result 分类必须能解释“成功退出但没有足够业务证据”的状态，而不是一律 `unknown_worker_state`。
-
-### P1：Dependabot 的非发布依赖 PR 被错误套用发布 tag 校验
-
-当前两个开放 Dependabot PR（TypeScript `5.9.3 -> 7.0.2`、`@types/node` `25.9.5 -> 26.1.1`）失败原因不是依赖安装或测试失败。日志先明确输出“开发期 MCP 依赖更新不需要产品发布”，随后仍运行远端 immutable tag 检查，发现 `v0.7.1-alpha` 已存在而失败。
-
-这说明 release-impact 判定只在部分步骤生效。下一版应让同一份 `release-impact` 结果驱动整个 reusable pipeline：非发布 PR 运行安装、构建、测试、协议 smoke 和安全扫描，但跳过 release-intent/tag/remote-release 前提；发布影响 PR 才要求递增版本、release intent 与不可复用 tag。两个 Dependabot PR 不应手动合并或绕过检查；修复 pipeline 后应由正常 CI 重跑验证真实依赖兼容性。
-
-### P2：维护、库存与历史 receipt 的状态尚未收敛
-
-- `CodexPraetor-GenerationReconcile` 缺失，当前不阻断派工，但缺少预期的延迟回收重试。
-- runtime inventory 保留了大量 historical artifacts、clean/unmerged worker worktrees 和 job；应提供安全、可预览的回收计划，而不能由 health 暗示已清理。
-- `fresh_context` 仍从 legacy receipt 读取 proof，和“运行 generation 是权威”的新模型不完全一致。应让 native runtime observation 与发布收据的职责彻底分离。
-
-### P2：原生 health 的中文消息在 MCP 输出中出现乱码
-
-脚本源码含正常中文，而当前 MCP health 的若干消息出现 `��`。这可能是 Node/PowerShell 进程输出解码边界，而不是文案文件本身。下一版要先补端到端 UTF-8 回归测试，再定位和修复；在没有测试前不把它断言为单一根因。
-
-## 5. 真正的“把问题挖出来”应如何做
-
-没有单个自然语言任务能数学上证明“所有问题都不存在”。可达成的标准是：所有已知用户路径、状态转换和失败类别都有明确证据；无法由本机控制的 provider/login/网络边界被显式标记，不伪造通过，也不无限重试。
-
-下一阶段采用一个统一验收包，而不是临时拼命令。它由下表的八个面组成；真实任务只是其中最重要的一面。
-
-| 面 | 要验证的事实 | 真实/模拟边界 |
+| 证据面 | 必须证明什么 | 不能替代什么 |
 | --- | --- | --- |
-| 发布物 | 最终 zip 的版本、generation、MCP 工具和合同一致 | 真实 zip；已有 artifact-first 流程继续保留 |
-| 安装与 host | marketplace、缓存、Desktop 原生 `runtime_info` 指向目标 generation | 真实新宿主任务 |
-| 安全准入 | 当前 provider、模型、权限、task kind、CLI hash 和有效期都匹配 | 一次真实 readonly canary；绝不手写 readiness |
-| 真实业务任务 | job 被创建、worker 返回可检查报告、completion/result/timeline 一致、主仓库不被 worker 污染 | 一次有业务价值的只读审计任务 |
-| 失败路径 | 旧 receipt、过期 canary、CLI hash 漂移、权限拒绝、timeout、取消、外部 repo drift | 可重复故障注入；不能冒充真实 provider 成功 |
-| 生命周期 | terminal job 不再列为 active；未验收不解锁依赖；result 可解释 | 单元/集成 smoke + 一个真实 job 交叉验证 |
-| 发布流程 | release PR 与非发布依赖 PR 各走正确门禁 | GitHub Actions 可复现测试与两条 Dependabot PR 重跑 |
-| 用户可读性 | 中文结构化输出未乱码，失败提示给出下一步 | MCP 端到端文本断言 |
+| artifact-first 发布 | 源码、构建、zip、上传和远端下载是同一 artifact | 不能证明本机账号可用 |
+| host 观察 | Desktop 确实加载新 generation | 不能替代完整重启或 provider proof |
+| provider canary | 此 provider/CLI/模型/权限 tuple 当前可用 | 不能证明 worker 完成业务任务 |
+| worker 改码任务 | 有真实 diff、真实测试和完整生命周期证据 | 不能证明所有类型任务都可用 |
+| fixture fail-to-pass | agent 能完成具体问题闭环 | 不能替代真实项目的兼容性判断 |
+| 清理回执 | 隔离副作用已被回收、主仓库不受污染 | 不删除 Codex 管理的缓存或历史代际 |
 
-### 5.1 下一次真实验收的最小自然语言任务
+为了避免“worker 说成功但其实没有完成”的老问题，验收结论至少需要四类独立证据：worker 产生的 diff、实际测试输出、控制层 completion/result/timeline、Codex 的独立复核。任意一项缺失都只能标为未通过或证据不足。
 
-真实 worker 不应接收一大段测试说明。建议任务只有一个正常、可复查的目标：
+## 8. 外部调研得到的做法，以及本项目怎样采用
 
-```text
-审计 Codex Praetor 当前 main 对普通用户是否可安装、可发现并能安全派发只读任务；只读，不改代码。列出发现的风险和证据。
-```
-
-调度器外围负责记录版本、canary、completion、worktree、result 和 git status；这些是验收协议，不应塞给 worker。这样该任务本身有真实价值，也会经过用户真正关心的派工链路。
-
-### 5.2 门禁失败时怎么办
-
-| 失败类别 | 允许做什么 | 不允许做什么 | 结论 |
+| 证据 | 外部做法 | 本项目采用 | 不照搬的地方 |
 | --- | --- | --- | --- |
-| 当前 generation 没有 canary | 执行一次官方 readonly canary | 手写 readiness、借用旧版本记录 | 本机 provider 尚未验证 |
-| provider 登录/CLI/权限失败 | 记录精准类别，按 provider 官方流程处理后再验收 | 连续重派、扩大权限、读取 auth 数据库 | 外部依赖未就绪 |
-| canary 运行中出现外部 repo drift | 记录 drift，检查 worker worktree 与 proof；按新语义分类 | 将外部改动归咎于 canary | 验收完整性降级，但 provider 结果不被伪改 |
-| 真实 job 失败 | 读取一次 completion/stdout/stderr/timeline，归类后停止 | 盲目重复相同派工 | 可复现的产品或环境问题 |
-| host 仍为旧版本 | 完全重启 Desktop 后新建一个任务再验一次 | 连续新建任务企图热替换 | host 刷新未完成 |
+| [Git worktree 文档](https://git-scm.com/docs/git-worktree) | 一个仓库可有多个 linked worktree；实验可使用无分支的可丢弃 worktree，结束须 `remove`/`prune` | 所有真实改码验收在 disposable worktree，主工作树禁止写入；清理须检查 Git 注册也已解除 | 不把“删除目录”误当成已清理；必须用 Git 命令确认 |
+| [SWE-bench Evaluation](https://www.swebench.com/SWE-bench/guides/evaluation/) | 对真实仓库应用补丁并运行测试，以容器化环境保持可复现 | fixture 使用 fail-to-pass 测试、真实 patch 与独立复核 | 不需要一开始引入 Docker 集群或完整 benchmark；先做一个小而稳定的 fixture |
+| [OpenAI：系统化评估 Agent Skill](https://developers.openai.com/blog/eval-skills) | 用“短提示词 → 运行轨迹与产物 → 小检查集 → 可比较得分”而不是凭感觉判断 | 提示词短；外围记录证据；检查 diff、测试、清理、行为和效率 | 不把评分取代人工安全验收；Codex 仍是最终监督者 |
+| [GitHub Artifact Attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations) | 构建证明可以绑定制品来源和构建过程 | 保持当前同一 artifact 的构建、上传、下载复验；后续可将 attestation 作为增强 | provenance 不能证明 provider 或真实任务成功 |
+| [OpenAI 插件文档](https://developers.openai.com/codex/plugins/build) 与 [MCP 文档](https://developers.openai.com/codex/mcp) | 插件可打包 Skill/MCP；本地 Codex host 的 MCP 配置由 Desktop、CLI、IDE 共享 | 把“发布物可用”和“当前 host 已刷新”明确分层；新任务仅用于观察刷新后的 host | 不以反复新建任务替代 host 重启，也不把开发检出当安装入口 |
+| [SWE-bench Live 论文](https://arxiv.org/abs/2505.23419) | 静态 benchmark 有数据污染和过拟合风险，动态真实任务仍需可复现环境 | fixture 要轮换并记录版本、环境、任务和测试；不能只看单个成功样本 | 不把外部 benchmark 分数当本项目质量结论 |
 
-## 6. 下一阶段的组织方式
+本轮外部调研由 KnowledgeRadar 先规划路线，再使用其原生正文抽取与搜索工具；没有把搜索摘要当作强证据。OpenAI 文档本轮已获得正文抽取，取代此前 403 下的摘要级引用。
 
-不需要现在开多个并发对话。执行时只开 **一个** 新的 Codex 项目任务，专门做 `0.7.1-alpha` 的真实验收；当前对话保留为下一大 PR 的设计、实现和集成位置。
+## 9. 进入下一步前的清单
 
-新任务的作用不是让另一个 Codex 模型代替开发，而是提供已刷新 Desktop host 的干净原生 MCP 观察面。它会通过 Codex Praetor 实际派发一个外部 CodeBuddy readonly worker。无需高频轮询：任务结束后只读取一次完整 result 和本地证据目录。
+现在：把本报告和证据侧车作为当前 `0.8.0-alpha` PR 的文档补充，创建 PR，检查新出现的 GitHub 问题后合并。
 
-如真实验收通过，当前对话立刻进入下一大 PR；如失败，当前对话把失败证据作为同一大 PR 的输入。除非发现必须由用户完成登录、授权或网络恢复，否则不需要再新开第三个对话。
+发布收口：只验证自动 Release 是否从合并 SHA 发布，并下载公开 zip 复验；成功即“产品已交付”。
 
-## 7. 下一大 PR：范围与执行顺序
+随后：完全刷新本机 host，做一次当前 generation canary；通过后在 disposable worktree 中连续完成“真实项目小改动”和“fail-to-pass fixture”两项验收；不高频轮询，只在 worker 结束后收取一次完整证据。
 
-建议版本：`v0.8.0-alpha`。这是发布影响 PR，因为会调整 bundled MCP、派工/验收脚本、CI 和用户可见诊断。
-
-### 目标
-
-把“发布物已交付、当前 host 已加载、provider 已验证、任务已完成”变成四个分开、可观察、不可互相伪造的状态；让每个发布影响 PR 合并后自动发布成功，而本机真实可用性作为独立的用户验收结果，绝不再制造收口补丁循环。
-
-### 实施包
-
-1. **真实验收协议与 canary 语义**：提取统一的 acceptance evidence schema；修正 canary 的并发判定；为 clean、dirty-before、drift-during、worker 失败、marker 缺失建立测试。
-2. **job/lane/result 真值**：修正 active 判定；把 terminal execution、evidence、governance verdict 分层显示；补齐真实 completion 到 result 的分类和回归测试。
-3. **运行态维护**：把 native host observation、历史 receipt、maintenance task、inventory 和安全回收职责拆开；维护任务注册失败必须可见且可测试；不直接删除 Codex cache。
-4. **GitHub pipeline 分流**：把 release-impact 判定做成 reusable pipeline 的单一输入；非发布依赖 PR 不检查 tag/release intent，发布 PR 完整检查；为两类 PR 加 workflow 回归测试。
-5. **编码与文档**：测试 PowerShell/Node/MCP 的 UTF-8 边界；更新安装、排错、验收清单、路线图和 release notes，使“发布交付”与“本机 provider 验收”分层写清。
-6. **版本与发布面**：同 PR 更新 release intent、版本面、变更日志、release notes 和最终 zip 验收；合并后只允许 `Release On Main` 发布同一 artifact。
-
-### PR 前验收标准
-
-- 所有既有相关测试与新增故障注入通过；MCP 源码、bundled plugin 与最终 zip 三层合同一致。
-- release-impact 与 dependency-only 的 GitHub Actions fixture/测试各通过一次；当前 #24/#25 在修复分支基础上能重新通过真实 CI，再判断依赖是否要合并。
-- 使用隔离 profile 验证新插件合同、health、lane/result 和文字编码；不污染稳定安装。
-- PR 描述明确：自动发布策略、版本/tag、发布资产、合并后唯一动作、普通用户下载验证方法和本机 host 验收边界。
-- 合并后 release run 成功、远端下载复验成功即为“产品已交付”；Desktop 刷新/当前 generation canary 为单机 `needs_user_action`，不得再被包装成同版本收口事故。
-
-## 8. 规则调整建议
-
-### 项目规则：应在下一大 PR 直接落实
-
-1. **验收状态分层**：任何状态输出都必须区分 `artifact_delivered`、`host_loaded`、`provider_ready`、`job_terminal`、`supervisor_accepted`；禁止用一个 `ready` 覆盖全部含义。
-2. **canary 证据原则**：readiness 只能来自当前 generation 的真实 canary；仓库清洁度是独立观察，不能因外部 drift 否定 provider proof。
-3. **流水线单一分流**：release-impact 判定必须由 reusable pipeline 计算一次并传给所有后续门禁；非发布 PR 绝不能被要求复用已存在 tag。
-4. **状态终态原则**：`process_exited`、`timed_out`、`watcher_failed` 等不属于 active；“等待 Codex 验收”不等于“worker 仍在运行”。
-5. **收口边界**：公开 Release 的 artifact-first 下载复验通过后，发布收口结束；本机 host/credential/provider 问题只能记录为单机验收结果，除非它揭示了已发布 artifact 的确定性缺陷。
-
-### 全局规则候选：仅建议，暂不改写
-
-可形成一条跨项目的短规则：**安全门禁阻断时，先区分“门禁实现错误”和“外部能力尚未验证”；只做一次受控真实尝试，记录底层证据，绝不为继续流程伪造通过状态。**
-
-它来源于本项目连续出现的误解，适用于其他需要账号、设备、CLI 或外部 worker 的项目；是否写入全局规则应在本 PR 验证后再决定。
-
-## 9. 外部调研如何影响本方案
-
-| 来源 | 可确认的实践 | 对本项目的采用 |
-| --- | --- | --- |
-| VS Code Extension Testing | 集成测试运行在独立 Extension Development Host；可使用独立 user data，不能把正在运行的宿主当成唯一可测对象 | 把隔离 profile 合同测试与真实 Desktop host 验收分开 |
-| MCP Inspector 官方文档 | Inspector 可检查连接、能力协商、工具 schema、定制输入、执行结果和错误边界 | 继续保留 bundled protocol smoke；补工具/参数/错误输出契约测试，不以协议 smoke 代替 Desktop 或真实 worker |
-| Google SRE Canarying Releases | canary 是有限时间的局部验证；信号必须可归因，控制面与被测面要区分 | provider canary 只回答“这个 tuple 是否可用”，不拿无关主仓库变化否定它；drift 成为独立指标 |
-| GitHub Artifact Attestations | 发布物可以由精确构建来源和可验证的资产绑定 | 保留并强化当前同一 artifact 构建、上传、下载复验；后续可评估 GitHub attestation，但不拿它替代运行时验收 |
-| OpenAI Codex Plugin/MCP 文档检索 | 搜索结果显示插件向新任务提供 Skill/MCP 工具，MCP 配置在同一 Codex host 间共享 | 新任务用于观察已刷新 host；“只新开任务不重启 host”仍不能替代 host 刷新 |
-
-外部来源均已通过 KnowledgeRadar 路由。OpenAI 官方正文抓取受 403 限制，故该项只采用搜索摘要可确认的边界，不做超出文档的推断。
-
-## 10. 真实验收执行结果与下一步
-
-本报告完成后，已在一个干净 worktree 的新 Codex 任务中执行一次只读真实验收；worker 提示词保持为一句自然语言，没有塞入验收规程。结果是：
-
-- 当前原生 MCP 确认为 `0.7.1-alpha`，marketplace、缓存和 runtime contract 一致。
-- 合法 dry-run 成功，路由为外部 Qoder readonly worker。
-- 真实派工严格只尝试一次，在 worker 启动前被 `Runtime generation health is blocked` 拒绝；没有 `job_id`、lane、项目运行产物或仓库改动。
-- 根因是 readiness 文件仍属于 `0.7.0-alpha`，而当前运行 generation 是 `0.7.1-alpha`。旧 proof 不得授权新 generation；本轮只读边界下没有手写 readiness、receipt 或伪造 canary。
-
-因此结论不是“provider 已失败”，而是“本机当前 generation 尚未完成真实 provider 验证”。这个结果直接成为 `0.8.0-alpha` PR 的输入：修正 canary 的并发 drift 语义、终态展示、UTF-8 解码和 CI 分流；合并后的公开 Release 仍由唯一的 `Release On Main` 自动交付。新版本安装到本机后，再按一次正式 canary + 一次简短真实只读审计完成单机验收；它不再形成同版本收口补丁。
+最后：把验收输出分为三类：`通过`、`本机/provider 待处理`、`确定性产品缺陷`。只有第三类才建立下一份集中修复 PR。这样可以获得真实、甚至有一定破坏性的验证强度，同时不污染主线、不伪造安全状态，也不会让发布收口再次变成无止境的补丁链。
