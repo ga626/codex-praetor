@@ -31,15 +31,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.8.0-alpha/codex-praetor-setup-0.8.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.8.0-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.8.0-alpha.zip .\codex-praetor-setup-0.8.0-alpha
-cd .\codex-praetor-setup-0.8.0-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.8.1-alpha/codex-praetor-setup-0.8.1-alpha.zip" -OutFile ".\codex-praetor-setup-0.8.1-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.8.1-alpha.zip .\codex-praetor-setup-0.8.1-alpha
+cd .\codex-praetor-setup-0.8.1-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.8.0-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.8.1-alpha
 ```
 
 ### 2. 双击安装向导
@@ -114,9 +114,9 @@ Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile
 
 ### 5. 让 Codex 发现插件
 
-安装后重启 Codex，或者打开一个新任务。
+先确认 stable marketplace 已安装该下载包的 `release-generation.json`，再使用 Codex 支持的刷新动作或完全重启 Codex Desktop。刷新后新开一个任务，先调用 `codex_praetor_runtime_info`；它的版本和 runtime contract SHA 必须等于下载包。仅打开新任务不能刷新已经运行的 host。
 
-这是 Codex 插件发现机制的正常要求，不是 Codex Praetor 每次使用都要新开任务。平时使用时，如果工具通道临时失败，优先看 [troubleshooting.zh.md](troubleshooting.zh.md) 的轻量恢复步骤。
+身份一致后才运行真实只读 canary；canary 通过后再做 dry-run 或真实派工。平时工具通道临时失败时，优先看 [troubleshooting.zh.md](troubleshooting.zh.md) 的轻量恢复步骤。
 
 ### 6. 第一次 dry-run
 

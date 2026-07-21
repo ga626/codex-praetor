@@ -6,7 +6,7 @@
 
 | 现象 | 通常原因 | 下一步 |
 | --- | --- | --- |
-| 看不到 Codex Praetor 插件 | 插件还没安装，或常驻 Desktop host 仍解析旧注册表 | 先确认安装脚本成功；新任务不能刷新 host，使用 Codex 支持的刷新动作或完全退出后重新启动 |
+| 看不到 Codex Praetor 插件 | stable marketplace 未安装目标 Release，或常驻 Desktop host 仍加载旧版本 | 先核对下载包与 `plugin/release-generation.json`；安装一致后再刷新 host，新任务不能替代刷新 |
 | 插件能看到，但 MCP 工具不可见 | Desktop host 的插件发现未刷新，或 Node 不可用 | 先确认 Node.js；用独立 host 诊断区分磁盘安装与常驻 Desktop host |
 | MCP 工具报 `Transport closed` | 当前回合的工具句柄旧，或常驻 host 未刷新 | 单独 probe 只能诊断，不能刷新 Desktop；先确认 runtime identity，再按支持的 Desktop 刷新动作恢复 |
 | 没有 Qoder、CodeBuddy、MiMo | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
@@ -18,7 +18,7 @@
 
 ## 看不到 Codex Praetor 插件
 
-先确认你已经运行过安装向导。如果你使用的是 `0.8.0-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
+先确认你已经运行过安装向导。如果你使用的是 `0.8.1-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
@@ -31,7 +31,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 [PASS] Personal marketplace entry is present.
 ```
 
-然后使用 Codex 支持的插件刷新动作，或者完全退出并重新启动 Codex。仅打开一个新任务不保证刷新已经运行数小时的 Desktop host。
+然后核对 stable marketplace 的 `plugin/release-generation.json` 与下载包根目录的 generation manifest 一致。只有一致后，才使用 Codex 支持的插件刷新动作或完全退出并重新启动 Codex。仅打开一个新任务不保证刷新已经运行数小时的 Desktop host。
 
 插件安装和更新后，需要同时满足“Desktop host 已重新解析插件”和“新工具上下文已创建”两个条件。后者不能替代前者。
 

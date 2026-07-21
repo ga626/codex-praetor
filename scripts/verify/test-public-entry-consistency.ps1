@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.8.0-alpha",
+    [string]$Version = "0.8.1-alpha",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ProjectRoot = "",
     [switch]$SkipRemoteRelease
@@ -144,6 +144,13 @@ Assert-Contains -Text $releaseBuilder -Needle ('[string]$Version = "' + $Version
 Assert-Contains -Text $releasePublisher -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release publisher"
 Assert-Contains -Text $releaseVerifier -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release verifier"
 Assert-Contains -Text $releaseBuilder -Needle "Build-PackagedMcpRuntime" -Label "release package builder"
+Assert-Contains -Text $releaseVerifier -Needle "published-artifact" -Label "published Release verifier mode"
+Assert-Contains -Text $releaseVerifier -Needle "local_candidate_stale" -Label "stale local candidate classification"
+Assert-Contains -Text $setup -Needle "codex_praetor_runtime_info" -Label "setup host identity order"
+Assert-Contains -Text $setup -Needle "-ExpectedGenerationPath" -Label "setup expected Release generation"
+Assert-NotContains -Text $setup -Needle "Invoke-CanaryStep -Statuses" -Label "setup must not run canary before host identity"
+Assert-Contains -Text $installZh -Needle "release-generation.json" -Label "installation identity boundary"
+Assert-NotContains -Text $installZh -Needle "安装后重启 Codex，或者打开一个新任务" -Label "obsolete installation refresh wording"
 
 $staleMarkers = @(
     'releases/tag/v0.1.1-alpha',
