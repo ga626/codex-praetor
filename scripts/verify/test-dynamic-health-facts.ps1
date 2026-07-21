@@ -17,6 +17,10 @@ try {
     [ordered]@{ schema = "codex-praetor-provider-readiness/v2"; generation_id = "gen-1"; runtime_contract_sha256 = "contract-1"; entries = @($entry) } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $readiness -Encoding UTF8
     $ok = Test-CodexPraetorProviderReadiness -Path $readiness -ProviderName codebuddy -Cli $cli -ModelName hy3 -Permission local-audit-v1 -Kind local_audit -ExpectedGeneration gen-1 -ExpectedRuntimeContract contract-1 -ExpectedTaskContract task-v4
     Assert-True $ok.ok "Current readiness tuple should pass."
+    $currentEntries = Get-CodexPraetorCurrentReadinessEntries -Path $readiness -ExpectedGeneration gen-1 -ExpectedRuntimeContract contract-1 -ExpectedTaskContract task-v4
+    Assert-True $currentEntries.ok "Current-generation readiness summary should find the valid tuple."
+    $wrongGeneration = Get-CodexPraetorCurrentReadinessEntries -Path $readiness -ExpectedGeneration gen-2 -ExpectedRuntimeContract contract-1 -ExpectedTaskContract task-v4
+    Assert-True (-not $wrongGeneration.ok) "A readiness summary must reject a different running generation."
     Set-Content -LiteralPath $cli -Value "cli-v2" -Encoding UTF8
     $drift = Test-CodexPraetorProviderReadiness -Path $readiness -ProviderName codebuddy -Cli $cli -ModelName hy3 -Permission local-audit-v1 -Kind local_audit -ExpectedGeneration gen-1 -ExpectedRuntimeContract contract-1 -ExpectedTaskContract task-v4
     Assert-True (-not $drift.ok) "CLI hash drift must fail closed."

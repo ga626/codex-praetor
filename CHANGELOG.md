@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1-alpha - 2026-07-21
+
+- Made the running plugin generation and bundled runtime contract authoritative for provider-readiness health; legacy `active.json` is now diagnostic-only and cannot block a newer loaded plugin.
+- Kept real dispatch fail-closed on the exact provider/model/permission/task/CLI-hash tuple while making health report only valid tuples for the current generation.
+- Added a regression fixture for an old receipt with a newer plugin generation and readiness record, plus JSON-safe source generation output.
+
 ## 0.6.3-alpha - 2026-07-20
 
 - Recovered from the `0.6.2-alpha` release incident with a new version; the published 0.6.2 artifact is retained and is not activated or overwritten.

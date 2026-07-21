@@ -461,6 +461,20 @@ if (Test-Path -LiteralPath $dynamicFactsTest -PathType Leaf) {
     Add-Fail "Dynamic readiness regression script missing: $dynamicFactsTest"
 }
 
+$runningGenerationHealthTest = Join-Path $projectRoot "scripts\verify\test-running-generation-health-proof.ps1"
+if (Test-Path -LiteralPath $runningGenerationHealthTest -PathType Leaf) {
+    try {
+        $healthAuthorityOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $runningGenerationHealthTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($healthAuthorityOutput | Out-String) -match "Running generation")) {
+            Add-Pass "Running-generation health authority regression passes"
+        } else {
+            Add-Fail "Running-generation health authority regression failed: $($healthAuthorityOutput | Out-String)"
+        }
+    } catch { Add-Fail "Running-generation health authority regression failed: $($_.Exception.Message)" }
+} else {
+    Add-Fail "Running-generation health authority regression script missing: $runningGenerationHealthTest"
+}
+
 $receiptContractTest = Join-Path $projectRoot "scripts\verify\test-release-receipt-contract.ps1"
 if (Test-Path -LiteralPath $receiptContractTest -PathType Leaf) {
     try {

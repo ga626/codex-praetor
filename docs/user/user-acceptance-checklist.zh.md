@@ -12,7 +12,7 @@
 
 ## 2. Release 包
 
-- [ ] 从 `v0.7.0-alpha` Release 下载 `codex-praetor-setup-0.7.0-alpha.zip`。
+- [ ] 从 `v0.7.1-alpha` Release 下载 `codex-praetor-setup-0.7.1-alpha.zip`。
 - [ ] 校验 SHA256 文件和 zip 匹配。
 - [ ] 解压后根目录能看到 `setup.cmd` 和 `setup.ps1`。
 - [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/user/installation.zh.md`、`docs/user/troubleshooting.zh.md`。
@@ -93,6 +93,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 
 - [ ] 输出包含 `CODEX_PRAETOR_CANARY_OK` 或等价成功标记。
 - [ ] 主仓库 Git 状态没有因为只读 canary 变脏。
+- [ ] 更新插件后，health 的 `running_generation` 与当前 `runtime_info` 对应；旧 `active.json` 不会阻断当前版本的 canary 或真实派工。
 
 ## 8. 故障恢复
 

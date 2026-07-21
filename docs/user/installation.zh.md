@@ -31,15 +31,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.7.0-alpha/codex-praetor-setup-0.7.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.7.0-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.7.0-alpha.zip .\codex-praetor-setup-0.7.0-alpha
-cd .\codex-praetor-setup-0.7.0-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.7.1-alpha/codex-praetor-setup-0.7.1-alpha.zip" -OutFile ".\codex-praetor-setup-0.7.1-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.7.1-alpha.zip .\codex-praetor-setup-0.7.1-alpha
+cd .\codex-praetor-setup-0.7.1-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.7.0-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.7.1-alpha
 ```
 
 ### 2. 双击安装向导
@@ -104,13 +104,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 安装脚本会先复制到临时目录，校验文件 hash 后再替换旧目录。旧目录会被移动到备份目录。
 
-旧目录不会在安装瞬间强制删除。维护任务会读取 active receipt，只回收非活动、超过保留窗口且没有被进程占用的目录；占用或临时失败会记录为待重试状态，不会强杀 Codex，也不会影响已激活的新 generation。可以这样查看任务：
+旧目录不会在安装瞬间强制删除。维护任务会按退休清单保留仍可能被占用的目录，并在后续安全重试；不会强杀 Codex，也不会影响已加载的新插件。旧 `active.json` 只记录历史发布证据，不是当前插件是否可派工的依据。可以这样查看任务：
 
 ```powershell
 Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile
 ```
 
-正式更新会另外生成一份发布回执。回执会同时记录下载包校验、Skill、插件、缓存、marketplace、重新打开 Codex 后的 MCP 工具面，以及 provider canary。只有回执完整且健康检查通过，才允许真实派工；如果更新中断，系统会拒绝新版本派工，而不会把一组混装文件当作可用版本。
+正式更新会生成发布证据，记录下载包校验和同一 artifact 的发布结果。真实派工由当前运行插件自身决定：它会验证当前 bundled generation、runtime contract，以及所选 provider 的 CLI、模型、权限、任务类型和有效的只读 canary。旧发布回执、旧缓存或旧 `active.json` 不会反向阻断已加载的新插件；如果当前版本尚未完成 canary，系统会明确提示先运行一次真实只读 canary。
 
 ### 5. 让 Codex 发现插件
 
