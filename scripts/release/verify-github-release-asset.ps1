@@ -1,9 +1,10 @@
 param(
-    [string]$Version = "0.8.0-alpha",
+    [string]$Version = "0.8.1-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
     [string]$ArtifactManifestPath = "",
+    [ValidateSet("same-artifact", "published-artifact")][string]$VerificationMode = "same-artifact",
     [switch]$SkipBuild
 )
 
@@ -73,9 +74,26 @@ function Assert-CmdFileUsesCrlf {
     }
 }
 
+function Resolve-GitHubTagCommit {
+    param([string]$Repository, [string]$Tag)
+    $refJson = & gh api "repos/$Repository/git/ref/tags/$Tag"
+    if ($LASTEXITCODE -ne 0) { throw "Unable to resolve GitHub tag $Repository@$Tag." }
+    $ref = $refJson | ConvertFrom-Json
+    $object = $ref.object
+    if ([string]$object.type -eq "tag") {
+        $tagJson = & gh api "repos/$Repository/git/tags/$($object.sha)"
+        if ($LASTEXITCODE -ne 0) { throw "Unable to resolve annotated GitHub tag $Repository@$Tag." }
+        $object = ($tagJson | ConvertFrom-Json).object
+    }
+    if ([string]$object.type -ne "commit" -or [string]$object.sha -notmatch "^[0-9a-f]{40}$") {
+        throw "GitHub tag $Repository@$Tag does not resolve to a commit."
+    }
+    return ([string]$object.sha).ToLowerInvariant()
+}
+
 Assert-Command -Name "gh"
 
-if (-not $SkipBuild) {
+if ($VerificationMode -eq "same-artifact" -and -not $SkipBuild) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "build-codex-praetor-release.ps1") -Version $Version -OutputRoot $OutputRoot -Apply
     if ($LASTEXITCODE -ne 0) {
         throw "Local release package build failed."
@@ -86,20 +104,17 @@ if (-not $SkipBuild) {
     }
 }
 
-if (-not (Test-Path -LiteralPath $localZip -PathType Leaf)) {
-    throw "Local release zip missing: $localZip"
+$artifactManifest = $null
+if ($VerificationMode -eq "same-artifact") {
+    if (-not (Test-Path -LiteralPath $localZip -PathType Leaf)) { throw "Local release zip missing: $localZip" }
+    if (-not (Test-Path -LiteralPath $localSha -PathType Leaf)) { throw "Local release SHA256 file missing: $localSha" }
+    if (-not (Test-Path -LiteralPath $localNotes -PathType Leaf)) { throw "Local release notes missing: $localNotes" }
+    if (-not (Test-Path -LiteralPath $ArtifactManifestPath -PathType Leaf)) { throw "Artifact manifest is missing: $ArtifactManifestPath" }
+    $artifactManifest = Get-Content -LiteralPath $ArtifactManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$artifactManifest.status -ne "artifact_verified" -or [string]$artifactManifest.verification.status -ne "passed") { throw "Same-artifact verification requires an artifact_verified manifest." }
 }
-if (-not (Test-Path -LiteralPath $localSha -PathType Leaf)) {
-    throw "Local release SHA256 file missing: $localSha"
-}
-if (-not (Test-Path -LiteralPath $localNotes -PathType Leaf)) {
-    throw "Local release notes missing: $localNotes"
-}
-if (-not (Test-Path -LiteralPath $ArtifactManifestPath -PathType Leaf)) { throw "Artifact manifest is missing: $ArtifactManifestPath" }
-$artifactManifest = Get-Content -LiteralPath $ArtifactManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ([string]$artifactManifest.status -ne "artifact_verified" -or [string]$artifactManifest.verification.status -ne "passed") { throw "Remote verification requires an artifact_verified manifest." }
 
-$releaseJson = & gh release view $Tag --repo $Repository --json tagName,isDraft,isPrerelease,assets,body 2>&1
+$releaseJson = & gh release view $Tag --repo $Repository --json tagName,isDraft,isPrerelease,assets,body
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to read GitHub Release $Repository@$Tag. Output: $releaseJson"
 }
@@ -125,26 +140,44 @@ try {
 
     $remoteZip = Join-Path $tmp "$releaseName.zip"
     $remoteSha = Join-Path $tmp "$releaseName.zip.sha256"
-    $localZipHash = Get-FileSha256Lower -Path $localZip
     $remoteZipHash = Get-FileSha256Lower -Path $remoteZip
-    if ($localZipHash -ne $remoteZipHash) {
-        throw "Remote release zip is stale or different. Local=$localZipHash Remote=$remoteZipHash"
-    }
-    if ($remoteZipHash -ne [string]$artifactManifest.artifact.sha256) { throw "Remote release zip is not the verified artifact. Remote=$remoteZipHash Verified=$($artifactManifest.artifact.sha256)" }
-
     $remoteShaText = Read-TextNormalized -Path $remoteSha
-    if ($remoteShaText -notlike "$localZipHash*") {
-        throw "Remote SHA256 file does not match the remote/local zip hash."
+    if ($remoteShaText -notlike "$remoteZipHash*") {
+        throw "Remote SHA256 file does not match the downloaded zip hash."
     }
-
-    $localNotesText = Read-TextNormalized -Path $localNotes
-    $remoteNotesText = ([string]$release.body -replace "`r`n", "`n").Trim()
-    if ($localNotesText -ne $remoteNotesText) {
-        throw "GitHub Release notes differ from local release notes: $localNotes"
+    if ($VerificationMode -eq "same-artifact") {
+        $localZipHash = Get-FileSha256Lower -Path $localZip
+        if ($localZipHash -ne $remoteZipHash) {
+            throw "Remote release zip differs from the verified local artifact. Local=$localZipHash Remote=$remoteZipHash"
+        }
+        if ($remoteZipHash -ne [string]$artifactManifest.artifact.sha256) { throw "Remote release zip is not the verified artifact. Remote=$remoteZipHash Verified=$($artifactManifest.artifact.sha256)" }
+        $localNotesText = Read-TextNormalized -Path $localNotes
+        $remoteNotesText = ([string]$release.body -replace "`r`n", "`n").Trim()
+        if ($localNotesText -ne $remoteNotesText) { throw "GitHub Release notes differ from local release notes: $localNotes" }
     }
 
     $unzip = Join-Path $tmp "unzip"
     Expand-Archive -LiteralPath $remoteZip -DestinationPath $unzip -Force
+    $remoteGenerationPath = Join-Path $unzip "codex-praetor-release-generation.json"
+    if (-not (Test-Path -LiteralPath $remoteGenerationPath -PathType Leaf)) { throw "Remote release zip is missing its generation manifest." }
+    $remoteGeneration = Get-Content -LiteralPath $remoteGenerationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $tagCommit = Resolve-GitHubTagCommit -Repository $Repository -Tag $Tag
+    if ([string]$remoteGeneration.version -ne $Version -or [string]$remoteGeneration.commit -ne $tagCommit) {
+        throw "Remote release generation does not match version/tag commit. Version=$($remoteGeneration.version) Commit=$($remoteGeneration.commit) TagCommit=$tagCommit"
+    }
+    if ($VerificationMode -eq "same-artifact" -and [string]$remoteGeneration.commit -ne [string]$artifactManifest.generation.commit) {
+        throw "Remote release generation commit differs from the verified local artifact manifest."
+    }
+    if ($VerificationMode -eq "published-artifact" -and (Test-Path -LiteralPath $ArtifactManifestPath -PathType Leaf)) {
+        try {
+            $localCandidate = Get-Content -LiteralPath $ArtifactManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$localCandidate.generation.commit -ne $tagCommit) {
+                Write-Host "[INFO] local_candidate_stale: local candidate commit $($localCandidate.generation.commit) differs from published tag commit $tagCommit."
+            }
+        } catch {
+            Write-Host "[INFO] local_candidate_unreadable: published-artifact verification ignores the local candidate manifest."
+        }
+    }
     $setupPath = Join-Path $unzip "setup.ps1"
     if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
         throw "Remote release zip is missing setup.ps1."
@@ -168,9 +201,10 @@ try {
     Assert-Contains -Text $setupText -Needle "CodeBuddy" -Label "CodeBuddy choice"
     Assert-Contains -Text $setupText -Needle "MiMo" -Label "MiMo choice"
 
-    Write-Host "[PASS] GitHub Release zip matches the local build: $remoteZipHash"
+    Write-Host "[PASS] Downloaded GitHub Release zip verified: $remoteZipHash"
     Write-Host "[PASS] GitHub Release SHA256 file matches."
-    Write-Host "[PASS] GitHub Release notes match local release notes."
+    if ($VerificationMode -eq "same-artifact") { Write-Host "[PASS] GitHub Release notes match local release notes." }
+    Write-Host "[PASS] Downloaded Release generation matches tag commit: $tagCommit"
     Write-Host "[PASS] Downloaded remote setup.cmd uses CRLF line endings."
     Write-Host "[PASS] Downloaded remote zip contains the current onboarding wizard."
 

@@ -124,6 +124,18 @@ function Test-PowerShellFile {
     }
 }
 
+function Test-PowerShellEncoding {
+    param([string]$Path)
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    $hasUtf8Bom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+    $text = [Text.Encoding]::UTF8.GetString($bytes)
+    if ($text -match '[^\x00-\x7F]' -and -not $hasUtf8Bom) {
+        Add-Fail "PowerShell source with non-ASCII text must use UTF-8 BOM: $Path"
+    } else {
+        Add-Pass "PowerShell encoding is Windows-safe: $Path"
+    }
+}
+
 $sourceSkill = Join-Path $projectRoot "skill\codex-praetor"
 $pluginSkill = Join-Path $projectRoot "plugin\skills\codex-praetor"
 $installedSkill = Join-Path $env:USERPROFILE ".codex\skills\codex-praetor"
@@ -261,10 +273,12 @@ $psRoots = @(
     (Join-Path $pluginSkill "scripts"),
     (Join-Path $projectRoot "examples")
 )
-Get-ChildItem -LiteralPath $psRoots -Filter "*.ps1" -File -Recurse |
-    Sort-Object FullName |
-    ForEach-Object { Test-PowerShellFile $_.FullName }
-Test-PowerShellFile $setupScript
+$psFiles = @(Get-ChildItem -LiteralPath $psRoots -Filter "*.ps1" -File -Recurse | Sort-Object FullName)
+$psFiles += Get-Item -LiteralPath $setupScript
+foreach ($psFile in $psFiles) {
+    Test-PowerShellEncoding $psFile.FullName
+    Test-PowerShellFile $psFile.FullName
+}
 
 try {
     $sourceMap = Get-RelativeHashMap $sourceSkill

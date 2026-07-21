@@ -2,6 +2,7 @@ param(
     [string]$SourcePlugin = (Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))) "plugin"),
     [string]$InstallRoot = (Join-Path $env:USERPROFILE "plugins\codex-praetor"),
     [string]$MarketplacePath = (Join-Path $env:USERPROFILE ".agents\plugins\marketplace.json"),
+    [string]$ExpectedGenerationPath = "",
     [switch]$Apply
 )
 
@@ -114,10 +115,54 @@ function Update-Marketplace {
     }
 }
 
+function Read-GenerationIfPresent {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    try {
+        $generation = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+        foreach ($name in @("product", "version", "generation_id", "commit", "runtime_contract_sha256")) {
+            if ([string]::IsNullOrWhiteSpace([string]$generation.$name)) { throw "missing $name" }
+        }
+        if ([string]$generation.product -ne "codex-praetor") { throw "unexpected product" }
+        return $generation
+    } catch { throw "Release generation manifest is invalid: $Path ($($_.Exception.Message))" }
+}
+
+function Test-GenerationEqual {
+    param($Left, $Right)
+    return $null -ne $Left -and $null -ne $Right -and
+        [string]$Left.version -eq [string]$Right.version -and
+        [string]$Left.generation_id -eq [string]$Right.generation_id -and
+        [string]$Left.commit -eq [string]$Right.commit -and
+        [string]$Left.runtime_contract_sha256 -eq [string]$Right.runtime_contract_sha256
+}
+
+function Write-InstallationReceipt {
+    param([string]$Path, [string]$InstallPath, [string]$MarketplacePath, $Generation)
+    $receipt = [ordered]@{
+        schema = "codex-praetor-installation-receipt/v1"
+        installed_at = [DateTime]::UtcNow.ToString("o")
+        source_kind = if ($null -eq $Generation) { "development_source" } else { "release_bundle" }
+        install_path = $InstallPath
+        marketplace_path = $MarketplacePath
+        generation = $Generation
+    }
+    $temp = "$Path.tmp-$([Guid]::NewGuid().ToString('N'))"
+    [IO.File]::WriteAllText($temp, (($receipt | ConvertTo-Json -Depth 10) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
+    Move-Item -LiteralPath $temp -Destination $Path -Force
+}
+
 $sourcePath = Resolve-FullPath $SourcePlugin
 $installPath = Resolve-FullPath $InstallRoot
 $marketplacePath = Resolve-FullPath $MarketplacePath
 $installParent = Split-Path -Parent $installPath
+$sourceGeneration = Read-GenerationIfPresent -Path (Join-Path $sourcePath "release-generation.json")
+if (-not [string]::IsNullOrWhiteSpace($ExpectedGenerationPath)) {
+    $expectedGeneration = Read-GenerationIfPresent -Path (Resolve-FullPath $ExpectedGenerationPath)
+    if ($null -eq $expectedGeneration -or -not (Test-GenerationEqual $sourceGeneration $expectedGeneration)) {
+        throw "Source plugin generation does not equal the expected Release generation."
+    }
+}
 
 if (-not (Test-Path -LiteralPath $sourcePath -PathType Container)) {
     throw "Source plugin missing: $sourcePath"
@@ -176,11 +221,20 @@ try {
     if ($installedDiffs.Count -gt 0) {
         throw "Installed copy differs from source: $($installedDiffs -join '; ')"
     }
+    $installedGeneration = Read-GenerationIfPresent -Path (Join-Path $installPath "release-generation.json")
+    if ($null -ne $sourceGeneration -and -not (Test-GenerationEqual $sourceGeneration $installedGeneration)) {
+        throw "Installed plugin generation differs from the source Release generation."
+    }
+    Write-InstallationReceipt -Path (Join-Path $installParent "codex-praetor-installation.json") -InstallPath $installPath -MarketplacePath $marketplacePath -Generation $installedGeneration
 
     Write-Host "[PASS] Codex Praetor plugin copied to a real local directory."
     Write-Host "[PASS] Personal marketplace entry is present."
-    Write-Host "Next: refresh the running Codex Desktop host through a supported action or restart Codex. A new task alone does not refresh host plugin discovery."
-    Write-Host "After that, ask Codex to split a task for external agents in dry-run mode."
+    if ($null -eq $installedGeneration) {
+        Write-Host "[WARN] Development source installed; it is not evidence of a public Release."
+    } else {
+        Write-Host "[PASS] Installed Release generation: $($installedGeneration.generation_id)"
+    }
+    Write-Host "Next: verify the installed identity against the target Release, then refresh the running Codex Desktop host. A new task alone does not refresh host plugin discovery."
 } catch {
     if (Test-Path -LiteralPath $tempPath) {
         Remove-Item -LiteralPath $tempPath -Recurse -Force

@@ -1,72 +1,35 @@
 # Codex Praetor 项目规则
 
-## 产品边界
+## 产品与安装边界
 
-Codex Praetor 服务于 Codex：把边界清楚的工作分配给外部命令行代理，由 Codex 负责规划、监督和验收。除非用户明确改变范围，否则不要扩展为通用多代理平台。
+- Codex Praetor（Codex 执政官）只为 Codex 派发边界清楚的外部 CLI 工作；Codex 规划、监督和验收，不扩展成通用多代理平台。
+- 活动名称固定为 `Codex Praetor`、`codex-praetor`、`codex_praetor_`；旧名仅可留在迁移/历史材料。
+- `plugin/` 是最终包，`mcp/` 是源码，`scripts/` 按职责分组；`skill/` 是派生兼容镜像，不能成为安装入口或运行时依赖。
+- 仓库检出目录不是安装目录。稳定入口只有 personal marketplace 指向的 `%USERPROFILE%\plugins\codex-praetor`；开发只用隔离 `UserProfileRoot`。不得手改 `%USERPROFILE%\.codex\plugins\cache`、认证或 provider 数据库。
 
-## 命名与结构
+## PR 与发布
 
-统一使用：产品 `Codex Praetor`，中文名 `Codex 执政官`，仓库/Skill/MCP 服务名 `codex-praetor`，MCP 工具前缀 `codex_praetor_`。
+- 改 `plugin/`、`mcp/`、`skill/`、安装/排错/发布路径、版本或用户安装体验即为发布影响 PR；同一 PR 必须更新版本面、changelog、release notes 和 `config/release-intent.json`。
+- PR 就绪前：从最终 stage/zip 启动 bundled MCP，核对版本、runtime contract SHA、工具集和 generation manifest；源码、`mcp/dist`、`plugin/mcp/dist`、zip 任一漂移即失败。构建、测试、候选 CI 和发布共用同一入口。
+- main 合并后仅由受保护的 `Release On Main` 从合并 SHA 自动构建、发布、下载复验；同一带 SHA manifest 的 zip 必须贯穿运行时验收、上传、远端下载和 attestation。tag/draft 后失败只重跑原 run；创建 tag 前发现 workflow 缺陷才允许递增版本的恢复 PR。
+- 每个 release incident 必须在下一次修复 PR 中加入可重复故障注入测试，并落到 artifact 或合同不变量；模拟 proof 不能替代真实收口证据。
+- 公开结果仅为 `产品已交付` 或 `代码已合并，产品未交付（release incident）`。后者停止下一次发布影响 PR，先修自动发布路径或重跑原 SHA；不得同版本补发、手工上传替代包或留收口尾巴。
 
-- `skill/`：从 `plugin/skills/` 派生的兼容镜像；不构成安装入口或运行时依赖。
-- `scripts/`：按 `dispatch/`、`install/`、`verify/`、`release/`、`maintenance/` 分组的脚本。
-- `mcp/`：MCP 源码。
-- `plugin/`：最终插件包结构。
+## 公开交付与本机验收
 
-旧名称 `cheap-worker-orchestrator`、`WorkerLane`、`workerlane` 只能出现在迁移记录、审计规则或历史报告中，不得作为活动产品名称或新接口名称。
+- 公开交付：同一 artifact 的构建、bundled runtime、Release 上传和普通用户远端下载复验全部通过。本机未刷新不否定公开交付。
+- 本机验收严格按：下载并验真目标 Release → stable marketplace 安装身份等于该 Release → 刷新 Codex host → 新任务内 `runtime_info` 等于安装身份 → provider canary → 真实 worker。新任务不能替代 host 刷新。
+- 任何不等必须停止并精确报告：`needs_install`、`needs_host_restart`、`needs_canary` 或 `local_candidate_stale`；不得用旧缓存、旧回执、手写 readiness、手工 cache 操作或重启猜测跳关。
+- 安装身份、host runtime、provider readiness 和公开 Release 是四个独立观察；收据只能证明自身范围，不能互相冒充。真实 canary 必须在干净仓库或隔离 checkout；worker/worktree 证据、provider proof 和仓库漂移分别记录。
 
-## 本地安装边界
+## 版本、运行与安全
 
-仓库检出目录是开发项目，不是已安装插件。产品运行入口只有 personal marketplace 指向的真实插件目录：
-
-```text
-%USERPROFILE%\plugins\codex-praetor
-```
-
-插件包内的 `skills/codex-praetor` 与 MCP 一起由 Codex 加载。`%USERPROFILE%\.codex\skills\codex-praetor` 是迁移期兼容副本，不能作为健康门禁、派工前提或发布收据的一部分。Codex 管理 `%USERPROFILE%\.codex\plugins\cache`；发布器不得手工写入、覆盖或删除缓存。开发验证使用明确隔离的 `UserProfileRoot`，不得覆盖稳定 marketplace 来源或用户配置。稳定发布由受保护的 `Release On Main` workflow 自动执行。
-
-## 开发、PR 与发布
-
-详细发布步骤以 `docs/release/release-gate-checklist.md` 为准；本文件只规定判断边界：
-
-用户入口是 GitHub Release 的 `codex-praetor-setup-*.zip`，不是 `main` 源码树。修改 `setup.cmd`、`setup.ps1`、`plugin/`、`skill/`、`mcp/`、安装/排错/发布文档、版本号或安装体验，均属于影响交付的修改。
-
-- **PR 开发中**：只改源码检出目录和隔离验证环境。发布影响变更必须在同一个 PR 内更新 `config/release-intent.json`、版本面、release notes 和 changelog。
-- **PR 就绪**：基于最新目标分支完成工作树、测试、构建、打包、文档、release-intent、冲突和不可复用 tag 检查；缺少 release intent 的发布影响 PR 不得合并。
-- **PR 合并后**：受保护的 `Release On Main` workflow 从精确合并提交自动构建、创建 draft、上传资产、发布不可变 Release 并下载复验；不得再靠人工补发版。候选 CI 与发布必须调用同一份 reusable pipeline。若 tag/draft/Release 已存在而后段失败，只能重跑原 GitHub Actions run（它保留原 SHA）；若在创建 tag 前发现 workflow 定义错误，才允许一份显式递增版本的恢复 PR。GitHub 的外部 API/网络存在不可消除的瞬时失败，因此失败状态必须公开，不能静默进入下一次开发。本机 Desktop 是否已经重启并载入新缓存属于单机安装状态，不得反向判定公开 Release 未交付。
-- **Artifact-first 不变量**：任何发布影响 PR 必须在合并前从最终 stage/zip 启动 bundled MCP，校验 `serverInfo.version`、runtime contract SHA、工具集合和 generation manifest；源码、`mcp/dist`、`plugin/mcp/dist`、最终 zip 任何一层版本不一致都必须失败。运行时合同只有 `config/runtime-contract.json` 一个可手写来源，plugin/Skill 副本必须由生成器派生并在 CI 拒绝漂移。`npm test`、发布器和共享 workflow 必须使用同一份构建入口，不能把生成产物当作手工维护副本。
-- **同一 artifact 晋升**：main release run 只能构建一个带 SHA 的 artifact manifest；真实 runtime 验收、Release 上传、远端下载复验和 attestation 必须引用这同一份 zip。发布器不得隐式 rebuild 或上传未通过 `artifact_verified` 验收的文件。
-- **历史事故必杀**：每宗 release incident 都必须增加可重复的故障注入测试，并映射到一条合同或 artifact 不变量；模拟的 runtime/proof JSON 只能覆盖解析器单元测试，不能作为完整收口通过证据。
-- **收口不可回归**：合并后的公开产品状态只有两种合法结果：`产品已交付`，或 `代码已合并，产品未交付（release incident）`。后者必须停住下一次发布影响 PR，优先重跑原 SHA 或修复自动发布路径；不得为同一版本另开“收口修复 PR”，不得手工上传替代包。公开 Release 已通过远端下载复验后即为产品交付；本机 Desktop host 刷新是用户安装后的 `needs_user_action`，不能制造新的 release incident 或阻断下一次开发。
-- **canary 证据边界**：真实 provider canary 开始前必须使用干净仓库或隔离 checkout；当前 generation 的真实 provider proof、worker/worktree 证据和仓库状态观察必须分别记录。运行中出现 checkout drift 时，记录 `external_repo_drift_observed` 并要求后续审查，不能把它伪装成 provider 失败或丢弃已获 proof；不得手写 readiness、receipt 或借用旧 generation proof。
-- **任务终态与流水线分流**：`process_exited`、`timed_out`、`watcher_failed`、`unknown` 都不是 active execution lane；“等待 Codex 验收”不等于 worker 仍在运行。reusable pipeline 必须只计算一次 release-impact，非发布 dependency-only PR 仍跑构建/测试，但不得进入 release intent 递增或 immutable-tag 检查。
-- **全新上下文触发条件**：只有 MCP 工具名称/参数、Skill 或 Plugin manifest、安装入口、插件来源或工具合同变化时，每个版本代际验收一次；普通实现修改、reload 或文件编辑不触发。
-- **产品已交付**：必须有同一 artifact 的构建、runtime、上传和远端普通用户下载复验通过。活动收据只能记录发布证据，不能要求全局 Skill、人工复制缓存或单台 Desktop 的刷新。旧缓存由 Codex 退休；被占用时报告“新版本已交付，旧版本自动延迟回收中”，不得声称缓存已全部清空。
-
-Codex 负责分支、修改、验证、提交、推送和 PR 材料；用户负责 GitHub 创建/合并 PR 以及一次性仓库权限配置。合并后的发布由受保护 workflow 自动完成，不再要求用户或 Codex 另开发布尾巴。
-
-## 版本代际与回收
-
-- 发布版本代际不可变；不得原地覆盖可能仍被 Codex 对话引用的目录。
-- 发布器不得直接删除旧缓存、插件、Skill 或备份，必须交给统一的退休/回收机制。
-- 回收机制必须可重复、限定在批准根目录内，并在发布收口、安装、用户登录和后续定时维护时重试。活动版本永远不是回收候选。
-- Windows 报告占用、权限或临时 IO 失败时，保留旧版本，记录原因和下次重试时间；不得强杀 Codex、停止 provider 或把延迟删除报告为成功。
-- 回收失败不得改变活动收据或回滚已通过的 activation。若自动回收机制尚未实现，不得声称产品已交付。
-- 不得用兼容 junction/稳定指针把旧工具合同静默映射到新合同；同合同兼容别名也必须有记录和测试。
-
-## 原生进程调用
-
-- 原生 CLI 以进程退出后的 `exit_code == 0` 判定成功；`stderr` 只是诊断信息。
-- 需要读取 `$LASTEXITCODE` 时，不得在 `$ErrorActionPreference = "Stop"` 下用 `2>&1` 合并 provider、Git、发布或 app-server 调用的错误流。
-- 统一辅助程序分离捕获 stdout/stderr，记录启动失败、超时、退出码和诊断尾部，兼容 Windows PowerShell 5.1 与 PowerShell 7，避免流死锁。
-- marker、工作树、completion 和 provider readiness 是退出码之后的附加门禁；退出码或 marker 任一失败都必须失败。
-
-## 研究与安全
-
-- 外部研究由 Codex 与 KnowledgeRadar 负责路线和证据综合。Provider 代理只能在 Codex 签发、具有 `codex_kr_primary` 并经 `supervisor_verified` 验收的只读研究契约下工作；结果必须有来源、时间、摘录、主张和不确定性。
-- 不得提交 API 密钥、认证 token、provider 账户文件、截图或本地数据库；不得修改 Qoder、CodeBuddy、MiMo 内部数据库，必须使用官方命令行接口。
-- Codex Praetor 默认不启动 Codex 子代理；节省成本的派工使用外部命令行代理。
+- 版本和 tag 不可变；不覆盖可能被对话引用的目录，不用 junction/稳定指针把旧合同映射为新合同。旧版本由限定根目录、可重试的回收机制处理；占用或权限失败只记录并延期，不强杀 Codex，也不改变交付结论。
+- 原生 CLI 成功以退出码 `0` 为前提；再检查 marker、工作树、completion 和 readiness。统一进程辅助程序分离 stdout/stderr，记录启动、超时、退出码和诊断尾部，兼容 Windows PowerShell 5.1/7。
+- PowerShell 脚本优先 ASCII；含非 ASCII 文本必须 UTF-8 BOM，并由产品验证扫描，避免本机中文代码页与 GitHub Windows runner 的解析差异。
+- `process_exited`、`timed_out`、`watcher_failed`、`unknown` 都不是运行中；“等待 Codex 验收”不等于 worker 运行中。非发布 dependency PR 仍构建/测试，但不进入 release-intent 或 immutable-tag 门禁。
+- 外部研究由 Codex + KnowledgeRadar 综合；外部 provider 仅可在只读、可追溯、经监督验收的研究契约中工作。不得提交密钥、token、账户文件、截图或本地数据库。
 
 ## 最小验证
 
-完成代码、迁移或重命名前，必须根据改动范围执行真实文件/命令验证：检查差异和冲突、运行相关测试/构建、确认工作树状态，并确认最终用户路径可用。重命名/迁移还必须：扫描活动产品文件中的旧名称（排除本规则、迁移记录和历史报告）、运行 `scripts/dispatch/invoke-codex-praetor.ps1` 试运行、确认 Skill/plugin manifest 名称、确认运行时输出被 Git 忽略且已安装 Skill 是真实目录。
+- 每次改动按风险验证差异、冲突、相关测试/构建、工作树和最终用户路径；重命名另扫活动文件旧名、dry-run 派工、核对 Skill/plugin manifest，并确认运行输出被忽略。

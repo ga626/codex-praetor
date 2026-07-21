@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.8.0-alpha",
-    "previous_version":  "0.7.1-alpha",
-    "tag":  "v0.8.0-alpha",
+    "version":  "0.8.1-alpha",
+    "previous_version":  "0.8.0-alpha",
+    "tag":  "v0.8.1-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.8.0-alpha.zip",
-    "reason":  "统一修复真实 provider canary 的并发仓库漂移误伤、worker 终态 lane 失真、分段 UTF-8 输出乱码与 dependency-only PR 被错误要求不可变 tag 的问题；合并后自动发布 0.8.0-alpha 的同一已验收 artifact。"
+    "artifact":  "codex-praetor-setup-0.8.1-alpha.zip",
+    "reason":  "把发布后的本机更新验收固化为安装身份、host runtime 与 provider canary 的顺序门禁；区分 CI 同一 artifact 校验与公开 Release 校验，防止旧本地候选包误报远端发布过期；合并后自动发布 0.8.1-alpha 的同一已验收 artifact。"
 }

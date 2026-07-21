@@ -17,7 +17,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $utf8NoBom
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$productVersion = "0.8.0-alpha"
+$productVersion = "0.8.1-alpha"
 $runtimeContractPath = Join-Path $scriptRoot "config\runtime-contract.json"
 $installScript = Join-Path $scriptRoot "scripts\install\install-user.ps1"
 $configTemplate = Join-Path $scriptRoot "config\codex-praetor-tiers.example.json"
@@ -931,8 +931,8 @@ function Show-FinalSummary {
     }
 
     Write-Host ""
-    Write-Host "下一步：打开 Codex 新任务，输入：" -ForegroundColor Cyan
-    Write-Host "拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。"
+    Write-Host "下一步：先确认安装身份，再刷新 Codex Desktop host；host 刷新后才新开任务调用 runtime_info。" -ForegroundColor Cyan
+    Write-Host "只有 runtime_info 与安装的 Release 身份一致后，才运行真实只读 canary 和 dry-run。"
 }
 
 if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
@@ -1008,7 +1008,13 @@ if (-not $NonInteractive) {
 }
 
 Write-Section "正在安装 Codex Praetor 本体"
-$installResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installScript, "-SourcePlugin", (Join-Path $scriptRoot "plugin"), "-Apply") -WorkingDirectory $scriptRoot -TimeoutSeconds 600
+$installArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installScript, "-SourcePlugin", (Join-Path $scriptRoot "plugin"))
+$releaseGenerationPath = Join-Path $scriptRoot "codex-praetor-release-generation.json"
+if (Test-Path -LiteralPath $releaseGenerationPath -PathType Leaf) {
+    $installArguments += @("-ExpectedGenerationPath", $releaseGenerationPath)
+}
+$installArguments += "-Apply"
+$installResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList $installArguments -WorkingDirectory $scriptRoot -TimeoutSeconds 600
 if (-not [string]::IsNullOrWhiteSpace([string]$installResult.stdout)) { Write-Host ([string]$installResult.stdout).Trim() }
 if (-not [string]::IsNullOrWhiteSpace([string]$installResult.stderr)) { Write-Host ([string]$installResult.stderr).Trim() -ForegroundColor DarkGray }
 if ($installResult.timed_out -or [int]$installResult.exit_code -ne 0) {
@@ -1031,5 +1037,9 @@ if (-not $SkipMaintenance) {
 }
 
 Update-ProviderConfig -Statuses $providerStatuses -State $state
-Invoke-CanaryStep -Statuses $providerStatuses -State $state
+Write-Section "host 刷新后的验收顺序"
+Write-Host "1. 用安装包根目录的 generation manifest 核对 stable marketplace 安装身份。"
+Write-Host "2. 使用 Codex 支持的刷新动作或完全重启 Desktop host；仅打开新任务不能刷新 host。"
+Write-Host "3. 新开任务，先调用 codex_praetor_runtime_info；版本和 runtime contract SHA 必须等于已安装 Release。"
+Write-Host "4. 之后才可运行一次真实只读 canary；通过后再做 dry-run 或真实派工。"
 Show-FinalSummary -Statuses $providerStatuses -State $state

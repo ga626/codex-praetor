@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.8.0-alpha`
+Target release: `0.8.1-alpha`
 
-Status: `v0.6.2-alpha` is a public release incident and must not be activated or overwritten. `v0.8.0-alpha` is the explicit recovery version and is published automatically by `Release On Main` after this PR reaches `main`.
+Status: `v0.6.2-alpha` is a public release incident and must not be activated or overwritten. `v0.8.1-alpha` is the explicit recovery version and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
@@ -107,6 +107,8 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    - download/hash/entry/notes verification through `verify-github-release-asset.ps1`.
 
    A workflow failure is a delivery incident with an explicit run URL, not a hidden manual tail. It must be retried or fixed before the next release-impacting PR.
+
+   CI uses `same-artifact` verification against its own verified manifest. A later local audit of an already published Release must use `-VerificationMode published-artifact`; it verifies the downloaded zip, sidecar hash and tag commit without treating an old local candidate as a remote-release failure.
 
 8. 已公开 Release 只能下载复验，不能替换资产或修改说明。源代码、合同或 artifact 有缺陷时，必须使用递增版本的恢复 PR。
 

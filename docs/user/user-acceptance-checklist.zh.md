@@ -12,7 +12,7 @@
 
 ## 2. Release 包
 
-- [ ] 从 `v0.8.0-alpha` Release 下载 `codex-praetor-setup-0.8.0-alpha.zip`。
+- [ ] 从 `v0.8.1-alpha` Release 下载 `codex-praetor-setup-0.8.1-alpha.zip`。
 - [ ] 校验 SHA256 文件和 zip 匹配。
 - [ ] 解压后根目录能看到 `setup.cmd` 和 `setup.ps1`。
 - [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/user/installation.zh.md`、`docs/user/troubleshooting.zh.md`。
@@ -49,9 +49,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 ## 4. Codex 插件发现
 
-- [ ] 重启 Codex 或打开一个新任务。
-- [ ] 能看到 `Codex Praetor` 插件。
-- [ ] 能看到 `codex_praetor_*` MCP 工具。
+- [ ] stable marketplace 的 `plugin/release-generation.json` 与下载 Release 根目录的 generation manifest 一致。
+- [ ] 使用 Codex 支持的刷新动作或完全重启 Codex；仅打开新任务不能刷新 host。
+- [ ] 刷新后新开任务，`codex_praetor_runtime_info` 的版本和 runtime contract SHA 等于安装身份。
+- [ ] 能看到 `Codex Praetor` 插件和 `codex_praetor_*` MCP 工具。
 
 ## 5. dry-run
 
@@ -77,6 +78,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 ## 7. provider 只读 canary
 
+- [ ] 只有第 4 节的安装身份和 host runtime 一致后，才开始 canary。
 - [ ] 向导不会把“CLI 已发现”当作“真实派工已可用”；它会提醒用户真实派工前仍需官方登录/授权和只读 canary。
 - [ ] 向导写入的本机配置在 `%USERPROFILE%\.codex\codex-praetor.local.json`，且不包含 token、cookie、PAT、API key 或账号数据库内容。
 - [ ] provider 已安装并登录后，先运行预览：
