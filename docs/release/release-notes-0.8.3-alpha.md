@@ -10,6 +10,7 @@
 - 同步修正 bundled Skill 的权限政策和证据登记，以本机 CLI 支持的语法为准，并明确 worktree 只隔离文件冲突，不是安全沙箱。
 - readiness 改为以每条 generation/contract/tuple entry 为权威，避免开发候选覆盖顶层摘要后遮蔽已安装版本的有效 proof；编辑 canary 必须留下 worker worktree 的真实改动。
 - completion 现在区分“没有证据”“有 worker 报告”“有 worker 改动”，但仍保持 `awaiting_supervisor`，不会把进程退出直接伪装为业务验收通过。
+- MCP runtime 将传递依赖固定为 `@hono/node-server 2.0.11` 与 `fast-uri 3.1.4`；发布候选会验证锁文件和运行时依赖审计，避免把已知依赖告警打进 zip。
 
 ## 用户影响
 

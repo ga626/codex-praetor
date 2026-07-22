@@ -7,5 +7,5 @@
     "release_required":  true,
     "release_mode":  "auto_on_main",
     "artifact":  "codex-praetor-setup-0.8.3-alpha.zip",
-    "reason":  "恢复 0.8.2-alpha 的 CodeBuddy 编辑 worker 发布事故：以本机 CLI 支持的 -y --tools 协议替换失效的 dontAsk 参数；固定只读与隔离编辑工具白名单，并加入可执行的权限故障注入回归。"
+    "reason":  "恢复 0.8.2-alpha 的 CodeBuddy 编辑 worker 发布事故，并治理真实验收发现的 readiness、证据与联网合同问题；以本机 CLI 支持的 -y --tools 协议替换失效的 dontAsk 参数，固定派工证据和 MCP 运行时安全依赖，并加入可执行回归。"
 }

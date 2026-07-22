@@ -7,6 +7,7 @@
 - Added an executable permission fault-injection regression that rejects the historical protocol before a release candidate can pass.
 - Made readiness entry-scoped across generations, strengthened edit canaries to require a worker-worktree change, and recorded report/artifact evidence without bypassing Codex verification.
 - Made explicit worker-network authorization observable and consistent with the actual worker prompt while retaining the no-secret boundary.
+- Remediated the published MCP dependency alerts by pinning `@hono/node-server` to `2.0.11` and `fast-uri` to `3.1.4`, with lockfile regression coverage.
 
 ## 0.8.2-alpha - 2026-07-22
 

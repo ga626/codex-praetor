@@ -96,6 +96,24 @@
       "used_for": "避免盲目重复造通用编排平台"
     },
     {
+      "id": "github-dependabot-runtime-dependencies",
+      "access_path": "github_rest",
+      "tool": "gh api repos/ga626/codex-praetor/dependabot/alerts",
+      "path": "mcp/package-lock.json",
+      "fact": "发布前复核发现fast-uri 3.1.3的GHSA-v2hh-gcrm-f6hx高危告警，以及@hono/node-server 1.19.14的GHSA-frvp-7c67-39w9中危告警；二者均为运行时传递依赖。",
+      "strength": "strong",
+      "used_for": "将已知运行时供应链告警纳入同一发布影响PR"
+    },
+    {
+      "id": "npm-runtime-audit-remediation",
+      "access_path": "local_command",
+      "tool": "npm ci + npm test + npm audit --omit=dev",
+      "path": "mcp/package.json,mcp/package-lock.json",
+      "fact": "保留SDK 1.29.0并覆盖@hono/node-server 2.0.11与fast-uri 3.1.4后，MCP构建和自测通过，运行时npm audit返回零项漏洞。",
+      "strength": "strong",
+      "used_for": "验证依赖修复的兼容性和审计结果"
+    },
+    {
       "id": "experiment-d53-codebuddy-edit",
       "access_path": "isolated_codex_worktree",
       "tool": "source wrapper + isolated UserProfileRoot + official CodeBuddy CLI",
