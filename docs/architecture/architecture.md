@@ -61,6 +61,7 @@ Implemented tools:
 
 - `codex_praetor_route_intent`
 - `codex_praetor_capability_profiles`
+- `codex_praetor_evaluation_suite`
 - `codex_praetor_dispatch_dry_run`
 - `codex_praetor_dispatch`
 - `codex_praetor_plan`
@@ -85,6 +86,8 @@ The key semantic boundary is that worker completion is not final acceptance. A w
 Later tools may still add richer lock views, dashboard summaries, or explicit merge helpers. They should build on this dispatch-result-verification loop instead of bypassing it.
 
 Capability profiles are a read-only, re-buildable projection of immutable attempts plus Codex's per-attempt verdict. They are keyed by the full provider tuple and task family, and do not change default routing in this release. The provider adapter contracts in `config/provider-adapters/` define each CLI's approved model, permission and lifecycle boundary without storing a local path or account data.
+
+The real-task evaluation suite is a separate, versioned task catalog. It prepares one bounded task at a time for a disposable worktree, with explicit acceptance, deterministic checks, budget, failure injection and secret boundary. Preparing a plan is not a worker result or capability evidence.
 
 ## Plugin Layer
 

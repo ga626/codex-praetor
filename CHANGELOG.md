@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1-alpha - 2026-07-22
+
+- Added a versioned real-task evaluation suite covering diagnosis, bounded code change, fixed test execution, and failure recovery.
+- Added an evaluation plan preparer and read-only MCP view; prepared work is explicitly not provider capability evidence.
+- Added deterministic suite-contract regression coverage to the release pipeline.
+
 ## 0.9.0-alpha - 2026-07-22
 
 - Added a conservative, read-only capability-profile projection keyed by provider tuple and task family; it records observed, provisional, qualified, cooling-down and blocked evidence without changing default routing.

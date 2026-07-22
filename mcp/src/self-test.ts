@@ -12,6 +12,7 @@ import {
   dispatchPlanTaskTool,
   dispatchDryRunTool,
   dispatchTool,
+  evaluationSuiteTool,
   getLaneTool,
   nextReadyTool,
   resultTool,
@@ -59,6 +60,9 @@ assert.ok(Array.isArray(listResult.jobs));
 const profileResult = capabilityProfilesTool({ repo, include_unclassified: true });
 assert.equal(profileResult.schema, "codex-praetor-capability-profile-set/v1");
 assert.ok(Array.isArray(profileResult.profiles));
+const evaluationSuite = evaluationSuiteTool();
+assert.equal(evaluationSuite.schema, "codex-praetor-evaluation-suite-view/v1");
+assert.ok(evaluationSuite.tasks.length >= 4);
 
 const missingStatus = statusTool({ repo, job_id: "missing-job-for-self-test" });
 assert.equal(missingStatus.found, false);

@@ -93,6 +93,11 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-capability-profile-contract.ps1
 
+      - name: Real task evaluation suite contract regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-evaluation-suite-contract.ps1
+
       - name: Public entry consistency
         shell: pwsh
         run: |
