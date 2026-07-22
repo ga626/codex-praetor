@@ -1,0 +1,33 @@
+{
+  "schema": "codex-praetor-provider-adapter/v1",
+  "provider_id": "codebuddy",
+  "display_name": "Tencent CodeBuddy / WorkBuddy CLI",
+  "cli": {
+    "discovery": "Read nodePath, cliPath and versionCommand from the local Codex Praetor configuration; never commit account or path details.",
+    "version_command": ["--version"],
+    "identity_fields": ["cli_path", "cli_hash", "version"]
+  },
+  "models": {
+    "allowed": ["hy3", "deepseek-v4-flash", "deepseek-v4-pro"],
+    "not_default": ["hy3-preview-agent"]
+  },
+  "permissions": {
+    "mappings": [
+      { "profile": "local-audit-v1", "provider_semantics": "Use the verified -y plus Read, Grep and Glob allowlist for a bounded audit." },
+      { "profile": "edit-worktree-v1", "provider_semantics": "Use the verified -y plus edit-tool allowlist only in the disposable worker worktree." }
+    ],
+    "minimum_canaries": ["local_audit", "code_change"]
+  },
+  "lifecycle": {
+    "launch": "invoke-codex-praetor.ps1 creates the command from the approved fixed model and permission tuple.",
+    "parse_terminal_state": "watch-codex-praetor-job.ps1 separates a clean process exit from a usable worker result.",
+    "cleanup": "The job record persists for Codex review; controlled retention later reclaims disposable worktrees.",
+    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "permission_denied", "worker_timed_out", "provider_unavailable"]
+  },
+  "evidence": {
+    "fixture": "scripts/verify/test-provider-canary-evidence.ps1",
+    "end_to_end": "A current-generation provider canary in an isolated worktree is required before real dispatch.",
+    "documentation": "docs/architecture/capability-profile-and-provider-adapter-contract.md",
+    "onboarding_checklist": "config/provider-onboarding-checklist.json"
+  }
+}

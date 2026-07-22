@@ -1,0 +1,17 @@
+{
+  "schema": "codex-praetor-provider-onboarding-checklist/v1",
+  "purpose": "A provider is eligible for conservative route advice only after its adapter, current canaries, task-family evidence and failure handling are all observable.",
+  "required_checks": [
+    { "id": "official_cli_boundary", "label": "官方 CLI 与登录边界", "evidence": "Local configuration contains only the official CLI path; no authentication material is read or stored." },
+    { "id": "adapter_contract", "label": "Adapter 合同与 fixture", "evidence": "A versioned adapter declares models, permissions, lifecycle and deterministic fixture coverage." },
+    { "id": "permission_canaries", "label": "最小权限 canary", "evidence": "Current-generation local_audit and code_change canaries match the exact CLI hash and tuple." },
+    { "id": "task_family_evidence", "label": "真实任务族证据", "evidence": "At least two Codex-accepted attempts exist for the exact tuple and task family." },
+    { "id": "failure_recovery", "label": "失败恢复", "evidence": "Provider failures are classified into a bounded recovery action and regression fixture." },
+    { "id": "public_docs_security", "label": "文档、成本与敏感信息边界", "evidence": "Public documentation states cost/policy limits and no secrets, account data or provider databases are included." }
+  ],
+  "extension_policy": {
+    "adapter_schema": "codex-praetor-provider-adapter/v1",
+    "default_route_eligibility": "false_until_all_checks_are_observable",
+    "forbidden": ["implicit_auto_model", "authentication_migration", "default_route_without_current_canary"]
+  }
+}

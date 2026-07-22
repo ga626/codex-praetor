@@ -48,8 +48,8 @@ $honoLockVersion = Get-LockPackageVersion -LockText $mcpLockText -PackagePath "n
 $fastUriLockVersion = Get-LockPackageVersion -LockText $mcpLockText -PackagePath "node_modules/fast-uri"
 Assert-True (-not [string]::IsNullOrWhiteSpace($honoLockVersion) -and [version]$honoLockVersion -ge [version]"2.0.11") "MCP lockfile does not resolve the patched @hono/node-server runtime."
 Assert-True (-not [string]::IsNullOrWhiteSpace($fastUriLockVersion) -and [version]$fastUriLockVersion -ge [version]"3.1.4") "MCP lockfile does not resolve the patched fast-uri runtime."
-$releaseNotes = Join-Path $ProjectRoot "docs\release\release-notes-0.9.3-alpha.md"
-Assert-True (Test-Path -LiteralPath $releaseNotes -PathType Leaf) "0.9.3-alpha release notes are missing."
+$releaseNotes = Join-Path $ProjectRoot "docs\release\release-notes-0.9.4-alpha.md"
+Assert-True (Test-Path -LiteralPath $releaseNotes -PathType Leaf) "0.9.4-alpha release notes are missing."
 $workflowReadiness = Join-Path $ProjectRoot "scripts\verify\test-release-workflow-readiness.ps1"
 Assert-True (Test-Path -LiteralPath $workflowReadiness -PathType Leaf) "Release workflow readiness test is missing."
 & powershell -NoProfile -ExecutionPolicy Bypass -File $workflowReadiness -ProjectRoot $ProjectRoot

@@ -31593,6 +31593,14 @@ function readReadiness() {
   if (!home) return [];
   return asRecords(readJson(path4.join(home, ".codex", "codex-praetor-readiness.json")).entries);
 }
+function getProviderOperationsDataRoot() {
+  const projectRoot = getProjectRoot();
+  const sourceDataRoot = path4.join(projectRoot, "config");
+  if (existsSync3(path4.join(sourceDataRoot, "provider-onboarding-checklist.json"))) {
+    return sourceDataRoot;
+  }
+  return path4.join(projectRoot, "data");
+}
 function statusFor(profile, readiness) {
   const failure = asString3(asRecords(profile?.evidence).at(-1)?.failure_class);
   const profileStatus = asString3(profile?.status) || "unknown";
@@ -31606,14 +31614,14 @@ function statusFor(profile, readiness) {
   return { status: "\u53EF\u5C0F\u8303\u56F4\u9A8C\u8BC1", next_action: "\u5C1A\u65E0\u5F53\u524D generation \u7684\u5339\u914D canary\uFF1B\u5148\u505A\u6700\u5C0F\u6743\u9650 canary\uFF0C\u4E0D\u8981\u76F4\u63A5\u6D3E\u6B63\u5F0F\u4EFB\u52A1\u3002" };
 }
 function providerOperationsTool(input) {
-  const root = getProjectRoot();
-  const checklist = readJson(path4.join(root, "config", "provider-onboarding-checklist.json"));
-  const contractPath = path4.join(root, "config", "runtime-contract.json");
+  const dataRoot = getProviderOperationsDataRoot();
+  const checklist = readJson(path4.join(dataRoot, "provider-onboarding-checklist.json"));
+  const contractPath = getRuntimeContractPath();
   const contractHash = existsSync3(contractPath) ? createHash2("sha256").update(readFileSync3(contractPath)).digest("hex") : "";
   const profiles = capabilityProfilesTool({ repo: input.repo }).profiles;
   const readiness = input.readiness_entries ?? readReadiness();
   const providers = ["qoder", "codebuddy", "mimo"].map((provider) => {
-    const adapter = readJson(path4.join(root, "config", "provider-adapters", `${provider}.json`));
+    const adapter = readJson(path4.join(dataRoot, "provider-adapters", `${provider}.json`));
     const providerProfiles = profiles.filter((profile2) => asString3(profile2.provider_tuple.provider) === provider && (!input.task_family || profile2.task_family === input.task_family));
     const profile = [...providerProfiles].sort((left, right) => asString3(right.evidence.at(-1)?.recorded_at).localeCompare(asString3(left.evidence.at(-1)?.recorded_at))).at(0);
     const matchingReadiness = readiness.filter((entry) => asString3(entry.provider) === provider && asString3(entry.status) === "passed" && asString3(entry.runtime_contract_sha256) === contractHash);
@@ -32689,7 +32697,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.3-alpha"
+    version: "0.9.4-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",

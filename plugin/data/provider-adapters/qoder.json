@@ -1,0 +1,33 @@
+{
+  "schema": "codex-praetor-provider-adapter/v1",
+  "provider_id": "qoder",
+  "display_name": "Qoder / QoderWork CLI",
+  "cli": {
+    "discovery": "Read cliPath and versionCommand from the local Codex Praetor configuration; never commit a machine-specific path.",
+    "version_command": ["--version"],
+    "identity_fields": ["cli_path", "cli_hash", "version"]
+  },
+  "models": {
+    "allowed": ["Qwen3.7-Plus", "Qwen3.7-Max"],
+    "not_default": ["Qwen3.6-Flash", "DeepSeek-V4-Pro", "DeepSeek-V4-Flash", "GLM-5.2", "Kimi-K2.7-Code", "MiniMax-M2.7"]
+  },
+  "permissions": {
+    "mappings": [
+      { "profile": "local-audit-v1", "provider_semantics": "Read, Grep and Glob only for a bounded local audit." },
+      { "profile": "edit-worktree-v1", "provider_semantics": "Edit and shell tools only inside the disposable worker worktree." }
+    ],
+    "minimum_canaries": ["local_audit", "code_change"]
+  },
+  "lifecycle": {
+    "launch": "invoke-codex-praetor.ps1 builds the supervised CLI command and writes immutable job metadata before launch.",
+    "parse_terminal_state": "watch-codex-praetor-job.ps1 records process state, normalized failure class and evidence state.",
+    "cleanup": "The watcher closes the job lifecycle; retained worktrees are reclaimed only by the controlled cleanup path.",
+    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "permission_denied", "worker_timed_out", "provider_unavailable"]
+  },
+  "evidence": {
+    "fixture": "scripts/verify/test-provider-canary-evidence.ps1",
+    "end_to_end": "A current-generation provider canary in an isolated worktree is required before real dispatch.",
+    "documentation": "docs/architecture/capability-profile-and-provider-adapter-contract.md",
+    "onboarding_checklist": "config/provider-onboarding-checklist.json"
+  }
+}

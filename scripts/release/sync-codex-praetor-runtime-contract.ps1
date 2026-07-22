@@ -14,6 +14,12 @@ $derived = @(
     "plugin\skills\codex-praetor\scripts\runtime-contract.json",
     "skill\codex-praetor\scripts\runtime-contract.json"
 )
+$runtimeData = @(
+    [ordered]@{ source = "config\provider-onboarding-checklist.json"; target = "plugin\data\provider-onboarding-checklist.json" },
+    [ordered]@{ source = "config\provider-adapters\qoder.json"; target = "plugin\data\provider-adapters\qoder.json" },
+    [ordered]@{ source = "config\provider-adapters\codebuddy.json"; target = "plugin\data\provider-adapters\codebuddy.json" },
+    [ordered]@{ source = "config\provider-adapters\mimo.json"; target = "plugin\data\provider-adapters\mimo.json" }
+)
 
 if (-not (Test-Path -LiteralPath $canonical -PathType Leaf)) {
     throw "Canonical runtime contract is missing: $canonical"
@@ -44,6 +50,22 @@ foreach ($relative in $derived) {
     }
 }
 
+foreach ($item in $runtimeData) {
+    $source = Join-Path $root ([string]$item.source)
+    $target = Join-Path $root ([string]$item.target)
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        $mismatches.Add("missing-source:$($item.source)")
+        continue
+    }
+    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+        $mismatches.Add("missing:$($item.target)")
+        continue
+    }
+    if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()) {
+        $mismatches.Add("drift:$($item.target)")
+    }
+}
+
 if ($Apply) {
     foreach ($relative in $derived) {
         $path = Join-Path $root $relative
@@ -51,12 +73,19 @@ if ($Apply) {
         New-Item -ItemType Directory -Path $parent -Force | Out-Null
         [IO.File]::WriteAllBytes($path, $canonicalBytes)
     }
-    Write-Host "[PASS] Generated $($derived.Count) runtime contract surfaces from config/runtime-contract.json (SHA256=$canonicalHash)."
+    foreach ($item in $runtimeData) {
+        $source = Join-Path $root ([string]$item.source)
+        $target = Join-Path $root ([string]$item.target)
+        $parent = Split-Path -Parent $target
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $target -Force
+    }
+    Write-Host "[PASS] Generated $($derived.Count) runtime contract surfaces and $($runtimeData.Count) runtime data surfaces from config."
     exit 0
 }
 
 if ($mismatches.Count -gt 0) {
     throw "Runtime contract surfaces drift from the canonical source: $($mismatches -join '; '). Run sync-codex-praetor-runtime-contract.ps1 -Apply."
 }
-Write-Host "[PASS] All derived runtime contract surfaces equal the canonical source (SHA256=$canonicalHash)."
+Write-Host "[PASS] All derived runtime contract and provider data surfaces equal the canonical source (SHA256=$canonicalHash)."
 exit 0
