@@ -46,7 +46,10 @@ function Invoke-WatchedCase {
     [ordered]@{ schema = "codex-praetor-job/v2"; job_id = "lifecycle-$Name"; repo = $projectPath; execution_repo = $ExecutionRepo; provider = $Provider; tier = "test"; model = "test"; task_kind = $TaskKind; mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }; pid = 0; stdout = $stdoutPath; stderr = $stderrPath; completion = $completionPath; status = "starting" } | ConvertTo-Json | Set-Content -LiteralPath $metaPath -Encoding UTF8
     $watcherArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $watcherScript, "-JobDir", $jobDir, "-WorkerPid", "0", "-StartWorker", "-Exe", "powershell.exe", "-ArgumentListPath", $argumentPath, "-WorkingDirectory", $ExecutionRepo, "-StdoutPath", $stdoutPath, "-StderrPath", $stderrPath, "-TimeoutSeconds", "$TimeoutSeconds", "-NoNotify")
     $watcher = Start-Process -FilePath "powershell.exe" -ArgumentList (($watcherArgs | ForEach-Object { Quote-Arg ([string]$_) }) -join " ") -WindowStyle Hidden -RedirectStandardOutput $watcherStdoutPath -RedirectStandardError $watcherStderrPath -PassThru
-    if (-not $watcher.WaitForExit(([Math]::Min(($TimeoutSeconds + 20) * 1000, 2147483647)))) { try { $watcher.Kill() } catch { }; throw "Watcher did not finish for case $Name." }
+    # The watcher is allowed to spend up to 15 seconds terminating a process
+    # tree after its own timeout. Keep the test wait bounded, but leave enough
+    # room for that cleanup and durable completion write on loaded Windows hosts.
+    if (-not $watcher.WaitForExit(([Math]::Min(($TimeoutSeconds + 45) * 1000, 2147483647)))) { try { $watcher.Kill() } catch { }; throw "Watcher did not finish for case $Name." }
     if (-not (Test-Path -LiteralPath $completionPath -PathType Leaf)) {
         $diagnostic = if (Test-Path -LiteralPath $watcherStderrPath) { Get-Content -LiteralPath $watcherStderrPath -Raw -Encoding UTF8 } else { "" }
         throw "Completion is missing for case $Name. Watcher stderr: $diagnostic"

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4-alpha - 2026-07-23
+
+- Recovered the `0.9.3-alpha` provider-operations release incident with a new immutable version; the published `0.9.3-alpha` artifact remains unchanged.
+- Packaged provider adapter contracts and the onboarding checklist inside the installable plugin runtime instead of relying on release-archive-only `config/` files.
+- Added final bundled-MCP provider-operations acceptance and a fault-injection regression that fails when the packaged runtime data is absent.
+
 ## 0.9.3-alpha - 2026-07-23
 
 - Added a user-readable provider operations view for Qoder, CodeBuddy and MiMo without exposing authentication material or local paths.

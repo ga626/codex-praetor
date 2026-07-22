@@ -160,6 +160,26 @@ try {
       }
     }
   }
+
+  const providerOperationsResult = await client.callTool({
+    name: "codex_praetor_provider_operations",
+    arguments: {
+      repo,
+      task_family: "bounded_code_change"
+    }
+  });
+  const providerOperationsPayload = JSON.parse(providerOperationsResult.content?.[0]?.text ?? "{}");
+  const expectedProviders = ["qoder", "codebuddy", "mimo"];
+  if (
+    providerOperationsPayload.schema !== "codex-praetor-provider-operations/v1" ||
+    !Array.isArray(providerOperationsPayload.providers) ||
+    providerOperationsPayload.providers.length !== expectedProviders.length ||
+    expectedProviders.some((provider) => !providerOperationsPayload.providers.some((item) => item?.provider === provider && item?.adapter_contract_present === true)) ||
+    !Array.isArray(providerOperationsPayload.onboarding_checklist) ||
+    providerOperationsPayload.onboarding_checklist.length < 6
+  ) {
+    throw new Error(`Packaged provider operations data is missing or invalid: ${JSON.stringify(providerOperationsPayload)}`);
+  }
   if (observedOutputPath) {
     writeFileSync(observedOutputPath, `${JSON.stringify({
       schema: "codex-praetor-observed-runtime/v1",

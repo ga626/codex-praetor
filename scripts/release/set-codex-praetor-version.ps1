@@ -49,12 +49,19 @@ $textFiles = @(
     "docs\release\release-gate-checklist.md",
     "docs\release\release-notes-$Version.md"
 )
+$runtimeDataSources = @(
+    "config\provider-onboarding-checklist.json",
+    "config\provider-adapters\qoder.json",
+    "config\provider-adapters\codebuddy.json",
+    "config\provider-adapters\mimo.json"
+)
 
 if ($ListSourcePaths) {
     @(
         "config\release-intent.json",
         $jsonFiles,
         $textFiles,
+        $runtimeDataSources,
         "scripts\release\set-codex-praetor-version.ps1"
     ) | Select-Object -Unique | ForEach-Object { $_ }
     return

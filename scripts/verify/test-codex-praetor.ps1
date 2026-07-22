@@ -329,9 +329,9 @@ $allowedOldNameFiles = @(
     "AGENTS.md",
     "scripts\verify\test-codex-praetor.ps1"
 )
-$skipDirectoryNames = @(".git", ".release", ".release-live", ".release-remote-check", "handoff", "development", "node_modules", "dist", "build", "coverage", "__pycache__")
+$skipDirectoryNames = @(".git", ".codex-praetor", ".release", ".release-live", ".release-remote-check", "handoff", "development", "node_modules", "dist", "build", "coverage", "__pycache__")
 $oldNameHits = @()
-Get-ChildItem -LiteralPath $projectRoot -Recurse -File -Force |
+Get-ChildItem -LiteralPath $projectRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
     Where-Object {
         $full = $_.FullName
         if ($full -match "\\\.release[^\\]*\\") { return $false }
