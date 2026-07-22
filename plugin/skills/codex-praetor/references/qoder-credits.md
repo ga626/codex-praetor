@@ -17,7 +17,7 @@ Use these notes for routing. Re-check official docs if pricing or products look 
 - Official referral terms say each successful referral grants 200 Credits and each referrer can receive at most 200 successful-referral rewards, for a cumulative cap of 40,000 Credits.
 - Current usable balance must be checked per user and is subject to expiration.
 - Qoder CLI probes indicated that worker runs should use a git worktree. Non-git folders may fail before a model response.
-- CodeBuddy validation on 2026-07-07/2026-07-08: the selected HY3 route used model id `hy3` and returned successful smoke output. Tencent Cloud TokenHub CodeBuddy Code official setup also uses `hy3` in `models.json` and `availableModels`. Do not replace it with `auto`; `auto` is blocked because it gives provider-side model choice back to CodeBuddy. Do not default to `hy3-preview-agent`; bundled product configs list it as a preview/credit-multiplied route. Account-specific billing observations are private evidence and are not included in the public release. For non-interactive readonly file checks on Windows, the reliable combination was `-y --tools Read,Glob`; `--permission-mode plan` either exceeded turns or returned an incorrect file existence result, and `--permission-mode bypassPermissions` returned an incorrect result in the same probe.
+- CodeBuddy validation on 2026-07-07/2026-07-08: the selected HY3 route used model id `hy3` and returned successful smoke output. Tencent Cloud TokenHub CodeBuddy Code official setup also uses `hy3` in `models.json` and `availableModels`. Do not replace it with `auto`; `auto` is blocked because it gives provider-side model choice back to CodeBuddy. Do not default to `hy3-preview-agent`; bundled product configs list it as a preview/credit-multiplied route. Account-specific billing observations are private evidence and are not included in the public release. For non-interactive readonly file checks on Windows, the reliable combination is `-y --tools Read,Glob,Grep`; `--permission-mode plan` either exceeded turns or returned an incorrect file existence result, and `--permission-mode bypassPermissions` returned an incorrect result in the same probe.
 
 Primary sources found during research:
 
@@ -27,4 +27,3 @@ Primary sources found during research:
 - https://help.aliyun.com/en/lingma/product-overview/credits
 - https://help.aliyun.com/en/lingma/product-overview/daily-check-in-100-credits-reward-program-terms
 - QoderWork local cache files are private runtime data and should not be read or published unless the user explicitly asks for diagnostics.
-

@@ -15,7 +15,7 @@ Use this file to justify the codex-praetor orchestration policy without re-runni
 - CodeBuddy real smoke after adding `--effort medium` returned `CODEBUDDY_EFFORT_OK` with model `hy3`.
 - Qoder real smoke after adding `--reasoning-effort medium --context-window 200000` returned `QODER_REASONING_OK` with model `Qwen3.7-Plus`.
 - Design conclusion: CodeBuddy, Qoder, and MiMo are worker agents. Codex hard-codes cost/security/model rails, then chooses reasoning effort, agent mode, context window, and output shape per task.
-- CodeBuddy CLI `--help` on this machine shows `-p/--print`, `--output-format`, `-y`, `--permission-mode`, `--tools`, `--worktree`, `--bg`, `ps`, `logs`, `attach`, `kill`, `--swarm`, `--max-turns`, `--agent`, and `--agents`.
+- CodeBuddy CLI `--help` on this machine shows `-p/--print`, `--output-format`, `-y`, `--permission-mode`, `--tools`, `--worktree`, `--bg`, `ps`, `logs`, `attach`, `kill`, `--swarm`, `--max-turns`, `--agent`, and `--agents`. Its accepted permission modes are `acceptEdits`, `bypassPermissions`, `default`, and `plan`; `dontAsk` is not accepted by this installed CLI.
 - Qoder CLI CN `--help` on this machine shows `-p/--print`, `--worktree`, `--permission-mode`, `--tools`, `--allowed-tools`, `--disallowed-tools`, `--remote`, `--list-sessions`, `--session-id`, `--agent`, `--agents`, and `--max-output-tokens`.
 - CodeBuddy headless key path is configured and verified locally with user-level `CODEBUDDY_API_KEY` plus `CODEBUDDY_INTERNET_ENVIRONMENT=internal`.
 - CodeBuddy blocking wrapper validation returned `WRAPPER_AUTH_OK`.
@@ -33,7 +33,7 @@ Use this file to justify the codex-praetor orchestration policy without re-runni
 - CodeBuddy Headless Mode: `-p` runs programmatically without interactive UI; output can be text/json/stream-json; `-y` is required for non-interactive operations that need authorization; JSON output supports parsing; session resume is supported.
 - CodeBuddy CLI Reference: supports `ps/logs/attach/kill`, `--bg`, `--name`, `--worktree`, `--tools`, `--allowedTools`, `--disallowedTools`, `--max-turns`, `--permission-mode`, `--sandbox`, and `--serve`.
 - CodeBuddy Worktree: worktrees isolate AI changes for parallel development; subagents can use `isolation: worktree`; the docs explicitly say this is file-conflict isolation, not a security sandbox.
-- CodeBuddy Permission Modes: `dontAsk` is fixed-whitelist automation; `bypassPermissions` should be used only in trusted/sandboxed contexts; non-interactive `ask` outcomes are denied unless a permission strategy exists; Agent Teams have separate permission inheritance.
+- CodeBuddy Permission Modes: external documentation may describe `dontAsk`, but the installed CLI rejects it. The wrapper therefore uses the locally verified headless form `-y --tools <allowlist>`; `-y` is allowed only after Codex has selected the repo, task and disposable worktree, and `--tools` remains the complete built-in-tool allowlist.
 - CodeBuddy Agent Teams: useful for parallel exploration, but token use is significantly higher; sequential tasks, same-file edits, and complex dependencies should use single-session or subagents instead.
 - CodeBuddy Models docs: `availableModels` filters which model IDs are shown/usable after configuration merge; examples use exact IDs `deepseek-v4-pro` and `deepseek-v4-flash`. Environment variable docs also show `CODEBUDDY_MODEL=deepseek-v4-pro` and `CODEBUDDY_SMALL_FAST_MODEL=deepseek-v4-flash`.
 - Qoder CLI docs: print mode is non-interactive; `/usage` shows Credits; `--worktree` is for parallel work in a Git repo; `--allowed-tools`, `--disallowed-tools`, `--max-turns`, and `--yolo` exist.
@@ -105,4 +105,3 @@ This section records the problems encountered during real wrapper validation and
 - https://git-scm.com/docs/git-worktree
 - https://www.conductor.build/docs/concepts/git-worktrees
 - https://developer.upsun.com/posts/ai/git-worktrees-for-parallel-ai-coding-agents
-

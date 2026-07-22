@@ -1200,9 +1200,12 @@ Rules:
             $cmdArgs += @("--json-schema", $JsonSchema)
         }
         if ($Mode -eq "readonly") {
-            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep", "--disallowedTools", "Bash,Edit,Write,WebFetch")
+            # CodeBuddy's current CLI does not accept the historical dontAsk
+            # mode. In headless runs, -y supplies the non-interactive approval
+            # and --tools is the complete built-in-tool allowlist.
+            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep")
         } else {
-            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep,Edit,Write,Bash", "--disallowedTools", "WebFetch")
+            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep,Edit,Write,Bash")
         }
         $cmdArgs += @("-p", $supervisedTask)
 

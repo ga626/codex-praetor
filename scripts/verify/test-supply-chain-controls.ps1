@@ -29,8 +29,8 @@ Assert-True (Test-Path -LiteralPath $dependabot -PathType Leaf) "Dependabot conf
 $dependabotText = Get-Content -LiteralPath $dependabot -Raw -Encoding UTF8
 Assert-True ($dependabotText -match 'package-ecosystem: github-actions') "Dependabot does not monitor GitHub Actions."
 Assert-True ($dependabotText -match 'package-ecosystem: npm') "Dependabot does not monitor npm dependencies."
-$releaseNotes = Join-Path $ProjectRoot "docs\release\release-notes-0.8.2-alpha.md"
-Assert-True (Test-Path -LiteralPath $releaseNotes -PathType Leaf) "0.8.2-alpha release notes are missing."
+$releaseNotes = Join-Path $ProjectRoot "docs\release\release-notes-0.8.3-alpha.md"
+Assert-True (Test-Path -LiteralPath $releaseNotes -PathType Leaf) "0.8.3-alpha release notes are missing."
 $workflowReadiness = Join-Path $ProjectRoot "scripts\verify\test-release-workflow-readiness.ps1"
 Assert-True (Test-Path -LiteralPath $workflowReadiness -PathType Leaf) "Release workflow readiness test is missing."
 & powershell -NoProfile -ExecutionPolicy Bypass -File $workflowReadiness -ProjectRoot $ProjectRoot

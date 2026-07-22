@@ -489,6 +489,20 @@ if (Test-Path -LiteralPath $runningGenerationHealthTest -PathType Leaf) {
     Add-Fail "Running-generation health authority regression script missing: $runningGenerationHealthTest"
 }
 
+$codeBuddyPermissionTest = Join-Path $projectRoot "scripts\verify\test-codebuddy-permission-protocol.ps1"
+if (Test-Path -LiteralPath $codeBuddyPermissionTest -PathType Leaf) {
+    try {
+        $permissionOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $codeBuddyPermissionTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($permissionOutput | Out-String) -match "CodeBuddy permission fault-injection")) {
+            Add-Pass "CodeBuddy permission protocol regression passes"
+        } else {
+            Add-Fail "CodeBuddy permission protocol regression failed: $($permissionOutput | Out-String)"
+        }
+    } catch { Add-Fail "CodeBuddy permission protocol regression failed: $($_.Exception.Message)" }
+} else {
+    Add-Fail "CodeBuddy permission protocol regression script missing: $codeBuddyPermissionTest"
+}
+
 $publishedActivationTest = Join-Path $projectRoot "scripts\verify\test-published-release-activation.ps1"
 if (Test-Path -LiteralPath $publishedActivationTest -PathType Leaf) {
     try {

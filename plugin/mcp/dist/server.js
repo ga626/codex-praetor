@@ -32294,7 +32294,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.8.2-alpha"
+    version: "0.8.3-alpha"
   });
   server.registerTool(
     "codex_praetor_route_intent",
