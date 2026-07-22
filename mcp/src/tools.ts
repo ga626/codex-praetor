@@ -20,6 +20,7 @@ import { runPowerShell } from "./powershell.js";
 import { routeIntent } from "./route-intent.js";
 import { capabilityProfilesTool as buildCapabilityProfiles } from "./capability-profiles.js";
 import { evaluationSuiteTool as buildEvaluationSuite } from "./evaluation-suite.js";
+import { explainableRouteTool as buildExplainableRoute } from "./explainable-routing.js";
 import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
 
 function assertResearchContract(input: {
@@ -93,6 +94,10 @@ export function capabilityProfilesTool(input: { repo: string; include_unclassifi
 
 export function evaluationSuiteTool() {
   return buildEvaluationSuite();
+}
+
+export function explainableRouteTool(input: Parameters<typeof buildExplainableRoute>[0]) {
+  return buildExplainableRoute(input);
 }
 
 export async function healthTool(input: { repo: string }) {

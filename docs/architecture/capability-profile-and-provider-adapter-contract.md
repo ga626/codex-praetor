@@ -23,7 +23,15 @@
 - `blocked`：发生风控、认证、CLI 缺失、解析失败或权限拒绝；先解决原因，不能自动派工。
 - `unknown` / `stale`：没有足够的、或已不再适用的证据。
 
-硬门永远优先于画像。画像只提供可解释的建议，不会在本阶段改变默认 tier 或路由结果。
+硬门永远优先于画像。画像只提供可解释的建议，不会绕过模型白名单、当前 readiness、权限、范围、预算或用户授权。
+
+## 解释性建议与失败出口
+
+`codex_praetor_explainable_route` 是派工前的只读建议卡。它只接受已经由当前 canary/readiness 观察到的完整 provider tuple；逐个列出硬门、同任务族最近证据、推荐原因、未选原因和仅由合格候选构成的 fallback。它不派工，更不会自动合并或发布。
+
+没有至少两次当前 tuple 的采信时，系统不会把未知候选伪装成“最优”；它只建议做一个小、可回退的同任务族 canary。`blocked`、`cooling_down` 和 30 天以上的 `stale` 证据不能进入推荐或 fallback。
+
+失败也必须走固定出口：登录、风控、CLI 或协议问题直接 `blocked`；明确短暂的网络、服务或限流最多两次退避后冷却；权限问题先缩小任务并重新 canary；超轮数保留 worktree 交由 Codex 判断；测试失败或范围越界直接 `rejected`。这些规则不替代 Codex 的验收结论。
 
 ## Provider Adapter 是什么
 

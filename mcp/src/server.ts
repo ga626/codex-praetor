@@ -18,6 +18,7 @@ import {
   cancelJobTool,
   capabilityProfilesTool,
   evaluationSuiteTool,
+  explainableRouteTool,
   dispatchPlanTaskTool,
   dispatchDryRunTool,
   dispatchTool,
@@ -64,7 +65,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.1-alpha"
+    version: "0.9.2-alpha"
   });
 
   server.registerTool(
@@ -90,6 +91,42 @@ export function createServer(): McpServer {
       inputSchema: {}
     },
     async () => asJsonContent(evaluationSuiteTool())
+  );
+
+  server.registerTool(
+    "codex_praetor_explainable_route",
+    {
+      title: "Explain Codex Praetor Route Recommendation",
+      description: "Explain a conservative external-worker recommendation from current hard gates and exact capability evidence. This is dry-run advice only and never dispatches, merges, or publishes.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1),
+        task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
+        failure_class: z.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "test_failed", "scope_violation", "unknown"]).optional(),
+        candidates: z.array(z.object({
+          provider: z.enum(["qoder", "codebuddy", "mimo"]),
+          model: z.string().min(1),
+          cli_path: z.string().min(1),
+          cli_hash: z.string().min(1),
+          permission_profile: z.string().min(1),
+          task_kind: z.string().min(1),
+          generation_id: z.string().min(1),
+          runtime_contract_sha256: z.string().min(1),
+          task_contract_schema: z.string().min(1),
+          hard_gates: z.object({
+            model_allowed: z.boolean(),
+            permission_granted: z.boolean(),
+            scope_allowed: z.boolean(),
+            readiness_current: z.boolean(),
+            user_authorized: z.boolean(),
+            budget_allowed: z.boolean()
+          }),
+          estimated_cost: z.number().nonnegative().optional(),
+          estimated_minutes: z.number().nonnegative().optional()
+        })).min(1)
+      }
+    },
+    async (input) => asJsonContent(explainableRouteTool(input))
   );
 
   server.registerTool(

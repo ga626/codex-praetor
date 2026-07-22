@@ -31296,6 +31296,8 @@ import path2 from "node:path";
 var taskFamilies = /* @__PURE__ */ new Set(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]);
 var hardBlockedFailures = /* @__PURE__ */ new Set(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "tool_denied", "permission_denied"]);
 var transientFailures = /* @__PURE__ */ new Set(["worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable"]);
+var profileEvidenceMaxAgeMs = 30 * 24 * 60 * 60 * 1e3;
+var transientCooldownMs = 60 * 60 * 1e3;
 function asRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -31399,14 +31401,23 @@ function capabilityProfilesTool(input) {
     let status = "unknown";
     let statusReason = "\u5C1A\u65E0\u88AB Codex \u91C7\u4FE1\u7684\u6709\u6548\u8BC1\u636E\u3002";
     let cooldownUntil = "";
+    const latestRecordedAt = Date.parse(asString(latest.recorded_at));
+    const hasFreshEvidence = !Number.isNaN(latestRecordedAt) && Date.now() - latestRecordedAt <= profileEvidenceMaxAgeMs;
     if (hardBlockedFailures.has(failureClass)) {
       status = "blocked";
       statusReason = `\u6700\u8FD1\u4E00\u6B21\u5C1D\u8BD5\u4E3A\u4E0D\u53EF\u81EA\u52A8\u91CD\u8BD5\u7684 ${failureClass || "provider"} \u5931\u8D25\u3002`;
     } else if (transientFailures.has(failureClass)) {
-      status = "cooling_down";
-      statusReason = `\u6700\u8FD1\u4E00\u6B21\u5C1D\u8BD5\u4E3A\u53EF\u6062\u590D\u7684 ${failureClass}\uFF0C\u5E94\u7B49\u5F85\u5E76\u91CD\u65B0 canary\u3002`;
-      const finished = Date.parse(asString(latest.recorded_at));
-      if (!Number.isNaN(finished)) cooldownUntil = new Date(finished + 60 * 60 * 1e3).toISOString();
+      if (!Number.isNaN(latestRecordedAt) && latestRecordedAt + transientCooldownMs > Date.now()) {
+        status = "cooling_down";
+        cooldownUntil = new Date(latestRecordedAt + transientCooldownMs).toISOString();
+        statusReason = `\u6700\u8FD1\u4E00\u6B21\u5C1D\u8BD5\u4E3A\u53EF\u6062\u590D\u7684 ${failureClass}\uFF0C\u51B7\u5374\u7ED3\u675F\u524D\u4E0D\u5F97\u81EA\u52A8\u91CD\u8BD5\u3002`;
+      } else {
+        status = "stale";
+        statusReason = `\u6700\u8FD1\u4E00\u6B21 ${failureClass} \u5DF2\u8FC7\u51B7\u5374\u7A97\u53E3\uFF1B\u5FC5\u987B\u91CD\u65B0 canary\uFF0C\u65E7\u7ED3\u679C\u4E0D\u80FD\u7528\u4E8E\u8DEF\u7531\u3002`;
+      }
+    } else if (Object.keys(latest).length > 0 && !hasFreshEvidence) {
+      status = "stale";
+      statusReason = "\u6700\u8FD1\u80FD\u529B\u8BC1\u636E\u5DF2\u8D85\u8FC7 30 \u5929\uFF1B\u5FC5\u987B\u91CD\u65B0 canary\uFF0C\u65E7\u7ED3\u679C\u4E0D\u80FD\u7528\u4E8E\u8DEF\u7531\u3002";
     } else if (accepted.length >= 3) {
       status = "qualified";
       statusReason = "\u81F3\u5C11\u4E09\u6B21\u72EC\u7ACB attempt \u5DF2\u88AB Codex \u91C7\u4FE1\uFF1B\u4ECD\u987B\u901A\u8FC7\u5F53\u524D\u786C\u95E8\u3002";
@@ -31469,6 +31480,89 @@ function evaluationSuiteTool() {
       workers_must_run_in_disposable_worktrees: true,
       one_task_at_a_time: true,
       default_routing_changed: false
+    }
+  };
+}
+
+// src/explainable-routing.ts
+function asString2(value) {
+  return typeof value === "string" ? value : "";
+}
+function sameTuple(left, right) {
+  return ["provider", "model", "cli_path", "cli_hash", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema"].every((key) => asString2(left[key]) === right[key]);
+}
+function recoveryFor(failureClass) {
+  if (["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable"].includes(failureClass)) {
+    return { state: "blocked", automatic_retry: false, action: "\u505C\u6B62\u81EA\u52A8\u91CD\u8BD5\uFF1B\u7B49\u5F85\u5B98\u65B9\u767B\u5F55\u3001\u98CE\u63A7\u89E3\u9664\u3001CLI \u4FEE\u590D\u6216\u91CD\u65B0 canary\u3002", preserve_worktree: false };
+  }
+  if (["network_timeout", "rate_limited", "provider_unavailable", "worker_timed_out"].includes(failureClass)) {
+    return { state: "cooling_down", automatic_retry: "at_most_2", backoff_minutes: [5, 15], action: "\u4EC5\u5BF9\u660E\u786E\u77ED\u6682\u6545\u969C\u505A\u4E24\u6B21\u6709\u754C\u9000\u907F\uFF1B\u4ECD\u5931\u8D25\u5219\u51B7\u5374\u5E76\u4EA4\u56DE Codex\u3002", preserve_worktree: false };
+  }
+  if (failureClass === "permission_denied") {
+    return { state: "needs_smaller_packet", automatic_retry: false, action: "\u7F29\u5C0F\u5DE5\u4F5C\u5305\u6216\u4FEE\u6B63\u6700\u5C0F\u6743\u9650\u540E\u91CD\u65B0 canary\uFF1B\u4E0D\u5F97\u4E00\u952E\u653E\u5BBD\u6743\u9650\u3002", preserve_worktree: false };
+  }
+  if (failureClass === "max_turns_exceeded") {
+    return { state: "needs_codex_decision", automatic_retry: false, action: "\u4FDD\u7559 worktree\uFF1B\u7531 Codex \u51B3\u5B9A\u7F29\u5C0F\u4EFB\u52A1\u3001\u5408\u7406\u52A0\u9884\u7B97\u3001\u6362\u5408\u683C\u5019\u9009\u6216\u63A5\u7BA1\u3002", preserve_worktree: true };
+  }
+  if (["test_failed", "scope_violation"].includes(failureClass)) {
+    return { state: "rejected", automatic_retry: false, action: "\u6D4B\u8BD5\u6216\u8303\u56F4\u68C0\u67E5\u5931\u8D25\uFF0C\u62D2\u7EDD\u8BE5\u7ED3\u679C\u5E76\u8BA1\u5165\u4EFB\u52A1\u65CF\u8D28\u91CF\u8BC1\u636E\uFF1B\u4E0D\u5F97\u7528 worker \u89E3\u91CA\u8986\u76D6\u68C0\u67E5\u3002", preserve_worktree: true };
+  }
+  return { state: "human_review", automatic_retry: false, action: "\u672A\u77E5\u5931\u8D25\u5148\u7531 Codex \u8BFB\u53D6\u8BC1\u636E\u5E76\u5F52\u7C7B\uFF0C\u4E0D\u81EA\u52A8\u6539\u6D3E\u3002", preserve_worktree: true };
+}
+function explainableRouteTool(input) {
+  const profileSet = capabilityProfilesTool({ repo: input.repo });
+  const evaluations = input.candidates.map((candidate) => {
+    const profile = profileSet.profiles.find((item) => item.task_family === input.task_family && sameTuple(item.provider_tuple, candidate));
+    const failedGates = Object.entries(candidate.hard_gates).filter(([, passed]) => !passed).map(([name]) => name);
+    const profileStatus = profile?.status ?? "unknown";
+    const profileEligible = ["provisional", "qualified"].includes(profileStatus);
+    const profileBlocked = ["blocked", "cooling_down", "stale"].includes(profileStatus);
+    const acceptedEvidence = (profile?.evidence ?? []).filter((item) => item.verdict === "accepted");
+    const viable = failedGates.length === 0 && profileEligible && !profileBlocked;
+    const score = viable ? (profileStatus === "qualified" ? 300 : 200) + acceptedEvidence.length * 10 - (candidate.estimated_cost ?? 0) - (candidate.estimated_minutes ?? 0) / 100 : -1;
+    const reasons = [];
+    if (failedGates.length > 0) reasons.push(`\u786C\u95E8\u672A\u901A\u8FC7\uFF1A${failedGates.join("\u3001")}\u3002`);
+    if (!profile) reasons.push("\u6CA1\u6709\u4E0E\u5F53\u524D provider tuple \u5B8C\u5168\u4E00\u81F4\u7684\u4EFB\u52A1\u65CF\u8BC1\u636E\u3002");
+    else {
+      reasons.push(`\u753B\u50CF\u4E3A ${profileStatus}\uFF1A${profile.status_reason}`);
+      if (acceptedEvidence.length > 0) reasons.push(`\u6700\u8FD1\u53EF\u91C7\u4FE1\u8BC1\u636E\uFF1A${acceptedEvidence.at(-1)?.attempt_id ?? "\u672A\u77E5 attempt"}\u3002`);
+    }
+    if (!profileEligible && !profileBlocked && failedGates.length === 0) reasons.push("\u8BC1\u636E\u4E0D\u8DB3\uFF0C\u53EA\u80FD\u5EFA\u8BAE\u5C0F\u800C\u53EF\u56DE\u9000\u7684\u9A8C\u8BC1\u4EFB\u52A1\u3002");
+    return {
+      candidate,
+      profile_id: profile?.profile_id ?? "",
+      profile_status: profileStatus,
+      evidence: profile?.evidence ?? [],
+      hard_gate_result: { passed: failedGates.length === 0, failed: failedGates },
+      viable,
+      score,
+      explanation: reasons
+    };
+  });
+  const ranked = [...evaluations].sort((left, right) => right.score - left.score || left.candidate.provider.localeCompare(right.candidate.provider));
+  const primary = ranked.find((item) => item.viable) ?? null;
+  const fallbacks = ranked.filter((item) => item.viable && item !== primary);
+  const boundedValidation = primary === null && evaluations.some((item) => item.hard_gate_result.passed && !["blocked", "cooling_down", "stale"].includes(item.profile_status));
+  const decision = primary ? "recommend_existing" : boundedValidation ? "bounded_validation" : "stop";
+  return {
+    schema: "codex-praetor-explainable-route/v1",
+    repo: profileSet.repo,
+    task_family: input.task_family,
+    decision,
+    recommendation: primary ? {
+      provider_tuple: primary.candidate,
+      why: primary.explanation,
+      fallback_profile_ids: fallbacks.map((item) => item.profile_id),
+      note: "\u8FD9\u662F\u4E00\u9879\u5EFA\u8BAE\uFF0C\u4E0D\u4F1A\u81EA\u52A8\u6D3E\u5DE5\u3001\u5408\u5E76\u6216\u53D1\u5E03\u3002"
+    } : null,
+    bounded_validation: boundedValidation ? "\u6CA1\u6709\u8DB3\u591F\u7684\u65B0\u9C9C\u91C7\u4FE1\u8BC1\u636E\uFF1B\u5148\u6267\u884C\u4E00\u4E2A\u5C0F\u3001\u53EF\u56DE\u9000\u3001\u540C\u4EFB\u52A1\u65CF\u7684 canary\u3002" : "\u4E0D\u9002\u7528",
+    candidates: ranked,
+    recovery: recoveryFor(input.failure_class ?? "unknown"),
+    policy: {
+      hard_gates_authoritative: true,
+      fallback_requires_same_task_family_and_current_evidence: true,
+      automatic_merge_or_publish: false,
+      profile_projection_is_not_authorization: true
     }
   };
 }
@@ -31537,6 +31631,9 @@ function capabilityProfilesTool2(input) {
 }
 function evaluationSuiteTool2() {
   return evaluationSuiteTool();
+}
+function explainableRouteTool2(input) {
+  return explainableRouteTool(input);
 }
 async function healthTool(input) {
   const repo = resolveExistingRepo(input.repo);
@@ -32514,7 +32611,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.1-alpha"
+    version: "0.9.2-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -32538,6 +32635,41 @@ function createServer() {
       inputSchema: {}
     },
     async () => asJsonContent(evaluationSuiteTool2())
+  );
+  server.registerTool(
+    "codex_praetor_explainable_route",
+    {
+      title: "Explain Codex Praetor Route Recommendation",
+      description: "Explain a conservative external-worker recommendation from current hard gates and exact capability evidence. This is dry-run advice only and never dispatches, merges, or publishes.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        task_family: external_exports.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
+        failure_class: external_exports.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "test_failed", "scope_violation", "unknown"]).optional(),
+        candidates: external_exports.array(external_exports.object({
+          provider: external_exports.enum(["qoder", "codebuddy", "mimo"]),
+          model: external_exports.string().min(1),
+          cli_path: external_exports.string().min(1),
+          cli_hash: external_exports.string().min(1),
+          permission_profile: external_exports.string().min(1),
+          task_kind: external_exports.string().min(1),
+          generation_id: external_exports.string().min(1),
+          runtime_contract_sha256: external_exports.string().min(1),
+          task_contract_schema: external_exports.string().min(1),
+          hard_gates: external_exports.object({
+            model_allowed: external_exports.boolean(),
+            permission_granted: external_exports.boolean(),
+            scope_allowed: external_exports.boolean(),
+            readiness_current: external_exports.boolean(),
+            user_authorized: external_exports.boolean(),
+            budget_allowed: external_exports.boolean()
+          }),
+          estimated_cost: external_exports.number().nonnegative().optional(),
+          estimated_minutes: external_exports.number().nonnegative().optional()
+        })).min(1)
+      }
+    },
+    async (input) => asJsonContent(explainableRouteTool2(input))
   );
   server.registerTool(
     "codex_praetor_route_intent",
