@@ -21,6 +21,7 @@ import { routeIntent } from "./route-intent.js";
 import { capabilityProfilesTool as buildCapabilityProfiles } from "./capability-profiles.js";
 import { evaluationSuiteTool as buildEvaluationSuite } from "./evaluation-suite.js";
 import { explainableRouteTool as buildExplainableRoute } from "./explainable-routing.js";
+import { providerOperationsTool as buildProviderOperations } from "./provider-operations.js";
 import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
 
 function assertResearchContract(input: {
@@ -98,6 +99,10 @@ export function evaluationSuiteTool() {
 
 export function explainableRouteTool(input: Parameters<typeof buildExplainableRoute>[0]) {
   return buildExplainableRoute(input);
+}
+
+export function providerOperationsTool(input: Parameters<typeof buildProviderOperations>[0]) {
+  return buildProviderOperations(input);
 }
 
 export async function healthTool(input: { repo: string }) {

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { capabilityProfilesTool } from "./capability-profiles.js";
 import { explainableRouteTool } from "./explainable-routing.js";
+import { providerOperationsTool } from "./provider-operations.js";
 
 type AttemptInput = {
   id: string;
@@ -104,6 +105,12 @@ try {
   const validationOnly = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "test_failed" });
   assert.equal(validationOnly.decision, "bounded_validation");
   assert.equal(validationOnly.recovery.state, "rejected");
+
+  const operations = providerOperationsTool({ repo: root, task_family: "bounded_code_change", readiness_entries: [] });
+  assert.equal(operations.schema, "codex-praetor-provider-operations/v1");
+  assert.deepEqual(operations.providers.map((item) => item.provider), ["qoder", "codebuddy", "mimo"]);
+  assert.equal(operations.policy.adapter_is_not_route_authorization, true);
+  assert.ok(operations.onboarding_checklist.length >= 6);
 
   const projectRoot = path.resolve(process.cwd(), "..");
   for (const name of ["qoder", "codebuddy", "mimo"]) {

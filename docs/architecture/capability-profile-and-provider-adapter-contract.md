@@ -33,6 +33,12 @@
 
 失败也必须走固定出口：登录、风控、CLI 或协议问题直接 `blocked`；明确短暂的网络、服务或限流最多两次退避后冷却；权限问题先缩小任务并重新 canary；超轮数保留 worktree 交由 Codex 判断；测试失败或范围越界直接 `rejected`。这些规则不替代 Codex 的验收结论。
 
+## 日常运营与新增 provider
+
+`codex_praetor_provider_operations` 把 Qoder、CodeBuddy、MiMo 的当前 readiness、画像和最近失败翻译成“能派、可小范围验证、冷却中、需要登录、证据过期或暂不可派”。它只显示下一步，不展示认证数据、完整本机路径或原始敏感日志。
+
+新增 provider 只能先添加 adapter，再完成 onboarding checklist 中的官方 CLI 边界、最小权限 canary、真实任务族、失败恢复、文档和敏感信息审查。任何一项不可观察时，新 provider 都不进入默认候选路由。
+
 ## Provider Adapter 是什么
 
 `config/provider-adapters/` 中每个公开 JSON 描述一个 provider 的稳定合同：如何发现 CLI、允许哪些模型、每种权限在对方 CLI 中到底意味着什么、怎样记录结束状态、怎样清理，以及最少要拿到什么 fixture 和真实 canary 证据。

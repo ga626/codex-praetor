@@ -19,6 +19,7 @@ import {
   capabilityProfilesTool,
   evaluationSuiteTool,
   explainableRouteTool,
+  providerOperationsTool,
   dispatchPlanTaskTool,
   dispatchDryRunTool,
   dispatchTool,
@@ -65,7 +66,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.2-alpha"
+    version: "0.9.3-alpha"
   });
 
   server.registerTool(
@@ -127,6 +128,20 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(explainableRouteTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_provider_operations",
+    {
+      title: "Read Codex Praetor Provider Operations",
+      description: "Show user-readable Qoder, CodeBuddy and MiMo availability, evidence freshness, next recovery action and the provider onboarding checklist. This never reads authentication material or dispatches a worker.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1),
+        task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]).optional()
+      }
+    },
+    async (input) => asJsonContent(providerOperationsTool(input))
   );
 
   server.registerTool(
