@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.9.0-alpha",
-    "previous_version":  "0.8.4-alpha",
-    "tag":  "v0.9.0-alpha",
+    "version":  "0.9.1-alpha",
+    "previous_version":  "0.9.0-alpha",
+    "tag":  "v0.9.1-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.9.0-alpha.zip",
-    "reason":  "建立按 provider tuple 与任务族可重建的能力画像事实层、三家 Provider Adapter 合同和 per-attempt Codex 验收绑定；不改变默认路由，为后续真实评测与可解释路由提供可验证基座。"
+    "artifact":  "codex-praetor-setup-0.9.1-alpha.zip",
+    "reason":  "建立真实任务评测实验场：任务合同、隔离计划准备器、四类任务覆盖与只读 MCP 视图；准备计划不等于派工或能力证据。"
 }

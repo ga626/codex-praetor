@@ -17,6 +17,7 @@ import {
   detectConflictsTool,
   cancelJobTool,
   capabilityProfilesTool,
+  evaluationSuiteTool,
   dispatchPlanTaskTool,
   dispatchDryRunTool,
   dispatchTool,
@@ -63,7 +64,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.0-alpha"
+    version: "0.9.1-alpha"
   });
 
   server.registerTool(
@@ -78,6 +79,17 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(capabilityProfilesTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_evaluation_suite",
+    {
+      title: "Read Codex Praetor Real Task Evaluation Suite",
+      description: "Read the bounded real-task contracts used to prepare disposable evaluation worktrees. This does not dispatch a worker or change routing.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {}
+    },
+    async () => asJsonContent(evaluationSuiteTool())
   );
 
   server.registerTool(
