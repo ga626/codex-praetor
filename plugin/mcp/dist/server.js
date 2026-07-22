@@ -31359,7 +31359,8 @@ async function healthTool(input) {
     display: {
       \u9636\u6BB5: "\u5065\u5EB7\u68C0\u6D4B",
       \u72B6\u6001: health?.status ?? "unknown",
-      \u4E0B\u4E00\u6B65: health?.status === "ready" ? "\u53EF\u4EE5\u68C0\u67E5\u5339\u914D task contract \u7684 provider readiness\u3002" : "\u5148\u5904\u7406 blocked/unknown \u68C0\u67E5\u9879\u3002"
+      \u8BCA\u65AD\u72B6\u6001: health?.diagnostic_status ?? health?.status ?? "unknown",
+      \u4E0B\u4E00\u6B65: health?.status === "ready" ? health?.diagnostic_status === "degraded" ? "\u5F53\u524D\u8FD0\u884C\u4EE3\u9645\u548C readiness \u5DF2\u53EF\u6D3E\u5DE5\uFF1B\u5386\u53F2\u6536\u636E\u6216\u5E93\u5B58\u8BCA\u65AD\u53EF\u5355\u72EC\u7EF4\u62A4\uFF0C\u4E0D\u8981\u8BEF\u5F53\u6210\u6D3E\u5DE5\u963B\u65AD\u3002" : "\u53EF\u4EE5\u68C0\u67E5\u5339\u914D task contract \u7684 provider readiness\u3002" : "\u5148\u5904\u7406 authoritative blocked \u68C0\u67E5\u9879\u3002"
     },
     health,
     exit_code: result.exitCode,
@@ -31533,6 +31534,8 @@ function classifyWorkerOutcome(input) {
   const metaStatus = String(input.meta.status ?? "");
   const status = String(completion?.status ?? metaStatus ?? "");
   const exitCode = completion?.exit_code ?? input.meta.exit_code;
+  const failureClass = String(completion?.failure_class ?? input.meta.failure_class ?? "");
+  const artifactState = String(completion?.artifact_state ?? input.meta.artifact_state ?? "");
   const combined = `${input.stdout_tail}
 ${input.stderr_tail}`.toLowerCase();
   if (!completion) {
@@ -31554,6 +31557,27 @@ ${input.stderr_tail}`.toLowerCase();
       class: "watcher_failed",
       explanation: "\u672C\u5730 watcher \u6CA1\u80FD\u5B8C\u6210 worker \u7B49\u5F85\u6216\u7ED3\u679C\u8BB0\u5F55\u3002",
       next_action: "\u5148\u4FEE\u590D\u672C\u5730 watcher/\u8FDB\u7A0B\u542F\u52A8\u95EE\u9898\uFF0C\u518D\u91CD\u6D3E\u4EFB\u52A1\u3002"
+    };
+  }
+  if (failureClass === "provider_risk_control") {
+    return {
+      class: "provider_risk_control",
+      explanation: "MiMo provider \u5DF2\u56E0\u98CE\u63A7\u62D2\u7EDD\u672C\u6B21\u8BF7\u6C42\uFF1B\u8FD9\u4E0D\u662F\u6210\u529F\u7ED3\u679C\uFF0C\u4E5F\u4E0D\u662F\u672C\u5730 worktree \u95EE\u9898\u3002",
+      next_action: "\u505C\u6B62\u91CD\u8BD5\u540C\u4E00\u8BF7\u6C42\uFF0C\u7B49\u5F85 provider \u89E3\u9664\u9650\u5236\u6216\u6539\u7528\u5DF2\u901A\u8FC7 canary \u7684 provider\u3002"
+    };
+  }
+  if (failureClass === "provider_rejected" || failureClass === "provider_output_unparseable") {
+    return {
+      class: failureClass,
+      explanation: "provider \u5DF2\u62D2\u7EDD\u8BF7\u6C42\u6216\u672A\u63D0\u4F9B\u53EF\u89E3\u6790\u7684\u5B8C\u6210\u4E8B\u4EF6\uFF0C\u4E0D\u80FD\u4F5C\u4E3A worker \u62A5\u544A\u6216\u6210\u529F\u8BC1\u636E\u3002",
+      next_action: "\u4FDD\u7559\u65E5\u5FD7\u4F5C\u4E3A\u8BCA\u65AD\u8BC1\u636E\uFF1B\u68C0\u67E5 provider \u72B6\u6001\u540E\u518D\u51B3\u5B9A\u6539\u6D3E\u6216\u91CD\u8BD5\u3002"
+    };
+  }
+  if (failureClass === "max_turns_exceeded") {
+    return {
+      class: "worker_max_turns_exceeded",
+      explanation: artifactState === "partial_worktree_diff" ? "worker \u8D85\u8F6E\u6570\u4E14\u7559\u4E0B\u4E86\u534A\u6210\u54C1\u6539\u52A8\uFF0C\u4E0D\u80FD\u76F4\u63A5\u9A8C\u6536\u6216\u5408\u5E76\u3002" : "worker \u8D85\u8F6E\u6570\u4E14\u6CA1\u6709\u5B8C\u6210\u4EFB\u52A1\uFF0C\u4E0D\u80FD\u628A\u8FDB\u7A0B\u9000\u51FA\u5F53\u4F5C\u6709\u6548\u7ED3\u679C\u3002",
+      next_action: "\u4FDD\u7559 worktree \u4F9B Codex \u68C0\u67E5\uFF1B\u7F29\u5C0F\u4EFB\u52A1\u3001\u63D0\u9AD8 MaxTurns\u3001\u6362 provider\uFF0C\u6216\u7531 Codex \u63A5\u7BA1\u5E76\u8BB0\u5F55\u539F\u56E0\u3002"
     };
   }
   if (combined.includes("max turns") || combined.includes("maximum turns") || combined.includes("turns exceeded")) {
@@ -32300,7 +32324,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.8.3-alpha"
+    version: "0.8.4-alpha"
   });
   server.registerTool(
     "codex_praetor_route_intent",

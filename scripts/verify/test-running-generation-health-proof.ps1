@@ -54,7 +54,8 @@ try {
     Assert-True ([string]$running.status -eq "ready") "Health must resolve the running generation from the current plugin contract."
     Assert-True ([string]$running.details -eq [string]$generation.generation_id) "Bundled health must resolve the packaged Release generation, not a synthetic runtime-contract ID."
     Assert-True ([string]$readiness.status -eq "ready") "Current-generation readiness must pass even when active.json is old."
-    Assert-True ([string]$payload.status -ne "blocked") "Old receipt plus current plugin/readiness must not block health."
+    Assert-True ([string]$payload.status -eq "ready") "Old receipt plus current plugin/readiness must leave dispatch health ready."
+    Assert-True ([string]$payload.diagnostic_status -eq "degraded") "Old receipt must remain visible as diagnostic degradation without changing dispatch health."
 
     $entry.generation_id = "wrong-generation"
     [ordered]@{

@@ -96,7 +96,13 @@ export async function healthTool(input: { repo: string }) {
     display: {
       阶段: "健康检测",
       状态: health?.status ?? "unknown",
-      下一步: health?.status === "ready" ? "可以检查匹配 task contract 的 provider readiness。" : "先处理 blocked/unknown 检查项。"
+      诊断状态: health?.diagnostic_status ?? health?.status ?? "unknown",
+      下一步:
+        health?.status === "ready"
+          ? health?.diagnostic_status === "degraded"
+            ? "当前运行代际和 readiness 已可派工；历史收据或库存诊断可单独维护，不要误当成派工阻断。"
+            : "可以检查匹配 task contract 的 provider readiness。"
+          : "先处理 authoritative blocked 检查项。"
     },
     health,
     exit_code: result.exitCode,
@@ -315,6 +321,8 @@ export function classifyWorkerOutcome(input: {
   const metaStatus = String(input.meta.status ?? "");
   const status = String(completion?.status ?? metaStatus ?? "");
   const exitCode = completion?.exit_code ?? input.meta.exit_code;
+  const failureClass = String(completion?.failure_class ?? input.meta.failure_class ?? "");
+  const artifactState = String(completion?.artifact_state ?? input.meta.artifact_state ?? "");
   const combined = `${input.stdout_tail}\n${input.stderr_tail}`.toLowerCase();
 
   if (!completion) {
@@ -337,6 +345,27 @@ export function classifyWorkerOutcome(input: {
       class: "watcher_failed",
       explanation: "本地 watcher 没能完成 worker 等待或结果记录。",
       next_action: "先修复本地 watcher/进程启动问题，再重派任务。"
+    };
+  }
+  if (failureClass === "provider_risk_control") {
+    return {
+      class: "provider_risk_control",
+      explanation: "MiMo provider 已因风控拒绝本次请求；这不是成功结果，也不是本地 worktree 问题。",
+      next_action: "停止重试同一请求，等待 provider 解除限制或改用已通过 canary 的 provider。"
+    };
+  }
+  if (failureClass === "provider_rejected" || failureClass === "provider_output_unparseable") {
+    return {
+      class: failureClass,
+      explanation: "provider 已拒绝请求或未提供可解析的完成事件，不能作为 worker 报告或成功证据。",
+      next_action: "保留日志作为诊断证据；检查 provider 状态后再决定改派或重试。"
+    };
+  }
+  if (failureClass === "max_turns_exceeded") {
+    return {
+      class: "worker_max_turns_exceeded",
+      explanation: artifactState === "partial_worktree_diff" ? "worker 超轮数且留下了半成品改动，不能直接验收或合并。" : "worker 超轮数且没有完成任务，不能把进程退出当作有效结果。",
+      next_action: "保留 worktree 供 Codex 检查；缩小任务、提高 MaxTurns、换 provider，或由 Codex 接管并记录原因。"
     };
   }
   if (combined.includes("max turns") || combined.includes("maximum turns") || combined.includes("turns exceeded")) {

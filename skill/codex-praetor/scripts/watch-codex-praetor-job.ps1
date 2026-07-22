@@ -41,6 +41,21 @@ function Write-JsonFile {
     $Value | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Path -Encoding UTF8
 }
 
+function Read-JsonWithRetry {
+    param([string]$Path, [int]$Attempts = 50)
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            if (Test-Path -LiteralPath $Path -PathType Leaf) {
+                return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
+            }
+            return $null
+        } catch {
+            if ($attempt -eq $Attempts) { throw }
+            Start-Sleep -Milliseconds 100
+        }
+    }
+}
+
 function Set-JsonProperty {
     param(
         [Parameter(Mandatory = $true)]
@@ -120,6 +135,7 @@ function Read-MiMoJsonEventSummary {
         cache_write = $null
         tool_use_count = 0
         parse_errors = 0
+        provider_error = $null
     }
 
     if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
@@ -144,6 +160,27 @@ function Read-MiMoJsonEventSummary {
 
         if ($event.type -eq "tool_use") {
             $summary.tool_use_count = [int]$summary.tool_use_count + 1
+        }
+
+        if ($event.type -eq "error" -and $null -ne $event.error) {
+            $error = $event.error
+            $data = $error.data
+            $responseError = $null
+            if ($null -ne $data -and -not [string]::IsNullOrWhiteSpace([string]$data.responseBody)) {
+                try {
+                    $responseError = (($data.responseBody | ConvertFrom-Json).error)
+                } catch {
+                    # Keep the provider's top-level error when its response body is not JSON.
+                }
+            }
+            $summary.provider_error = [ordered]@{
+                name = [string]$error.name
+                message = if ($null -ne $responseError) { [string]$responseError.message } elseif ($null -ne $data) { [string]$data.message } else { "" }
+                status_code = if ($null -ne $data) { $data.statusCode } else { $null }
+                code = if ($null -ne $responseError) { [string]$responseError.code } else { "" }
+                type = if ($null -ne $responseError) { [string]$responseError.type } else { "" }
+                retryable = if ($null -ne $data) { $data.isRetryable } else { $null }
+            }
         }
 
         if ($event.type -eq "step_finish" -and $null -ne $event.part) {
@@ -245,22 +282,37 @@ try {
     }
 
     $latestMeta = $null
-    try { $latestMeta = Get-Content -LiteralPath $metaPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $latestMeta = $null }
+    try { $latestMeta = Read-JsonWithRetry -Path $metaPath } catch { $waitError = "Could not read job metadata after retries: $($_.Exception.Message)" }
     $latestCompletion = $null
-    try { if (Test-Path -LiteralPath $completionPath -PathType Leaf) { $latestCompletion = Get-Content -LiteralPath $completionPath -Raw -Encoding UTF8 | ConvertFrom-Json } } catch { $latestCompletion = $null }
+    try { $latestCompletion = Read-JsonWithRetry -Path $completionPath } catch { $waitError = "Could not read existing completion after retries: $($_.Exception.Message)" }
     $cancelledExternally = ($null -ne $latestMeta -and [string]$latestMeta.status -in @("cancel_requested", "cancelled")) -or ($null -ne $latestCompletion -and [string]$latestCompletion.status -eq "cancelled")
     # A worker exit is execution evidence, not a logical-task acceptance.
     $status = "process_exited"
     $semanticFailure = ""
+    $mimoSummary = $null
     $combinedOutput = ""
     foreach ($outputPath in @([string]$meta.stdout, [string]$meta.stderr)) {
         if (Test-Path -LiteralPath $outputPath -PathType Leaf) {
             $combinedOutput += [Environment]::NewLine + (Get-Content -LiteralPath $outputPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
         }
     }
-    if ($combinedOutput -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
+    if ([string]$meta.provider -eq "mimo") {
+        $mimoSummary = Read-MiMoJsonEventSummary -Path ([string]$meta.stdout)
+        if ($null -ne $mimoSummary.provider_error) {
+            if ([string]$mimoSummary.provider_error.type -eq "risk_control" -or [string]$mimoSummary.provider_error.code -eq "441") {
+                $semanticFailure = "provider_risk_control"
+            } else {
+                $semanticFailure = "provider_rejected"
+            }
+        } elseif ([int]$mimoSummary.parse_errors -gt 0 -and [string]::IsNullOrWhiteSpace([string]$mimoSummary.text)) {
+            $semanticFailure = "provider_output_unparseable"
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)max(?:imum)?\s+turns?.*(?:exceeded|limit)|turns?\s+exceeded") {
+        $semanticFailure = "max_turns_exceeded"
+    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
         $semanticFailure = "tool_contract_mismatch"
-    } elseif ($combinedOutput -match "(?is)permission denied|permission_denied") {
+    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)permission denied|permission_denied") {
         $semanticFailure = "permission_denied"
     }
     if ($cancelledExternally) {
@@ -288,12 +340,17 @@ try {
         }
     }
     $evidenceState = "evidence_missing"
+    $artifactState = "none"
     if ([string]::IsNullOrWhiteSpace($semanticFailure) -and $null -ne $exitCode -and $exitCode -eq 0 -and $status -eq "process_exited") {
         if ([string]$meta.task_kind -eq "code_change" -and $worktreeChanged) {
             $evidenceState = "artifact_valid"
+            $artifactState = "worktree_diff_observed"
         } elseif ($stdoutHasText) {
             $evidenceState = "report_valid"
+            $artifactState = "report_observed"
         }
+    } elseif ($worktreeChanged) {
+        $artifactState = "partial_worktree_diff"
     }
     $evidenceObservation = [ordered]@{
         stdout_nonempty = $stdoutHasText
@@ -306,8 +363,10 @@ try {
     Set-JsonProperty -Object $meta -Name "status" -Value $status
     Set-JsonProperty -Object $meta -Name "process_state" -Value $status
     Set-JsonProperty -Object $meta -Name "evidence_state" -Value $evidenceState
+    Set-JsonProperty -Object $meta -Name "artifact_state" -Value $artifactState
     Set-JsonProperty -Object $meta -Name "evidence_observation" -Value $evidenceObservation
-    Set-JsonProperty -Object $meta -Name "governance_state" -Value "awaiting_supervisor"
+    $governanceState = if ([string]::IsNullOrWhiteSpace($semanticFailure)) { "awaiting_supervisor" } else { "rejected" }
+    Set-JsonProperty -Object $meta -Name "governance_state" -Value $governanceState
     Set-JsonProperty -Object $meta -Name "exit_code" -Value $exitCode
     Set-JsonProperty -Object $meta -Name "exited_at" -Value $now.ToString("o")
     Set-JsonProperty -Object $meta -Name "wait_error" -Value $waitError
@@ -345,16 +404,16 @@ try {
         terminal_state = $status
         process_state = $status
         evidence_state = $evidenceState
+        artifact_state = $artifactState
         evidence_observation = $evidenceObservation
-        governance_state = "awaiting_supervisor"
+        governance_state = $governanceState
         lock_released = $false
         notify_attempted = $false
         notify_ok = $false
         notify_error = ""
     }
 
-    if ([string]$meta.provider -eq "mimo") {
-        $mimoSummary = Read-MiMoJsonEventSummary -Path ([string]$meta.stdout)
+    if ($null -ne $mimoSummary) {
         $completion.provider_cost = $mimoSummary.cost
         $completion.input_tokens = $mimoSummary.input_tokens
         $completion.output_tokens = $mimoSummary.output_tokens
@@ -365,6 +424,7 @@ try {
         $completion.parser = "mimo_json_event_summary"
         $completion.parser_errors = $mimoSummary.parse_errors
         $completion.summary_text = $mimoSummary.text
+        $completion.provider_error = $mimoSummary.provider_error
     }
 
     if (-not [string]::IsNullOrWhiteSpace($LockPath) -and (Test-Path -LiteralPath $LockPath)) {

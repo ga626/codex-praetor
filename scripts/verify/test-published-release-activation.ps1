@@ -26,16 +26,19 @@ try {
     @"
 @echo off
 if "%1"=="plugin" if "%2"=="add" exit /b 0
-if "%1"=="plugin" if "%2"=="list" echo codex-praetor@personal $version
+ if "%1"=="plugin" if "%2"=="list" (
+   echo PLUGIN                            STATUS              VERSION                     PATH
+   echo codex-praetor@personal            installed, enabled  $version                 C:\fixture\plugins\codex-praetor
+ )
 exit /b 0
 "@ | Set-Content -LiteralPath $fakeCodex -Encoding ASCII
     $profile = Join-Path $scratch "profile"
     $result = (& powershell -NoProfile -ExecutionPolicy Bypass -File $activation -Version $version -ReleaseZip $zip -ReleaseSha256 $sha -UserProfileRoot $profile -CodexCommand $fakeCodex -SkipMaintenance -Json | Out-String | ConvertFrom-Json)
     Assert-True ([string]$result.source_kind -eq "explicit_release_fixture") "Fixture activation must be labeled as a fixture, never as a published delivery proof."
     Assert-True ([string]$result.status -eq "needs_host_restart") "Verified installation must stop at the explicit host refresh boundary."
-    Assert-True ([string]$result.generation.generation_id -eq [string]$current.generation_id) "Activated plugin must retain the exact bundled generation."
+    Assert-True ([string]$result.generation.generation_id -eq [string]$current.generation_id) "Activated plugin must retain the exact bundled generation (expected=$($current.generation_id); actual=$($result.generation.generation_id))."
     Assert-True (Test-Path -LiteralPath (Join-Path $profile "plugins\codex-praetor\release-generation.json") -PathType Leaf) "Activation did not install the bundled plugin generation."
-    Write-Host "[PASS] Published Release activation installs the verified bundle, uses the official plugin command, and stops at host refresh."
+    Write-Host "[PASS] Published Release activation accepts the official table-shaped plugin list, installs the verified bundle, and stops at host refresh."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
 }

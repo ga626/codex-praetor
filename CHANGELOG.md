@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.4-alpha - 2026-07-22
+
+- Classified provider rejection, MiMo risk-control errors, max-turn exhaustion, and partial worktree artifacts as structured failures rather than successful worker reports.
+- Made failed attempts enter rejected governance state; only clean process exits without a semantic failure remain awaiting Codex verification.
+- Added deterministic isolated-worktree MCP dependency bootstrap, a table-shaped `codex plugin list` activation regression, and health output that separates dispatch authority from historical diagnostics.
+
 ## 0.8.3-alpha - 2026-07-22
 
 - Recovered the 0.8.2-alpha CodeBuddy edit-worker release incident with a new immutable version; the published 0.8.2 artifact remains unchanged.

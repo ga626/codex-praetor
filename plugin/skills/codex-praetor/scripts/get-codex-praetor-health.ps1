@@ -236,10 +236,15 @@ if ($isIsolatedProfile) {
     Add-HealthCheck -Name "generation_maintenance" -Status "degraded" -Message "维护任务 adapter 缺失，无法验证任务定义。" -Details $maintenanceTaskName
 }
 
-$overall = if (@($checks | Where-Object { $_.status -eq "blocked" }).Count -gt 0) { "blocked" } elseif (@($checks | Where-Object { $_.status -ne "ready" }).Count -gt 0) { "degraded" } else { "ready" }
+$authoritativeDispatchChecks = @("running_generation", "installed_plugin", "plugin_cache_generation", "marketplace_activation", "provider_readiness")
+$dispatchBlocked = @($checks | Where-Object { $_.name -in $authoritativeDispatchChecks -and $_.status -eq "blocked" }).Count -gt 0
+$dispatchStatus = if ($dispatchBlocked) { "blocked" } else { "ready" }
+$diagnosticStatus = if (@($checks | Where-Object { $_.status -eq "blocked" }).Count -gt 0) { "blocked" } elseif (@($checks | Where-Object { $_.status -ne "ready" }).Count -gt 0) { "degraded" } else { "ready" }
 $payload = [pscustomobject]@{
     schema = "codex-praetor-health/v5"
-    status = $overall
+    status = $dispatchStatus
+    diagnostic_status = $diagnosticStatus
+    dispatch_authority_checks = $authoritativeDispatchChecks
     repo = (Resolve-Path -LiteralPath $Repo).Path
     channel = $Channel
     runtime_contract = if ($null -eq $contract) { "" } else { [string]$contract.version }
@@ -247,5 +252,5 @@ $payload = [pscustomobject]@{
     generation_retirement = $retirementSummary
     checks = $checks
 }
-if ($Json) { $payload | ConvertTo-Json -Depth 12 } else { Write-Host "Codex Praetor health: $overall"; $checks | ForEach-Object { Write-Host "[$($_.status)] $($_.name): $($_.message)" } }
-if ($overall -eq "blocked") { exit 2 }
+if ($Json) { $payload | ConvertTo-Json -Depth 12 } else { Write-Host "Codex Praetor dispatch health: $dispatchStatus; diagnostic health: $diagnosticStatus"; $checks | ForEach-Object { Write-Host "[$($_.status)] $($_.name): $($_.message)" } }
+if ($dispatchStatus -eq "blocked") { exit 2 }

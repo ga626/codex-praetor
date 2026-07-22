@@ -24,7 +24,15 @@ function Quote-Arg {
 }
 
 function Invoke-WatchedCase {
-    param([string]$Name, [string[]]$WorkerArguments, [int]$TimeoutSeconds)
+    param(
+        [string]$Name,
+        [string[]]$WorkerArguments,
+        [int]$TimeoutSeconds,
+        [string]$Provider = "test",
+        [string]$TaskKind = "local_audit",
+        [string]$ExecutionRepo = ""
+    )
+    if ([string]::IsNullOrWhiteSpace($ExecutionRepo)) { $ExecutionRepo = $projectPath }
     $jobDir = Join-Path $testRoot $Name
     New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
     $argumentPath = Join-Path $jobDir "arguments.json"
@@ -35,8 +43,8 @@ function Invoke-WatchedCase {
     $metaPath = Join-Path $jobDir "job.json"
     $completionPath = Join-Path $jobDir "completion.json"
     $WorkerArguments | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $argumentPath -Encoding UTF8
-    [ordered]@{ schema = "codex-praetor-job/v2"; job_id = "lifecycle-$Name"; repo = $projectPath; execution_repo = $projectPath; provider = "test"; tier = "test"; model = "test"; task_kind = "local_audit"; mode = "readonly"; pid = 0; stdout = $stdoutPath; stderr = $stderrPath; completion = $completionPath; status = "starting" } | ConvertTo-Json | Set-Content -LiteralPath $metaPath -Encoding UTF8
-    $watcherArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $watcherScript, "-JobDir", $jobDir, "-WorkerPid", "0", "-StartWorker", "-Exe", "powershell.exe", "-ArgumentListPath", $argumentPath, "-WorkingDirectory", $projectPath, "-StdoutPath", $stdoutPath, "-StderrPath", $stderrPath, "-TimeoutSeconds", "$TimeoutSeconds", "-NoNotify")
+    [ordered]@{ schema = "codex-praetor-job/v2"; job_id = "lifecycle-$Name"; repo = $projectPath; execution_repo = $ExecutionRepo; provider = $Provider; tier = "test"; model = "test"; task_kind = $TaskKind; mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }; pid = 0; stdout = $stdoutPath; stderr = $stderrPath; completion = $completionPath; status = "starting" } | ConvertTo-Json | Set-Content -LiteralPath $metaPath -Encoding UTF8
+    $watcherArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $watcherScript, "-JobDir", $jobDir, "-WorkerPid", "0", "-StartWorker", "-Exe", "powershell.exe", "-ArgumentListPath", $argumentPath, "-WorkingDirectory", $ExecutionRepo, "-StdoutPath", $stdoutPath, "-StderrPath", $stderrPath, "-TimeoutSeconds", "$TimeoutSeconds", "-NoNotify")
     $watcher = Start-Process -FilePath "powershell.exe" -ArgumentList (($watcherArgs | ForEach-Object { Quote-Arg ([string]$_) }) -join " ") -WindowStyle Hidden -RedirectStandardOutput $watcherStdoutPath -RedirectStandardError $watcherStderrPath -PassThru
     if (-not $watcher.WaitForExit(([Math]::Min(($TimeoutSeconds + 20) * 1000, 2147483647)))) { try { $watcher.Kill() } catch { }; throw "Watcher did not finish for case $Name." }
     if (-not (Test-Path -LiteralPath $completionPath -PathType Leaf)) {
@@ -52,9 +60,37 @@ try {
     $semantic = Invoke-WatchedCase -Name "semantic-exit-zero" -WorkerArguments @("-NoProfile", "-Command", "Write-Error permission denied; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$semantic.status -eq "process_exited") "A worker exit must be recorded as process_exited, not a logical outcome."
     Assert-True ([string]$semantic.failure_class -eq "permission_denied") "Semantic permission failure was not classified."
-    Assert-True ([string]$semantic.governance_state -eq "awaiting_supervisor") "Worker exit must await a supervisor verdict."
+    Assert-True ([string]$semantic.governance_state -eq "rejected") "Semantic worker failure must be recorded as rejected, not awaiting supervisor acceptance."
     $report = Invoke-WatchedCase -Name "report-evidence" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'worker report'; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$report.evidence_state -eq "report_valid") "A successful worker report must be recorded as report evidence while awaiting supervisor verification."
+    $maxTurns = Invoke-WatchedCase -Name "max-turns" -WorkerArguments @("-NoProfile", "-Command", "Write-Error 'Max turns (8) exceeded'; exit 0") -TimeoutSeconds 30
+    Assert-True ([string]$maxTurns.failure_class -eq "max_turns_exceeded") "Max turns must have a structured failure class."
+    Assert-True ([string]$maxTurns.evidence_state -eq "evidence_missing") "Max turns output must not be labeled as valid report evidence."
+    Assert-True ([string]$maxTurns.governance_state -eq "rejected") "Max turns must not be recorded as awaiting verification."
+    $partialRepo = Join-Path $testRoot "partial-worktree"
+    New-Item -ItemType Directory -Path $partialRepo -Force | Out-Null
+    & git -C $partialRepo init -q
+    if ($LASTEXITCODE -ne 0) { throw "Could not initialize partial-worktree fixture." }
+    $partial = Invoke-WatchedCase -Name "partial-max-turns" -WorkerArguments @("-NoProfile", "-Command", "Set-Content -LiteralPath partial.txt -Value partial; Write-Error 'Max turns (16) exceeded'; exit 0") -TimeoutSeconds 30 -TaskKind "code_change" -ExecutionRepo $partialRepo
+    Assert-True ([string]$partial.artifact_state -eq "partial_worktree_diff") "A max-turns worktree diff must be marked as partial, not accepted artifact evidence."
+    $mimoCommand = @'
+[pscustomobject]@{
+    type = 'error'
+    error = [pscustomobject]@{
+        name = 'APIError'
+        data = [pscustomobject]@{
+            message = 'Request blocked by risk control'
+            statusCode = 400
+            responseBody = '{"error":{"code":"441","message":"blocked","type":"risk_control"}}'
+        }
+    }
+} | ConvertTo-Json -Depth 8 -Compress
+exit 0
+'@
+    $mimo = Invoke-WatchedCase -Name "mimo-risk-control" -WorkerArguments @("-NoProfile", "-Command", $mimoCommand) -TimeoutSeconds 30 -Provider "mimo" -TaskKind "code_change" -ExecutionRepo $partialRepo
+    Assert-True ([string]$mimo.failure_class -eq "provider_risk_control") "MiMo risk control error must be classified as provider_risk_control."
+    Assert-True ([string]$mimo.evidence_state -eq "evidence_missing") "MiMo API error must never be labeled as a valid worker report."
+    Assert-True ([string]$mimo.provider_error.code -eq "441") "MiMo completion must preserve the provider error code for diagnosis."
     $timedOut = Invoke-WatchedCase -Name "timeout" -WorkerArguments @("-NoProfile", "-Command", "Start-Sleep -Seconds 35") -TimeoutSeconds 30
     Assert-True ([string]$timedOut.status -eq "timed_out") "Worker timeout was not classified."
 
@@ -78,7 +114,7 @@ try {
     $cancelCompletion = Get-Content -LiteralPath $cancelCompletionPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ([string]$cancelCompletion.status -eq "cancelled") "Cancellation was overwritten by watcher completion."
     $succeeded = $true
-    Write-Host "[PASS] Job lifecycle smoke passed: semantic failure, timeout, and durable cancellation."
+    Write-Host "[PASS] Job lifecycle smoke passed: semantic failures, provider rejection, partial artifacts, timeout, and durable cancellation."
 } finally {
     if ($succeeded -and (Test-Path -LiteralPath $testRoot)) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
     if (-not $succeeded) { Write-Host "[DIAGNOSTIC] Lifecycle test artifacts retained at $testRoot" }
