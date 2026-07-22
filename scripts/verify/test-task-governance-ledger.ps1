@@ -26,12 +26,20 @@ try {
     $failedTask = @($plan.tasks | Where-Object { $_.task_id -eq "failed-task" } | Select-Object -First 1)
     Assert-True ($failedTask.Count -eq 1 -and [string]$failedTask[0].status -eq "failed") "A structured worker failure must not be recorded as awaiting verification."
     Assert-True ([string]$failedTask[0].governance_state -eq "rejected") "A structured worker failure must enter rejected governance state."
+    Assert-True ([string]$failedTask[0].attempts[-1].supervisor_verdict -eq "rejected") "Structured failure was not bound to its immutable attempt."
 
-    & $planScript -Action UpsertTask -PlanId ledger -PlanRoot $root -TaskId producer -Status completed | Out-Null
+    $successJobDir = Join-Path $root "success-job"
+    New-Item -ItemType Directory -Path $successJobDir -Force | Out-Null
+    $successCompletion = Join-Path $successJobDir "completion.json"
+    [ordered]@{ job_id = "accepted-attempt"; status = "process_exited"; process_state = "process_exited"; failure_class = ""; evidence_state = "tests_passed"; provider = "codebuddy"; tier = "codebuddy-free"; model = "hy3"; mode = "edit"; acceptance = "fixture"; exit_code = 0 } | ConvertTo-Json | Set-Content -LiteralPath $successCompletion -Encoding UTF8
+    & $planScript -Action RecordJob -PlanId ledger -PlanRoot $root -TaskId producer -JobDir $successJobDir -CompletionPath $successCompletion | Out-Null
     $ready = & $planScript -Action NextReady -PlanId ledger -PlanRoot $root -OutputJson
     Assert-True ([string]$ready -notmatch 'consumer') "Process completion without a supervisor verdict unlocked a dependency."
 
     & $planScript -Action VerifyTask -PlanId ledger -PlanRoot $root -TaskId producer -VerificationVerdict accepted -VerificationSummary accepted | Out-Null
+    $plan = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $producer = @($plan.tasks | Where-Object { $_.task_id -eq "producer" } | Select-Object -First 1)
+    Assert-True ([string]$producer[0].attempts[-1].supervisor_verdict -eq "accepted") "Codex verdict was not bound to the immutable attempt."
     $ready = & $planScript -Action NextReady -PlanId ledger -PlanRoot $root -OutputJson
     Assert-True ([string]$ready -match 'consumer') "Accepted task did not unlock its dependency."
     $selection = '{"selection_id":"sel-1","provider":"codebuddy","model":"hy3","reason":"fixed model and readonly tuple","expires_at":"2099-01-01T00:00:00Z"}'

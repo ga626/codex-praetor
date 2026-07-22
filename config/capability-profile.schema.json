@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-praetor.local/schema/capability-profile/v1",
+  "title": "Codex Praetor derived capability profile",
+  "type": "object",
+  "required": ["schema", "generated_at", "profiles"],
+  "properties": {
+    "schema": { "const": "codex-praetor-capability-profile-set/v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "profiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/profile" }
+    }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "required": ["profile_id", "provider_tuple", "task_family", "status", "evidence"],
+      "properties": {
+        "profile_id": { "type": "string" },
+        "provider_tuple": { "$ref": "#/$defs/provider_tuple" },
+        "task_family": { "enum": ["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery", "unclassified"] },
+        "status": { "enum": ["unknown", "observed", "provisional", "qualified", "cooling_down", "blocked", "stale"] },
+        "status_reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+        "cooldown_until": { "type": "string", "format": "date-time" }
+      }
+    },
+    "provider_tuple": {
+      "type": "object",
+      "required": ["provider", "model", "permission_profile", "task_kind"],
+      "properties": {
+        "provider": { "type": "string" },
+        "cli_path": { "type": "string" },
+        "cli_hash": { "type": "string" },
+        "model": { "type": "string" },
+        "permission_profile": { "type": "string" },
+        "task_kind": { "type": "string" },
+        "generation_id": { "type": "string" },
+        "runtime_contract_sha256": { "type": "string" },
+        "task_contract_schema": { "type": "string" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["plan_id", "task_id", "attempt_id", "verdict", "recorded_at"],
+      "properties": {
+        "plan_id": { "type": "string" },
+        "task_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "verdict": { "enum": ["accepted", "rejected", "blocked", "unknown"] },
+        "recorded_at": { "type": "string", "format": "date-time" },
+        "failure_class": { "type": "string" },
+        "supervisor_verdict": { "enum": ["accepted", "rejected", "blocked", "skipped", "human_required", "retry", ""] },
+        "evidence_state": { "type": "string" },
+        "completion_path": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

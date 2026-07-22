@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0-alpha - 2026-07-22
+
+- Added a conservative, read-only capability-profile projection keyed by provider tuple and task family; it records observed, provisional, qualified, cooling-down and blocked evidence without changing default routing.
+- Added public provider-adapter contracts for Qoder, CodeBuddy and MiMo, including permission semantics and the explicit disposable-worktree boundary.
+- Bound Codex's verification verdict to the latest immutable attempt and added regression coverage for profile projection and adapter presence.
+
 ## 0.8.4-alpha - 2026-07-22
 
 - Classified provider rejection, MiMo risk-control errors, max-turn exhaustion, and partial worktree artifacts as structured failures rather than successful worker reports.
