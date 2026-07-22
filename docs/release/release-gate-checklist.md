@@ -15,6 +15,7 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Durable job lifecycle regression: `scripts/verify/test-job-lifecycle.ps1` covers exit-code-zero semantic failure, timeout, and cancellation terminal-state preservation.
 - Developer environment validation: `scripts/verify/test-codex-praetor-dev-env.ps1`. Use this when the change specifically touches local Codex installation, installed skill sync, provider dry-run behavior, or global-rule integration.
 - Release receipt contract validation: `scripts/verify/test-release-receipt-contract.ps1` checks the staged/active/delivered state contract used by closeout receipts.
+- Published-Release activation regression: `scripts/verify/test-published-release-activation.ps1` proves the verified bundle can install into an isolated stable marketplace through the official plugin command and then stops at the explicit host-refresh boundary.
 - Plugin-boundary regression: `scripts/verify/test-dev-channel-isolation.ps1` proves the retired closeout command cannot mutate a profile; `test-release-closeout.ps1` verifies that an isolated installation writes only the marketplace source plugin.
 - Release intent validation: `scripts/verify/test-release-intent.ps1` requires every release-impacting PR to carry the version, tag, artifact and auto-on-main release contract.
 - Mainline publication workflow: `.github/workflows/release-on-main.yml` is the only supported path from a merged release-impacting PR to an immutable GitHub Release.
@@ -46,7 +47,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.8.1-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.8.2-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -119,7 +120,7 @@ Before pushing or tagging:
 The immutable GitHub Release is the product delivery record. Do not run a second local stage/activate/deliver state machine after publication.
 
 1. The normal installer copies only the plugin bundle into the marketplace source directory. It does not install a global Skill and does not write Codex's cache.
-2. After download verification, install that exact Release into the stable marketplace and compare its `plugin/release-generation.json` with the downloaded root generation manifest. Do not ask for a host refresh until they match.
+2. After download verification, Codex runs `scripts/release/activate-published-codex-praetor-release.ps1` for that exact Release. It compares the bundled `plugin/release-generation.json` with the downloaded root generation manifest, installs the stable marketplace copy, calls official `codex plugin add codex-praetor@personal`, and installs maintenance. Do not ask for a host refresh until it reports `needs_host_restart`.
 3. If the bundled MCP, Skill, manifest, installation source, or tool contract changed, refresh Codex Desktop and then open one new chat. Call `codex_praetor_runtime_info` and confirm its version, contract SHA, cache root, and plugin generation agree with the installed Release. A new chat alone is not a host refresh.
 4. Run one readonly `codex_praetor_dispatch_dry_run` only after the installation and host identities match. This verifies the ordinary user entry without creating a job or worktree.
 4. A cache directory held by an older Desktop process is normal. Codex owns its cleanup; neither the installer nor release closeout deletes it.

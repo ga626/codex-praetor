@@ -312,8 +312,12 @@ function Ensure-WorkerWorktree {
     }
 
     $baseBranch = Get-CurrentGitBranch -Path $RepoPath
-    if ([string]::IsNullOrWhiteSpace($baseBranch)) {
-        throw "Cannot create worker worktree from a detached HEAD or non-branch checkout: $RepoPath"
+    $baseRef = $baseBranch
+    if ([string]::IsNullOrWhiteSpace($baseRef)) {
+        $baseRef = (& git -C $RepoPath rev-parse --verify HEAD 2>$null | Out-String).Trim()
+        if ([string]::IsNullOrWhiteSpace($baseRef)) {
+            throw "Cannot resolve a commit for worker worktree creation: $RepoPath"
+        }
     }
 
     $worktreePath = Get-WorkerWorktreePath -RepoPath $RepoPath -Name $Name
@@ -325,14 +329,20 @@ function Ensure-WorkerWorktree {
     $existingBranch = & git -C $RepoPath branch --list $branchName 2>$null
     New-Item -ItemType Directory -Path (Split-Path -Parent $worktreePath) -Force | Out-Null
 
-    if ([string]::IsNullOrWhiteSpace($existingBranch)) {
-        & git -C $RepoPath worktree add -b $branchName $worktreePath $baseBranch | Out-Null
-    } else {
-        & git -C $RepoPath worktree add $worktreePath $branchName | Out-Null
+    $previousErrorAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        if ([string]::IsNullOrWhiteSpace($existingBranch)) {
+            $worktreeOutput = (& git -C $RepoPath worktree add -b $branchName $worktreePath $baseRef 2>&1 | Out-String).Trim()
+        } else {
+            $worktreeOutput = (& git -C $RepoPath worktree add $worktreePath $branchName 2>&1 | Out-String).Trim()
+        }
+        $worktreeExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
     }
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "git worktree add failed for $worktreePath"
+    if ($worktreeExitCode -ne 0) {
+        throw "git worktree add failed for $worktreePath. $worktreeOutput"
     }
 
     return $worktreePath

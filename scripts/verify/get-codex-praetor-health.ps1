@@ -54,6 +54,12 @@ $readinessHelperCandidates = @(
 )
 $readinessHelperPath = @($readinessHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 if (@($readinessHelperPath).Count -eq 1) { . ([string]$readinessHelperPath[0]) }
+$runningGenerationHelperCandidates = @(
+    (Join-Path $projectRoot "scripts\verify\resolve-codex-praetor-running-generation.ps1"),
+    (Join-Path $scriptDir "resolve-codex-praetor-running-generation.ps1")
+)
+$runningGenerationHelperPath = @($runningGenerationHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($runningGenerationHelperPath).Count -eq 1) { . ([string]$runningGenerationHelperPath[0]) }
 $maintenanceHelperCandidates = @(
     (Join-Path $projectRoot "scripts\maintenance\get-codex-praetor-maintenance-definition.ps1"),
     (Join-Path $scriptDir "get-codex-praetor-maintenance-definition.ps1")
@@ -96,29 +102,9 @@ if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) {
 }
 $runtimeContractHash = if ($null -eq $contract) { "" } else { (Get-FileHash -LiteralPath $contractPath -Algorithm SHA256).Hash.ToLowerInvariant() }
 
-function Resolve-RunningGeneration {
-    if ($null -eq $contract) { return $null }
-    $generationScript = Join-Path $projectRoot "scripts\release\get-codex-praetor-generation.ps1"
-    if (Test-Path -LiteralPath $generationScript -PathType Leaf) {
-        try { return (& $generationScript -ProjectRoot $projectRoot -Json | ConvertFrom-Json) } catch { }
-    }
-    $manifestCandidates = @(
-        (Join-Path $sourcePluginRoot "release-generation.json"),
-        (Join-Path $projectRoot "release-generation.json")
-    )
-    foreach ($path in @($manifestCandidates | Select-Object -Unique)) {
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
-        try { return (Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { }
-    }
-    return [pscustomobject]@{
-        generation_id = "$( [string]$contract.version )--runtime-contract--$($runtimeContractHash.Substring(0, 12))"
-        version = [string]$contract.version
-        runtime_contract_sha256 = $runtimeContractHash
-        task_contract_schema = [string]$contract.taskContractSchema
-    }
+$runningGeneration = if ($null -eq $contract -or @($runningGenerationHelperPath).Count -ne 1) { $null } else {
+    Resolve-CodexPraetorRunningGeneration -RuntimeContractPath $contractPath -ProjectRoot $projectRoot -ScriptDirectory $scriptDir
 }
-
-$runningGeneration = Resolve-RunningGeneration
 if ($null -ne $runningGeneration -and [string]$runningGeneration.version -eq [string]$contract.version -and [string]$runningGeneration.runtime_contract_sha256 -eq $runtimeContractHash -and [string]$runningGeneration.task_contract_schema -eq [string]$contract.taskContractSchema -and -not [string]::IsNullOrWhiteSpace([string]$runningGeneration.generation_id)) {
     Add-HealthCheck -Name "running_generation" -Status "ready" -Message "当前运行插件 generation 与其 bundled runtime contract 一致。" -Details ([string]$runningGeneration.generation_id)
 } else {

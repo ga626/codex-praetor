@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-21
 
-`v0.8.1-alpha` 已公开发布并完成自动发布闭环；当前目标是 `v0.8.1-alpha`：把真实 provider canary、worker 终态、UTF-8 输出和 dependency-only CI 分流收束为同一套可回归边界。发布影响 PR 必须在同一个 PR 内提交版本和 release intent，合并后由 Release On Main 自动创建、发布和复验不可变 Release；本机验证以运行中的 generation、当前 provider readiness 和真实用户路径为准。
+`v0.8.2-alpha` 已公开发布并完成自动发布闭环；当前目标是 `v0.8.2-alpha`：把真实 provider canary、worker 终态、UTF-8 输出和 dependency-only CI 分流收束为同一套可回归边界。发布影响 PR 必须在同一个 PR 内提交版本和 release intent，合并后由 Release On Main 自动创建、发布和复验不可变 Release；本机验证以运行中的 generation、当前 provider readiness 和真实用户路径为准。
 
 已经完成：
 
