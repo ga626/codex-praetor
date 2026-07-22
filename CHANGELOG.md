@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3-alpha - 2026-07-23
+
+- Added a user-readable provider operations view for Qoder, CodeBuddy and MiMo without exposing authentication material or local paths.
+- Added a versioned onboarding checklist that prevents a new provider from becoming a route candidate before its adapter, current canaries, task-family evidence and recovery evidence are observable.
+
 ## 0.9.2-alpha - 2026-07-22
 
 - Added an explainable, read-only route recommendation that ranks only exact-tuple, current capability evidence after hard gates pass.

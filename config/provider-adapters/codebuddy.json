@@ -27,6 +27,7 @@
   "evidence": {
     "fixture": "scripts/verify/test-provider-canary-evidence.ps1",
     "end_to_end": "A current-generation provider canary in an isolated worktree is required before real dispatch.",
-    "documentation": "docs/architecture/capability-profile-and-provider-adapter-contract.md"
+    "documentation": "docs/architecture/capability-profile-and-provider-adapter-contract.md",
+    "onboarding_checklist": "config/provider-onboarding-checklist.json"
   }
 }

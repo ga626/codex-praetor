@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.9.2-alpha",
-    "previous_version":  "0.9.1-alpha",
-    "tag":  "v0.9.2-alpha",
+    "version":  "0.9.3-alpha",
+    "previous_version":  "0.9.2-alpha",
+    "tag":  "v0.9.3-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.9.2-alpha.zip",
-    "reason":  "建立可解释能力路由与失败恢复：完整 tuple 的新鲜证据只能在硬门通过后产生建议；建议不自动派工、合并或发布。"
+    "artifact":  "codex-praetor-setup-0.9.3-alpha.zip",
+    "reason":  "建立三家 provider 运营闭环：以用户可理解状态和版本化准入清单呈现当前 canary、任务族证据与恢复动作；不读取认证材料且不自动扩大路由。"
 }
