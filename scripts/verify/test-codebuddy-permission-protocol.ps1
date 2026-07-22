@@ -17,7 +17,8 @@ function Invoke-ProtocolFixture {
         [string]$Mode,
         [string]$TaskKind,
         [string]$ExpectedTools,
-        [string]$WorktreeName = ""
+        [string]$WorktreeName = "",
+        [switch]$AllowNetwork
     )
 
     $arguments = @(
@@ -36,6 +37,7 @@ function Invoke-ProtocolFixture {
         "-ScratchRoot", $scratchRoot,
         "-DryRun"
     )
+    if ($AllowNetwork) { $arguments += "-AllowWorkerNetwork" }
     if (-not [string]::IsNullOrWhiteSpace($WorktreeName)) {
         $arguments += @("-WorktreeName", $WorktreeName)
     }
@@ -48,6 +50,12 @@ function Invoke-ProtocolFixture {
     Assert-True ($command -match "(?:^|\s)-y(?:\s|$)") "CodeBuddy $Mode command is missing the supported headless approval flag."
     Assert-True ($command -match [regex]::Escape("--tools $ExpectedTools")) "CodeBuddy $Mode command did not receive the expected tool allowlist."
     Assert-True ($command -notmatch "--permission-mode|--allowedTools|--disallowedTools|dontAsk") "CodeBuddy $Mode command regressed to the historical unsupported permission protocol."
+    if ($AllowNetwork) {
+        $allOutput = $output | Out-String
+        $source = Get-Content -LiteralPath $wrapper -Raw -Encoding UTF8
+        Assert-True ($allOutput -match "worker_network=allowed_by_codex") "Allowed network contract was not recorded by the dry-run."
+        Assert-True ($source -match '\$networkRule = if \(\$AllowWorkerNetwork\)' -and $source -match "External network access is allowed for this task") "Allowed network contract is not propagated into the worker prompt source."
+    }
 }
 
 try {
@@ -76,7 +84,7 @@ try {
     $scratchRoot = Join-Path $scratch "worker-scratch"
 
     Invoke-ProtocolFixture -Mode "readonly" -TaskKind "local_audit" -ExpectedTools "Read,Glob,Grep"
-    Invoke-ProtocolFixture -Mode "edit" -TaskKind "code_change" -ExpectedTools "Read,Glob,Grep,Edit,Write,Bash" -WorktreeName "permission-protocol"
+    Invoke-ProtocolFixture -Mode "edit" -TaskKind "code_change" -ExpectedTools "Read,Glob,Grep,Edit,Write,Bash" -WorktreeName "permission-protocol" -AllowNetwork
     Write-Host "[PASS] CodeBuddy permission fault-injection regression rejects the historical dontAsk protocol and accepts the supported headless allowlists without acquiring a Git worktree lock."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }

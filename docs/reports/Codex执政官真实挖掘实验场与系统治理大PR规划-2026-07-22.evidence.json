@@ -1,0 +1,142 @@
+{
+  "schema": "codex-praetor-research-evidence/v1",
+  "report": "Codex执政官真实挖掘实验场与系统治理大PR规划-2026-07-22.md",
+  "date": "2026-07-22",
+  "scope": "真实挖掘实验场、系统治理大PR、发布收口",
+  "conclusion": "采用Codex Desktop独立worktree保护主检出；允许真实联网、官方CLI使用既有登录态和正常额度；不将Git worktree误称为OS级沙箱，也不将账户认证文件开放给worker。",
+  "evidence_items": [
+    {
+      "id": "local-branch-baseline",
+      "access_path": "local_readonly",
+      "tool": "git",
+      "path": "D:/Projects/CodexPraetor",
+      "fact": "初始恢复基线为codex/recover-codebuddy-edit-permissions上的d53bf10436fd1710bc32c45a4e14f14f8c4793ca。",
+      "strength": "strong",
+      "used_for": "确定大PR基线"
+    },
+    {
+      "id": "local-network-contract-contradiction",
+      "access_path": "local_readonly",
+      "tool": "rg + source_read",
+      "path": "scripts/dispatch/invoke-codex-praetor.ps1:94,888-889,1106,1143",
+      "fact": "AllowWorkerNetwork可写入allowed_by_codex且external_research要求该开关，但固定worker提示词仍无条件禁止外网研究。",
+      "strength": "strong",
+      "used_for": "确认联网合同自相矛盾"
+    },
+    {
+      "id": "local-network-contract-dry-run",
+      "access_path": "local_readonly",
+      "tool": "invoke-codex-praetor.ps1 -AllowWorkerNetwork -DryRun",
+      "path": "scripts/dispatch/invoke-codex-praetor.ps1",
+      "fact": "CodeBuddy edit dry-run 的生成命令仍嵌入固定文本 Do not perform external network research，复现了合同与提示词冲突。",
+      "strength": "strong",
+      "used_for": "防止仅靠源码阅读的误判"
+    },
+    {
+      "id": "local-path-contract-not-enforced",
+      "access_path": "local_readonly",
+      "tool": "source_read",
+      "path": "scripts/dispatch/invoke-codex-praetor.ps1:90-94,1104-1106",
+      "fact": "AllowedPath与ForbiddenPath只记录到contract，未发现对应进程级或文件系统级执行拦截。",
+      "strength": "strong",
+      "used_for": "明确worktree非系统沙箱"
+    },
+    {
+      "id": "git-worktree-official",
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://git-scm.com/docs/git-worktree",
+      "fact": "Git支持linked worktree与detach的throwaway工作树；结束应使用worktree remove，遗留管理记录可用prune处理；配置和部分Git状态在worktree间共享。",
+      "strength": "strong",
+      "used_for": "实验隔离与回收设计"
+    },
+    {
+      "id": "swebench-evaluation",
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://www.swebench.com/SWE-bench/guides/evaluation/",
+      "fact": "SWE-bench评估以将补丁应用到代码库并运行测试为核心，而非接受文字自报。",
+      "strength": "strong",
+      "used_for": "fail-to-pass与独立复核设计"
+    },
+    {
+      "id": "openai-evals-degraded",
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://developers.openai.com/resources/evals/",
+      "fact": "本轮静态抽取因SSL EOF失败，未将该页面作为结论证据。",
+      "strength": "degraded",
+      "used_for": "记录已尝试但未采纳的来源"
+    },
+    {
+      "id": "github-artifact-attestations",
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations",
+      "fact": "Artifact attestation绑定构建来源和制品，但不证明运行时provider可用性。",
+      "strength": "strong",
+      "used_for": "公开交付与本机真实验收分层"
+    },
+    {
+      "id": "agent-eval-academic-discovery",
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__search_academic",
+      "query": "SWE-bench benchmark real world software engineering agent evaluation patch test execution",
+      "fact": "学术发现用于交叉确认真实补丁和测试执行是软件工程agent评估的核心证据面；检索结果本身不替代正文。",
+      "strength": "discovery",
+      "used_for": "调研饱和交叉检查"
+    },
+    {
+      "id": "github-harness-ecology",
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__search_github_repositories",
+      "query": "coding agent evaluation harness worktree repository benchmark",
+      "fact": "开源生态存在以harness、trace和治理为核心的实现，但搜索候选需要逐项技术审查，不能以star数替代证据。",
+      "strength": "discovery",
+      "used_for": "避免盲目重复造通用编排平台"
+    },
+    {
+      "id": "experiment-d53-codebuddy-edit",
+      "access_path": "isolated_codex_worktree",
+      "tool": "source wrapper + isolated UserProfileRoot + official CodeBuddy CLI",
+      "path": "isolated Codex Desktop worktree / ignored experiment root",
+      "fact": "d53源码wrapper以-y --tools协议在隔离profile中真实修改worker worktree；已安装0.8.2的旧参数拒绝编辑，属于已知release incident复现。",
+      "strength": "strong",
+      "used_for": "验证恢复分支并区分安装态与候选源码"
+    },
+    {
+      "id": "experiment-readiness-cross-generation",
+      "access_path": "isolated_codex_worktree",
+      "tool": "health + readiness evidence comparison",
+      "path": "isolated Codex Desktop worktree / readiness comparison evidence",
+      "fact": "同一readiness文件的顶层0.8.3 generation遮蔽了仍在entries中的0.8.2有效tuple，health错误报告entries为空。",
+      "strength": "strong",
+      "used_for": "修复多generation状态权威来源"
+    },
+    {
+      "id": "experiment-fail-to-pass",
+      "access_path": "isolated_codex_worktree",
+      "tool": "official Qoder CLI through Codex Praetor",
+      "path": "isolated Codex Desktop worktree / fail-to-pass fixture evidence",
+      "fact": "独立Git fixture初始测试失败，worker修复后外围测试PASS，且主worktree未污染。",
+      "strength": "strong",
+      "used_for": "真实修改与测试闭环证据"
+    }
+  ],
+  "coverage": {
+    "internal_archaeology": "completed_initial",
+    "official_git": "completed",
+    "agent_evaluation": "completed_initial",
+    "github_implementation_ecology": "completed_initial",
+    "provider_real_execution": "pending_experiment",
+    "skipped_surfaces": [
+      "登录态、额度和外部provider的即时可用性只能在独立真实实验中判断，不能由网页调研替代。"
+    ]
+  },
+  "kr_route": {
+    "route_mode": "deep_route",
+    "wave_id": "host_internal_web_wave",
+    "strategy_tree": "web_search.provider_wave",
+    "relationship_to_kr": "native_mcp evidence collection; no bypass used"
+  }
+}

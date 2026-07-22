@@ -37,14 +37,8 @@ function Test-CodexPraetorProviderReadiness {
         $result.reason = "缺少可解析的 readiness canary。"
         return [pscustomobject]$result
     }
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedGeneration) -and [string]$state.generation_id -ne $ExpectedGeneration) {
-        $result.reason = "readiness generation 与当前 generation 不一致。"
-        return [pscustomobject]$result
-    }
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedRuntimeContract) -and [string]$state.runtime_contract_sha256 -ne $ExpectedRuntimeContract) {
-        $result.reason = "readiness runtime contract 已漂移。"
-        return [pscustomobject]$result
-    }
+    # The file is a multi-generation ledger. Its legacy top-level generation
+    # is only a last-write summary and must never hide a valid matching entry.
     foreach ($entry in @($state.entries)) {
         if ([string]$entry.status -ne "passed") { continue }
         if ([string]$entry.provider -ne $ProviderName -or [string]$entry.cli_path -ne $Cli -or [string]$entry.cli_hash -ne $cliHash) { continue }
@@ -79,14 +73,8 @@ function Get-CodexPraetorCurrentReadinessEntries {
         $result.reason = "缺少可解析的 readiness canary。"
         return [pscustomobject]$result
     }
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedGeneration) -and [string]$state.generation_id -ne $ExpectedGeneration) {
-        $result.reason = "readiness generation 与当前运行 generation 不一致。"
-        return [pscustomobject]$result
-    }
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedRuntimeContract) -and [string]$state.runtime_contract_sha256 -ne $ExpectedRuntimeContract) {
-        $result.reason = "readiness runtime contract 已漂移。"
-        return [pscustomobject]$result
-    }
+    # See Test-CodexPraetorProviderReadiness: entries, not the legacy
+    # last-write summary, are the authority for a requested generation.
 
     $valid = New-Object System.Collections.Generic.List[object]
     foreach ($entry in @($state.entries)) {

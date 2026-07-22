@@ -5,9 +5,11 @@
 ## 主要改动
 
 - CodeBuddy headless 派工改用本机 CLI 已验证的 `-y --tools` 协议，不再传入已不被当前 CLI 支持的 `--permission-mode dontAsk`。
-- 只读任务仅开放 `Read,Glob,Grep`；编辑任务仅在 Codex 创建的隔离 worktree 中开放 `Read,Glob,Grep,Edit,Write,Bash`。两类任务都不开放网络工具。
+- 只读任务仅开放 `Read,Glob,Grep`；编辑任务仅在 Codex 创建的隔离 worktree 中开放 `Read,Glob,Grep,Edit,Write,Bash`。联网仅在 Codex 显式授权时透传给 worker；它可通过官方 CLI 使用既有登录态，但仍不得读取或修改认证数据。
 - 新增可重复的权限故障注入回归：用严格的模拟 CLI 实际运行只读和编辑派工，历史 `dontAsk`、`allowedTools` 或 `disallowedTools` 参数会被拒绝，错误协议不能再进入发布候选。
 - 同步修正 bundled Skill 的权限政策和证据登记，以本机 CLI 支持的语法为准，并明确 worktree 只隔离文件冲突，不是安全沙箱。
+- readiness 改为以每条 generation/contract/tuple entry 为权威，避免开发候选覆盖顶层摘要后遮蔽已安装版本的有效 proof；编辑 canary 必须留下 worker worktree 的真实改动。
+- completion 现在区分“没有证据”“有 worker 报告”“有 worker 改动”，但仍保持 `awaiting_supervisor`，不会把进程退出直接伪装为业务验收通过。
 
 ## 用户影响
 

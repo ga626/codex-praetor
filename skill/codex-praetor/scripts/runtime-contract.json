@@ -2,7 +2,7 @@
     "schema":  "codex-praetor-runtime-contract/v1",
     "product":  "codex-praetor",
     "version":  "0.8.3-alpha",
-    "wrapperProtocol":  "2",
+    "wrapperProtocol":  "3",
     "taskContractSchema":  "codex-praetor-task-contract/v4",
     "requiredMcpTools":  [
                              "codex_praetor_route_intent",

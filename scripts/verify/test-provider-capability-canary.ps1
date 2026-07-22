@@ -97,7 +97,12 @@ $mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }
 # Keep the worker instruction natural and small. Readonly permissions,
 # network policy, timeout, marker parsing and repository observations are
 # supervisor-side protocol, not prompt padding.
-$task = "Read README.md and reply exactly $marker."
+$canaryFileName = "CODEX_PRAETOR_EDIT_CANARY.txt"
+$task = if ($TaskKind -eq "code_change") {
+    "Create $canaryFileName at the repository root with exactly $marker, run git status --short, then reply exactly $marker."
+} else {
+    "Read README.md and reply exactly $marker."
+}
 
 $argsList = @(
     "-NoProfile",
@@ -140,6 +145,19 @@ if (-not $Apply) {
 
 if ($exitCode -ne 0) { throw "Capability canary failed with exit code $exitCode." }
 if ($outputText -notmatch [regex]::Escape($marker)) { throw "Worker did not return the required marker." }
+if ($TaskKind -eq "code_change") {
+    $jobDir = Get-Field -Text $outputText -Name "job_dir"
+    $jobPath = if ([string]::IsNullOrWhiteSpace($jobDir)) { "" } else { Join-Path $jobDir "job.json" }
+    if (-not (Test-Path -LiteralPath $jobPath -PathType Leaf)) { throw "Edit capability canary did not publish job metadata." }
+    $job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $workerRepo = [string]$job.execution_repo
+    $canaryPath = Join-Path $workerRepo $canaryFileName
+    if (-not (Test-Path -LiteralPath $canaryPath -PathType Leaf)) { throw "Edit capability canary produced no canary file in the worker worktree." }
+    $canaryText = Get-Content -LiteralPath $canaryPath -Raw -Encoding UTF8
+    if ($canaryText -notmatch [regex]::Escape($marker)) { throw "Edit capability canary file does not contain the required marker." }
+    $workerStatus = (& git -C $workerRepo status --short 2>$null | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($workerStatus)) { throw "Edit capability canary produced no observable worker worktree change." }
+}
 
 # The worker proof and the caller checkout are independent observations. A
 # concurrent editor can change the checkout while a genuinely readonly worker

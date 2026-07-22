@@ -5,6 +5,8 @@
 - Recovered the 0.8.2-alpha CodeBuddy edit-worker release incident with a new immutable version; the published 0.8.2 artifact remains unchanged.
 - Replaced the unsupported CodeBuddy `dontAsk`/`allowedTools` protocol with locally verified `-y --tools` allowlists for readonly and isolated edit worktrees.
 - Added an executable permission fault-injection regression that rejects the historical protocol before a release candidate can pass.
+- Made readiness entry-scoped across generations, strengthened edit canaries to require a worker-worktree change, and recorded report/artifact evidence without bypassing Codex verification.
+- Made explicit worker-network authorization observable and consistent with the actual worker prompt while retaining the no-secret boundary.
 
 ## 0.8.2-alpha - 2026-07-22
 

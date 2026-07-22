@@ -276,10 +276,37 @@ try {
         $status = "unknown"
     }
 
+    $stdoutHasText = -not [string]::IsNullOrWhiteSpace([string]$meta.stdout) -and (Test-Path -LiteralPath ([string]$meta.stdout) -PathType Leaf) -and ((Get-Item -LiteralPath ([string]$meta.stdout)).Length -gt 0)
+    $worktreeStatus = ""
+    $worktreeChanged = $false
+    if ($status -eq "process_exited" -and [string]$meta.task_kind -eq "code_change" -and -not [string]::IsNullOrWhiteSpace([string]$meta.execution_repo)) {
+        try {
+            $worktreeStatus = (& git -C ([string]$meta.execution_repo) status --short 2>$null | Out-String).Trim()
+            $worktreeChanged = -not [string]::IsNullOrWhiteSpace($worktreeStatus)
+        } catch {
+            $worktreeStatus = "worktree_status_unavailable: $($_.Exception.Message)"
+        }
+    }
+    $evidenceState = "evidence_missing"
+    if ([string]::IsNullOrWhiteSpace($semanticFailure) -and $null -ne $exitCode -and $exitCode -eq 0 -and $status -eq "process_exited") {
+        if ([string]$meta.task_kind -eq "code_change" -and $worktreeChanged) {
+            $evidenceState = "artifact_valid"
+        } elseif ($stdoutHasText) {
+            $evidenceState = "report_valid"
+        }
+    }
+    $evidenceObservation = [ordered]@{
+        stdout_nonempty = $stdoutHasText
+        worktree_changed = $worktreeChanged
+        worktree_status = $worktreeStatus
+        observed_at = (Get-Date).ToString("o")
+    }
+
     $now = Get-Date
     Set-JsonProperty -Object $meta -Name "status" -Value $status
     Set-JsonProperty -Object $meta -Name "process_state" -Value $status
-    Set-JsonProperty -Object $meta -Name "evidence_state" -Value "evidence_missing"
+    Set-JsonProperty -Object $meta -Name "evidence_state" -Value $evidenceState
+    Set-JsonProperty -Object $meta -Name "evidence_observation" -Value $evidenceObservation
     Set-JsonProperty -Object $meta -Name "governance_state" -Value "awaiting_supervisor"
     Set-JsonProperty -Object $meta -Name "exit_code" -Value $exitCode
     Set-JsonProperty -Object $meta -Name "exited_at" -Value $now.ToString("o")
@@ -317,7 +344,8 @@ try {
         provider_tuple = $meta.provider_tuple
         terminal_state = $status
         process_state = $status
-        evidence_state = "evidence_missing"
+        evidence_state = $evidenceState
+        evidence_observation = $evidenceObservation
         governance_state = "awaiting_supervisor"
         lock_released = $false
         notify_attempted = $false
