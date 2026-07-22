@@ -1,0 +1,32 @@
+{
+  "schema": "codex-praetor-provider-adapter/v1",
+  "provider_id": "mimo",
+  "display_name": "Xiaomi MiMo Code CLI",
+  "cli": {
+    "discovery": "Read cliPath, profileRoot and versionCommand from local configuration; the adapter never reads or migrates authentication data.",
+    "version_command": ["--version"],
+    "identity_fields": ["cli_path", "cli_hash", "version"]
+  },
+  "models": {
+    "allowed": ["mimo/mimo-auto"],
+    "not_default": ["xiaomi/mimo-v2.5", "xiaomi/mimo-v2.5-pro"]
+  },
+  "permissions": {
+    "mappings": [
+      { "profile": "mimo-isolated-audit-v1", "provider_semantics": "Use Build in a disposable worktree. This is isolated-project work, not a filesystem-readonly promise." },
+      { "profile": "edit-worktree-v1", "provider_semantics": "Use Build only in the disposable worker worktree for an approved code-change packet." }
+    ],
+    "minimum_canaries": ["local_audit", "code_change"]
+  },
+  "lifecycle": {
+    "launch": "invoke-codex-praetor.ps1 starts MiMo only after the tuple and isolated worktree contract are approved.",
+    "parse_terminal_state": "watch-codex-praetor-job.ps1 treats risk-control and semantic failures as terminal evidence, never as success.",
+    "cleanup": "The job record and worktree retention are controlled by Codex Praetor; no provider database is modified.",
+    "failure_normalization": ["provider_risk_control", "provider_cli_missing", "provider_auth_required", "provider_rejected", "provider_output_unparseable", "worker_timed_out", "rate_limited"]
+  },
+  "evidence": {
+    "fixture": "scripts/verify/test-provider-canary-evidence.ps1",
+    "end_to_end": "A current-generation provider canary in an isolated worktree is required before real dispatch.",
+    "documentation": "docs/architecture/capability-profile-and-provider-adapter-contract.md"
+  }
+}

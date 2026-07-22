@@ -88,6 +88,11 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-job-lifecycle.ps1
 
+      - name: Capability profile and provider adapter contract regression
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-capability-profile-contract.ps1
+
       - name: Public entry consistency
         shell: pwsh
         run: |

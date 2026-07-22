@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-21
 
-`v0.8.3-alpha` 已完成公开交付。当前 `v0.8.4-alpha` 把真实挖掘发现的 provider 拒绝、超轮数半成品、隔离 worktree 依赖与本机激活误报统一治理；合并后仍只由 Release On Main 创建、发布和复验不可变 Release。本机验证严格区分隔离开发 profile 与已安装用户 runtime。
+`v0.8.4-alpha` 是当前已公开交付的基线。候选 `v0.9.0-alpha` 先建立能力画像和 Provider Adapter 合同：把真实尝试与 Codex 验收变成可重建证据，但不改变默认派工。合并后仍只由 Release On Main 创建、发布和复验不可变 Release；本机验证严格区分隔离开发 profile 与已安装用户 runtime。
 
 已经完成：
 

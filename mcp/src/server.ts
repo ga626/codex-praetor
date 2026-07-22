@@ -16,6 +16,7 @@ const researchContractSchema = z.object({
 import {
   detectConflictsTool,
   cancelJobTool,
+  capabilityProfilesTool,
   dispatchPlanTaskTool,
   dispatchDryRunTool,
   dispatchTool,
@@ -62,8 +63,22 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.8.4-alpha"
+    version: "0.9.0-alpha"
   });
+
+  server.registerTool(
+    "codex_praetor_capability_profiles",
+    {
+      title: "Read Codex Praetor Capability Profiles",
+      description: "Derive conservative provider-tuple and task-family capability profiles from immutable local attempts and Codex verdicts. This does not change routing.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1),
+        include_unclassified: z.boolean().optional()
+      }
+    },
+    async (input) => asJsonContent(capabilityProfilesTool(input))
+  );
 
   server.registerTool(
     "codex_praetor_route_intent",

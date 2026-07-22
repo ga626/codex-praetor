@@ -18,6 +18,7 @@ import {
 import { parseKeyValueOutput } from "./parse-key-value.js";
 import { runPowerShell } from "./powershell.js";
 import { routeIntent } from "./route-intent.js";
+import { capabilityProfilesTool as buildCapabilityProfiles } from "./capability-profiles.js";
 import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
 
 function assertResearchContract(input: {
@@ -83,6 +84,10 @@ export function runtimeInfoTool() {
       process_started_at: startedAt
     }
   };
+}
+
+export function capabilityProfilesTool(input: { repo: string; include_unclassified?: boolean }) {
+  return buildCapabilityProfiles(input);
 }
 
 export async function healthTool(input: { repo: string }) {

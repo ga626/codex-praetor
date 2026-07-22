@@ -5,6 +5,7 @@ import { getInvokeScriptPath } from "./paths.js";
 import { decodeUtf8Chunks } from "./powershell.js";
 import {
   classifyWorkerOutcome,
+  capabilityProfilesTool,
   detectConflictsTool,
   isActiveStatus,
   jobTimelineTool,
@@ -54,6 +55,10 @@ assert.ok(existsSync(getInvokeScriptPath()), "invoke script should exist");
 const listResult = listJobsTool({ repo, status: "all", limit: 5 });
 assert.equal(listResult.repo.length > 0, true);
 assert.ok(Array.isArray(listResult.jobs));
+
+const profileResult = capabilityProfilesTool({ repo, include_unclassified: true });
+assert.equal(profileResult.schema, "codex-praetor-capability-profile-set/v1");
+assert.ok(Array.isArray(profileResult.profiles));
 
 const missingStatus = statusTool({ repo, job_id: "missing-job-for-self-test" });
 assert.equal(missingStatus.found, false);

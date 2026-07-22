@@ -3229,8 +3229,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path4) {
-      let input = path4;
+    function removeDotSegments(path5) {
+      let input = path5;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3482,8 +3482,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path4, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path4 && path4 !== "/" ? path4 : void 0;
+        const [path5, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path5 && path5 !== "/" ? path5 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -7254,8 +7254,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path4, errorMaps, issueData } = params;
-  const fullPath = [...path4, ...issueData.path || []];
+  const { data, path: path5, errorMaps, issueData } = params;
+  const fullPath = [...path5, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -7370,11 +7370,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path4, key) {
+  constructor(parent, value, path5, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path4;
+    this._path = path5;
     this._key = key;
   }
   get path() {
@@ -11294,10 +11294,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path4) {
-  if (!path4)
+function getElementAtPath(obj, path5) {
+  if (!path5)
     return obj;
-  return path4.reduce((acc, key) => acc?.[key], obj);
+  return path5.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -11706,11 +11706,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path4, issues) {
+function prefixIssues(path5, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path4);
+    iss.path.unshift(path5);
     return iss;
   });
 }
@@ -11857,16 +11857,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path4 = []) => {
+  const processError = (error52, path5 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path4, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path5, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
       } else {
-        const fullpath = [...path4, ...issue2.path];
+        const fullpath = [...path5, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -11893,17 +11893,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path4 = []) => {
+  const processError = (error52, path5 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path4, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path5, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
       } else {
-        const fullpath = [...path4, ...issue2.path];
+        const fullpath = [...path5, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -11935,8 +11935,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path4 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path4) {
+  const path5 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path5) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -25061,13 +25061,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path4 = ref.slice(1).split("/").filter(Boolean);
-  if (path4.length === 0) {
+  const path5 = ref.slice(1).split("/").filter(Boolean);
+  if (path5.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path4[0] === defsKey) {
-    const key = path4[1];
+  if (path5[0] === defsKey) {
+    const key = path5[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -30959,13 +30959,13 @@ var StdioServerTransport = class {
 };
 
 // src/server.ts
-import path3 from "node:path";
+import path4 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/tools.ts
-import { createHash } from "node:crypto";
-import { existsSync as existsSync2, readdirSync, readFileSync, statSync } from "node:fs";
-import path2 from "node:path";
+import { createHash as createHash2 } from "node:crypto";
+import { existsSync as existsSync3, readdirSync as readdirSync2, readFileSync as readFileSync2, statSync } from "node:fs";
+import path3 from "node:path";
 
 // src/paths.ts
 import { spawnSync } from "node:child_process";
@@ -31289,6 +31289,159 @@ function routeIntent(request, allowNativeCodexSubagents = false) {
   };
 }
 
+// src/capability-profiles.ts
+import { createHash } from "node:crypto";
+import { existsSync as existsSync2, readdirSync, readFileSync } from "node:fs";
+import path2 from "node:path";
+var taskFamilies = /* @__PURE__ */ new Set(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]);
+var hardBlockedFailures = /* @__PURE__ */ new Set(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "tool_denied", "permission_denied"]);
+var transientFailures = /* @__PURE__ */ new Set(["worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable"]);
+function asRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function asString(value) {
+  return typeof value === "string" ? value : "";
+}
+function arrayOfRecords(value) {
+  return Array.isArray(value) ? value.map(asRecord) : [];
+}
+function tupleFrom(attempt, task) {
+  const tuple2 = asRecord(attempt.provider_tuple);
+  return {
+    provider: asString(tuple2.provider) || asString(attempt.provider) || asString(task.provider),
+    cli_path: asString(tuple2.cli_path),
+    cli_hash: asString(tuple2.cli_hash),
+    model: asString(tuple2.model) || asString(attempt.model) || asString(task.model),
+    permission_profile: asString(tuple2.permission_profile),
+    task_kind: asString(tuple2.task_kind) || asString(attempt.task_kind) || "",
+    generation_id: asString(tuple2.generation_id),
+    runtime_contract_sha256: asString(tuple2.runtime_contract_sha256),
+    task_contract_schema: asString(tuple2.task_contract_schema)
+  };
+}
+function tupleKey(tuple2) {
+  return ["provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema"].map((key) => asString(tuple2[key])).join("");
+}
+function profileId(tuple2, taskFamily) {
+  return createHash("sha256").update(`${taskFamily}${tupleKey(tuple2)}`).digest("hex").slice(0, 20);
+}
+function familyFrom(task, attempt) {
+  const candidate = asString(task.task_family) || asString(attempt.task_family);
+  return taskFamilies.has(candidate) ? candidate : "unclassified";
+}
+function verdictFrom(task, attempt) {
+  const supervisorVerdict = asString(attempt.supervisor_verdict);
+  if (supervisorVerdict === "accepted") return "accepted";
+  if (["rejected", "skipped"].includes(supervisorVerdict)) return "rejected";
+  if (["blocked", "human_required"].includes(supervisorVerdict)) return "blocked";
+  if (arrayOfRecords(task.attempts).length === 1 && asString(task.governance_state) === "accepted") return "accepted";
+  if (["blocked", "needs_decision"].includes(asString(task.governance_state))) return "blocked";
+  if (["rejected", "retryable"].includes(asString(task.governance_state)) || asString(attempt.failure_class)) return "rejected";
+  return "unknown";
+}
+function recordedAt(attempt, task) {
+  return asString(attempt.finished_at) || asString(attempt.created_at) || asString(task.verified_at) || asString(task.updated_at) || "";
+}
+function readPlanFiles(repo) {
+  const planRoot = getPlanRoot(resolveExistingRepo(repo));
+  if (!existsSync2(planRoot)) return [];
+  const plans = [];
+  for (const entry of readdirSync(planRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const planPath = path2.join(planRoot, entry.name, "plan.json");
+    if (!existsSync2(planPath)) continue;
+    try {
+      const plan = asRecord(JSON.parse(readFileSync(planPath, "utf8")));
+      plans.push({ planId: asString(plan.plan_id) || entry.name, plan });
+    } catch {
+      plans.push({ planId: entry.name, plan: { malformed: true } });
+    }
+  }
+  return plans;
+}
+function capabilityProfilesTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const buckets = /* @__PURE__ */ new Map();
+  const malformedPlans = [];
+  for (const { planId, plan } of readPlanFiles(repo)) {
+    if (plan.malformed === true) {
+      malformedPlans.push(planId);
+      continue;
+    }
+    for (const task of arrayOfRecords(plan.tasks)) {
+      for (const attempt of arrayOfRecords(task.attempts)) {
+        const tuple2 = tupleFrom(attempt, task);
+        if (!asString(tuple2.provider) || !asString(tuple2.model)) continue;
+        const taskFamily = familyFrom(task, attempt);
+        if (taskFamily === "unclassified" && !input.include_unclassified) continue;
+        const key = `${taskFamily}${tupleKey(tuple2)}`;
+        const bucket = buckets.get(key) ?? { tuple: tuple2, taskFamily, evidence: [] };
+        bucket.evidence.push({
+          plan_id: planId,
+          task_id: asString(task.task_id),
+          attempt_id: asString(attempt.attempt_id),
+          verdict: verdictFrom(task, attempt),
+          recorded_at: recordedAt(attempt, task),
+          failure_class: asString(attempt.failure_class),
+          supervisor_verdict: asString(attempt.supervisor_verdict),
+          evidence_state: asString(attempt.evidence_state),
+          completion_path: asString(attempt.completion)
+        });
+        buckets.set(key, bucket);
+      }
+    }
+  }
+  const profiles = [...buckets.values()].map((bucket) => {
+    const evidence = [...bucket.evidence].sort((a, b) => asString(a.recorded_at).localeCompare(asString(b.recorded_at)));
+    const latest = evidence.at(-1) ?? {};
+    const accepted = evidence.filter((item) => item.verdict === "accepted");
+    const failureClass = asString(latest.failure_class);
+    let status = "unknown";
+    let statusReason = "\u5C1A\u65E0\u88AB Codex \u91C7\u4FE1\u7684\u6709\u6548\u8BC1\u636E\u3002";
+    let cooldownUntil = "";
+    if (hardBlockedFailures.has(failureClass)) {
+      status = "blocked";
+      statusReason = `\u6700\u8FD1\u4E00\u6B21\u5C1D\u8BD5\u4E3A\u4E0D\u53EF\u81EA\u52A8\u91CD\u8BD5\u7684 ${failureClass || "provider"} \u5931\u8D25\u3002`;
+    } else if (transientFailures.has(failureClass)) {
+      status = "cooling_down";
+      statusReason = `\u6700\u8FD1\u4E00\u6B21\u5C1D\u8BD5\u4E3A\u53EF\u6062\u590D\u7684 ${failureClass}\uFF0C\u5E94\u7B49\u5F85\u5E76\u91CD\u65B0 canary\u3002`;
+      const finished = Date.parse(asString(latest.recorded_at));
+      if (!Number.isNaN(finished)) cooldownUntil = new Date(finished + 60 * 60 * 1e3).toISOString();
+    } else if (accepted.length >= 3) {
+      status = "qualified";
+      statusReason = "\u81F3\u5C11\u4E09\u6B21\u72EC\u7ACB attempt \u5DF2\u88AB Codex \u91C7\u4FE1\uFF1B\u4ECD\u987B\u901A\u8FC7\u5F53\u524D\u786C\u95E8\u3002";
+    } else if (accepted.length >= 2) {
+      status = "provisional";
+      statusReason = "\u5DF2\u6709\u5C11\u91CF\u72EC\u7ACB\u91C7\u4FE1\uFF0C\u53EA\u80FD\u5728\u4F4E\u98CE\u9669\u5DE5\u4F5C\u5305\u4E2D\u4FDD\u5B88\u5EFA\u8BAE\u3002";
+    } else if (accepted.length === 1) {
+      status = "observed";
+      statusReason = "\u53EA\u6709\u4E00\u6B21\u88AB\u91C7\u4FE1\u7684\u89C2\u5BDF\uFF0C\u4E0D\u80FD\u4F5C\u4E3A\u9ED8\u8BA4\u8DEF\u7531\u4F9D\u636E\u3002";
+    }
+    return {
+      profile_id: profileId(bucket.tuple, bucket.taskFamily),
+      provider_tuple: bucket.tuple,
+      task_family: bucket.taskFamily,
+      status,
+      status_reason: statusReason,
+      cooldown_until: cooldownUntil,
+      evidence
+    };
+  }).sort((left, right) => `${left.task_family}:${left.profile_id}`.localeCompare(`${right.task_family}:${right.profile_id}`));
+  return {
+    schema: "codex-praetor-capability-profile-set/v1",
+    generated_at: (/* @__PURE__ */ new Date()).toISOString(),
+    repo,
+    profiles,
+    malformed_plan_ids: malformedPlans,
+    policy: {
+      profile_is_projection: true,
+      default_routing_changed: false,
+      hard_gates_remain_authoritative: true,
+      qualified_minimum_accepted_attempts: 3
+    }
+  };
+}
+
 // src/tools.ts
 function assertResearchContract(input) {
   if (input.task_kind !== "external_research_support") {
@@ -31322,14 +31475,14 @@ function routeIntentTool(input) {
   const decision = routeIntent(input.request, input.allow_native_codex_subagents ?? false);
   return {
     ...decision,
-    repo: input.repo ? path2.resolve(input.repo) : ""
+    repo: input.repo ? path3.resolve(input.repo) : ""
   };
 }
 function runtimeInfoTool() {
   const contractPath = getRuntimeContractPath();
-  const contract = existsSync2(contractPath) ? readJsonFile(contractPath) : null;
+  const contract = existsSync3(contractPath) ? readJsonFile(contractPath) : null;
   const startedAt = new Date(Date.now() - process.uptime() * 1e3).toISOString();
-  const runtimeContractSha256 = contract ? createHash("sha256").update(readFileSync(contractPath)).digest("hex") : "";
+  const runtimeContractSha256 = contract ? createHash2("sha256").update(readFileSync2(contractPath)).digest("hex") : "";
   return {
     display: {
       \u9636\u6BB5: "\u8FD0\u884C\u65F6\u5408\u540C",
@@ -31347,6 +31500,9 @@ function runtimeInfoTool() {
       process_started_at: startedAt
     }
   };
+}
+function capabilityProfilesTool2(input) {
+  return capabilityProfilesTool(input);
 }
 async function healthTool(input) {
   const repo = resolveExistingRepo(input.repo);
@@ -31369,14 +31525,14 @@ async function healthTool(input) {
 }
 function jobTimelineTool(input) {
   const repo = resolveExistingRepo(input.repo);
-  const jobDir = path2.join(getJobRoot(repo), input.job_id);
-  const metaPath = path2.join(jobDir, "job.json");
-  const completionPath = path2.join(jobDir, "completion.json");
-  if (!existsSync2(metaPath)) {
+  const jobDir = path3.join(getJobRoot(repo), input.job_id);
+  const metaPath = path3.join(jobDir, "job.json");
+  const completionPath = path3.join(jobDir, "completion.json");
+  if (!existsSync3(metaPath)) {
     return { found: false, repo, job_id: input.job_id };
   }
   const meta3 = readJsonFile(metaPath);
-  const completion = existsSync2(completionPath) ? readJsonFile(completionPath) : null;
+  const completion = existsSync3(completionPath) ? readJsonFile(completionPath) : null;
   return {
     found: true,
     display: {
@@ -31394,7 +31550,7 @@ function jobTimelineTool(input) {
 }
 async function cancelJobTool(input) {
   const repo = resolveExistingRepo(input.repo);
-  const jobDir = path2.join(getJobRoot(repo), input.job_id);
+  const jobDir = path3.join(getJobRoot(repo), input.job_id);
   const result = await runPowerShell(
     ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getCancelScriptPath(), "-JobDir", jobDir],
     { timeoutMs: 3e4 }
@@ -31520,10 +31676,10 @@ function buildDispatchArgs(input) {
   return args;
 }
 function readTextTail(filePath, maxChars = 12e3) {
-  if (!existsSync2(filePath)) {
+  if (!existsSync3(filePath)) {
     return "";
   }
-  const text = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+  const text = readFileSync2(filePath, "utf8").replace(/^\uFEFF/, "");
   if (text.length <= maxChars) {
     return text;
   }
@@ -31666,7 +31822,7 @@ async function dispatchTool(input) {
   );
   const fields = parseKeyValueOutput(result.stdout);
   const completionPath = fields.completion ?? "";
-  const completion = completionPath && existsSync2(completionPath) ? readJsonFile(completionPath) : null;
+  const completion = completionPath && existsSync3(completionPath) ? readJsonFile(completionPath) : null;
   return {
     ok: result.exitCode === 0,
     exit_code: result.exitCode,
@@ -31780,7 +31936,7 @@ async function planTool(input) {
     ],
     { timeoutMs: 3e4 }
   );
-  const planPath = path2.join(planRoot, planId, "plan.json");
+  const planPath = path3.join(planRoot, planId, "plan.json");
   return {
     ok: getResult.exitCode === 0,
     exit_code: getResult.exitCode,
@@ -31794,17 +31950,17 @@ async function planTool(input) {
   };
 }
 function readJsonFile(filePath) {
-  const text = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+  const text = readFileSync2(filePath, "utf8").replace(/^\uFEFF/, "");
   return JSON.parse(text);
 }
 function summarizeJob(jobDir) {
-  const metaPath = path2.join(jobDir, "job.json");
-  const completionPath = path2.join(jobDir, "completion.json");
-  const meta3 = existsSync2(metaPath) ? readJsonFile(metaPath) : {};
-  const completion = existsSync2(completionPath) ? readJsonFile(completionPath) : {};
+  const metaPath = path3.join(jobDir, "job.json");
+  const completionPath = path3.join(jobDir, "completion.json");
+  const meta3 = existsSync3(metaPath) ? readJsonFile(metaPath) : {};
+  const completion = existsSync3(completionPath) ? readJsonFile(completionPath) : {};
   const stats = statSync(jobDir);
   return {
-    job_id: String(meta3.job_id ?? path2.basename(jobDir)),
+    job_id: String(meta3.job_id ?? path3.basename(jobDir)),
     provider: String(meta3.provider ?? completion.provider ?? ""),
     tier: String(meta3.tier ?? completion.tier ?? ""),
     model: String(meta3.model ?? completion.model ?? ""),
@@ -31814,7 +31970,7 @@ function summarizeJob(jobDir) {
     created_at: String(meta3.created_at ?? stats.birthtime.toISOString()),
     updated_at: String(meta3.exited_at ?? completion.exited_at ?? stats.mtime.toISOString()),
     path: jobDir,
-    completion_path: existsSync2(completionPath) ? completionPath : void 0
+    completion_path: existsSync3(completionPath) ? completionPath : void 0
   };
 }
 function isActiveStatus(status) {
@@ -31833,8 +31989,8 @@ function isProcessAlive(pid) {
 }
 function summarizeJobLane(repo, jobDir) {
   const summary = summarizeJob(jobDir);
-  const metaPath = path2.join(jobDir, "job.json");
-  const meta3 = existsSync2(metaPath) ? readJsonFile(metaPath) : {};
+  const metaPath = path3.join(jobDir, "job.json");
+  const meta3 = existsSync3(metaPath) ? readJsonFile(metaPath) : {};
   return {
     lane_id: `job:${summary.job_id}`,
     kind: "job",
@@ -31857,7 +32013,7 @@ function summarizeJobLane(repo, jobDir) {
 }
 function summarizePlanTaskLane(repo, planDir, plan, task) {
   const stats = statSync(planDir);
-  const planId = String(plan.plan_id ?? path2.basename(planDir));
+  const planId = String(plan.plan_id ?? path3.basename(planDir));
   const taskId = String(task.task_id ?? "");
   const status = String(task.status ?? "unknown");
   return {
@@ -31874,7 +32030,7 @@ function summarizePlanTaskLane(repo, planDir, plan, task) {
     plan_id: planId,
     task_id: taskId,
     owner_thread_id: "",
-    path: path2.join(planDir, "plan.json"),
+    path: path3.join(planDir, "plan.json"),
     created_at: String(task.created_at ?? plan.created_at ?? stats.birthtime.toISOString()),
     updated_at: String(task.updated_at ?? plan.updated_at ?? stats.mtime.toISOString()),
     active: isActiveStatus(status)
@@ -31886,7 +32042,7 @@ function summarizeLockLane(repo, lockPath) {
   const pid = Number(lock.holder_pid ?? lock.pid ?? 0);
   const active = isProcessAlive(pid);
   return {
-    lane_id: `lock:${path2.basename(lockPath, path2.extname(lockPath))}`,
+    lane_id: `lock:${path3.basename(lockPath, path3.extname(lockPath))}`,
     kind: "lock",
     repo: String(lock.repo ?? repo),
     mode: "edit",
@@ -31908,22 +32064,22 @@ function summarizeLockLane(repo, lockPath) {
 function collectLanes(repo) {
   const lanes = [];
   const jobRoot = getJobRoot(repo);
-  if (existsSync2(jobRoot)) {
-    for (const entry of readdirSync(jobRoot, { withFileTypes: true })) {
+  if (existsSync3(jobRoot)) {
+    for (const entry of readdirSync2(jobRoot, { withFileTypes: true })) {
       if (entry.isDirectory()) {
-        lanes.push(summarizeJobLane(repo, path2.join(jobRoot, entry.name)));
+        lanes.push(summarizeJobLane(repo, path3.join(jobRoot, entry.name)));
       }
     }
   }
   const planRoot = getPlanRoot(repo);
-  if (existsSync2(planRoot)) {
-    for (const entry of readdirSync(planRoot, { withFileTypes: true })) {
+  if (existsSync3(planRoot)) {
+    for (const entry of readdirSync2(planRoot, { withFileTypes: true })) {
       if (!entry.isDirectory()) {
         continue;
       }
-      const planDir = path2.join(planRoot, entry.name);
-      const planPath = path2.join(planDir, "plan.json");
-      if (!existsSync2(planPath)) {
+      const planDir = path3.join(planRoot, entry.name);
+      const planPath = path3.join(planDir, "plan.json");
+      if (!existsSync3(planPath)) {
         continue;
       }
       const plan = readJsonFile(planPath);
@@ -31934,10 +32090,10 @@ function collectLanes(repo) {
     }
   }
   const lockRoot = getLockRoot(repo);
-  if (existsSync2(lockRoot)) {
-    for (const entry of readdirSync(lockRoot, { withFileTypes: true })) {
+  if (existsSync3(lockRoot)) {
+    for (const entry of readdirSync2(lockRoot, { withFileTypes: true })) {
       if (entry.isFile() && entry.name.endsWith(".json")) {
-        lanes.push(summarizeLockLane(repo, path2.join(lockRoot, entry.name)));
+        lanes.push(summarizeLockLane(repo, path3.join(lockRoot, entry.name)));
       }
     }
   }
@@ -31957,7 +32113,7 @@ function listJobsTool(input) {
   const jobRoot = getJobRoot(repo);
   const statusFilter = input.status ?? "all";
   const limit = Math.max(1, Math.min(input.limit ?? 20, 100));
-  if (!existsSync2(jobRoot)) {
+  if (!existsSync3(jobRoot)) {
     return {
       repo,
       project_artifact_root: getProjectArtifactRoot(repo),
@@ -31966,7 +32122,7 @@ function listJobsTool(input) {
       count: 0
     };
   }
-  const jobs = readdirSync(jobRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => summarizeJob(path2.join(jobRoot, entry.name))).filter((job) => {
+  const jobs = readdirSync2(jobRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => summarizeJob(path3.join(jobRoot, entry.name))).filter((job) => {
     if (statusFilter === "all") {
       return true;
     }
@@ -32041,8 +32197,8 @@ function detectConflictsTool(input) {
 function statusTool(input) {
   const repo = resolveExistingRepo(input.repo);
   if (input.job_id?.trim()) {
-    const jobDir = path2.join(getJobRoot(repo), input.job_id.trim());
-    if (!existsSync2(jobDir)) {
+    const jobDir = path3.join(getJobRoot(repo), input.job_id.trim());
+    if (!existsSync3(jobDir)) {
       return {
         found: false,
         kind: "job",
@@ -32053,19 +32209,19 @@ function statusTool(input) {
       };
     }
     const summary = summarizeJob(jobDir);
-    const completionPath = path2.join(jobDir, "completion.json");
+    const completionPath = path3.join(jobDir, "completion.json");
     return {
       found: true,
       kind: "job",
       repo,
       summary,
-      completion: existsSync2(completionPath) ? readJsonFile(completionPath) : null
+      completion: existsSync3(completionPath) ? readJsonFile(completionPath) : null
     };
   }
   if (input.plan_id?.trim()) {
-    const planDir = path2.join(getPlanRoot(repo), input.plan_id.trim());
-    const planPath = path2.join(planDir, "plan.json");
-    if (!existsSync2(planPath)) {
+    const planDir = path3.join(getPlanRoot(repo), input.plan_id.trim());
+    const planPath = path3.join(planDir, "plan.json");
+    if (!existsSync3(planPath)) {
       return {
         found: false,
         kind: "plan",
@@ -32092,8 +32248,8 @@ function statusTool(input) {
 }
 function governanceSummaryTool(input) {
   const repo = resolveExistingRepo(input.repo);
-  const planPath = path2.join(getPlanRoot(repo), input.plan_id.trim(), "plan.json");
-  if (!existsSync2(planPath)) {
+  const planPath = path3.join(getPlanRoot(repo), input.plan_id.trim(), "plan.json");
+  if (!existsSync3(planPath)) {
     return { found: false, repo, plan_id: input.plan_id, plan_path: planPath };
   }
   const plan = readJsonFile(planPath);
@@ -32123,8 +32279,8 @@ function governanceSummaryTool(input) {
 function resultTool(input) {
   const repo = resolveExistingRepo(input.repo);
   const jobId = input.job_id.trim();
-  const jobDir = path2.join(getJobRoot(repo), jobId);
-  if (!existsSync2(jobDir)) {
+  const jobDir = path3.join(getJobRoot(repo), jobId);
+  if (!existsSync3(jobDir)) {
     return {
       found: false,
       repo,
@@ -32133,12 +32289,12 @@ function resultTool(input) {
       message: "Job not found."
     };
   }
-  const metaPath = path2.join(jobDir, "job.json");
-  const completionPath = path2.join(jobDir, "completion.json");
-  const stdoutPath = path2.join(jobDir, "stdout.log");
-  const stderrPath = path2.join(jobDir, "stderr.log");
-  const meta3 = existsSync2(metaPath) ? readJsonFile(metaPath) : {};
-  const completion = existsSync2(completionPath) ? readJsonFile(completionPath) : null;
+  const metaPath = path3.join(jobDir, "job.json");
+  const completionPath = path3.join(jobDir, "completion.json");
+  const stdoutPath = path3.join(jobDir, "stdout.log");
+  const stderrPath = path3.join(jobDir, "stderr.log");
+  const meta3 = existsSync3(metaPath) ? readJsonFile(metaPath) : {};
+  const completion = existsSync3(completionPath) ? readJsonFile(completionPath) : null;
   const includeLogTails = input.include_log_tails ?? true;
   const maxLogChars = Math.max(1e3, Math.min(input.max_log_chars ?? 12e3, 6e4));
   const stdoutTail = includeLogTails ? readTextTail(stdoutPath, maxLogChars) : "";
@@ -32160,7 +32316,7 @@ function resultTool(input) {
     log_paths: {
       stdout: stdoutPath,
       stderr: stderrPath,
-      watcher: path2.join(jobDir, "watcher.log")
+      watcher: path3.join(jobDir, "watcher.log")
     },
     stdout_tail: stdoutTail,
     stderr_tail: stderrTail
@@ -32205,9 +32361,9 @@ async function nextReadyTool(input) {
   };
 }
 function getPlanTask(repo, planId, taskId) {
-  const planDir = path2.join(getPlanRoot(repo), planId);
-  const planPath = path2.join(planDir, "plan.json");
-  if (!existsSync2(planPath)) {
+  const planDir = path3.join(getPlanRoot(repo), planId);
+  const planPath = path3.join(planDir, "plan.json");
+  if (!existsSync3(planPath)) {
     throw new Error(`Plan not found: ${planPath}`);
   }
   const plan = readJsonFile(planPath);
@@ -32324,8 +32480,21 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.8.4-alpha"
+    version: "0.9.0-alpha"
   });
+  server.registerTool(
+    "codex_praetor_capability_profiles",
+    {
+      title: "Read Codex Praetor Capability Profiles",
+      description: "Derive conservative provider-tuple and task-family capability profiles from immutable local attempts and Codex verdicts. This does not change routing.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        include_unclassified: external_exports.boolean().optional()
+      }
+    },
+    async (input) => asJsonContent(capabilityProfilesTool2(input))
+  );
   server.registerTool(
     "codex_praetor_route_intent",
     {
@@ -32605,7 +32774,7 @@ async function main() {
   await server.connect(new StdioServerTransport());
 }
 var currentModulePath = fileURLToPath2(import.meta.url);
-var invokedModulePath = process.argv[1] ? path3.resolve(process.argv[1]) : "";
+var invokedModulePath = process.argv[1] ? path4.resolve(process.argv[1]) : "";
 if (currentModulePath === invokedModulePath) {
   main().catch((error51) => {
     console.error(error51);

@@ -11,6 +11,8 @@ param(
     [string]$Repo = "",
     [string]$TaskId = "",
     [string]$TaskTitle = "",
+    [ValidateSet("", "read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery", "unclassified")]
+    [string]$TaskFamily = "",
     [string]$DependsOn = "",
     [ValidateSet("pending", "running", "awaiting_verification", "completed", "failed", "blocked", "new_problem", "skipped", "retryable", "needs_decision")]
     [string]$Status = "pending",
@@ -184,6 +186,7 @@ function Upsert-Task {
         $existing = [pscustomobject]@{
             task_id = $Id
             title = ""
+            task_family = "unclassified"
             depends_on = @()
             status = "pending"
             acceptance = ""
@@ -276,6 +279,10 @@ function Set-TaskVerification {
     Set-DynamicProperty -Target $target -Name "next_action" -Value $NextActionValue
     Set-DynamicProperty -Target $target -Name "summary" -Value $SummaryValue
     Set-DynamicProperty -Target $target -Name "updated_at" -Value (Get-Date).ToString("o")
+    $attempts = @($target.attempts)
+    if ($attempts.Count -gt 0) {
+        Set-DynamicProperty -Target $attempts[$attempts.Count - 1] -Name "supervisor_verdict" -Value $Verdict
+    }
 
     if ($Verdict -eq "accepted") {
         Set-DynamicProperty -Target $target -Name "status" -Value "completed"
@@ -333,6 +340,10 @@ if ($Action -eq "Init") {
     Save-Plan -Plan $plan
 } elseif ($Action -eq "UpsertTask") {
     Upsert-Task -Plan $plan -Id $TaskId -TitleValue $TaskTitle -DependsValue $DependsOn -StatusValue $Status -AcceptanceValue $Acceptance -JobIdValue $JobId -JobDirValue $JobDir -ProviderValue $Provider -TierValue $Tier -ModelValue $Model -ModeValue $Mode -CompletionValue $CompletionPath -SummaryValue $Summary
+    if (-not [string]::IsNullOrWhiteSpace($TaskFamily)) {
+        $target = @($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1)
+        if ($target.Count -eq 1) { Set-DynamicProperty -Target $target[0] -Name "task_family" -Value $TaskFamily }
+    }
     Add-PlanEvent -Plan $plan -Type "task_upserted" -Message "Task $TaskId is $Status." -Data @{ task_id = $TaskId; status = $Status; job_id = $JobId }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "RecordJob") {
@@ -353,7 +364,7 @@ if ($Action -eq "Init") {
     Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
     $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
     if ($recordTask.Count -eq 1) {
-        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = [string]$completion.contract_sha256; write_set = @($completion.write_set); execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; created_at = (Get-Date).ToString("o"); finished_at = (Get-Date).ToString("o") }
+        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = [string]$completion.contract_sha256; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = @($completion.write_set); execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; created_at = (Get-Date).ToString("o"); finished_at = (Get-Date).ToString("o") }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
         $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }
     }

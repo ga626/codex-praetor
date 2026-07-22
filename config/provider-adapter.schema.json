@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-praetor.local/schema/provider-adapter/v1",
+  "title": "Codex Praetor provider adapter contract",
+  "type": "object",
+  "required": ["schema", "provider_id", "cli", "models", "permissions", "lifecycle", "evidence"],
+  "properties": {
+    "schema": { "const": "codex-praetor-provider-adapter/v1" },
+    "provider_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+    "display_name": { "type": "string" },
+    "cli": {
+      "type": "object",
+      "required": ["discovery", "version_command"],
+      "properties": {
+        "discovery": { "type": "string" },
+        "version_command": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "identity_fields": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "models": {
+      "type": "object",
+      "required": ["allowed"],
+      "properties": {
+        "allowed": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "not_default": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "required": ["mappings", "minimum_canaries"],
+      "properties": {
+        "mappings": { "type": "array", "items": { "type": "object", "required": ["profile", "provider_semantics"], "properties": { "profile": { "type": "string" }, "provider_semantics": { "type": "string" } } } },
+        "minimum_canaries": { "type": "array", "items": { "enum": ["local_audit", "code_change"] }, "minItems": 1 }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "required": ["launch", "parse_terminal_state", "cleanup"],
+      "properties": {
+        "launch": { "type": "string" },
+        "parse_terminal_state": { "type": "string" },
+        "cleanup": { "type": "string" },
+        "failure_normalization": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["fixture", "end_to_end", "documentation"],
+      "properties": {
+        "fixture": { "type": "string" },
+        "end_to_end": { "type": "string" },
+        "documentation": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -4,9 +4,11 @@
 
 Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching bounded work to external CLI worker agents while Codex remains the planner, supervisor, integrator, and final verifier.
 
-Current productization target: **0.8.4-alpha**. This release connects release intent, version consistency, immutable GitHub Releases, and automatic post-merge remote verification; the Codex Desktop host still requires a fresh-context check.
+Current productization target: **0.9.0-alpha**. This release connects release intent, version consistency, immutable GitHub Releases, and automatic post-merge remote verification; the Codex Desktop host still requires a fresh-context check.
 
-[Download 0.8.4-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.8.4-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
+This release also adds read-only capability profiles: they summarize real attempts and Codex verdicts by provider, model, permission, and task family without changing default routing.
+
+[Download 0.9.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.9.0-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
 
 ## What It Does
 
@@ -25,9 +27,9 @@ The supported alpha scope is intentionally narrow:
 Download and extract the release zip:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.8.4-alpha/codex-praetor-setup-0.8.4-alpha.zip" -OutFile ".\codex-praetor-setup-0.8.4-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.8.4-alpha.zip .\codex-praetor-setup-0.8.4-alpha
-cd .\codex-praetor-setup-0.8.4-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.0-alpha/codex-praetor-setup-0.9.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.0-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.9.0-alpha.zip .\codex-praetor-setup-0.9.0-alpha
+cd .\codex-praetor-setup-0.9.0-alpha
 ```
 
 Preview the install:
@@ -56,7 +58,7 @@ Codex Praetor does not install providers, sign in for users, inspect provider ac
 
 Without a provider, Codex Praetor can still validate planning, route-intent, dry-run, job status, lane listing, and conflict detection. Real dispatch needs at least one installed and authenticated provider.
 
-The 0.8.4-alpha source line records runtime identity alongside logical tasks, immutable worker attempts, evidence, and Codex supervisor verdicts. A worker process exit or same-name tool list is not enough to advance a release; Codex must verify the loaded runtime generation.
+The 0.9.0-alpha source line records runtime identity alongside logical tasks, immutable worker attempts, evidence, and Codex supervisor verdicts. A worker process exit or same-name tool list is not enough to advance a release; Codex must verify the loaded runtime generation.
 
 ## Readonly Provider Canary
 

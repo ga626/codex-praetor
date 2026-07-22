@@ -24,6 +24,7 @@
       "properties": {
         "task_id": { "type": "string" }, "context_id": { "type": "string" }, "title": { "type": "string" },
         "mode": { "enum": ["sequential", "parallel", "handoff", "loop"] },
+        "task_family": { "enum": ["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery", "unclassified"] },
         "governance_state": { "enum": ["awaiting_supervisor", "accepted", "rejected", "retryable", "blocked", "needs_decision"] },
         "write_set": { "type": "array", "items": { "type": "string" } },
         "depends_on": { "type": "array", "items": { "type": "string" } },
@@ -44,6 +45,9 @@
         "attempt_id": { "type": "string" }, "base_commit": { "type": "string" },
         "write_set": { "type": "array", "items": { "type": "string" } },
         "contract_sha256": { "type": "string" },
+        "task_family": { "enum": ["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery", "unclassified"] },
+        "provider_tuple": { "$ref": "#/$defs/provider_tuple" },
+        "supervisor_verdict": { "enum": ["accepted", "rejected", "blocked", "skipped", "human_required", "retry", ""] },
         "execution_state": { "enum": ["draft", "queued", "running", "cancel_requested", "process_exited"] },
         "evidence_state": { "enum": ["report_valid", "artifact_valid", "tests_passed", "evidence_missing"] },
         "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } }, "created_at": { "type": "string", "format": "date-time" },
@@ -57,6 +61,14 @@
         "artifact_id": { "type": "string" }, "kind": { "type": "string" }, "path": { "type": "string" },
         "sha256": { "type": "string" }, "created_at": { "type": "string", "format": "date-time" },
         "retention": { "enum": ["ephemeral", "audit", "release"] }
+      }
+    },
+    "provider_tuple": {
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string" }, "cli_path": { "type": "string" }, "cli_hash": { "type": "string" },
+        "model": { "type": "string" }, "permission_profile": { "type": "string" }, "task_kind": { "type": "string" },
+        "generation_id": { "type": "string" }, "runtime_contract_sha256": { "type": "string" }, "task_contract_schema": { "type": "string" }
       }
     },
     "completion_definition": {

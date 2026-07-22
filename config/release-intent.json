@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.8.4-alpha",
-    "previous_version":  "0.8.3-alpha",
-    "tag":  "v0.8.4-alpha",
+    "version":  "0.9.0-alpha",
+    "previous_version":  "0.8.4-alpha",
+    "tag":  "v0.9.0-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.8.4-alpha.zip",
-    "reason":  "把真实挖掘发现的 provider 拒绝、超轮数半成品、安装成功误报、隔离 worktree 依赖缺失与历史诊断混入派工健康统一治理；新增故障注入回归，确保进程退出不再被当作任务成功。"
+    "artifact":  "codex-praetor-setup-0.9.0-alpha.zip",
+    "reason":  "建立按 provider tuple 与任务族可重建的能力画像事实层、三家 Provider Adapter 合同和 per-attempt Codex 验收绑定；不改变默认路由，为后续真实评测与可解释路由提供可验证基座。"
 }
