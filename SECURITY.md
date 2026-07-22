@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-`0.9.1-alpha` is the current source pre-release version. Security fixes are handled on the main branch and are included in the latest tagged pre-release when a release is cut.
+`0.9.2-alpha` is the current source pre-release version. Security fixes are handled on the main branch and are included in the latest tagged pre-release when a release is cut.
 
 ## Reporting
 

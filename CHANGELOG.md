@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2-alpha - 2026-07-22
+
+- Added an explainable, read-only route recommendation that ranks only exact-tuple, current capability evidence after hard gates pass.
+- Added bounded failure recovery guidance for provider blocks, transient faults, permissions, partial worktrees, tests and scope violations.
+- Made evidence older than 30 days stale and prevented expired cooldown evidence from becoming an automatic retry path.
+
 ## 0.9.1-alpha - 2026-07-22
 
 - Added a versioned real-task evaluation suite covering diagnosis, bounded code change, fixed test execution, and failure recovery.

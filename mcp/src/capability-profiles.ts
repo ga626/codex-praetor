@@ -10,6 +10,8 @@ type JsonRecord = Record<string, unknown>;
 const taskFamilies = new Set(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]);
 const hardBlockedFailures = new Set(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "tool_denied", "permission_denied"]);
 const transientFailures = new Set(["worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable"]);
+const profileEvidenceMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
+const transientCooldownMs = 60 * 60 * 1000;
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
@@ -131,14 +133,23 @@ export function capabilityProfilesTool(input: { repo: string; include_unclassifi
     let status: CapabilityProfileStatus = "unknown";
     let statusReason = "尚无被 Codex 采信的有效证据。";
     let cooldownUntil = "";
+    const latestRecordedAt = Date.parse(asString(latest.recorded_at));
+    const hasFreshEvidence = !Number.isNaN(latestRecordedAt) && Date.now() - latestRecordedAt <= profileEvidenceMaxAgeMs;
     if (hardBlockedFailures.has(failureClass)) {
       status = "blocked";
       statusReason = `最近一次尝试为不可自动重试的 ${failureClass || "provider"} 失败。`;
     } else if (transientFailures.has(failureClass)) {
-      status = "cooling_down";
-      statusReason = `最近一次尝试为可恢复的 ${failureClass}，应等待并重新 canary。`;
-      const finished = Date.parse(asString(latest.recorded_at));
-      if (!Number.isNaN(finished)) cooldownUntil = new Date(finished + 60 * 60 * 1000).toISOString();
+      if (!Number.isNaN(latestRecordedAt) && latestRecordedAt + transientCooldownMs > Date.now()) {
+        status = "cooling_down";
+        cooldownUntil = new Date(latestRecordedAt + transientCooldownMs).toISOString();
+        statusReason = `最近一次尝试为可恢复的 ${failureClass}，冷却结束前不得自动重试。`;
+      } else {
+        status = "stale";
+        statusReason = `最近一次 ${failureClass} 已过冷却窗口；必须重新 canary，旧结果不能用于路由。`;
+      }
+    } else if (Object.keys(latest).length > 0 && !hasFreshEvidence) {
+      status = "stale";
+      statusReason = "最近能力证据已超过 30 天；必须重新 canary，旧结果不能用于路由。";
     } else if (accepted.length >= 3) {
       status = "qualified";
       statusReason = "至少三次独立 attempt 已被 Codex 采信；仍须通过当前硬门。";

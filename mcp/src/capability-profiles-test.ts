@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { capabilityProfilesTool } from "./capability-profiles.js";
+import { explainableRouteTool } from "./explainable-routing.js";
 
 type AttemptInput = {
   id: string;
@@ -10,6 +11,7 @@ type AttemptInput = {
   family: string;
   verdict?: string;
   failure?: string;
+  recordedAt?: string;
 };
 
 const now = "2026-07-22T00:00:00.000Z";
@@ -31,8 +33,8 @@ function attempt(input: AttemptInput) {
     supervisor_verdict: input.verdict ?? "",
     failure_class: input.failure ?? "",
     evidence_state: input.failure ? "evidence_missing" : "tests_passed",
-    created_at: now,
-    finished_at: now
+    created_at: input.recordedAt ?? now,
+    finished_at: input.recordedAt ?? now
   };
 }
 
@@ -52,7 +54,8 @@ try {
     { task_id: "provisional", task_family: "bounded_code_change", governance_state: "accepted", attempts: [attempt({ id: "p1", model: "provisional", family: "bounded_code_change", verdict: "accepted" }), attempt({ id: "p2", model: "provisional", family: "bounded_code_change", verdict: "accepted" })] },
     { task_id: "qualified", task_family: "bounded_code_change", governance_state: "accepted", attempts: [attempt({ id: "q1", model: "qualified", family: "bounded_code_change", verdict: "accepted" }), attempt({ id: "q2", model: "qualified", family: "bounded_code_change", verdict: "accepted" }), attempt({ id: "q3", model: "qualified", family: "bounded_code_change", verdict: "accepted" })] },
     { task_id: "blocked", task_family: "bounded_code_change", governance_state: "blocked", attempts: [attempt({ id: "b1", model: "blocked", family: "bounded_code_change", failure: "provider_risk_control" })] },
-    { task_id: "cooldown", task_family: "bounded_code_change", governance_state: "rejected", attempts: [attempt({ id: "c1", model: "cooldown", family: "bounded_code_change", failure: "network_timeout" })] },
+    { task_id: "cooldown", task_family: "bounded_code_change", governance_state: "rejected", attempts: [attempt({ id: "c1", model: "cooldown", family: "bounded_code_change", failure: "network_timeout", recordedAt: new Date().toISOString() })] },
+    { task_id: "stale", task_family: "bounded_code_change", governance_state: "accepted", attempts: [attempt({ id: "s1", model: "stale", family: "bounded_code_change", verdict: "accepted", recordedAt: "2025-01-01T00:00:00.000Z" })] },
     { task_id: "unclassified", governance_state: "accepted", attempts: [attempt({ id: "u1", model: "unclassified", family: "unclassified", verdict: "accepted" })] }
   ];
   const plan = { schema: "codex-praetor-task-ledger/v2", plan_id: "fixture", tasks };
@@ -68,12 +71,39 @@ try {
   assert.equal(profileFor(withoutUnclassified, "qualified").status, "qualified");
   assert.equal(profileFor(withoutUnclassified, "blocked").status, "blocked");
   assert.equal(profileFor(withoutUnclassified, "cooldown").status, "cooling_down");
+  assert.equal(profileFor(withoutUnclassified, "stale").status, "stale");
   assert.equal(withoutUnclassified.profiles.some((item) => item.provider_tuple.model === "unclassified"), false);
   assert.equal(readFileSync(planPath, "utf8"), initial, "profile projection must not rewrite the ledger");
 
   const withUnclassified = capabilityProfilesTool({ repo: root, include_unclassified: true });
   assert.equal(profileFor(withUnclassified, "unclassified").status, "observed");
-  assert.equal(withUnclassified.profiles.length, 6);
+  assert.equal(withUnclassified.profiles.length, 7);
+
+  const candidateFor = (model: string) => ({
+    provider: "fixture",
+    model,
+    cli_path: "fixture-cli",
+    cli_hash: "fixture-hash",
+    permission_profile: "fixture-worktree-v1",
+    task_kind: "code_change",
+    generation_id: "fixture-generation",
+    runtime_contract_sha256: "a".repeat(64),
+    task_contract_schema: "fixture/v1",
+    hard_gates: { model_allowed: true, permission_granted: true, scope_allowed: true, readiness_current: true, user_authorized: true, budget_allowed: true }
+  });
+  const explained = explainableRouteTool({
+    repo: root,
+    task_family: "bounded_code_change",
+    candidates: [candidateFor("qualified"), candidateFor("blocked"), candidateFor("observed")],
+    failure_class: "network_timeout"
+  });
+  assert.equal(explained.decision, "recommend_existing");
+  assert.equal(explained.recommendation?.provider_tuple.model, "qualified");
+  assert.equal(explained.recovery.state, "cooling_down");
+  assert.equal(explained.candidates.some((item) => item.candidate.model === "blocked" && item.viable), false);
+  const validationOnly = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "test_failed" });
+  assert.equal(validationOnly.decision, "bounded_validation");
+  assert.equal(validationOnly.recovery.state, "rejected");
 
   const projectRoot = path.resolve(process.cwd(), "..");
   for (const name of ["qoder", "codebuddy", "mimo"]) {
