@@ -28,23 +28,11 @@ function Copy-RelativeFile([string]$Relative) {
 
 try {
     New-Item -ItemType Directory -Path $scratch -Force | Out-Null
-    $fixtures = @(
-        "config\release-intent.json", "config\runtime-contract.json",
-        "plugin\runtime-contract.json", "plugin\skills\codex-praetor\scripts\runtime-contract.json",
-        "skill\codex-praetor\scripts\runtime-contract.json", "plugin\.codex-plugin\plugin.json",
-        "mcp\package.json", "plugin\mcp\package.json", "setup.ps1", "mcp\src\server.ts",
-        "mcp\package-lock.json", "README.md", "README.en.md", "docs\user\installation.zh.md",
-        "docs\user\troubleshooting.zh.md", "docs\README.md", "docs\user\user-acceptance-checklist.zh.md",
-        "docs\roadmap.md", "SECURITY.md", "scripts\release\build-codex-praetor-release.ps1",
-        "scripts\release\publish-github-release-asset.ps1", "scripts\release\verify-github-release-asset.ps1",
-        "scripts\verify\test-public-entry-consistency.ps1", "scripts\verify\test-release-package-determinism.ps1",
-        "scripts\verify\test-release-artifact-runtime.ps1", "scripts\release\sync-codex-praetor-runtime-contract.ps1",
-        "scripts\verify\test-supply-chain-controls.ps1", "docs\release\github-publish-runbook.md",
-        "docs\release\release-gate-checklist.md", "scripts\release\set-codex-praetor-version.ps1"
-    )
+    $fixtures = @(& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\release\set-codex-praetor-version.ps1") -ProjectRoot $root -Version $sourceVersion -ListSourcePaths)
+    if ($LASTEXITCODE -ne 0 -or $fixtures.Count -eq 0) { throw "Version surface updater did not provide its fixture source list." }
     foreach ($fixture in $fixtures) { Copy-RelativeFile $fixture }
 
-    $sourceNotes = Join-Path $root "docs\release\release-notes-$sourceVersion.md"
+    $sourceNotes = Join-Path $scratch "docs\release\release-notes-$sourceVersion.md"
     $targetNotes = Join-Path $scratch "docs\release\release-notes-$targetVersion.md"
     Copy-Item -LiteralPath $sourceNotes -Destination $targetNotes -Force
 

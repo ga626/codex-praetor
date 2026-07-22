@@ -1,8 +1,8 @@
 ﻿param(
-    [Parameter(Mandatory = $true)]
-    [string]$Version,
+    [string]$Version = "",
     [string]$ProjectRoot = "",
-    [switch]$Apply
+    [switch]$Apply,
+    [switch]$ListSourcePaths
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,14 +11,12 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 }
 $root = [System.IO.Path]::GetFullPath($ProjectRoot)
-if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$') { throw "Invalid semantic version: $Version" }
 
 $intentPath = Join-Path $root "config\release-intent.json"
 if (-not (Test-Path -LiteralPath $intentPath -PathType Leaf)) { throw "Release intent is missing: $intentPath" }
 $intent = Get-Content -LiteralPath $intentPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $currentVersion = [string]$intent.version
 if ([string]::IsNullOrWhiteSpace($currentVersion)) { throw "Release intent does not declare a current version." }
-if ($currentVersion -eq $Version) { throw "Target version must differ from the current release intent version: $Version" }
 
 $jsonFiles = @(
     "config\runtime-contract.json",
@@ -51,6 +49,19 @@ $textFiles = @(
     "docs\release\release-gate-checklist.md",
     "docs\release\release-notes-$Version.md"
 )
+
+if ($ListSourcePaths) {
+    @(
+        "config\release-intent.json",
+        $jsonFiles,
+        $textFiles,
+        "scripts\release\set-codex-praetor-version.ps1"
+    ) | Select-Object -Unique | ForEach-Object { $_ }
+    return
+}
+
+if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$') { throw "Invalid semantic version: $Version" }
+if ($currentVersion -eq $Version) { throw "Target version must differ from the current release intent version: $Version" }
 
 function Read-Json([string]$relative) {
     $path = Join-Path $root $relative
