@@ -18,10 +18,14 @@ try {
     $repo = Join-Path $scratch "repo"
     New-Item -ItemType Directory -Path $repo -Force | Out-Null
     Set-Content -LiteralPath (Join-Path $repo "README.md") -Value "fixture" -Encoding UTF8
+    $fixtureMcp = Join-Path $repo "mcp"
+    New-Item -ItemType Directory -Path $fixtureMcp -Force | Out-Null
+    '{"name":"fixture-mcp","version":"1.0.0"}' | Set-Content -LiteralPath (Join-Path $fixtureMcp "package.json") -Encoding UTF8
+    '{"name":"fixture-mcp","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"fixture-mcp","version":"1.0.0"}}}' | Set-Content -LiteralPath (Join-Path $fixtureMcp "package-lock.json") -Encoding UTF8
     & git -C $repo init -q
     & git -C $repo config user.email "dispatch-test@example.invalid"
     & git -C $repo config user.name "Codex Praetor test"
-    & git -C $repo add README.md
+    & git -C $repo add README.md mcp/package.json mcp/package-lock.json
     & git -C $repo commit -qm "fixture"
     if ($LASTEXITCODE -ne 0) { throw "Unable to create the detached-HEAD fixture repository." }
     & git -C $repo checkout --detach -q
@@ -44,7 +48,11 @@ try {
     Assert-True (Test-Path -LiteralPath $workerTree -PathType Container) "Detached HEAD did not create a worker worktree."
     $branch = (& git -C $workerTree branch --show-current | Out-String).Trim()
     Assert-True ($branch -eq "cw-$worktreeName") "Worker worktree did not receive its isolated branch."
-    Write-Output "[PASS] Detached HEAD resolves HEAD commit and creates an isolated worker branch."
+    $jobDirs = @(Get-ChildItem -LiteralPath $jobRoot -Directory | Select-Object -First 1)
+    Assert-True ($jobDirs.Count -eq 1) "Code-change fixture did not record a dispatch job."
+    $job = Get-Content -LiteralPath (Join-Path $jobDirs[0].FullName "job.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$job.dependency_bootstrap -eq "mcp_npm_ci") "Code-change worker worktree did not complete its MCP dependency bootstrap."
+    Write-Output "[PASS] Detached HEAD resolves HEAD commit, creates an isolated worker branch, and bootstraps MCP dependencies before dispatch."
 } finally {
     $workerTree = Join-Path $scratch "repo\.codex-praetor\worktrees\detached-regression"
     $repoPath = Join-Path $scratch "repo"

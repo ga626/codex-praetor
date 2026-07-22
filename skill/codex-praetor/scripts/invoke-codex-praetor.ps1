@@ -348,6 +348,23 @@ function Ensure-WorkerWorktree {
     return $worktreePath
 }
 
+function Initialize-WorkerDependencyBootstrap {
+    param(
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [Parameter(Mandatory = $true)][string]$TaskKindName
+    )
+    if ($TaskKindName -ne "code_change") { return "not_required" }
+    $mcpRoot = Join-Path $WorkingDirectory "mcp"
+    $lockPath = Join-Path $mcpRoot "package-lock.json"
+    if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) { return "not_applicable" }
+    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if ($null -eq $npm) { $npm = Get-Command npm -ErrorAction SilentlyContinue }
+    if ($null -eq $npm) { throw "MCP dependency bootstrap requires npm, but npm is not available on PATH." }
+    $bootstrapOutput = & $npm.Source --prefix $mcpRoot ci --ignore-scripts --no-audit --fund=false 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "MCP dependency bootstrap failed in the isolated worker worktree: $($bootstrapOutput | Out-String)" }
+    return "mcp_npm_ci"
+}
+
 function Get-RepoLockPath {
     param([string]$RepoPath)
     $resolved = (Resolve-Path -LiteralPath $RepoPath).Path.ToLowerInvariant()
@@ -670,7 +687,8 @@ function Invoke-Or-StartWorker {
         [string]$ContractPath = "",
         [string]$ContractHash = "",
         [string]$RequestedJobId = "",
-        [int]$WorkerTimeoutSeconds = 1200
+        [int]$WorkerTimeoutSeconds = 1200,
+        [string]$DependencyBootstrap = "not_required"
     )
 
     $commandLine = Join-CommandLine $Exe $ArgumentList
@@ -694,6 +712,7 @@ function Invoke-Or-StartWorker {
     Write-Output "price_note=$PriceNote"
     Write-Output "run_mode=$RunMode"
     Write-Output "task_kind=$TaskKindName"
+    Write-Output "dependency_bootstrap=$DependencyBootstrap"
     Write-Output ("worker_network=" + $(if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }))
     if (-not [string]::IsNullOrWhiteSpace($ContractHash)) { Write-Output "contract_hash=$ContractHash" }
     Write-Output "timeout_seconds=$WorkerTimeoutSeconds"
@@ -751,6 +770,7 @@ function Invoke-Or-StartWorker {
         plan_root = $PlanRoot
         mode = $Mode
         task_kind = $TaskKindName
+        dependency_bootstrap = $DependencyBootstrap
         task_contract = $ContractPath
         task_contract_schema = [string]$runtimeContract.taskContractSchema
         generation_id = [string]$generation.generation_id
@@ -1087,6 +1107,7 @@ try {
             $executionRepo = Ensure-WorkerWorktree -RepoPath $Repo -Name $WorktreeName
         }
     }
+    $dependencyBootstrap = if ($DryRun) { if ($TaskKind -eq "code_change") { "mcp_npm_ci_if_mcp_lock_present" } else { "not_required" } } else { Initialize-WorkerDependencyBootstrap -WorkingDirectory $executionRepo -TaskKindName $TaskKind }
 
     $contract = [ordered]@{
         schema = [string]$runtimeContract.taskContractSchema
@@ -1108,6 +1129,7 @@ try {
         research_contract = $researchContract
         acceptance = $Acceptance
         timeout_seconds = $TimeoutSeconds
+        dependency_bootstrap = $dependencyBootstrap
         created_at = (Get-Date).ToString("o")
     }
     $contractJson = $contract | ConvertTo-Json -Depth 12
@@ -1179,7 +1201,7 @@ $networkRule
         }
         $cmdArgs += @("-p", $supervisedTask)
 
-        Invoke-Or-StartWorker -Exe $qoder -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds
+        Invoke-Or-StartWorker -Exe $qoder -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap
     }
 
     if ($resolvedProvider -eq "codebuddy") {
@@ -1218,7 +1240,7 @@ $networkRule
 
         $structured = ""
         if (-not [string]::IsNullOrWhiteSpace($JsonSchema)) { $structured = "json_schema" }
-        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -StructuredOutput $structured -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds
+        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -StructuredOutput $structured -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap
     }
 
     if ($resolvedProvider -eq "mimo") {
@@ -1250,7 +1272,7 @@ $networkRule
         $mimoTaskPacket = ($supervisedTask -replace "\r?\n", " ").Trim()
         $cmdArgs += @($mimoTaskPacket)
 
-        Invoke-Or-StartWorker -Exe $mimo -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "mimo" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $mimoOutputFormat -ProfileRoot $mimoProfileRoot -StructuredOutput "json_event_stream" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds
+        Invoke-Or-StartWorker -Exe $mimo -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "mimo" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $mimoOutputFormat -ProfileRoot $mimoProfileRoot -StructuredOutput "json_event_stream" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap
     }
 } finally {
     if ($RunMode -eq "blocking" -or $DryRun) {

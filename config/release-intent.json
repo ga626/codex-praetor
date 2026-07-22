@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.8.3-alpha",
-    "previous_version":  "0.8.2-alpha",
-    "tag":  "v0.8.3-alpha",
+    "version":  "0.8.4-alpha",
+    "previous_version":  "0.8.3-alpha",
+    "tag":  "v0.8.4-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.8.3-alpha.zip",
-    "reason":  "恢复 0.8.2-alpha 的 CodeBuddy 编辑 worker 发布事故，并治理真实验收发现的 readiness、证据与联网合同问题；以本机 CLI 支持的 -y --tools 协议替换失效的 dontAsk 参数，固定派工证据和 MCP 运行时安全依赖，并加入可执行回归。"
+    "artifact":  "codex-praetor-setup-0.8.4-alpha.zip",
+    "reason":  "把真实挖掘发现的 provider 拒绝、超轮数半成品、安装成功误报、隔离 worktree 依赖缺失与历史诊断混入派工健康统一治理；新增故障注入回归，确保进程退出不再被当作任务成功。"
 }

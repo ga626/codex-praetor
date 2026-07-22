@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-21
 
-`v0.8.2-alpha` 已合并但未完成产品交付：真实 CodeBuddy 编辑 worker 被失效权限参数拒绝。当前 `v0.8.3-alpha` 大 PR 已同时纳入恢复协议、跨 generation readiness、真实编辑 canary 与 completion 证据治理；合并后由 Release On Main 自动创建、发布和复验不可变 Release。本机验证严格区分隔离开发 profile 与已安装用户 runtime。
+`v0.8.3-alpha` 已完成公开交付。当前 `v0.8.4-alpha` 把真实挖掘发现的 provider 拒绝、超轮数半成品、隔离 worktree 依赖与本机激活误报统一治理；合并后仍只由 Release On Main 创建、发布和复验不可变 Release。本机验证严格区分隔离开发 profile 与已安装用户 runtime。
 
 已经完成：
 

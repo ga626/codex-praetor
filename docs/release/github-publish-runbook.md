@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.8.3-alpha`
+Target release: `0.8.4-alpha`
 
-Status: `v0.8.2-alpha` is a public release incident and must not be activated or overwritten. `v0.8.3-alpha` is the explicit recovery version and is published automatically by `Release On Main` after this PR reaches `main`.
+Status: `v0.8.2-alpha` is a public release incident and must not be activated or overwritten. `v0.8.4-alpha` is the explicit recovery version and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
@@ -113,7 +113,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 8. 远端下载复验通过后，Codex 在本机执行同一 Release 的自动激活：
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.8.3-alpha -Json
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.8.4-alpha -Json
    ```
 
    它不手改 cache 或 readiness；会停在 `needs_host_restart` 或 `needs_canary`。前者只需要一次受支持的 Desktop 刷新，之后必须先用 `runtime_info` 验明运行身份，再运行 canary。

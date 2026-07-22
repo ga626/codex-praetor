@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.8.3-alpha",
+    [string]$Version = "0.8.4-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ReleaseZip = "",
@@ -101,7 +101,8 @@ try {
     if (-not $Json -and -not [string]::IsNullOrWhiteSpace($pluginAddOutput)) { Write-Host $pluginAddOutput.TrimEnd() }
     $pluginList = (& $CodexCommand plugin list | Out-String)
     if ($LASTEXITCODE -ne 0) { throw "Official 'codex plugin list' failed after installation." }
-    if ($pluginList -notmatch ("codex-praetor@personal\s+" + [regex]::Escape($Version))) { throw "codex plugin list does not show codex-praetor@personal $Version." }
+    $pluginListPattern = "(?m)^\s*" + [regex]::Escape("codex-praetor@personal") + "\s+.*?\s+" + [regex]::Escape($Version) + "(?:\s|$)"
+    if ($pluginList -notmatch $pluginListPattern) { throw "codex plugin list does not show an installed codex-praetor@personal $Version row." }
 
     if (-not $SkipMaintenance) {
         $maintenanceOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File $maintenanceScript -UserProfileRoot $profileRoot -SourceRoot $stage -Apply | Out-String)

@@ -91,6 +91,24 @@ assert.equal(
   }).class,
   "worker_timed_out"
 );
+assert.equal(
+  classifyWorkerOutcome({
+    meta: { status: "process_exited" },
+    completion: { status: "process_exited", exit_code: 0, failure_class: "provider_risk_control", evidence_state: "evidence_missing" },
+    stdout_tail: '{"type":"error"}',
+    stderr_tail: ""
+  }).class,
+  "provider_risk_control"
+);
+assert.equal(
+  classifyWorkerOutcome({
+    meta: { status: "process_exited" },
+    completion: { status: "process_exited", exit_code: 0, failure_class: "max_turns_exceeded", artifact_state: "partial_worktree_diff" },
+    stdout_tail: "",
+    stderr_tail: "Max turns (16) exceeded"
+  }).class,
+  "worker_max_turns_exceeded"
+);
 
 const planId = "mcp-self-test";
 const plan = await planTool({

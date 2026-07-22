@@ -17,6 +17,16 @@ try {
     Assert-True ([int]$plan.revision -ge 3) "Ledger revision was not incremented."
     Assert-True (@($plan.events | Select-Object -ExpandProperty event_id -Unique).Count -eq @($plan.events).Count) "Ledger event ids are not unique."
 
+    $failedJobDir = Join-Path $root "failed-job"
+    New-Item -ItemType Directory -Path $failedJobDir -Force | Out-Null
+    $failedCompletion = Join-Path $failedJobDir "completion.json"
+    [ordered]@{ job_id = "failed-max-turns"; status = "process_exited"; process_state = "process_exited"; failure_class = "max_turns_exceeded"; evidence_state = "evidence_missing"; provider = "codebuddy"; tier = "codebuddy-free"; model = "hy3"; mode = "edit"; acceptance = "fixture"; exit_code = 0 } | ConvertTo-Json | Set-Content -LiteralPath $failedCompletion -Encoding UTF8
+    & $planScript -Action RecordJob -PlanId ledger -PlanRoot $root -TaskId failed-task -JobDir $failedJobDir -CompletionPath $failedCompletion | Out-Null
+    $plan = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $failedTask = @($plan.tasks | Where-Object { $_.task_id -eq "failed-task" } | Select-Object -First 1)
+    Assert-True ($failedTask.Count -eq 1 -and [string]$failedTask[0].status -eq "failed") "A structured worker failure must not be recorded as awaiting verification."
+    Assert-True ([string]$failedTask[0].governance_state -eq "rejected") "A structured worker failure must enter rejected governance state."
+
     & $planScript -Action UpsertTask -PlanId ledger -PlanRoot $root -TaskId producer -Status completed | Out-Null
     $ready = & $planScript -Action NextReady -PlanId ledger -PlanRoot $root -OutputJson
     Assert-True ([string]$ready -notmatch 'consumer') "Process completion without a supervisor verdict unlocked a dependency."

@@ -348,14 +348,14 @@ if ($Action -eq "Init") {
     }
     $completion = Get-Content -LiteralPath $completionFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $recordTaskId = if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $TaskId } else { [string]$completion.task_id }
-    $recordStatus = if ($completion.status -eq "process_exited") { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } else { "failed" }
+    $recordStatus = if ($completion.status -eq "process_exited" -and [string]::IsNullOrWhiteSpace([string]$completion.failure_class)) { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } else { "failed" }
     $summaryText = "process_state=$($completion.process_state); failure_class=$($completion.failure_class); exit_code=$($completion.exit_code)"
     Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
     $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
     if ($recordTask.Count -eq 1) {
         $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = [string]$completion.contract_sha256; write_set = @($completion.write_set); execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; created_at = (Get-Date).ToString("o"); finished_at = (Get-Date).ToString("o") }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
-        $recordTask[0].governance_state = "awaiting_supervisor"
+        $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }
     }
     Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }
     Save-Plan -Plan $plan
