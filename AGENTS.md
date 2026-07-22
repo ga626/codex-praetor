@@ -6,6 +6,7 @@
 - 活动名称固定为 `Codex Praetor`、`codex-praetor`、`codex_praetor_`；旧名仅可留在迁移/历史材料。
 - `plugin/` 是最终包，`mcp/` 是源码，`scripts/` 按职责分组；`skill/` 是派生兼容镜像，不能成为安装入口或运行时依赖。
 - 仓库检出目录不是安装目录。稳定入口只有 personal marketplace 指向的 `%USERPROFILE%\plugins\codex-praetor`；开发只用隔离 `UserProfileRoot`。不得手改 `%USERPROFILE%\.codex\plugins\cache`、认证或 provider 数据库。
+- 真实开发验收用独立 worktree 加隔离 `UserProfileRoot`；可经官方 CLI 使用已有登录态、联网和正常额度，但不得读写、输出或迁移认证数据。worktree 只隔离代码，不是系统沙箱。
 
 ## PR 与发布
 
@@ -23,6 +24,7 @@
 - 自动本机激活成功后若状态为 `needs_host_restart`，Codex 只要求用户执行一次受支持的 host 刷新或重启；不得强杀宿主、猜测已刷新或提前运行 canary。用户确认刷新后，Codex 必须先验 `runtime_info`，再继续后续验收。
 - 任何不等必须停止并精确报告：`needs_install`、`needs_host_restart`、`needs_canary` 或 `local_candidate_stale`；不得用旧缓存、旧回执、手写 readiness、手工 cache 操作或重启猜测跳关。
 - 安装身份、host runtime、provider readiness 和公开 Release 是四个独立观察；收据只能证明自身范围，不能互相冒充。真实 canary 必须在干净仓库或隔离 checkout；worker/worktree 证据、provider proof 和仓库漂移分别记录。
+- readiness 以 entries 中 generation/contract/tuple 为权威；文件顶层 generation 仅是兼容摘要，不能遮蔽其他 generation 的有效记录。`code_change` canary 必须留下 worker worktree 的真实改动证据，不能只回 marker。
 
 ## 版本、运行与安全
 

@@ -14,6 +14,7 @@ The worker boundary is not a security boundary. Use filesystem scope, git worktr
 
 For edit tasks, the wrapper intentionally uses non-interactive approval inside a narrow tool whitelist and a Codex-created git worktree. Codex creates the linked worktree first, then starts the worker with that worktree as its working directory:
 
+- CodeBuddy readonly: `-y --tools Read,Glob,Grep`.
 - CodeBuddy: `-y --tools Read,Glob,Grep,Edit,Write,Bash` inside `<repo>\.codex-praetor\worktrees\<name>`.
 - Qoder: `--permission-mode bypass_permissions --tools Read Grep Glob Edit Write Bash` with `-w <repo>\.codex-praetor\worktrees\<name>`.
 - MiMo: `mimo run --model mimo/mimo-auto --agent build --format json --dir <repo>\.codex-praetor\worktrees\<name>` after Codex creates the worktree.
@@ -164,4 +165,3 @@ If verification fails, Codex either fixes directly or sends one revised task pac
 - CodeBuddy and Qoder permission bypass modes are acceptable only after Codex has chosen the repo, task, worktree, and tool whitelist.
 - `-MaxTurns` is a hard cap, not a quality control. Too-low values can stop an otherwise correct worker before it reports; edit packets default to 8 turns.
 - The local Codex app-server notification path is a local desktop/CLI integration, not a public cloud API. If that path changes in a future Codex release, worker completion still lands in `completion.json`; the automatic Codex wake-up becomes degraded until the invoker is refreshed.
-

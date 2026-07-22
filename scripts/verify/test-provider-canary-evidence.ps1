@@ -32,17 +32,46 @@ try {
     [ordered]@{ providers = [ordered]@{ qoder = [ordered]@{ cliPath = $powershellPath } } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding UTF8
     $readinessPath = Join-Path $scratch "readiness.json"
     $driftPath = Join-Path $repo "external-drift.txt"
+    $workerRepo = Join-Path $scratch "worker-repo"
+    $workerJobDir = Join-Path $scratch "worker-job"
+    New-Item -ItemType Directory -Path $workerRepo -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $workerRepo "README.md") -Value "worker fixture" -Encoding UTF8
+    & git -C $workerRepo init -q
+    & git -C $workerRepo config user.email "canary-test@example.invalid"
+    & git -C $workerRepo config user.name "Codex Praetor test"
+    & git -C $workerRepo add README.md
+    & git -C $workerRepo commit -qm "fixture"
+    if ($LASTEXITCODE -ne 0) { throw "Unable to create the edit-canary worker fixture repository." }
     $wrapperPath = Join-Path $scratch "fake-wrapper.ps1"
     @'
-Start-Sleep -Milliseconds 120
-Set-Content -LiteralPath $env:CODEX_PRAETOR_CANARY_DRIFT_PATH -Value "concurrent editor" -Encoding UTF8
+$taskKind = ""
+for ($index = 0; $index -lt $args.Count; $index++) {
+    if ($args[$index] -eq "-TaskKind" -and $index + 1 -lt $args.Count) {
+        $taskKind = [string]$args[$index + 1]
+        break
+    }
+}
+if ($taskKind -eq "code_change") {
+    $workerRepo = $env:CODEX_PRAETOR_CANARY_WORKER_REPO
+    $jobDir = $env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR
+    New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $workerRepo "CODEX_PRAETOR_EDIT_CANARY.txt") -Value "CODEX_PRAETOR_CAPABILITY_CANARY_OK" -Encoding ASCII
+    [ordered]@{ execution_repo = $workerRepo } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
+    Write-Output "job_dir=$jobDir"
+    Write-Output "permission_profile=edit_worktree"
+} else {
+    Start-Sleep -Milliseconds 120
+    Set-Content -LiteralPath $env:CODEX_PRAETOR_CANARY_DRIFT_PATH -Value "concurrent editor" -Encoding UTF8
+    Write-Output "permission_profile=readonly_read_grep_glob"
+}
 Write-Output "model=Qwen3.7-Plus"
-Write-Output "permission_profile=readonly_read_grep_glob"
 Write-Output "version=fake-provider"
 Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
 '@ | Set-Content -LiteralPath $wrapperPath -Encoding UTF8
 
     $env:CODEX_PRAETOR_CANARY_DRIFT_PATH = $driftPath
+    $env:CODEX_PRAETOR_CANARY_WORKER_REPO = $workerRepo
+    $env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR = $workerJobDir
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -Apply
     if ($LASTEXITCODE -ne 0) { throw "A successful worker plus concurrent checkout drift must retain readiness proof." }
     $state = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -51,12 +80,26 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     Assert-True ([string]$state.entries[0].repo_observation.status -eq "external_repo_drift_observed") "Readiness tuple did not retain its repository observation."
 
     Remove-Item -LiteralPath $driftPath -Force
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -TaskKind code_change -Apply
+    if ($LASTEXITCODE -ne 0) { throw "A code-change canary with a worker worktree diff must pass." }
+    $state = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $editEntry = @($state.entries | Where-Object { [string]$_.task_kind -eq "code_change" }) | Select-Object -First 1
+    Assert-True ($null -ne $editEntry) "Edit capability canary did not write a code-change readiness tuple."
+    Assert-True (Test-Path -LiteralPath (Join-Path $workerRepo "CODEX_PRAETOR_EDIT_CANARY.txt") -PathType Leaf) "Edit capability canary did not require a worker-worktree artifact."
+    Assert-True (-not [string]::IsNullOrWhiteSpace((& git -C $workerRepo status --short | Out-String).Trim())) "Edit capability canary did not require a worker-worktree diff."
+
     Set-Content -LiteralPath (Join-Path $repo "dirty-before.txt") -Value "dirty" -Encoding UTF8
+    $dirtyStdoutPath = Join-Path $scratch "dirty-stdout.txt"
+    $dirtyStderrPath = Join-Path $scratch "dirty-stderr.txt"
     $previousErrorAction = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        $dirtyOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -Apply 2>&1
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -Apply 1>$dirtyStdoutPath 2>$dirtyStderrPath
         $dirtyExitCode = $LASTEXITCODE
+        $dirtyOutput = @(
+            (Get-Content -LiteralPath $dirtyStdoutPath -Raw -Encoding UTF8),
+            (Get-Content -LiteralPath $dirtyStderrPath -Raw -Encoding UTF8)
+        )
     } finally {
         $ErrorActionPreference = $previousErrorAction
     }
@@ -66,5 +109,11 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     Write-Host "[PASS] Capability canary separates clean-before safety from concurrent repository-drift observation."
 } finally {
     Remove-Item Env:CODEX_PRAETOR_CANARY_DRIFT_PATH -ErrorAction SilentlyContinue
+    Remove-Item Env:CODEX_PRAETOR_CANARY_WORKER_REPO -ErrorAction SilentlyContinue
+    Remove-Item Env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
 }
+
+# The last native call intentionally exercises a rejected dirty checkout.  Do not
+# leak that expected non-zero exit code after all assertions have passed.
+exit 0

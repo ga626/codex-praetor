@@ -29,10 +29,29 @@ Assert-True (Test-Path -LiteralPath $dependabot -PathType Leaf) "Dependabot conf
 $dependabotText = Get-Content -LiteralPath $dependabot -Raw -Encoding UTF8
 Assert-True ($dependabotText -match 'package-ecosystem: github-actions') "Dependabot does not monitor GitHub Actions."
 Assert-True ($dependabotText -match 'package-ecosystem: npm') "Dependabot does not monitor npm dependencies."
-$releaseNotes = Join-Path $ProjectRoot "docs\release\release-notes-0.8.2-alpha.md"
-Assert-True (Test-Path -LiteralPath $releaseNotes -PathType Leaf) "0.8.2-alpha release notes are missing."
+$mcpPackagePath = Join-Path $ProjectRoot "mcp\package.json"
+$mcpLockPath = Join-Path $ProjectRoot "mcp\package-lock.json"
+Assert-True (Test-Path -LiteralPath $mcpPackagePath -PathType Leaf) "MCP package manifest is missing."
+Assert-True (Test-Path -LiteralPath $mcpLockPath -PathType Leaf) "MCP package lock is missing."
+$mcpPackage = Get-Content -LiteralPath $mcpPackagePath -Raw -Encoding UTF8 | ConvertFrom-Json
+$mcpLockText = Get-Content -LiteralPath $mcpLockPath -Raw -Encoding UTF8
+function Get-LockPackageVersion {
+    param([string]$LockText, [string]$PackagePath)
+    $match = [regex]::Match($LockText, '(?s)"' + [regex]::Escape($PackagePath) + '"\s*:\s*\{\s*"version"\s*:\s*"(?<version>[^"]+)"')
+    if ($match.Success) { return [string]$match.Groups['version'].Value }
+    return ""
+}
+Assert-True ([string]$mcpPackage.dependencies.'@modelcontextprotocol/sdk' -eq "^1.29.0") "MCP SDK must remain on the current patched API line."
+Assert-True ([version][string]$mcpPackage.overrides.'@hono/node-server' -ge [version]"2.0.11") "MCP runtime must override @hono/node-server to a version patched for the known HTTP adapter advisories."
+Assert-True ([version][string]$mcpPackage.overrides.'fast-uri' -ge [version]"3.1.4") "MCP runtime must override fast-uri to a version patched for host-confusion advisory GHSA-v2hh-gcrm-f6hx."
+$honoLockVersion = Get-LockPackageVersion -LockText $mcpLockText -PackagePath "node_modules/@hono/node-server"
+$fastUriLockVersion = Get-LockPackageVersion -LockText $mcpLockText -PackagePath "node_modules/fast-uri"
+Assert-True (-not [string]::IsNullOrWhiteSpace($honoLockVersion) -and [version]$honoLockVersion -ge [version]"2.0.11") "MCP lockfile does not resolve the patched @hono/node-server runtime."
+Assert-True (-not [string]::IsNullOrWhiteSpace($fastUriLockVersion) -and [version]$fastUriLockVersion -ge [version]"3.1.4") "MCP lockfile does not resolve the patched fast-uri runtime."
+$releaseNotes = Join-Path $ProjectRoot "docs\release\release-notes-0.8.3-alpha.md"
+Assert-True (Test-Path -LiteralPath $releaseNotes -PathType Leaf) "0.8.3-alpha release notes are missing."
 $workflowReadiness = Join-Path $ProjectRoot "scripts\verify\test-release-workflow-readiness.ps1"
 Assert-True (Test-Path -LiteralPath $workflowReadiness -PathType Leaf) "Release workflow readiness test is missing."
 & powershell -NoProfile -ExecutionPolicy Bypass -File $workflowReadiness -ProjectRoot $ProjectRoot
 if ($LASTEXITCODE -ne 0) { throw "Release workflow readiness contract failed." }
-Write-Host "[PASS] Supply-chain action pinning, least privilege, release workflow readiness, Dependabot, and release evidence controls are verified."
+Write-Host "[PASS] Supply-chain action pinning, patched MCP runtime dependencies, least privilege, release workflow readiness, Dependabot, and release evidence controls are verified."

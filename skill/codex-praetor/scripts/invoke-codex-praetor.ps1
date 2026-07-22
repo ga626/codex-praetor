@@ -694,6 +694,7 @@ function Invoke-Or-StartWorker {
     Write-Output "price_note=$PriceNote"
     Write-Output "run_mode=$RunMode"
     Write-Output "task_kind=$TaskKindName"
+    Write-Output ("worker_network=" + $(if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }))
     if (-not [string]::IsNullOrWhiteSpace($ContractHash)) { Write-Output "contract_hash=$ContractHash" }
     Write-Output "timeout_seconds=$WorkerTimeoutSeconds"
     Write-Output "command=$commandLine"
@@ -1117,6 +1118,12 @@ try {
         Set-Content -LiteralPath $contractPath -Value $contractJson -Encoding UTF8
     }
 
+    $networkRule = if ($AllowWorkerNetwork) {
+        "- External network access is allowed for this task. Use existing official CLI login state when needed, but never read, print, move, or modify authentication files, tokens, cookies, caches, or provider databases."
+    } else {
+        "- Do not perform external network research. Codex owns KnowledgeRadar and all external evidence collection."
+    }
+
     $supervisedTask = @"
 TASK:
 $Task
@@ -1140,7 +1147,7 @@ Acceptance target: $Acceptance
 
 Rules:
 - Complete only this task.
-- Do not perform external network research. Codex owns KnowledgeRadar and all external evidence collection.
+$networkRule
 - You may read, search, edit, and run only the actions necessary for the task contract inside this worktree.
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the execution worktree or the project artifact root unless Codex explicitly allowed another path.
@@ -1200,9 +1207,12 @@ Rules:
             $cmdArgs += @("--json-schema", $JsonSchema)
         }
         if ($Mode -eq "readonly") {
-            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep", "--disallowedTools", "Bash,Edit,Write,WebFetch")
+            # CodeBuddy's current CLI does not accept the historical dontAsk
+            # mode. In headless runs, -y supplies the non-interactive approval
+            # and --tools is the complete built-in-tool allowlist.
+            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep")
         } else {
-            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep,Edit,Write,Bash", "--disallowedTools", "WebFetch")
+            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep,Edit,Write,Bash")
         }
         $cmdArgs += @("-p", $supervisedTask)
 

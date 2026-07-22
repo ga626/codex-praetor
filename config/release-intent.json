@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.8.2-alpha",
-    "previous_version":  "0.8.1-alpha",
-    "tag":  "v0.8.2-alpha",
+    "version":  "0.8.3-alpha",
+    "previous_version":  "0.8.2-alpha",
+    "tag":  "v0.8.3-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.8.2-alpha.zip",
-    "reason":  "修复 bundled health 与 canary generation 解析漂移；把公开 Release 的下载验真、稳定安装、官方 plugin add、maintenance 与本机状态输出固化为一个入口；支持 detached HEAD 的隔离 worker worktree。"
+    "artifact":  "codex-praetor-setup-0.8.3-alpha.zip",
+    "reason":  "恢复 0.8.2-alpha 的 CodeBuddy 编辑 worker 发布事故，并治理真实验收发现的 readiness、证据与联网合同问题；以本机 CLI 支持的 -y --tools 协议替换失效的 dontAsk 参数，固定派工证据和 MCP 运行时安全依赖，并加入可执行回归。"
 }

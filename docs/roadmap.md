@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-21
 
-`v0.8.2-alpha` 已公开发布并完成自动发布闭环；当前目标是 `v0.8.2-alpha`：把真实 provider canary、worker 终态、UTF-8 输出和 dependency-only CI 分流收束为同一套可回归边界。发布影响 PR 必须在同一个 PR 内提交版本和 release intent，合并后由 Release On Main 自动创建、发布和复验不可变 Release；本机验证以运行中的 generation、当前 provider readiness 和真实用户路径为准。
+`v0.8.2-alpha` 已合并但未完成产品交付：真实 CodeBuddy 编辑 worker 被失效权限参数拒绝。当前 `v0.8.3-alpha` 大 PR 已同时纳入恢复协议、跨 generation readiness、真实编辑 canary 与 completion 证据治理；合并后由 Release On Main 自动创建、发布和复验不可变 Release。本机验证严格区分隔离开发 profile 与已安装用户 runtime。
 
 已经完成：
 
@@ -25,6 +25,7 @@
 - 产品验收与开发者本机检查分离，PR 和发布门禁不再被全局规则、本机 skill 副本或 provider 登录状态误伤。
 - 公开入口一致性检查，确保首页、安装说明、路线图、发布说明和 GitHub Release 指向同一版本。
 - release intent、版本面一致性和 main 合并后自动发布 workflow。
+- 真实 worktree 实验：Qoder fail-to-pass、background job、旧安装 CodeBuddy 拒绝与恢复源码 CodeBuddy 真实写入均已有独立证据；实验产物不合入主线。
 
 ## 近期目标
 

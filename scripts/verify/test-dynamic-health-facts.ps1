@@ -21,6 +21,10 @@ try {
     Assert-True $currentEntries.ok "Current-generation readiness summary should find the valid tuple."
     $wrongGeneration = Get-CodexPraetorCurrentReadinessEntries -Path $readiness -ExpectedGeneration gen-2 -ExpectedRuntimeContract contract-1 -ExpectedTaskContract task-v4
     Assert-True (-not $wrongGeneration.ok) "A readiness summary must reject a different running generation."
+    $entryGen2 = [ordered]@{ generation_id = "gen-2"; runtime_contract_sha256 = "contract-2"; task_contract_schema = "task-v4"; provider = "qoder"; cli_path = $cli; cli_hash = $cliHash; model = "Qwen3.7-Plus"; permission_profile = "local-audit-v1"; task_kind = "local_audit"; status = "passed"; expires_at = (Get-Date).AddHours(1).ToString("o") }
+    [ordered]@{ schema = "codex-praetor-generation-readiness/v2"; generation_id = "gen-2"; runtime_contract_sha256 = "contract-2"; entries = @($entry, $entryGen2) } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $readiness -Encoding UTF8
+    $multiGeneration = Get-CodexPraetorCurrentReadinessEntries -Path $readiness -ExpectedGeneration gen-1 -ExpectedRuntimeContract contract-1 -ExpectedTaskContract task-v4
+    Assert-True $multiGeneration.ok "A legacy top-level generation must not hide a valid matching entry."
     Set-Content -LiteralPath $cli -Value "cli-v2" -Encoding UTF8
     $drift = Test-CodexPraetorProviderReadiness -Path $readiness -ProviderName codebuddy -Cli $cli -ModelName hy3 -Permission local-audit-v1 -Kind local_audit -ExpectedGeneration gen-1 -ExpectedRuntimeContract contract-1 -ExpectedTaskContract task-v4
     Assert-True (-not $drift.ok) "CLI hash drift must fail closed."

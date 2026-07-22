@@ -87,11 +87,12 @@ if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
 }
 
 $mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }
-$task = @"
-Read README.md and return exactly $marker in the final response.
-Do not perform external network research.
-Do not modify files.
-"@
+$canaryFileName = "CODEX_PRAETOR_EDIT_CANARY.txt"
+$task = if ($TaskKind -eq "code_change") {
+    "Create $canaryFileName at the repository root with exactly $marker, run git status --short, then reply exactly $marker."
+} else {
+    "Read README.md and return exactly $marker in the final response. Do not perform external network research. Do not modify files."
+}
 
 $argsList = @(
     "-NoProfile",
@@ -131,6 +132,17 @@ if (-not $Apply) {
 
 if ($exitCode -ne 0) { throw "Capability canary failed with exit code $exitCode." }
 if ($outputText -notmatch [regex]::Escape($marker)) { throw "Worker did not return the required marker." }
+if ($TaskKind -eq "code_change") {
+    $jobMatch = [regex]::Match($outputText, "(?m)^job_dir=(.+)$")
+    $jobPath = if ($jobMatch.Success) { Join-Path $jobMatch.Groups[1].Value.Trim() "job.json" } else { "" }
+    if (-not (Test-Path -LiteralPath $jobPath -PathType Leaf)) { throw "Edit capability canary did not publish job metadata." }
+    $job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $workerRepo = [string]$job.execution_repo
+    $canaryPath = Join-Path $workerRepo $canaryFileName
+    if (-not (Test-Path -LiteralPath $canaryPath -PathType Leaf)) { throw "Edit capability canary produced no canary file in the worker worktree." }
+    if ((Get-Content -LiteralPath $canaryPath -Raw -Encoding UTF8) -notmatch [regex]::Escape($marker)) { throw "Edit capability canary file does not contain the required marker." }
+    if ([string]::IsNullOrWhiteSpace((& git -C $workerRepo status --short 2>$null | Out-String).Trim())) { throw "Edit capability canary produced no observable worker worktree change." }
+}
 if ($beforeStatus -ne $afterStatus) { throw "Canary changed the main checkout status." }
 
 $cliPath = Get-ProviderCliPath -Path $ConfigPath -ProviderName $Provider
