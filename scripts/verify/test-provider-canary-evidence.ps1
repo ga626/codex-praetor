@@ -9,6 +9,8 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $root = [System.IO.Path]::GetFullPath($ProjectRoot)
 $canary = Join-Path $root "scripts\verify\test-provider-capability-canary.ps1"
 if (-not (Test-Path -LiteralPath $canary -PathType Leaf)) { throw "Capability canary is missing: $canary" }
+$packagedCanary = Join-Path $root "plugin\skills\codex-praetor\scripts\test-provider-capability-canary.ps1"
+if (-not (Test-Path -LiteralPath $packagedCanary -PathType Leaf)) { throw "Packaged capability canary is missing: $packagedCanary" }
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -89,6 +91,18 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     $env:CODEX_PRAETOR_CANARY_DRIFT_PATH = $driftPath
     $env:CODEX_PRAETOR_CANARY_WORKER_REPO = $workerRepo
     $env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR = $workerJobDir
+
+    # The production plugin runs this script from plugin/skills rather than
+    # scripts/verify. Exercise that copied location so a source-only helper
+    # path cannot pass CI and break the first post-install capability canary.
+    $packagedReadinessPath = Join-Path $scratch "packaged-readiness.json"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $packagedCanary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $packagedReadinessPath -WrapperPath $wrapperPath -Apply
+    if ($LASTEXITCODE -ne 0) { throw "The packaged capability canary must bootstrap its helper and run successfully." }
+    $packagedState = Get-Content -LiteralPath $packagedReadinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True (@($packagedState.entries).Count -eq 1) "Packaged capability canary did not write its readiness tuple."
+    Assert-True ([string]$packagedState.entries[0].evidence.schema -eq "codex-praetor-canary-evidence/v1") "Packaged capability canary did not retain worker evidence."
+    Remove-Item -LiteralPath $driftPath -Force
+
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -Apply
     if ($LASTEXITCODE -ne 0) { throw "A successful worker plus concurrent checkout drift must retain readiness proof." }
     $state = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json

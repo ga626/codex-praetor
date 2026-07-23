@@ -23,7 +23,13 @@
 )
 
 $ErrorActionPreference = "Stop"
-. (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
+$hashHelperCandidates = @(
+    (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1"),
+    (Join-Path $PSScriptRoot "ensure-file-hash.ps1")
+)
+$hashHelper = @($hashHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($hashHelper).Count -ne 1) { throw "Capability canary hash helper is missing." }
+. ([string]$hashHelper[0])
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $wrapperCandidates = @(
