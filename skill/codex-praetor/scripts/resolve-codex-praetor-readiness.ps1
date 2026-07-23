@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "ensure-file-hash.ps1")
 
 function Get-CodexPraetorFileSha256 {
     param([string]$Path)

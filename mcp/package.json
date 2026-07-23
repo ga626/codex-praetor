@@ -1,6 +1,6 @@
 {
     "name":  "codex-praetor-mcp",
-    "version":  "0.9.5-alpha",
+    "version":  "0.9.6-alpha",
     "description":  "Thin MCP wrapper for Codex Praetor dry-run dispatch and job state.",
     "type":  "module",
     "main":  "dist/server.js",
@@ -11,7 +11,7 @@
                     "build":  "tsc -p tsconfig.json",
                     "build:plugin":  "node scripts/package-plugin-mcp.js",
                     "start":  "node dist/server.js",
-                    "test":  "tsc -p tsconfig.json \u0026\u0026 npm run build:plugin \u0026\u0026 node dist/self-test.js \u0026\u0026 node dist/capability-profiles-test.js"
+        "test":  "tsc -p tsconfig.json \u0026\u0026 npm run build:plugin \u0026\u0026 node dist/self-test.js \u0026\u0026 node dist/capability-profiles-test.js \u0026\u0026 node dist/evaluation-dispatch-contract-test.js"
                 },
     "keywords":  [
                      "codex",

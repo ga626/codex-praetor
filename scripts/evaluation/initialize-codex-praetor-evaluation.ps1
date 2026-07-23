@@ -21,6 +21,9 @@ function Assert-Task { param([object]$Task)
     }
     Assert-True ([string]$Task.task_family -in @("read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery")) "Unsupported task family: $($Task.task_family)"
     Assert-True ([string]$Task.mode -in @("readonly", "edit")) "Unsupported task mode: $($Task.mode)"
+    Assert-True ([string]$Task.task_kind -in @("local_audit", "test_execution", "code_change")) "Unsupported task kind: $($Task.task_kind)"
+    if ([string]$Task.task_family -eq "fixed_test_execution") { Assert-True ([string]$Task.task_kind -eq "test_execution") "Fixed test execution task $($Task.task_id) must use test_execution." }
+    if ([string]$Task.task_kind -eq "test_execution") { Assert-True ([string]$Task.mode -eq "readonly") "test_execution task $($Task.task_id) must be readonly." }
     Assert-True (@($Task.provider_candidates).Count -gt 0) "Evaluation task $($Task.task_id) has no provider candidates."
     Assert-True (@($Task.allowed_paths).Count -gt 0 -and @($Task.forbidden_paths).Count -gt 0) "Evaluation task $($Task.task_id) lacks path boundaries."
     Assert-True ([int]$Task.budget.max_turns -gt 0 -and [int]$Task.budget.max_wall_seconds -ge 60) "Evaluation task $($Task.task_id) has an invalid budget."
@@ -45,7 +48,8 @@ if ($Action -eq "Prepare") {
         $planScript = Join-Path $ProjectRoot "scripts\dispatch\manage-codex-praetor-plan.ps1"
         & $planScript -Action Init -PlanId $resolvedPlanId -PlanRoot $PlanRoot -Title "Evaluation $($suite.suite_id)" -Repo $ProjectRoot | Out-Null
         foreach ($task in $tasks) {
-            & $planScript -Action UpsertTask -PlanId $resolvedPlanId -PlanRoot $PlanRoot -TaskId ([string]$task.task_id) -TaskTitle ([string]$task.goal) -TaskFamily ([string]$task.task_family) -Status pending -Mode ([string]$task.mode) -Acceptance ([string]$task.acceptance) -Summary ("required_checks=" + (@($task.required_checks) -join " | ")) | Out-Null
+            $budgetJson = $task.budget | ConvertTo-Json -Compress
+            & $planScript -Action UpsertTask -PlanId $resolvedPlanId -PlanRoot $PlanRoot -TaskId ([string]$task.task_id) -TaskTitle ([string]$task.goal) -TaskFamily ([string]$task.task_family) -TaskKind ([string]$task.task_kind) -Status pending -Mode ([string]$task.mode) -AllowedPath @($task.allowed_paths) -ForbiddenPath @($task.forbidden_paths) -RequiredCheck @($task.required_checks) -BudgetJson $budgetJson -FailureInjection ([string]$task.failure_injection) -Sensitivity ([string]$task.sensitivity) -Acceptance ([string]$task.acceptance) -Summary ("required_checks=" + (@($task.required_checks) -join " | ")) | Out-Null
         }
         $summary.plan_path = Join-Path (Join-Path $PlanRoot $resolvedPlanId) "plan.json"
         $summary.next_action = "Dispatch a single prepared task through the normal worker contract; do not mass-dispatch the suite."

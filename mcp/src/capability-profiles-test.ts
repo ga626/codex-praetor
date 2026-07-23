@@ -119,7 +119,7 @@ try {
     assert.equal(adapter.provider_id, name);
     assert.ok(Array.isArray(adapter.models.allowed) && adapter.models.allowed.length > 0);
     assert.ok(Array.isArray(adapter.permissions.mappings) && adapter.permissions.mappings.length > 0);
-    assert.deepEqual(adapter.permissions.minimum_canaries, ["local_audit", "code_change"]);
+    assert.deepEqual(adapter.permissions.minimum_canaries, ["local_audit", "test_execution", "code_change"]);
     assert.ok(adapter.lifecycle.launch && adapter.lifecycle.parse_terminal_state && adapter.lifecycle.cleanup);
     assert.ok(adapter.evidence.fixture && adapter.evidence.end_to_end && adapter.evidence.documentation);
   }

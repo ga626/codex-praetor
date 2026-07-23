@@ -14,9 +14,10 @@
   "permissions": {
     "mappings": [
       { "profile": "local-audit-v1", "provider_semantics": "Read, Grep and Glob only for a bounded local audit." },
+      { "profile": "test-execution-v1", "provider_semantics": "Read, Grep, Glob and Bash only for declared deterministic checks in a disposable worker worktree; source edits remain unavailable." },
       { "profile": "edit-worktree-v1", "provider_semantics": "Edit and shell tools only inside the disposable worker worktree." }
     ],
-    "minimum_canaries": ["local_audit", "code_change"]
+    "minimum_canaries": ["local_audit", "test_execution", "code_change"]
   },
   "lifecycle": {
     "launch": "invoke-codex-praetor.ps1 builds the supervised CLI command and writes immutable job metadata before launch.",

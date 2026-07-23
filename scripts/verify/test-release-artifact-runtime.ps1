@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.9.5-alpha",
+    [string]$Version = "0.9.6-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [string]$ArtifactManifestPath = "",
     [string]$ObservedToolsPath = "",
@@ -8,6 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) { $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
 $ProjectRoot = [IO.Path]::GetFullPath($ProjectRoot)
 $releaseName = "codex-praetor-setup-$Version"

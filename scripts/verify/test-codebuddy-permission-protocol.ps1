@@ -84,6 +84,7 @@ try {
     $scratchRoot = Join-Path $scratch "worker-scratch"
 
     Invoke-ProtocolFixture -Mode "readonly" -TaskKind "local_audit" -ExpectedTools "Read,Glob,Grep"
+    Invoke-ProtocolFixture -Mode "readonly" -TaskKind "test_execution" -ExpectedTools "Read,Glob,Grep,Bash"
     Invoke-ProtocolFixture -Mode "edit" -TaskKind "code_change" -ExpectedTools "Read,Glob,Grep,Edit,Write,Bash" -WorktreeName "permission-protocol" -AllowNetwork
     Write-Host "[PASS] CodeBuddy permission fault-injection regression rejects the historical dontAsk protocol and accepts the supported headless allowlists without acquiring a Git worktree lock."
 } finally {

@@ -63,6 +63,7 @@ if ($ListSourcePaths) {
         $jsonFiles,
         $textFiles,
         $runtimeDataSources,
+        "scripts\shared\ensure-file-hash.ps1",
         "scripts\release\set-codex-praetor-version.ps1"
     ) | Select-Object -Unique | ForEach-Object { $_ }
     return

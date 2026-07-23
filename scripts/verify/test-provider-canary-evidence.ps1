@@ -59,6 +59,10 @@ if ($taskKind -eq "code_change") {
     [ordered]@{ execution_repo = $workerRepo } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
     Write-Output "job_dir=$jobDir"
     Write-Output "permission_profile=edit_worktree"
+} elseif ($taskKind -eq "test_execution") {
+    Start-Sleep -Milliseconds 120
+    Set-Content -LiteralPath $env:CODEX_PRAETOR_CANARY_DRIFT_PATH -Value "concurrent editor" -Encoding UTF8
+    Write-Output "permission_profile=test-execution-v1"
 } else {
     Start-Sleep -Milliseconds 120
     Set-Content -LiteralPath $env:CODEX_PRAETOR_CANARY_DRIFT_PATH -Value "concurrent editor" -Encoding UTF8
@@ -87,6 +91,13 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     Assert-True ($null -ne $editEntry) "Edit capability canary did not write a code-change readiness tuple."
     Assert-True (Test-Path -LiteralPath (Join-Path $workerRepo "CODEX_PRAETOR_EDIT_CANARY.txt") -PathType Leaf) "Edit capability canary did not require a worker-worktree artifact."
     Assert-True (-not [string]::IsNullOrWhiteSpace((& git -C $workerRepo status --short | Out-String).Trim())) "Edit capability canary did not require a worker-worktree diff."
+
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -TaskKind test_execution -Apply
+    if ($LASTEXITCODE -ne 0) { throw "A test-execution canary must record a distinct readonly-with-Bash capability tuple." }
+    $state = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $testEntry = @($state.entries | Where-Object { [string]$_.task_kind -eq "test_execution" }) | Select-Object -First 1
+    Assert-True ($null -ne $testEntry) "Test-execution capability canary did not write its readiness tuple."
+    Assert-True ([string]$testEntry.permission_profile -eq "test-execution-v1") "Test-execution canary did not record its distinct permission profile."
 
     Set-Content -LiteralPath (Join-Path $repo "dirty-before.txt") -Value "dirty" -Encoding UTF8
     $dirtyStdoutPath = Join-Path $scratch "dirty-stdout.txt"

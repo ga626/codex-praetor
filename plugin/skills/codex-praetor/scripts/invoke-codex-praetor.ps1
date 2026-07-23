@@ -15,7 +15,7 @@
     [ValidateSet("readonly", "edit")]
     [string]$Mode = "readonly",
 
-    [ValidateSet("", "local_audit", "code_change", "external_research")]
+    [ValidateSet("", "local_audit", "test_execution", "code_change", "external_research")]
     [string]$TaskKind = "",
 
     [ValidateSet("blocking", "background")]
@@ -89,7 +89,21 @@
 
     [string[]]$AllowedPath = @(),
 
+    [string]$AllowedPathsJson = "",
+
     [string[]]$ForbiddenPath = @(".git/**", ".env*", "auth/**", "node_modules/**"),
+
+    [string]$ForbiddenPathsJson = "",
+
+    [string[]]$RequiredCheck = @(),
+
+    [string]$RequiredChecksJson = "",
+
+    [string]$BudgetJson = "",
+
+    [string]$FailureInjection = "",
+
+    [string]$Sensitivity = "",
 
     [switch]$AllowWorkerNetwork,
 
@@ -97,6 +111,9 @@
 )
 
 $ErrorActionPreference = "Stop"
+if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { $AllowedPath = @($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { $ForbiddenPath = @($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { $RequiredCheck = @($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [Console]::InputEncoding = $utf8NoBom
 [Console]::OutputEncoding = $utf8NoBom
@@ -140,10 +157,21 @@ $runtimeContractCandidates = @(
 )
 $runtimeContractPath = @($runtimeContractCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 if (@($runtimeContractPath).Count -ne 1) { throw "Codex Praetor runtime contract is missing." }
+function Get-FileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            return (([System.BitConverter]::ToString($sha256.ComputeHash($stream))).Replace("-", "").ToLowerInvariant())
+        } finally { $sha256.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
 $runtimeContractPath = [string]$runtimeContractPath[0]
 $generationScript = Join-Path $scriptGrandparent "scripts\release\get-codex-praetor-generation.ps1"
 $runtimeContract = Get-Content -LiteralPath $runtimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$runtimeContractHash = (Get-FileHash -LiteralPath $runtimeContractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$runtimeContractHash = Get-FileSha256 -Path $runtimeContractPath
 $readinessHelperCandidates = @(
     (Join-Path $scriptGrandparent "scripts\verify\resolve-codex-praetor-readiness.ps1"),
     (Join-Path $scriptDir "resolve-codex-praetor-readiness.ps1")
@@ -218,7 +246,7 @@ function Get-FileSha256OrEmpty {
     if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         return ""
     }
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+    return (Get-FileSha256 -Path $Path)
 }
 
 function Read-JsonOrNull {
@@ -929,6 +957,9 @@ if ($TaskKind -eq "external_research") {
 if ($TaskKind -eq "code_change" -and $Mode -ne "edit") {
     throw "code_change requires -Mode edit so the worker contract cannot be mistaken for a readonly audit."
 }
+if ($TaskKind -eq "test_execution" -and $Mode -ne "readonly") {
+    throw "test_execution requires -Mode readonly. It may run only the declared checks and must not receive edit tools."
+}
 
 $ProjectArtifactRoot = Get-ProjectArtifactRoot -RepoPath $Repo
 if ([string]::IsNullOrWhiteSpace($JobRoot)) {
@@ -1055,6 +1086,10 @@ if (-not [string]::IsNullOrWhiteSpace($PermissionProfile)) {
     $effectivePermissionProfile = "local-audit-v1"
 } elseif ($TaskKind -eq "local_audit" -and $resolvedProvider -eq "mimo") {
     $effectivePermissionProfile = "mimo-isolated-audit-v1"
+} elseif ($TaskKind -eq "test_execution" -and $resolvedProvider -ne "mimo") {
+    $effectivePermissionProfile = "test-execution-v1"
+} elseif ($TaskKind -eq "test_execution" -and $resolvedProvider -eq "mimo") {
+    $effectivePermissionProfile = "mimo-isolated-test-execution-v1"
 } elseif ($TaskKind -eq "external_research") {
     $effectivePermissionProfile = "external-research-support-v1"
 }
@@ -1125,6 +1160,10 @@ try {
         mode = $Mode
         allowed_paths = @($AllowedPath)
         forbidden_paths = @($ForbiddenPath)
+        required_checks = @($RequiredCheck)
+        budget = if ([string]::IsNullOrWhiteSpace($BudgetJson)) { $null } else { $BudgetJson | ConvertFrom-Json }
+        failure_injection = $FailureInjection
+        sensitivity = $Sensitivity
         worker_network = if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }
         research_contract = $researchContract
         acceptance = $Acceptance
@@ -1166,11 +1205,16 @@ Plan id: $PlanId
 Task id: $TaskId
 Depends on: $DependsOn
 Acceptance target: $Acceptance
+Allowed paths: $(@($AllowedPath) -join ', ')
+Forbidden paths: $(@($ForbiddenPath) -join ', ')
+Required checks: $(@($RequiredCheck) -join ' | ')
+Failure injection: $FailureInjection
 
 Rules:
 - Complete only this task.
 $networkRule
 - You may read, search, edit, and run only the actions necessary for the task contract inside this worktree.
+- For test_execution, run only the declared required checks. Do not edit or create source files; report each check's exit code exactly.
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the execution worktree or the project artifact root unless Codex explicitly allowed another path.
 - Do not pause for progress reports. Work autonomously until this task is complete, blocked, or unsafe.
@@ -1194,7 +1238,9 @@ $networkRule
             $cmdArgs += @("--agent", $effectiveAgent)
         }
         $cmdArgs += "--permission-mode"
-        if ($Mode -eq "readonly") {
+        if ($TaskKind -eq "test_execution") {
+            $cmdArgs += @("dont_ask", "--tools", "Read", "Grep", "Glob", "Bash")
+        } elseif ($Mode -eq "readonly") {
             $cmdArgs += @("dont_ask", "--tools", "Read", "Grep", "Glob")
         } else {
             $cmdArgs += @("bypass_permissions", "--tools", "Read", "Grep", "Glob", "Edit", "Write", "Bash")
@@ -1228,7 +1274,9 @@ $networkRule
         if (-not [string]::IsNullOrWhiteSpace($JsonSchema)) {
             $cmdArgs += @("--json-schema", $JsonSchema)
         }
-        if ($Mode -eq "readonly") {
+        if ($TaskKind -eq "test_execution") {
+            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep,Bash")
+        } elseif ($Mode -eq "readonly") {
             # CodeBuddy's current CLI does not accept the historical dontAsk
             # mode. In headless runs, -y supplies the non-interactive approval
             # and --tools is the complete built-in-tool allowlist.

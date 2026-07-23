@@ -1,3 +1,5 @@
+. (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
+
 function Resolve-CodexPraetorRunningGeneration {
     param(
         [Parameter(Mandatory = $true)][string]$RuntimeContractPath,
