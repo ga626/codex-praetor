@@ -23,7 +23,7 @@
     "launch": "invoke-codex-praetor.ps1 builds the supervised CLI command and writes immutable job metadata before launch.",
     "parse_terminal_state": "watch-codex-praetor-job.ps1 records process state, normalized failure class and evidence state.",
     "cleanup": "The watcher closes the job lifecycle; retained worktrees are reclaimed only by the controlled cleanup path.",
-    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "permission_denied", "worker_timed_out", "provider_unavailable"]
+    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable"]
   },
   "evidence": {
     "fixture": "scripts/verify/test-provider-canary-evidence.ps1",

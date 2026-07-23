@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -105,6 +106,8 @@ try {
   const validationOnly = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "test_failed" });
   assert.equal(validationOnly.decision, "bounded_validation");
   assert.equal(validationOnly.recovery.state, "rejected");
+  const processFailed = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "worker_process_failed" });
+  assert.equal(processFailed.recovery.state, "blocked");
 
   const operations = providerOperationsTool({ repo: root, task_family: "bounded_code_change", readiness_entries: [] });
   assert.equal(operations.schema, "codex-praetor-provider-operations/v1");
@@ -113,6 +116,11 @@ try {
   assert.ok(operations.onboarding_checklist.length >= 6);
 
   const projectRoot = path.resolve(process.cwd(), "..");
+  const contractHash = createHash("sha256").update(readFileSync(path.join(projectRoot, "config", "runtime-contract.json"))).digest("hex");
+  const legacyReadiness = providerOperationsTool({ repo: root, readiness_entries: [{ provider: "mimo", status: "passed", runtime_contract_sha256: contractHash }] });
+  assert.equal(legacyReadiness.providers.find((item) => item.provider === "mimo")?.current_readiness_count, 0, "legacy readiness without a worker receipt must not authorize MiMo");
+  const evidencedReadiness = providerOperationsTool({ repo: root, readiness_entries: [{ provider: "mimo", status: "passed", runtime_contract_sha256: contractHash, evidence: { schema: "codex-praetor-canary-evidence/v1", job_id: "fixture", worker_stdout_sha256: "a", completion_sha256: "b", completion_status: "process_exited", worker_exit_code: 0, failure_class: "" } }] });
+  assert.equal(evidencedReadiness.providers.find((item) => item.provider === "mimo")?.current_readiness_count, 1, "a complete canary receipt must remain observable");
   for (const name of ["qoder", "codebuddy", "mimo"]) {
     const adapter = JSON.parse(readFileSync(path.join(projectRoot, "config", "provider-adapters", `${name}.json`), "utf8"));
     assert.equal(adapter.schema, "codex-praetor-provider-adapter/v1");

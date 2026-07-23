@@ -66,6 +66,11 @@ try {
     Assert-True ([string]$semantic.governance_state -eq "rejected") "Semantic worker failure must be recorded as rejected, not awaiting supervisor acceptance."
     $report = Invoke-WatchedCase -Name "report-evidence" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'worker report'; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$report.evidence_state -eq "report_valid") "A successful worker report must be recorded as report evidence while awaiting supervisor verification."
+    $nonzeroScript = Join-Path $testRoot "nonzero-worker.ps1"
+    Set-Content -LiteralPath $nonzeroScript -Value "Write-Output 'unclassified failure'; exit 7" -Encoding ASCII
+    $nonzero = Invoke-WatchedCase -Name "nonzero-exit" -WorkerArguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $nonzeroScript) -TimeoutSeconds 30
+    Assert-True ([string]$nonzero.failure_class -eq "worker_process_failed") "A nonzero worker exit without a keyword must have a structured failure class."
+    Assert-True ([string]$nonzero.governance_state -eq "rejected") "A nonzero worker exit must not be recorded as awaiting supervisor acceptance."
     $maxTurns = Invoke-WatchedCase -Name "max-turns" -WorkerArguments @("-NoProfile", "-Command", "Write-Error 'Max turns (8) exceeded'; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$maxTurns.failure_class -eq "max_turns_exceeded") "Max turns must have a structured failure class."
     Assert-True ([string]$maxTurns.evidence_state -eq "evidence_missing") "Max turns output must not be labeled as valid report evidence."

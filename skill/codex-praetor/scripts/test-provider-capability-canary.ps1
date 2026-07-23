@@ -62,6 +62,25 @@ function Get-ProviderCliPath {
     return [string]$config.providers.$ProviderName.cliPath
 }
 
+function Get-CanaryWorkerEvidence {
+    param([string]$WrapperOutput, [string]$ExpectedMarker)
+
+    $jobDir = Get-Field -Text $WrapperOutput -Name "job_dir"
+    $jobPath = if ([string]::IsNullOrWhiteSpace($jobDir)) { "" } else { Join-Path $jobDir "job.json" }
+    if (-not (Test-Path -LiteralPath $jobPath -PathType Leaf)) { throw "Capability canary did not publish job metadata." }
+    $job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $completionPath = [string]$job.completion
+    if ([string]::IsNullOrWhiteSpace($completionPath)) { $completionPath = Join-Path $jobDir "completion.json" }
+    if (-not (Test-Path -LiteralPath $completionPath -PathType Leaf)) { throw "Capability canary did not publish completion evidence." }
+    $completion = Get-Content -LiteralPath $completionPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$completion.status -ne "process_exited" -or [int]$completion.exit_code -ne 0 -or -not [string]::IsNullOrWhiteSpace([string]$completion.failure_class)) { throw "Capability canary worker did not complete successfully." }
+    $stdoutPath = [string]$job.stdout
+    if ([string]::IsNullOrWhiteSpace($stdoutPath)) { $stdoutPath = Join-Path $jobDir "stdout.log" }
+    if (-not (Test-Path -LiteralPath $stdoutPath -PathType Leaf)) { throw "Capability canary did not publish worker stdout." }
+    if ((Get-Content -LiteralPath $stdoutPath -Raw -Encoding UTF8) -notmatch [regex]::Escape($ExpectedMarker)) { throw "Worker stdout did not return the required marker." }
+    return [pscustomobject]@{ job = $job; completion = $completion; job_dir = $jobDir; job_path = $jobPath; stdout_path = $stdoutPath; completion_path = $completionPath; worker_stdout_sha256 = (Get-FileHash -LiteralPath $stdoutPath -Algorithm SHA256).Hash.ToLowerInvariant(); completion_sha256 = (Get-FileHash -LiteralPath $completionPath -Algorithm SHA256).Hash.ToLowerInvariant() }
+}
+
 if (@($wrapper).Count -ne 1) {
     throw "Dispatcher is missing: $wrapper"
 }
@@ -134,12 +153,9 @@ if (-not $Apply) {
 }
 
 if ($exitCode -ne 0) { throw "Capability canary failed with exit code $exitCode." }
-if ($outputText -notmatch [regex]::Escape($marker)) { throw "Worker did not return the required marker." }
+$workerEvidence = Get-CanaryWorkerEvidence -WrapperOutput $outputText -ExpectedMarker $marker
 if ($TaskKind -eq "code_change") {
-    $jobMatch = [regex]::Match($outputText, "(?m)^job_dir=(.+)$")
-    $jobPath = if ($jobMatch.Success) { Join-Path $jobMatch.Groups[1].Value.Trim() "job.json" } else { "" }
-    if (-not (Test-Path -LiteralPath $jobPath -PathType Leaf)) { throw "Edit capability canary did not publish job metadata." }
-    $job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $job = $workerEvidence.job
     $workerRepo = [string]$job.execution_repo
     $canaryPath = Join-Path $workerRepo $canaryFileName
     if (-not (Test-Path -LiteralPath $canaryPath -PathType Leaf)) { throw "Edit capability canary produced no canary file in the worker worktree." }
@@ -157,8 +173,8 @@ $entry = [pscustomobject]@{
     provider = $Provider
     cli_path = $cliPath
     cli_hash = $cliHash
-    model = Get-Field -Text $outputText -Name "model"
-    permission_profile = Get-Field -Text $outputText -Name "permission_profile"
+    model = [string]$workerEvidence.job.provider_tuple.model
+    permission_profile = [string]$workerEvidence.job.provider_tuple.permission_profile
     task_kind = $TaskKind
     status = "passed"
     passed_at = (Get-Date).ToString("o")
@@ -166,6 +182,7 @@ $entry = [pscustomobject]@{
     wrapper_protocol = [string]$runtimeContract.wrapperProtocol
     provider_source = "capability_canary"
     cli_version = Get-Field -Text $outputText -Name "version"
+    evidence = [ordered]@{ schema = "codex-praetor-canary-evidence/v1"; job_id = [string]$workerEvidence.job.job_id; job_path = $workerEvidence.job_path; stdout_path = $workerEvidence.stdout_path; completion_path = $workerEvidence.completion_path; worker_stdout_sha256 = $workerEvidence.worker_stdout_sha256; completion_sha256 = $workerEvidence.completion_sha256; completion_status = [string]$workerEvidence.completion.status; worker_exit_code = [int]$workerEvidence.completion.exit_code; failure_class = [string]$workerEvidence.completion.failure_class }
 }
 
 $entries = @()
@@ -186,7 +203,7 @@ $entries = @($entries | Where-Object {
 })
 $entries += $entry
 $state = [pscustomobject]@{
-    schema = "codex-praetor-generation-readiness/v2"
+    schema = "codex-praetor-generation-readiness/v3"
     status = "passed"
     generation_id = [string]$generation.generation_id
     runtime_contract_sha256 = $runtimeContractHash

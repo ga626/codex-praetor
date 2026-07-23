@@ -23,7 +23,7 @@
     "launch": "invoke-codex-praetor.ps1 starts MiMo only after the tuple and isolated worktree contract are approved.",
     "parse_terminal_state": "watch-codex-praetor-job.ps1 treats risk-control and semantic failures as terminal evidence, never as success.",
     "cleanup": "The job record and worktree retention are controlled by Codex Praetor; no provider database is modified.",
-    "failure_normalization": ["provider_risk_control", "provider_cli_missing", "provider_auth_required", "provider_rejected", "provider_output_unparseable", "worker_timed_out", "rate_limited"]
+    "failure_normalization": ["provider_risk_control", "provider_cli_missing", "provider_auth_required", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "worker_timed_out", "rate_limited"]
   },
   "evidence": {
     "fixture": "scripts/verify/test-provider-canary-evidence.ps1",

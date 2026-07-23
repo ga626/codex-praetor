@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.9.6-alpha",
+    [string]$Version = "0.9.7-alpha",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ProjectRoot = "",
     [switch]$SkipRemoteRelease

@@ -1,0 +1,16 @@
+{
+  "schema": "codex-praetor-evidence-register/v1",
+  "subject": "统一 worker 证据链、MiMo 风控与 Windows 退出码治理",
+  "access_path": "native_mcp",
+  "entries": [
+    { "kind": "local", "path": "scripts/verify/test-provider-capability-canary.ps1", "fact": "旧实现检查 wrapper 汇总输出中的 marker。", "strength": "direct" },
+    { "kind": "local", "path": "scripts/dispatch/watch-codex-praetor-job.ps1", "fact": "旧实现将进程 ExitCode 直接转换为整数。", "strength": "direct" },
+    { "kind": "local", "path": "scripts/verify/test-job-lifecycle.ps1", "fact": "故障注入覆盖 provider 风控、超时、取消、非零退出。", "strength": "direct" },
+    { "kind": "external", "url": "https://mimo.xiaomi.com/mimocode/troubleshooting", "fact": "MiMo 提供日志、升级和 /connect 作为官方排错入口。", "strength": "official" },
+    { "kind": "external", "url": "https://developers.openai.com/codex/noninteractive", "fact": "非交互 Codex 有独立事件与终态输出面。", "strength": "official" },
+    { "kind": "external", "url": "https://docs.langchain.com/oss/javascript/langgraph/durable-execution", "fact": "持久执行状态与长期 store 应分层。", "strength": "official" },
+    { "kind": "external", "url": "https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds", "fact": "artifact attestation 可验证构建来源，但不能证明 provider 执行成功。", "strength": "official" },
+    { "kind": "external", "url": "https://github.com/XiaomiMiMo/MiMo-Code/discussions/1218", "fact": "社区报告过不稳定的 Illegal Access；不能视为官方修复方案。", "strength": "context_only" }
+  ],
+  "gaps": ["MiMo 441 的内部风控阈值不公开，不能从本地代码推断。", "外部 provider 的未来可用性需每次以新的 canary 重新证明。"]
+}

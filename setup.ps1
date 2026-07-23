@@ -17,7 +17,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $utf8NoBom
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$productVersion = "0.9.6-alpha"
+$productVersion = "0.9.7-alpha"
 $runtimeContractPath = Join-Path $scriptRoot "config\runtime-contract.json"
 $installScript = Join-Path $scriptRoot "scripts\install\install-user.ps1"
 $configTemplate = Join-Path $scriptRoot "config\codex-praetor-tiers.example.json"

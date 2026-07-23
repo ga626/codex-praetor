@@ -215,6 +215,8 @@ try {
     $exitCode = $null
     $waitError = $null
     $alreadyWaited = $false
+    $stdoutReadTask = $null
+    $stderrReadTask = $null
     $timedOut = $false
 
     try {
@@ -252,7 +254,19 @@ try {
             Set-JsonProperty -Object $meta -Name "status_note" -Value "Worker was started and is being waited by the watcher process."
             Write-JsonFile -Path $metaPath -Value $meta
             Update-LockForWorker -Path $LockPath -JobId $meta.job_id -WorkerProcessId 0
-            $proc = Start-Process -FilePath $Exe -ArgumentList $argumentLine -WorkingDirectory $WorkingDirectory -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath -WindowStyle Hidden -PassThru
+            $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $startInfo.FileName = $Exe
+            $startInfo.Arguments = $argumentLine
+            $startInfo.WorkingDirectory = $WorkingDirectory
+            $startInfo.UseShellExecute = $false
+            $startInfo.CreateNoWindow = $true
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+            $proc = New-Object System.Diagnostics.Process
+            $proc.StartInfo = $startInfo
+            if (-not $proc.Start()) { throw "Worker process did not start." }
+            $stdoutReadTask = $proc.StandardOutput.ReadToEndAsync()
+            $stderrReadTask = $proc.StandardError.ReadToEndAsync()
             $WorkerPid = $proc.Id
             Set-JsonProperty -Object $meta -Name "pid" -Value $WorkerPid
             Set-JsonProperty -Object $meta -Name "worker_started_at" -Value $proc.StartTime.ToUniversalTime().ToString("o")
@@ -271,9 +285,14 @@ try {
                 }
             }
         }
+        if ($null -ne $stdoutReadTask -and $null -ne $stderrReadTask) {
+            [System.IO.File]::WriteAllText($StdoutPath, [string]$stdoutReadTask.GetAwaiter().GetResult(), (New-Object System.Text.UTF8Encoding($false)))
+            [System.IO.File]::WriteAllText($StderrPath, [string]$stderrReadTask.GetAwaiter().GetResult(), (New-Object System.Text.UTF8Encoding($false)))
+        }
         $proc.Refresh()
         try {
-            $exitCode = [int]$proc.ExitCode
+            $rawExitCode = $proc.ExitCode
+            if ($null -ne $rawExitCode) { $exitCode = [int]$rawExitCode }
         } catch {
             $exitCode = $null
         }
@@ -324,6 +343,10 @@ try {
         $status = "process_exited"
     } elseif ($null -ne $exitCode -and $exitCode -ne 0) {
         $status = "process_exited"
+        $semanticFailure = "worker_process_failed"
+    } elseif ($null -eq $exitCode) {
+        $status = "unknown"
+        $semanticFailure = "worker_exit_code_unavailable"
     } elseif ($waitError) {
         $status = "unknown"
     }
@@ -365,7 +388,7 @@ try {
     Set-JsonProperty -Object $meta -Name "evidence_state" -Value $evidenceState
     Set-JsonProperty -Object $meta -Name "artifact_state" -Value $artifactState
     Set-JsonProperty -Object $meta -Name "evidence_observation" -Value $evidenceObservation
-    $governanceState = if ([string]::IsNullOrWhiteSpace($semanticFailure)) { "awaiting_supervisor" } else { "rejected" }
+    $governanceState = if ([string]::IsNullOrWhiteSpace($semanticFailure) -and $null -ne $exitCode -and $exitCode -eq 0) { "awaiting_supervisor" } else { "rejected" }
     Set-JsonProperty -Object $meta -Name "governance_state" -Value $governanceState
     Set-JsonProperty -Object $meta -Name "exit_code" -Value $exitCode
     Set-JsonProperty -Object $meta -Name "exited_at" -Value $now.ToString("o")
