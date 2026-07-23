@@ -111,16 +111,21 @@
 
     [string]$TaskMaterialPath = "",
 
+    [string]$TaskMaterialBase64 = "",
+
     [switch]$AllowWorkerNetwork,
 
     [switch]$CapabilityCanary
 )
 
 $ErrorActionPreference = "Stop"
-if (-not [string]::IsNullOrWhiteSpace($TaskMaterialJson) -and -not [string]::IsNullOrWhiteSpace($TaskMaterialPath)) { throw "Specify either TaskMaterialJson or TaskMaterialPath, not both." }
+if (@($TaskMaterialJson, $TaskMaterialPath, $TaskMaterialBase64 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 1) { throw "Specify only one task material transport." }
 if (-not [string]::IsNullOrWhiteSpace($TaskMaterialPath)) {
     if (-not (Test-Path -LiteralPath $TaskMaterialPath -PathType Leaf)) { throw "TaskMaterialPath does not exist: $TaskMaterialPath" }
     $TaskMaterialJson = Get-Content -LiteralPath $TaskMaterialPath -Raw -Encoding UTF8
+}
+if (-not [string]::IsNullOrWhiteSpace($TaskMaterialBase64)) {
+    try { $TaskMaterialJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($TaskMaterialBase64)) } catch { throw "TaskMaterialBase64 is not valid UTF-8 Base64." }
 }
 if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { $AllowedPath = @($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
 if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { $ForbiddenPath = @($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }

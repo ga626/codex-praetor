@@ -31972,7 +31972,7 @@ function buildDispatchArgs(input) {
   if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
   appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
   appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
-  if (input.task_material) args.push("-TaskMaterialJson", JSON.stringify(input.task_material));
+  if (input.task_material) args.push("-TaskMaterialBase64", Buffer.from(JSON.stringify(input.task_material), "utf8").toString("base64"));
   if (input.dry_run) {
     args.push("-DryRun");
   }
