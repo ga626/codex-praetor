@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { capabilityProfilesTool } from "./capability-profiles.js";
-import { getProjectRoot, getRuntimeContractPath } from "./paths.js";
+import { getRuntimeContractPath, getRuntimeDataPath } from "./paths.js";
 
 type RecordValue = Record<string, unknown>;
 type TaskFamily = "read_only_diagnosis" | "bounded_code_change" | "fixed_test_execution" | "failure_recovery";
@@ -22,15 +22,6 @@ function readReadiness(): RecordValue[] {
   return asRecords(readJson(path.join(home, ".codex", "codex-praetor-readiness.json")).entries);
 }
 
-function getProviderOperationsDataRoot(): string {
-  const projectRoot = getProjectRoot();
-  const sourceDataRoot = path.join(projectRoot, "config");
-  if (existsSync(path.join(sourceDataRoot, "provider-onboarding-checklist.json"))) {
-    return sourceDataRoot;
-  }
-  return path.join(projectRoot, "data");
-}
-
 function statusFor(profile: RecordValue | undefined, readiness: RecordValue[]) {
   const failure = asString(asRecords(profile?.evidence).at(-1)?.failure_class);
   const profileStatus = asString(profile?.status) || "unknown";
@@ -45,14 +36,13 @@ function statusFor(profile: RecordValue | undefined, readiness: RecordValue[]) {
 }
 
 export function providerOperationsTool(input: { repo: string; task_family?: TaskFamily; readiness_entries?: RecordValue[] }) {
-  const dataRoot = getProviderOperationsDataRoot();
-  const checklist = readJson(path.join(dataRoot, "provider-onboarding-checklist.json"));
+  const checklist = readJson(getRuntimeDataPath("provider-onboarding-checklist.json"));
   const contractPath = getRuntimeContractPath();
   const contractHash = existsSync(contractPath) ? createHash("sha256").update(readFileSync(contractPath)).digest("hex") : "";
   const profiles = capabilityProfilesTool({ repo: input.repo }).profiles;
   const readiness = input.readiness_entries ?? readReadiness();
   const providers = ["qoder", "codebuddy", "mimo"].map((provider) => {
-    const adapter = readJson(path.join(dataRoot, "provider-adapters", `${provider}.json`));
+    const adapter = readJson(getRuntimeDataPath(path.join("provider-adapters", `${provider}.json`)));
     const providerProfiles = profiles.filter((profile) => asString(profile.provider_tuple.provider) === provider && (!input.task_family || profile.task_family === input.task_family));
     const profile = [...providerProfiles].sort((left, right) => asString(right.evidence.at(-1)?.recorded_at).localeCompare(asString(left.evidence.at(-1)?.recorded_at))).at(0);
     const matchingReadiness = readiness.filter((entry) => asString(entry.provider) === provider && asString(entry.status) === "passed" && asString(entry.runtime_contract_sha256) === contractHash);

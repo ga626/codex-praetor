@@ -180,6 +180,20 @@ try {
   ) {
     throw new Error(`Packaged provider operations data is missing or invalid: ${JSON.stringify(providerOperationsPayload)}`);
   }
+
+  const evaluationSuiteResult = await client.callTool({
+    name: "codex_praetor_evaluation_suite",
+    arguments: {}
+  });
+  const evaluationSuitePayload = JSON.parse(evaluationSuiteResult.content?.[0]?.text ?? "{}");
+  if (
+    evaluationSuitePayload.schema !== "codex-praetor-evaluation-suite-view/v1" ||
+    !Array.isArray(evaluationSuitePayload.tasks) ||
+    evaluationSuitePayload.tasks.length < 4 ||
+    !String(evaluationSuitePayload.suite_path ?? "").replace(/\\/g, "/").endsWith("/data/evaluation-suite.json")
+  ) {
+    throw new Error(`Packaged evaluation suite data is missing or invalid: ${JSON.stringify(evaluationSuitePayload)}`);
+  }
   if (observedOutputPath) {
     writeFileSync(observedOutputPath, `${JSON.stringify({
       schema: "codex-praetor-observed-runtime/v1",

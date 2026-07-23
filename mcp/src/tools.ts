@@ -614,7 +614,7 @@ export async function planTool(input: {
       "-File",
       getPlanScriptPath(),
       "-Action",
-      "Get",
+      "Summary",
       "-PlanId",
       planId,
       "-PlanRoot",
@@ -633,7 +633,10 @@ export async function planTool(input: {
     plan_root: planRoot,
     plan_path: planPath,
     task_ids: input.tasks.map((_, index) => `task-${String(index + 1).padStart(2, "0")}`),
-    plan: getResult.stdout.trim() ? JSON.parse(getResult.stdout) : null,
+    // A durable ledger may contain extensive history. Return its compact
+    // projection here so the transport limit cannot turn a successful plan
+    // creation into an unparseable truncated JSON response.
+    plan_summary: getResult.stdout.trim() ? JSON.parse(getResult.stdout) : null,
     stderr: getResult.stderr
   };
 }

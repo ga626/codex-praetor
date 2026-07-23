@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
-import { getProjectRoot } from "./paths.js";
+import { getRuntimeDataPath } from "./paths.js";
 
 type RecordValue = Record<string, unknown>;
 
@@ -9,7 +8,7 @@ function asRecord(value: unknown): RecordValue {
 }
 
 export function evaluationSuiteTool() {
-  const suitePath = path.join(getProjectRoot(), "config", "evaluation-suite.json");
+  const suitePath = getRuntimeDataPath("evaluation-suite.json");
   const suite = asRecord(JSON.parse(readFileSync(suitePath, "utf8")));
   const tasks = Array.isArray(suite.tasks) ? suite.tasks.map(asRecord) : [];
   return {

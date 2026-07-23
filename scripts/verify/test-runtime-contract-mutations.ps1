@@ -28,12 +28,19 @@ try {
     Assert-True ($process.ExitCode -ne 0) "Mutation removing a tool from the packaged contract must fail final runtime acceptance."
 
     Copy-Item -LiteralPath (Join-Path $root "plugin\runtime-contract.json") -Destination $pluginContract -Force
+    Remove-Item -LiteralPath (Join-Path $pluginRoot "data\evaluation-suite.json") -Force
+    $evaluationStdout = Join-Path $scratch "evaluation-data.stdout.log"
+    $evaluationStderr = Join-Path $scratch "evaluation-data.stderr.log"
+    $evaluationProcess = Start-Process -FilePath "node" -ArgumentList $arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $evaluationStdout -RedirectStandardError $evaluationStderr
+    Assert-True ($evaluationProcess.ExitCode -ne 0) "Removing the packaged evaluation suite must fail final runtime acceptance."
+
+    Copy-Item -LiteralPath (Join-Path $root "plugin\data\evaluation-suite.json") -Destination (Join-Path $pluginRoot "data\evaluation-suite.json") -Force
     Remove-Item -LiteralPath (Join-Path $pluginRoot "data") -Recurse -Force
     $dataStdout = Join-Path $scratch "provider-data.stdout.log"
     $dataStderr = Join-Path $scratch "provider-data.stderr.log"
     $dataProcess = Start-Process -FilePath "node" -ArgumentList $arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $dataStdout -RedirectStandardError $dataStderr
     Assert-True ($dataProcess.ExitCode -ne 0) "Removing packaged provider operations data must fail final runtime acceptance."
-    Write-Host "[PASS] Contract and provider-operations runtime-data fault injection are killed by the final artifact mutation gate."
+    Write-Host "[PASS] Contract, evaluation-suite, and provider-operations runtime-data fault injection are killed by the final artifact mutation gate."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
 }
