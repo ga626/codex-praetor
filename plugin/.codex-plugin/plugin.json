@@ -1,6 +1,6 @@
 {
     "name":  "codex-praetor",
-    "version":  "0.9.7-alpha",
+    "version":  "0.9.8-alpha",
     "description":  "给 Codex 使用的外部 Agent 编排工具。",
     "author":  {
                    "name":  "Codex Praetor"
@@ -20,7 +20,7 @@
     "interface":  {
                       "displayName":  "Codex 执政官",
                       "shortDescription":  "把边界清楚的 Codex 任务分配给外部 agent。",
-                      "longDescription":  "Codex Praetor 帮助 Codex 拆分任务、派发有边界的工作、跟踪任务状态，并验收来自 Qoder、CodeBuddy、MiMo 等外部 CLI 编码 Agent 的结果。Codex 仍然负责规划、风险判断、整合和最终验证。",
+                      "longDescription":  "Codex Praetor 帮助 Codex 拆分任务、派发有边界的工作、跟踪任务状态，并验收来自 Qoder、CodeBuddy 外部 CLI 编码 Agent 的结果。Codex 仍然负责规划、风险判断、整合和最终验证。",
                       "developerName":  "Codex Praetor",
                       "category":  "Productivity",
                       "capabilities":  [
@@ -34,7 +34,7 @@
                       "defaultPrompt":  [
                                             "拆分一下任务，先做 dry-run，不要真实修改文件。",
                                             "用 Codex Praetor 把这个只读审计交给外部 agent，并在结果回来后验收。",
-                                            "检查当前 repo 是否适合派给 Qoder、CodeBuddy 或 MiMo；如果适合，给出派工和验收计划。"
+                                            "检查当前 repo 是否适合派给 Qoder 或 CodeBuddy；如果适合，给出派工和验收计划。"
                                         ],
                       "brandColor":  "#7C3AED",
                       "screenshots":  [

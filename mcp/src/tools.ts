@@ -183,7 +183,7 @@ export async function cancelJobTool(input: { repo: string; job_id: string }) {
 export async function dispatchDryRunTool(input: {
   repo: string;
   task: string;
-  provider: "auto" | "qoder" | "codebuddy" | "mimo";
+  provider: "auto" | "qoder" | "codebuddy";
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
@@ -264,7 +264,7 @@ function appendOptionalNumberArg(args: string[], name: string, value?: number) {
 function buildDispatchArgs(input: {
   repo: string;
   task: string;
-  provider: "auto" | "qoder" | "codebuddy" | "mimo";
+  provider: "auto" | "qoder" | "codebuddy";
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
@@ -386,7 +386,7 @@ export function classifyWorkerOutcome(input: {
   if (failureClass === "provider_risk_control") {
     return {
       class: "provider_risk_control",
-      explanation: "MiMo provider 已因风控拒绝本次请求；这不是成功结果，也不是本地 worktree 问题。",
+      explanation: "provider 已因风控拒绝本次请求；这不是成功结果，也不是本地 worktree 问题。",
       next_action: "停止重试同一请求，等待 provider 解除限制或改用已通过 canary 的 provider。"
     };
   }
@@ -478,7 +478,7 @@ export function classifyWorkerOutcome(input: {
 export async function dispatchTool(input: {
   repo: string;
   task: string;
-  provider?: "auto" | "qoder" | "codebuddy" | "mimo";
+  provider?: "auto" | "qoder" | "codebuddy";
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
@@ -1171,7 +1171,7 @@ export async function dispatchPlanTaskTool(input: {
   repo: string;
   plan_id: string;
   task_id: string;
-  provider?: "auto" | "qoder" | "codebuddy" | "mimo";
+  provider?: "auto" | "qoder" | "codebuddy";
   tier?: string;
   run_mode?: "blocking" | "background";
   max_turns?: number;

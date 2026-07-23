@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.8-alpha - 2026-07-23
+
+- Retired the third provider from the active public product: adapters, tiers, MCP schemas, dispatcher, watcher, setup wizard, examples, Skill mirrors and user documentation now use the exact Qoder + CodeBuddy allowlist.
+- Replaced provider-specific risk-control parsing with a vendor-neutral `provider_rejected` terminal state; rejection, timeout and partial artifacts remain explicit failures rather than successful worker evidence.
+- Added a source, bundled-data and staged-package provider-surface allowlist gate, and stopped new release archives from carrying historical release notes or changelog history that describes retired product surfaces.
+- Restored this checkout's Git working-tree configuration before the real edit evaluation. Both remaining providers completed an independently verified disposable-fixture repair with an observed worktree diff and a passing test.
+
 ## 0.9.6-alpha - 2026-07-23
 
 - Repaired the real-evaluation dispatch contract exposed after the `0.9.5-alpha` runtime-data recovery: deterministic test tasks now use a distinct read/search/Bash-only `test_execution` permission profile instead of being silently downgraded to a no-shell local audit.

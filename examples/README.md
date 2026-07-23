@@ -12,8 +12,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\examples\dry-run.ps1 -Repo
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dispatch\invoke-codex-praetor.ps1 `
-  -Provider mimo `
-  -Tier mimo-isolated-audit `
+  -Provider codebuddy `
+  -Tier codebuddy-free `
   -Repo "<你的仓库路径>" `
   -Mode readonly `
   -Task "只读取 README.md 并总结项目，不要修改文件。" `

@@ -4,17 +4,17 @@
 
 Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching bounded work to external CLI worker agents while Codex remains the planner, supervisor, integrator, and final verifier.
 
-Current productization target: **0.9.7-alpha**. This release connects release intent, version consistency, immutable GitHub Releases, and automatic post-merge remote verification; the Codex Desktop host still requires a fresh-context check.
+Current productization target: **0.9.8-alpha**. This release connects release intent, version consistency, immutable GitHub Releases, and automatic post-merge remote verification; the Codex Desktop host still requires a fresh-context check.
 
 This release also adds read-only capability profiles: they summarize real attempts and Codex verdicts by provider, model, permission, and task family without changing default routing.
 
 It also adds real-task evaluation contracts with isolation, deterministic checks, budgets, and failure injection; prepared tasks are not capability evidence.
 
-[Download 0.9.7-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.9.7-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
+[Download 0.9.8-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.9.8-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
 
 ## What It Does
 
-When you ask Codex to split a task or assign part of the work to another agent, Codex Praetor routes bounded work to local external CLIs such as Qoder, CodeBuddy, and MiMo instead of creating native Codex subagents by default.
+When you ask Codex to split a task or assign part of the work to another agent, Codex Praetor routes bounded work to local external CLIs such as Qoder and CodeBuddy instead of creating native Codex subagents by default.
 
 The supported alpha scope is intentionally narrow:
 
@@ -22,16 +22,16 @@ The supported alpha scope is intentionally narrow:
 - Codex Desktop or Codex CLI
 - Local CLI workers
 - Chinese-first user documentation
-- Qoder, CodeBuddy, and MiMo provider paths
+- Qoder and CodeBuddy provider paths
 
 ## Quick Start
 
 Download and extract the release zip:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.7-alpha/codex-praetor-setup-0.9.7-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.7-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.9.7-alpha.zip .\codex-praetor-setup-0.9.7-alpha
-cd .\codex-praetor-setup-0.9.7-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.8-alpha/codex-praetor-setup-0.9.8-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.8-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.9.8-alpha.zip .\codex-praetor-setup-0.9.8-alpha
+cd .\codex-praetor-setup-0.9.8-alpha
 ```
 
 Preview the install:
@@ -54,26 +54,26 @@ Refresh the running Codex Desktop host through a supported action, or restart Co
 
 ## Provider Boundary
 
-Qoder, CodeBuddy, and MiMo are optional external CLIs. They are not bundled.
+Qoder and CodeBuddy are optional external CLIs. They are not bundled.
 
 Codex Praetor does not install providers, sign in for users, inspect provider account databases, read tokens or cookies, or promise that provider routing is free. Users install and authenticate each provider through that provider's normal flow.
 
 Without a provider, Codex Praetor can still validate planning, route-intent, dry-run, job status, lane listing, and conflict detection. Real dispatch needs at least one installed and authenticated provider.
 
-The 0.9.7-alpha source line records runtime identity alongside logical tasks, immutable worker attempts, evidence, and Codex supervisor verdicts. A worker process exit or same-name tool list is not enough to advance a release; Codex must verify the loaded runtime generation.
+The 0.9.8-alpha source line records runtime identity alongside logical tasks, immutable worker attempts, evidence, and Codex supervisor verdicts. A worker process exit or same-name tool list is not enough to advance a release; Codex must verify the loaded runtime generation.
 
 ## Readonly Provider Canary
 
 Before real dispatch, run a readonly canary. It previews the command by default:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
 ```
 
 After the provider is installed and signed in, add `-Apply`:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy -Apply
 ```
 
 The canary asks the worker to read `README.md`, return a fixed marker, and leave the main repository status unchanged.
@@ -83,7 +83,7 @@ The canary asks the worker to read `README.md`, return a fixed marker, and leave
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
 ```
 
 MCP tests:

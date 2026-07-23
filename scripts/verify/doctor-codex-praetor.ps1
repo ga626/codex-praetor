@@ -282,7 +282,6 @@ if ([string]::IsNullOrWhiteSpace($resolvedConfigPath)) {
 if ($null -ne $config) {
     Test-Provider -Provider "qoder" -ProviderConfig $config.providers.qoder
     Test-Provider -Provider "codebuddy" -ProviderConfig $config.providers.codebuddy
-    Test-Provider -Provider "mimo" -ProviderConfig $config.providers.mimo
 }
 
 $testScript = Join-Path $projectRoot "scripts\verify\test-codex-praetor.ps1"

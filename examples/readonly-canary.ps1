@@ -1,7 +1,7 @@
 ﻿param(
     [string]$Repo = (Get-Location).Path,
-    [string]$Provider = "mimo",
-    [string]$Tier = "mimo-isolated-audit",
+    [string]$Provider = "codebuddy",
+    [string]$Tier = "codebuddy-free",
     [string]$Marker = "CODEX_PRAETOR_CANARY_OK",
     [switch]$Apply
 )

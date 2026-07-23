@@ -1,5 +1,5 @@
 ﻿param(
-    [ValidateSet("auto", "qoder", "codebuddy", "mimo")]
+    [ValidateSet("auto", "qoder", "codebuddy")]
     [string]$Provider = "auto",
 
     [string]$Tier = "",
@@ -997,8 +997,6 @@ if ([string]::IsNullOrWhiteSpace($Tier)) {
         if (Test-OffPeak) { $Tier = "qoder-night-cheap" } else { $Tier = "qoder-day-cheap" }
     } elseif ($Provider -eq "codebuddy") {
         $Tier = "codebuddy-free"
-    } elseif ($Provider -eq "mimo") {
-        if ($Mode -eq "edit") { $Tier = "mimo-auto-edit" } else { $Tier = "mimo-isolated-audit" }
     } elseif ($PreferQoder) {
         if (Test-OffPeak) { $Tier = $config.policy.defaultNightTier } else { $Tier = $config.policy.defaultPreferQoderDayTier }
     } else {
@@ -1006,16 +1004,7 @@ if ([string]::IsNullOrWhiteSpace($Tier)) {
     }
 }
 
-if ($Tier -eq "mimo-auto-readonly") {
-    Write-Warning "Tier 'mimo-auto-readonly' is deprecated. Using 'mimo-isolated-audit'; MiMo audit is isolated, not advertised as filesystem-readonly."
-    $Tier = "mimo-isolated-audit"
-}
-
 $tierConfig = $config.tiers.$Tier
-if ($null -eq $tierConfig -and $Tier -eq "mimo-isolated-audit" -and $null -ne $config.tiers."mimo-auto-readonly") {
-    Write-Warning "Local config still uses the legacy MiMo tier key. Reusing its model settings under the new isolated-audit contract."
-    $tierConfig = $config.tiers."mimo-auto-readonly"
-}
 if ($null -eq $tierConfig) {
     $known = ($config.tiers.PSObject.Properties.Name -join ", ")
     throw "Unknown tier '$Tier'. Known tiers: $known"
@@ -1080,16 +1069,12 @@ if (-not [string]::IsNullOrWhiteSpace($Agent)) {
 $effectivePermissionProfile = [string]$tierConfig.permissionProfile
 if (-not [string]::IsNullOrWhiteSpace($PermissionProfile)) {
     $effectivePermissionProfile = $PermissionProfile
-} elseif ($TaskKind -eq "code_change" -and $resolvedProvider -ne "mimo") {
+} elseif ($TaskKind -eq "code_change") {
     $effectivePermissionProfile = "edit-worktree-v1"
-} elseif ($TaskKind -eq "local_audit" -and $resolvedProvider -ne "mimo") {
+} elseif ($TaskKind -eq "local_audit") {
     $effectivePermissionProfile = "local-audit-v1"
-} elseif ($TaskKind -eq "local_audit" -and $resolvedProvider -eq "mimo") {
-    $effectivePermissionProfile = "mimo-isolated-audit-v1"
-} elseif ($TaskKind -eq "test_execution" -and $resolvedProvider -ne "mimo") {
+} elseif ($TaskKind -eq "test_execution") {
     $effectivePermissionProfile = "test-execution-v1"
-} elseif ($TaskKind -eq "test_execution" -and $resolvedProvider -eq "mimo") {
-    $effectivePermissionProfile = "mimo-isolated-test-execution-v1"
 } elseif ($TaskKind -eq "external_research") {
     $effectivePermissionProfile = "external-research-support-v1"
 }
@@ -1110,8 +1095,6 @@ if ($resolvedProvider -eq "qoder") {
     $providerCliPath = [string]$config.providers.qoder.cliPath
 } elseif ($resolvedProvider -eq "codebuddy") {
     $providerCliPath = [string]$config.providers.codebuddy.cliPath
-} elseif ($resolvedProvider -eq "mimo") {
-    $providerCliPath = [string]$config.providers.mimo.cliPath
 }
 $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
     Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
@@ -1291,37 +1274,6 @@ $networkRule
         Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -StructuredOutput $structured -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap
     }
 
-    if ($resolvedProvider -eq "mimo") {
-        $mimo = $config.providers.mimo.cliPath
-        if (-not (Test-Path -LiteralPath $mimo)) {
-            throw "MiMo CLI not found: $mimo"
-        }
-
-        $mimoProfileRoot = [string]$config.providers.mimo.profileRoot
-        if (-not [string]::IsNullOrWhiteSpace($mimoProfileRoot)) {
-            [Environment]::SetEnvironmentVariable("MIMOCODE_HOME", $mimoProfileRoot, "Process")
-        }
-
-        $mimoOutputFormat = $effectiveOutputFormat
-        if ($mimoOutputFormat -eq "text") {
-            $mimoOutputFormat = "default"
-        }
-        if ($mimoOutputFormat -eq "stream-json") {
-            $mimoOutputFormat = "json"
-        }
-
-        $cmdArgs = @("run", "--model", $model, "--format", $mimoOutputFormat, "--dir", $executionRepo)
-        if (-not [string]::IsNullOrWhiteSpace($effectiveAgent)) {
-            $cmdArgs += @("--agent", $effectiveAgent)
-        }
-        if (-not [string]::IsNullOrWhiteSpace($effectiveReasoningEffort)) {
-            $cmdArgs += @("--variant", $effectiveReasoningEffort)
-        }
-        $mimoTaskPacket = ($supervisedTask -replace "\r?\n", " ").Trim()
-        $cmdArgs += @($mimoTaskPacket)
-
-        Invoke-Or-StartWorker -Exe $mimo -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "mimo" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $mimoOutputFormat -ProfileRoot $mimoProfileRoot -StructuredOutput "json_event_stream" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap
-    }
 } finally {
     if ($RunMode -eq "blocking" -or $DryRun) {
         Release-RepoEditLock -LockPath $repoEditLockPath

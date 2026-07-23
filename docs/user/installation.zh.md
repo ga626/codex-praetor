@@ -15,7 +15,6 @@
 
 - Qoder 或 QoderWork CN
 - Tencent CodeBuddy 或 WorkBuddy
-- Xiaomi MiMo Code
 
 没有这些外部 CLI 也可以先使用 Codex Praetor 的计划、dry-run、状态查询和冲突检测。真实派工、结果收集和计划任务推进需要至少一个外部 CLI。
 
@@ -23,7 +22,7 @@
 
 - GitHub 登录
 - provider token、cookie 或账号数据库
-- 同时安装 Qoder、CodeBuddy、MiMo
+- 同时安装 Qoder、CodeBuddy
 - 修改 Codex 安装目录
 
 ## 推荐方式：从 GitHub Release 安装
@@ -31,15 +30,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.7-alpha/codex-praetor-setup-0.9.7-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.7-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.9.7-alpha.zip .\codex-praetor-setup-0.9.7-alpha
-cd .\codex-praetor-setup-0.9.7-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.8-alpha/codex-praetor-setup-0.9.8-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.8-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.9.8-alpha.zip .\codex-praetor-setup-0.9.8-alpha
+cd .\codex-praetor-setup-0.9.8-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.9.7-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.9.8-alpha
 ```
 
 ### 2. 双击安装向导
@@ -62,7 +61,7 @@ https://github.com/ga626/codex-praetor/releases/tag/v0.9.7-alpha
 
 向导不会：
 
-- 在未经你确认时安装 Qoder、CodeBuddy、MiMo 或 Node.js。
+- 在未经你确认时安装 Qoder、CodeBuddy 或 Node.js。
 - 替你登录 provider。
 - 读取 token、cookie、账号数据库或个人截图。
 - 修改 Codex 安装目录或永久修改 PowerShell 执行策略。
@@ -143,13 +142,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-code
 如果你已经安装并登录某个 provider，再跑只读 canary。默认只预览命令，不会启动真实 worker：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
 ```
 
 确认 provider 已经登录、命令看起来正确后，再加 `-Apply`：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy -Apply
 ```
 
 这个 canary 只读取 `README.md`。开始前主仓库必须是干净的；如果运行期间有其他流程改动仓库，系统会保留真实 provider 结果并记录这次仓库变动，先审查变动再进入编辑任务。它通过后，再考虑真实派工。真实派工完成后不代表任务自动完成；Codex 还要读取 worker 结果，确认输出能采信，必要时看 diff、跑验证，再把任务标成采信、拒绝、重试、需要人工处理或跳过。
@@ -175,17 +174,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 2. 先不配置 provider，只安装并验证 Codex Praetor 本体
 3. 只配置 Qoder
 4. 只配置 CodeBuddy
-5. 只配置 MiMo
 ```
 
-默认推荐第 2 项。这样即使你还没准备 Qoder、CodeBuddy 或 MiMo，也可以先把 Codex Praetor 本体装好，并在 Codex 里验证 dry-run。
+默认推荐第 2 项。这样即使你还没准备 Qoder 或 CodeBuddy，也可以先把 Codex Praetor 本体装好，并在 Codex 里验证 dry-run。
 
 如果你选择某个 provider，向导会按这个顺序处理：
 
 1. 检查本机有没有对应命令。
 2. 没有命令时，列出官方安装方式，并让你选择“执行官方安装 / 打开官方说明 / 重新检测 / 跳过”。
 3. 你确认后，向导先检查对应官方安装源的网络是否可用，再执行 provider 的官方安装命令；它不使用第三方镜像，不把 provider 打进 Codex Praetor 包。
-4. 安装结束后，向导刷新当前终端 PATH，并主动检查 provider 的常见安装目录，例如 Qoder 的 `.qoder`、CodeBuddy 的 `AppData\Local\codebuddy\bin`、MiMo 的 `.mimocode\bin`，然后重新检测命令和版本。
+4. 安装结束后，向导刷新当前终端 PATH，并主动检查 provider 的常见安装目录，例如 Qoder 的 `.qoder`、CodeBuddy 的 `AppData\Local\codebuddy\bin`，然后重新检测命令和版本。
 5. 命令可用后，向导进入登录/授权陪跑。它会停在同一个窗口里，让你启动 provider 官方 CLI，并按官方流程完成登录、扫码、站点选择、企业域、Token Plan 或 API key 等账号动作。
 6. 你回到向导继续后，向导再次检测 CLI，并把已发现的 CLI 路径写入本机配置。
 7. 最后给出只读 canary 的预览或真实运行选项。
@@ -200,7 +198,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 真实派工前，你需要至少一个外部 CLI 已安装、已授权，并通过只读 canary。
 
-Codex Praetor 不会在未经你确认时安装 provider，也不会读取账号数据库、token、cookie。Qoder 和 CodeBuddy 通常需要官方登录或授权；MiMo 可以先尝试官方 `mimo/mimo-auto` 限时免费匿名通道，失败或指定其它模型时再走 `/connect`、Token Plan 或 API key。
+Codex Praetor 不会在未经你确认时安装 provider，也不会读取账号数据库、token、cookie。Qoder 和 CodeBuddy 通常需要官方登录或授权。
 
 向导会优先写入当前用户级配置：
 
@@ -232,7 +230,6 @@ Copy-Item .\config\codex-praetor-tiers.example.json .\config\codex-praetor.local
 
 - [Qoder](../provider-notes/qoder.md)
 - [CodeBuddy](../provider-notes/codebuddy.md)
-- [MiMo](../provider-notes/mimo.md)
 
 ## 更新
 

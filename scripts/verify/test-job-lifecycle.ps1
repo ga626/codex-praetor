@@ -81,24 +81,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Could not initialize partial-worktree fixture." }
     $partial = Invoke-WatchedCase -Name "partial-max-turns" -WorkerArguments @("-NoProfile", "-Command", "Set-Content -LiteralPath partial.txt -Value partial; Write-Error 'Max turns (16) exceeded'; exit 0") -TimeoutSeconds 30 -TaskKind "code_change" -ExecutionRepo $partialRepo
     Assert-True ([string]$partial.artifact_state -eq "partial_worktree_diff") "A max-turns worktree diff must be marked as partial, not accepted artifact evidence."
-    $mimoCommand = @'
-[pscustomobject]@{
-    type = 'error'
-    error = [pscustomobject]@{
-        name = 'APIError'
-        data = [pscustomobject]@{
-            message = 'Request blocked by risk control'
-            statusCode = 400
-            responseBody = '{"error":{"code":"441","message":"blocked","type":"risk_control"}}'
-        }
-    }
-} | ConvertTo-Json -Depth 8 -Compress
-exit 0
-'@
-    $mimo = Invoke-WatchedCase -Name "mimo-risk-control" -WorkerArguments @("-NoProfile", "-Command", $mimoCommand) -TimeoutSeconds 30 -Provider "mimo" -TaskKind "code_change" -ExecutionRepo $partialRepo
-    Assert-True ([string]$mimo.failure_class -eq "provider_risk_control") "MiMo risk control error must be classified as provider_risk_control."
-    Assert-True ([string]$mimo.evidence_state -eq "evidence_missing") "MiMo API error must never be labeled as a valid worker report."
-    Assert-True ([string]$mimo.provider_error.code -eq "441") "MiMo completion must preserve the provider error code for diagnosis."
+    $rejected = Invoke-WatchedCase -Name "provider-rejected" -WorkerArguments @("-NoProfile", "-Command", "Write-Error 'provider_rejected: request blocked statusCode 400'; exit 0") -TimeoutSeconds 30 -Provider "qoder" -TaskKind "code_change" -ExecutionRepo $partialRepo
+    Assert-True ([string]$rejected.failure_class -eq "provider_rejected") "A provider rejection must be classified as provider_rejected."
+    Assert-True ([string]$rejected.evidence_state -eq "evidence_missing") "A provider rejection must never be labeled as valid worker evidence."
     $timedOut = Invoke-WatchedCase -Name "timeout" -WorkerArguments @("-NoProfile", "-Command", "Start-Sleep -Seconds 35") -TimeoutSeconds 30
     Assert-True ([string]$timedOut.status -eq "timed_out") "Worker timeout was not classified."
 

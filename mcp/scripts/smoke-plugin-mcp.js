@@ -169,7 +169,7 @@ try {
     }
   });
   const providerOperationsPayload = JSON.parse(providerOperationsResult.content?.[0]?.text ?? "{}");
-  const expectedProviders = ["qoder", "codebuddy", "mimo"];
+  const expectedProviders = ["qoder", "codebuddy"];
   if (
     providerOperationsPayload.schema !== "codex-praetor-provider-operations/v1" ||
     !Array.isArray(providerOperationsPayload.providers) ||
@@ -209,14 +209,14 @@ try {
       arguments: {
         repo,
         task: "Plugin MCP smoke dry-run. Do not modify files.",
-        provider: "mimo",
-        tier: "mimo-isolated-audit",
+        provider: "qoder",
+        tier: "qoder-day-cheap",
         mode: "readonly",
         run_mode: "blocking"
       }
     });
     const dryRunPayload = JSON.parse(dryRunResult.content?.[0]?.text ?? "{}");
-    if (dryRunPayload.ok !== true || dryRunPayload.provider !== "mimo") {
+    if (dryRunPayload.ok !== true || dryRunPayload.provider !== "qoder") {
       throw new Error(`Unexpected dispatch dry-run result: ${JSON.stringify(dryRunPayload)}`);
     }
   }

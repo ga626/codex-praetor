@@ -7,12 +7,12 @@
 - [ ] 首页第一屏能看懂 Codex Praetor 是什么。
 - [ ] 能看到 Release 下载入口。
 - [ ] 能看到安装、排错、隐私和路线图入口。
-- [ ] 能看懂没有 Qoder、CodeBuddy、MiMo 时仍然可以 dry-run。
+- [ ] 能看懂没有 Qoder、CodeBuddy 时仍然可以 dry-run。
 - [ ] 能看懂真实派工前需要自己安装并登录至少一个 provider。
 
 ## 2. Release 包
 
-- [ ] 从 `v0.9.7-alpha` Release 下载 `codex-praetor-setup-0.9.7-alpha.zip`。
+- [ ] 从 `v0.9.8-alpha` Release 下载 `codex-praetor-setup-0.9.8-alpha.zip`。
 - [ ] 校验 SHA256 文件和 zip 匹配。
 - [ ] 解压后根目录能看到 `setup.cmd` 和 `setup.ps1`。
 - [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/user/installation.zh.md`、`docs/user/troubleshooting.zh.md`。
@@ -22,7 +22,7 @@
 
 - [ ] 双击根目录的 `setup.cmd`。
 - [ ] 中文安装向导先显示基础环境和 provider CLI 的可发现状态。
-- [ ] 向导提供 5 个选择：全部配置、全部跳过、只配置 Qoder、只配置 CodeBuddy、只配置 MiMo。
+- [ ] 向导提供 4 个选择：全部配置、全部跳过、只配置 Qoder、只配置 CodeBuddy。
 - [ ] 选择默认的“暂不配置 provider”，完成 Codex Praetor 本体安装。
 - [ ] 选择某一个 provider 时，向导能在用户确认后执行官方安装命令、刷新 PATH、等待用户完成官方登录/授权、复检命令、写入本机配置，并在最终状态总览里说明结果。
 - [ ] 误关窗口后重新运行 `setup.cmd`，向导能从 `%USERPROFILE%\.codex\codex-praetor.onboarding-state.json` 继续，且状态文件不包含 token、cookie、PAT、API key、账号数据库或余额页面。
@@ -72,7 +72,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 ## 6. provider 缺失场景
 
-- [ ] 没安装 Qoder、CodeBuddy、MiMo 时，错误提示能说明这不是核心产品故障。
+- [ ] 没安装 Qoder、CodeBuddy 时，错误提示能说明这不是核心产品故障。
 - [ ] plan、dry-run、status、lane/conflict 仍可用。
 - [ ] 真实派工会被清楚地阻止或提示下一步。
 
@@ -84,13 +84,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 - [ ] provider 已安装并登录后，先运行预览：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
 ```
 
 - [ ] 确认命令无误后，再运行真实只读 canary：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy -Apply
 ```
 
 - [ ] 输出包含 `CODEX_PRAETOR_CANARY_OK` 或等价成功标记。

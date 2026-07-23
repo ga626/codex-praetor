@@ -66,7 +66,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.7-alpha"
+    version: "0.9.8-alpha"
   });
 
   server.registerTool(
@@ -105,7 +105,7 @@ export function createServer(): McpServer {
         task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
         failure_class: z.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "test_failed", "scope_violation", "unknown"]).optional(),
         candidates: z.array(z.object({
-          provider: z.enum(["qoder", "codebuddy", "mimo"]),
+          provider: z.enum(["qoder", "codebuddy"]),
           model: z.string().min(1),
           cli_path: z.string().min(1),
           cli_hash: z.string().min(1),
@@ -134,7 +134,7 @@ export function createServer(): McpServer {
     "codex_praetor_provider_operations",
     {
       title: "Read Codex Praetor Provider Operations",
-      description: "Show user-readable Qoder, CodeBuddy and MiMo availability, evidence freshness, next recovery action and the provider onboarding checklist. This never reads authentication material or dispatches a worker.",
+      description: "Show user-readable Qoder and CodeBuddy availability, evidence freshness, next recovery action and the provider onboarding checklist. This never reads authentication material or dispatches a worker.",
       annotations: readOnlyClosedWorld,
       inputSchema: {
         repo: z.string().min(1),
@@ -192,7 +192,7 @@ export function createServer(): McpServer {
       inputSchema: {
         repo: z.string().min(1),
         task: z.string().min(1),
-        provider: z.enum(["auto", "qoder", "codebuddy", "mimo"]),
+        provider: z.enum(["auto", "qoder", "codebuddy"]),
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
@@ -212,7 +212,7 @@ export function createServer(): McpServer {
       inputSchema: {
         repo: z.string().min(1),
         task: z.string().min(1),
-        provider: z.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        provider: z.enum(["auto", "qoder", "codebuddy"]).optional(),
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
@@ -405,7 +405,7 @@ export function createServer(): McpServer {
         repo: z.string().min(1),
         plan_id: z.string().min(1),
         task_id: z.string().min(1),
-        provider: z.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        provider: z.enum(["auto", "qoder", "codebuddy"]).optional(),
         tier: z.string().optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
         max_turns: z.number().int().positive().max(80).optional(),

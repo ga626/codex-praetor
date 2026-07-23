@@ -23,7 +23,7 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Public entry consistency: `scripts/verify/test-public-entry-consistency.ps1`. Use `-SkipRemoteRelease` before publication and the full remote check during release closeout.
 - Release package determinism: `scripts/verify/test-release-package-determinism.ps1`. The same staged release content must produce the same zip SHA256, stable entry order, and fixed zip entry timestamps.
 - Continuous orchestration MCP validation: route-intent, dry-run, real dispatch tool listing, result reading, next-ready lookup, plan-task dispatch tool listing, and verify-task recording must pass protocol smoke before release.
-- Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider mimo`. Apply runs require a clean starting repository or isolated checkout; drift observed during a run is recorded separately from provider proof and must be reviewed before edit work.
+- Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider codebuddy`. Apply runs require a clean starting repository or isolated checkout; drift observed during a run is recorded separately from provider proof and must be reviewed before edit work.
 - MCP source tests: `npm test` under `mcp/`.
 - Plugin protocol smoke: `mcp/scripts/smoke-plugin-mcp.js` against the packaged runtime.
 - Runtime contract generation: `config/runtime-contract.json` is the only editable contract; `scripts/release/sync-codex-praetor-runtime-contract.ps1` generates the plugin and Skill copies, and CI rejects drift.
@@ -43,11 +43,11 @@ Include:
 - Root `setup.cmd` and `setup.ps1` as the Windows double-click setup entrypoints, including provider selection, human authorization wait, re-check, local config write, and final status summary.
 - `.github/workflows/ci.yml` so the source release keeps its public validation path.
 - `config/codex-praetor-tiers.example.json` as a template with no real local paths.
-- Provider setup references for Qoder, CodeBuddy, and MiMo under `docs/provider-notes/`.
+- Provider setup references for Qoder and CodeBuddy under `docs/provider-notes/`.
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.9.7-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.9.8-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -67,7 +67,7 @@ Before release, a normal Windows user should see clear doctor states:
 - CLI missing or template path: report the optional provider as disabled, not as a core product failure.
 - CLI installed: version probe result.
 - Login unknown: clear instruction to complete the provider's normal login outside Codex Praetor.
-- Setup wizard selection: all providers, skip all providers, Qoder only, CodeBuddy only, and MiMo only all work without turning optional provider absence into a product failure.
+- Setup wizard selection: all providers, skip all providers, Qoder only, and CodeBuddy only all work without turning optional provider absence into a product failure.
 - Local config write: discovered provider CLI paths are written only to ignored user/local config and never include token, cookie, PAT, API key, account DB paths, balance pages, or screenshots.
 - Capability mismatch: version/help probe fails or required flags are not accepted.
 - No providers installed: local planning/dry-run/status still works, real dispatch is disabled.

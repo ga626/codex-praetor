@@ -1,7 +1,7 @@
 ﻿param(
     [string]$Repo = (Get-Location).Path,
 
-    [ValidateSet("qoder", "codebuddy", "mimo")]
+    [ValidateSet("qoder", "codebuddy")]
     [string]$Provider,
 
     [string]$Tier = "",

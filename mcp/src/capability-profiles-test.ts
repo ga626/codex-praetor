@@ -55,7 +55,7 @@ try {
     { task_id: "observed", task_family: "bounded_code_change", governance_state: "accepted", attempts: [attempt({ id: "o1", model: "observed", family: "bounded_code_change", verdict: "accepted" })] },
     { task_id: "provisional", task_family: "bounded_code_change", governance_state: "accepted", attempts: [attempt({ id: "p1", model: "provisional", family: "bounded_code_change", verdict: "accepted" }), attempt({ id: "p2", model: "provisional", family: "bounded_code_change", verdict: "accepted" })] },
     { task_id: "qualified", task_family: "bounded_code_change", governance_state: "accepted", attempts: [attempt({ id: "q1", model: "qualified", family: "bounded_code_change", verdict: "accepted" }), attempt({ id: "q2", model: "qualified", family: "bounded_code_change", verdict: "accepted" }), attempt({ id: "q3", model: "qualified", family: "bounded_code_change", verdict: "accepted" })] },
-    { task_id: "blocked", task_family: "bounded_code_change", governance_state: "blocked", attempts: [attempt({ id: "b1", model: "blocked", family: "bounded_code_change", failure: "provider_risk_control" })] },
+    { task_id: "blocked", task_family: "bounded_code_change", governance_state: "blocked", attempts: [attempt({ id: "b1", model: "blocked", family: "bounded_code_change", failure: "provider_rejected" })] },
     { task_id: "cooldown", task_family: "bounded_code_change", governance_state: "rejected", attempts: [attempt({ id: "c1", model: "cooldown", family: "bounded_code_change", failure: "network_timeout", recordedAt: new Date().toISOString() })] },
     { task_id: "stale", task_family: "bounded_code_change", governance_state: "accepted", attempts: [attempt({ id: "s1", model: "stale", family: "bounded_code_change", verdict: "accepted", recordedAt: "2025-01-01T00:00:00.000Z" })] },
     { task_id: "unclassified", governance_state: "accepted", attempts: [attempt({ id: "u1", model: "unclassified", family: "unclassified", verdict: "accepted" })] }
@@ -111,17 +111,17 @@ try {
 
   const operations = providerOperationsTool({ repo: root, task_family: "bounded_code_change", readiness_entries: [] });
   assert.equal(operations.schema, "codex-praetor-provider-operations/v1");
-  assert.deepEqual(operations.providers.map((item) => item.provider), ["qoder", "codebuddy", "mimo"]);
+  assert.deepEqual(operations.providers.map((item) => item.provider), ["qoder", "codebuddy"]);
   assert.equal(operations.policy.adapter_is_not_route_authorization, true);
   assert.ok(operations.onboarding_checklist.length >= 6);
 
   const projectRoot = path.resolve(process.cwd(), "..");
   const contractHash = createHash("sha256").update(readFileSync(path.join(projectRoot, "config", "runtime-contract.json"))).digest("hex");
-  const legacyReadiness = providerOperationsTool({ repo: root, readiness_entries: [{ provider: "mimo", status: "passed", runtime_contract_sha256: contractHash }] });
-  assert.equal(legacyReadiness.providers.find((item) => item.provider === "mimo")?.current_readiness_count, 0, "legacy readiness without a worker receipt must not authorize MiMo");
-  const evidencedReadiness = providerOperationsTool({ repo: root, readiness_entries: [{ provider: "mimo", status: "passed", runtime_contract_sha256: contractHash, evidence: { schema: "codex-praetor-canary-evidence/v1", job_id: "fixture", worker_stdout_sha256: "a", completion_sha256: "b", completion_status: "process_exited", worker_exit_code: 0, failure_class: "" } }] });
-  assert.equal(evidencedReadiness.providers.find((item) => item.provider === "mimo")?.current_readiness_count, 1, "a complete canary receipt must remain observable");
-  for (const name of ["qoder", "codebuddy", "mimo"]) {
+  const legacyReadiness = providerOperationsTool({ repo: root, readiness_entries: [{ provider: "qoder", status: "passed", runtime_contract_sha256: contractHash }] });
+  assert.equal(legacyReadiness.providers.find((item) => item.provider === "qoder")?.current_readiness_count, 0, "legacy readiness without a worker receipt must not authorize a provider");
+  const evidencedReadiness = providerOperationsTool({ repo: root, readiness_entries: [{ provider: "qoder", status: "passed", runtime_contract_sha256: contractHash, evidence: { schema: "codex-praetor-canary-evidence/v1", job_id: "fixture", worker_stdout_sha256: "a", completion_sha256: "b", completion_status: "process_exited", worker_exit_code: 0, failure_class: "" } }] });
+  assert.equal(evidencedReadiness.providers.find((item) => item.provider === "qoder")?.current_readiness_count, 1, "a complete canary receipt must remain observable");
+  for (const name of ["qoder", "codebuddy"]) {
     const adapter = JSON.parse(readFileSync(path.join(projectRoot, "config", "provider-adapters", `${name}.json`), "utf8"));
     assert.equal(adapter.schema, "codex-praetor-provider-adapter/v1");
     assert.equal(adapter.provider_id, name);

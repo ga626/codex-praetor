@@ -51,7 +51,7 @@ export function providerOperationsTool(input: { repo: string; task_family?: Task
   const contractHash = existsSync(contractPath) ? createHash("sha256").update(readFileSync(contractPath)).digest("hex") : "";
   const profiles = capabilityProfilesTool({ repo: input.repo }).profiles;
   const readiness = input.readiness_entries ?? readReadiness();
-  const providers = ["qoder", "codebuddy", "mimo"].map((provider) => {
+  const providers = ["qoder", "codebuddy"].map((provider) => {
     const adapter = readJson(getRuntimeDataPath(path.join("provider-adapters", `${provider}.json`)));
     const providerProfiles = profiles.filter((profile) => asString(profile.provider_tuple.provider) === provider && (!input.task_family || profile.task_family === input.task_family));
     const profile = [...providerProfiles].sort((left, right) => asString(right.evidence.at(-1)?.recorded_at).localeCompare(asString(left.evidence.at(-1)?.recorded_at))).at(0);

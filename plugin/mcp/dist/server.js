@@ -31152,10 +31152,8 @@ var codexPraetorTerms = [
   "qoder",
   "codebuddy",
   "workbuddy",
-  "mimo",
   "\u817E\u8BAF",
-  "\u963F\u91CC",
-  "\u5C0F\u7C73"
+  "\u963F\u91CC"
 ];
 var delegationTerms = [
   "split",
@@ -31625,7 +31623,7 @@ function providerOperationsTool(input) {
   const contractHash = existsSync3(contractPath) ? createHash2("sha256").update(readFileSync3(contractPath)).digest("hex") : "";
   const profiles = capabilityProfilesTool({ repo: input.repo }).profiles;
   const readiness = input.readiness_entries ?? readReadiness();
-  const providers = ["qoder", "codebuddy", "mimo"].map((provider) => {
+  const providers = ["qoder", "codebuddy"].map((provider) => {
     const adapter = readJson(getRuntimeDataPath(path3.join("provider-adapters", `${provider}.json`)));
     const providerProfiles = profiles.filter((profile2) => asString3(profile2.provider_tuple.provider) === provider && (!input.task_family || profile2.task_family === input.task_family));
     const profile = [...providerProfiles].sort((left, right) => asString3(right.evidence.at(-1)?.recorded_at).localeCompare(asString3(left.evidence.at(-1)?.recorded_at))).at(0);
@@ -31947,7 +31945,7 @@ ${input.stderr_tail}`.toLowerCase();
   if (failureClass === "provider_risk_control") {
     return {
       class: "provider_risk_control",
-      explanation: "MiMo provider \u5DF2\u56E0\u98CE\u63A7\u62D2\u7EDD\u672C\u6B21\u8BF7\u6C42\uFF1B\u8FD9\u4E0D\u662F\u6210\u529F\u7ED3\u679C\uFF0C\u4E5F\u4E0D\u662F\u672C\u5730 worktree \u95EE\u9898\u3002",
+      explanation: "provider \u5DF2\u56E0\u98CE\u63A7\u62D2\u7EDD\u672C\u6B21\u8BF7\u6C42\uFF1B\u8FD9\u4E0D\u662F\u6210\u529F\u7ED3\u679C\uFF0C\u4E5F\u4E0D\u662F\u672C\u5730 worktree \u95EE\u9898\u3002",
       next_action: "\u505C\u6B62\u91CD\u8BD5\u540C\u4E00\u8BF7\u6C42\uFF0C\u7B49\u5F85 provider \u89E3\u9664\u9650\u5236\u6216\u6539\u7528\u5DF2\u901A\u8FC7 canary \u7684 provider\u3002"
     };
   }
@@ -32737,7 +32735,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.7-alpha"
+    version: "0.9.8-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -32773,7 +32771,7 @@ function createServer() {
         task_family: external_exports.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
         failure_class: external_exports.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "test_failed", "scope_violation", "unknown"]).optional(),
         candidates: external_exports.array(external_exports.object({
-          provider: external_exports.enum(["qoder", "codebuddy", "mimo"]),
+          provider: external_exports.enum(["qoder", "codebuddy"]),
           model: external_exports.string().min(1),
           cli_path: external_exports.string().min(1),
           cli_hash: external_exports.string().min(1),
@@ -32801,7 +32799,7 @@ function createServer() {
     "codex_praetor_provider_operations",
     {
       title: "Read Codex Praetor Provider Operations",
-      description: "Show user-readable Qoder, CodeBuddy and MiMo availability, evidence freshness, next recovery action and the provider onboarding checklist. This never reads authentication material or dispatches a worker.",
+      description: "Show user-readable Qoder and CodeBuddy availability, evidence freshness, next recovery action and the provider onboarding checklist. This never reads authentication material or dispatches a worker.",
       annotations: readOnlyClosedWorld,
       inputSchema: {
         repo: external_exports.string().min(1),
@@ -32855,7 +32853,7 @@ function createServer() {
       inputSchema: {
         repo: external_exports.string().min(1),
         task: external_exports.string().min(1),
-        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy"]),
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
@@ -32874,7 +32872,7 @@ function createServer() {
       inputSchema: {
         repo: external_exports.string().min(1),
         task: external_exports.string().min(1),
-        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy"]).optional(),
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
@@ -33055,7 +33053,7 @@ function createServer() {
         repo: external_exports.string().min(1),
         plan_id: external_exports.string().min(1),
         task_id: external_exports.string().min(1),
-        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy"]).optional(),
         tier: external_exports.string().optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
         max_turns: external_exports.number().int().positive().max(80).optional(),

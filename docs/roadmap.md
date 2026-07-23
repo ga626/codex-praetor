@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-21
 
-`v0.9.3-alpha` 是当前已公开交付的基线，但已确认存在“已安装运行时缺少 provider 运营数据”的发布事故。候选 `v0.9.7-alpha` 只做该事故的不可变修复：把 adapter 合同和准入清单放进真正安装的插件，并在最终 bundled MCP 中实际调用验证。它不会读取认证材料，也不会自动扩大路由；合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
+`v0.9.3-alpha` 是当前已公开交付的基线，但已确认存在“已安装运行时缺少 provider 运营数据”的发布事故。候选 `v0.9.8-alpha` 只做该事故的不可变修复：把 adapter 合同和准入清单放进真正安装的插件，并在最终 bundled MCP 中实际调用验证。它不会读取认证材料，也不会自动扩大路由；合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
 
 已经完成：
 
@@ -12,13 +12,13 @@
 - worker 结果摘要读取和失败分类。
 - 计划中的 ready task 查询、计划任务派发和 Codex 验收记录。
 - worker 完成后进入 `awaiting_verification`，只有 Codex 验收通过才解锁依赖任务。
-- Qoder、CodeBuddy、MiMo 三类 provider 路线的只读 canary。
+- Qoder、CodeBuddy 两类 provider 路线的只读 canary。
 - 中文首页、安装指南、排错指南、隐私边界、卸载回滚和用户验收清单。
 - GitHub issue 模板和 pull request 模板。
 - provider 只读 canary 的统一预览/执行入口。
 - canary 的 clean-before 与 drift-during 分层证据；并发仓库变动不会再伪装成 provider 失败。
 - `process_exited` 等执行终态与“等待 Codex 验收”分层展示，不再错误占用 active lane。
-- Windows 安装向导的 5 选项 provider 引导：全部配置、全部跳过、只配置 Qoder、只配置 CodeBuddy、只配置 MiMo。
+- Windows 安装向导的 4 选项 provider 引导：全部配置、全部跳过、只配置 Qoder、只配置 CodeBuddy。
 - 安装向导中的官方安装执行、人工授权陪跑、断点恢复、复检、本机配置写入、可选只读 canary 和最终状态总览。
 - 发布包确定性构建：固定 zip 条目顺序和时间戳，让相同发布内容构建出稳定 SHA256。
 - 本地运行态清理预览：识别已合并且干净的 worker worktree、过期完成任务和 scratch 内容，默认只预览，确认后才删除或归档。
@@ -58,7 +58,7 @@
 ## 不做什么
 
 - 不做通用多 Agent 平台。
-- 不在未经用户确认时安装 Qoder、CodeBuddy、MiMo；用户确认后只执行官方安装命令，不替用户登录或确认账单。
+- 不在未经用户确认时安装 Qoder、CodeBuddy；用户确认后只执行官方安装命令，不替用户登录或确认账单。
 - 不读取 token、cookie、账号数据库、余额页或个人截图。
 - 不默认创建 Codex 原生 subagent。
 - 不把源码目录和本机安装目录做软链接或自动同步。
