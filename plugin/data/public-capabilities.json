@@ -38,7 +38,7 @@
       "id": "evaluation.prepare",
       "audience": "installed_plugin",
       "entry": { "kind": "mcp_tool", "name": "codex_praetor_prepare_evaluation" },
-      "package_requirements": ["plugin/data/evaluation-suite.json", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1"],
+      "package_requirements": ["plugin/data/evaluation-suite.json", "plugin/skills/codex-praetor/scripts/initialize-codex-praetor-evaluation.ps1", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1"],
       "scenario": "evaluation_prepare",
       "risk_tier": "deterministic_artifact"
     },
