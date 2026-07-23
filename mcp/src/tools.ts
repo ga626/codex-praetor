@@ -19,7 +19,7 @@ import { parseKeyValueOutput } from "./parse-key-value.js";
 import { runPowerShell } from "./powershell.js";
 import { routeIntent } from "./route-intent.js";
 import { capabilityProfilesTool as buildCapabilityProfiles } from "./capability-profiles.js";
-import { evaluationSuiteTool as buildEvaluationSuite } from "./evaluation-suite.js";
+import { evaluationSuiteTool as buildEvaluationSuite, prepareEvaluationTool as buildPrepareEvaluation } from "./evaluation-suite.js";
 import { explainableRouteTool as buildExplainableRoute } from "./explainable-routing.js";
 import { providerOperationsTool as buildProviderOperations } from "./provider-operations.js";
 import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
@@ -97,6 +97,10 @@ export function capabilityProfilesTool(input: { repo: string; include_unclassifi
 
 export function evaluationSuiteTool() {
   return buildEvaluationSuite();
+}
+
+export async function prepareEvaluationTool(input: { repo: string; plan_id?: string }) {
+  return buildPrepareEvaluation(input);
 }
 
 export function explainableRouteTool(input: Parameters<typeof buildExplainableRoute>[0]) {

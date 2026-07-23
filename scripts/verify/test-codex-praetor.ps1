@@ -220,6 +220,8 @@ $jsonPaths = @(
     (Join-Path $projectRoot "config\release-receipt.schema.json"),
     (Join-Path $projectRoot "config\release-intent.json"),
     (Join-Path $projectRoot "config\release-intent.schema.json"),
+    (Join-Path $projectRoot "config\public-capabilities.json"),
+    (Join-Path $projectRoot "config\public-capabilities.schema.json"),
     $pluginMcpPackage
 )
 foreach ($path in $jsonPaths) {
@@ -533,6 +535,14 @@ if (Test-Path -LiteralPath $releaseIntentTest -PathType Leaf) {
         if ($LASTEXITCODE -eq 0 -and (($intentOutput | Out-String) -match "Release intent is valid")) { Add-Pass "Release intent contract regression passes" } else { Add-Fail "Release intent contract regression failed: $($intentOutput | Out-String)" }
     } catch { Add-Fail "Release intent contract regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Release intent contract script missing: $releaseIntentTest" }
+
+$publicCapabilityTest = Join-Path $projectRoot "scripts\verify\test-public-capability-contract.ps1"
+if (Test-Path -LiteralPath $publicCapabilityTest -PathType Leaf) {
+    try {
+        $capabilityOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $publicCapabilityTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($capabilityOutput | Out-String) -match "Public capability contract")) { Add-Pass "Public capability contract regression passes" } else { Add-Fail "Public capability contract regression failed: $($capabilityOutput | Out-String)" }
+    } catch { Add-Fail "Public capability contract regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Public capability contract script missing: $publicCapabilityTest" }
 
 $devIsolationTest = Join-Path $projectRoot "scripts\verify\test-dev-channel-isolation.ps1"
 if (Test-Path -LiteralPath $devIsolationTest -PathType Leaf) {

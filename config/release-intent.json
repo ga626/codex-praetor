@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.9.9-alpha",
-    "previous_version":  "0.9.8-alpha",
-    "tag":  "v0.9.9-alpha",
+    "version":  "0.10.0-alpha",
+    "previous_version":  "0.9.9-alpha",
+    "tag":  "v0.10.0-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.9.9-alpha.zip",
-    "reason":  "修复 0.9.8-alpha 发布包中 capability-canary 的 helper 解析路径，并以实际执行插件镜像脚本的回归防止首次真实派工被错误阻断。"
+    "artifact":  "codex-praetor-setup-0.10.0-alpha.zip",
+    "reason":  "建立公开能力清单与最终包场景验证，补齐已安装插件的评测准备入口，并将范围变化与发布收口规则压缩为可长期执行的闭环。"
 }

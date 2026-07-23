@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0-alpha - 2026-07-23
+
+- Added a machine-readable public-capability registry that binds user-facing entries, packaged dependencies, final-zip scenarios and fault injection to one release gate.
+- Added installed-plugin evaluation preparation through `codex_praetor_prepare_evaluation`; it creates a classified project-local plan without dispatching a worker.
+- Made the final bundled MCP prove evaluation preparation, public-capability manifest presence and classified plan output; missing capability data now fails the artifact mutation gate.
+- Compressed the global and Codex Praetor rules around change handling, release impact, final-artifact validation and the one supported host-refresh boundary.
+
 ## 0.9.9-alpha - 2026-07-23
 
 - Recovered the `0.9.8-alpha` capability-canary release incident with a new immutable version; the published `0.9.8-alpha` artifact remains unchanged.

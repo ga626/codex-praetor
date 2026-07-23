@@ -30,15 +30,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.9-alpha/codex-praetor-setup-0.9.9-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.9-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.9.9-alpha.zip .\codex-praetor-setup-0.9.9-alpha
-cd .\codex-praetor-setup-0.9.9-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.10.0-alpha/codex-praetor-setup-0.10.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.10.0-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.10.0-alpha.zip .\codex-praetor-setup-0.10.0-alpha
+cd .\codex-praetor-setup-0.10.0-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.9.9-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.10.0-alpha
 ```
 
 ### 2. 双击安装向导
