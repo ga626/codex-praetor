@@ -6,6 +6,7 @@ param(
     [string]$PlanRoot = "",
     [string]$PlanId = "",
     [string]$PlanScript = "",
+    [string]$TemplateRoot = "",
     [switch]$Apply
 )
 
@@ -15,9 +16,31 @@ $ProjectRoot = [IO.Path]::GetFullPath($ProjectRoot)
 if ([string]::IsNullOrWhiteSpace($SuitePath)) { $SuitePath = Join-Path $ProjectRoot "config\evaluation-suite.json" }
 if ([string]::IsNullOrWhiteSpace($PlanRoot)) { $PlanRoot = Join-Path $ProjectRoot ".codex-praetor\plans" }
 if ([string]::IsNullOrWhiteSpace($PlanScript)) { $PlanScript = Join-Path $ProjectRoot "scripts\dispatch\manage-codex-praetor-plan.ps1" }
+if ([string]::IsNullOrWhiteSpace($TemplateRoot)) { $TemplateRoot = Join-Path $ProjectRoot "config\evaluation-task-templates" }
 $PlanScript = [IO.Path]::GetFullPath($PlanScript)
 
 function Assert-True { param([bool]$Condition, [string]$Message) if (-not $Condition) { throw $Message } }
+function Get-TextSha256 { param([string]$Path) $bytes = [IO.File]::ReadAllBytes($Path); $sha = [Security.Cryptography.SHA256]::Create(); try { return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant() } finally { $sha.Dispose() } }
+function New-TaskMaterial { param([object]$Task, [string]$PlanDirectory)
+    if ([string]$Task.task_kind -ne 'code_change') { return $null }
+    Assert-True ($Task.PSObject.Properties.Name -contains 'task_material') "Code-change task $($Task.task_id) lacks task material."
+    $spec = $Task.task_material; foreach($name in @('template','destination','write_set','baseline_command','baseline_exit_code','immutable_paths')) { Assert-True ($spec.PSObject.Properties.Name -contains $name) "Task material for $($Task.task_id) lacks $name." }
+    $template = Join-Path $TemplateRoot ([string]$spec.template); Assert-True (Test-Path -LiteralPath $template -PathType Container) "Task material template is missing: $($spec.template)"
+    $instance = Join-Path (Join-Path $PlanDirectory 'instances') ([string]$Task.task_id)
+    Assert-True (-not (Test-Path -LiteralPath $instance)) "Task material instance already exists: $instance. Use a new plan id; do not overwrite prior evidence."
+    New-Item -ItemType Directory -Path $instance -Force | Out-Null
+    Copy-Item -Path (Join-Path $template '*') -Destination $instance -Recurse -Force
+    $files = @()
+    foreach ($file in @(Get-ChildItem -LiteralPath $instance -File -Recurse)) {
+        $files += [ordered]@{
+            path = $file.FullName.Substring($instance.Length + 1).Replace('\', '/')
+            sha256 = Get-TextSha256 -Path $file.FullName
+        }
+    }
+    $material = [ordered]@{ schema='codex-praetor-task-material-instance/v1'; source_root=$instance; destination=[string]$spec.destination; write_set=@($spec.write_set); immutable_paths=@($spec.immutable_paths); baseline_command=[string]$spec.baseline_command; baseline_exit_code=[int]$spec.baseline_exit_code; files=$files }
+    $materialPath = Join-Path $instance 'material-manifest.json'; $material | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $materialPath -Encoding UTF8
+    $material.manifest_sha256 = Get-TextSha256 $materialPath; return $material
+}
 function Assert-Task { param([object]$Task)
     foreach ($name in @("task_id", "task_family", "goal", "mode", "task_kind", "provider_candidates", "allowed_paths", "forbidden_paths", "acceptance", "required_checks", "budget", "failure_injection")) {
         Assert-True ($Task.PSObject.Properties.Name -contains $name) "Evaluation task is missing $name."
@@ -52,7 +75,9 @@ if ($Action -eq "Prepare") {
         & $PlanScript -Action Init -PlanId $resolvedPlanId -PlanRoot $PlanRoot -Title "Evaluation $($suite.suite_id)" -Repo $ProjectRoot | Out-Null
         foreach ($task in $tasks) {
             $budgetJson = $task.budget | ConvertTo-Json -Compress
-            & $PlanScript -Action UpsertTask -PlanId $resolvedPlanId -PlanRoot $PlanRoot -TaskId ([string]$task.task_id) -TaskTitle ([string]$task.goal) -TaskFamily ([string]$task.task_family) -TaskKind ([string]$task.task_kind) -Status pending -Mode ([string]$task.mode) -AllowedPath @($task.allowed_paths) -ForbiddenPath @($task.forbidden_paths) -RequiredCheck @($task.required_checks) -BudgetJson $budgetJson -FailureInjection ([string]$task.failure_injection) -Sensitivity ([string]$task.sensitivity) -Acceptance ([string]$task.acceptance) -Summary ("required_checks=" + (@($task.required_checks) -join " | ")) | Out-Null
+            $planDir = Join-Path $PlanRoot $resolvedPlanId; $material = New-TaskMaterial -Task $task -PlanDirectory $planDir
+            $planArgs = @{ Action='UpsertTask'; PlanId=$resolvedPlanId; PlanRoot=$PlanRoot; TaskId=[string]$task.task_id; TaskTitle=[string]$task.goal; TaskFamily=[string]$task.task_family; TaskKind=[string]$task.task_kind; Status='pending'; Mode=[string]$task.mode; AllowedPath=@($task.allowed_paths); ForbiddenPath=@($task.forbidden_paths); RequiredCheck=@($task.required_checks); BudgetJson=$budgetJson; FailureInjection=[string]$task.failure_injection; Sensitivity=[string]$task.sensitivity; Acceptance=[string]$task.acceptance; Summary=('required_checks=' + (@($task.required_checks) -join ' | ')) }
+            if ($null -ne $material) { $planArgs.TaskMaterialJson = ($material | ConvertTo-Json -Compress -Depth 8) }; & $PlanScript @planArgs | Out-Null
         }
         $summary.plan_path = Join-Path (Join-Path $PlanRoot $resolvedPlanId) "plan.json"
         $summary.next_action = "Dispatch a single prepared task through the normal worker contract; do not mass-dispatch the suite."

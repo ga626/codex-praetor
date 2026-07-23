@@ -13,7 +13,7 @@ Assert-True ([string]$manifest.schema -eq "codex-praetor-public-capabilities/v1"
 $capabilities = @($manifest.capabilities)
 Assert-True ($capabilities.Count -gt 0) "Public capability manifest is empty."
 Assert-True (@($capabilities.id | Select-Object -Unique).Count -eq $capabilities.Count) "Public capability ids must be unique."
-$scenarios = @("mcp_contract", "route_intent", "provider_operations", "evaluation_suite", "evaluation_prepare", "provider_contract", "release_activation_contract")
+$scenarios = @("mcp_contract", "route_intent", "provider_operations", "evaluation_suite", "evaluation_prepare", "evaluation_verify", "provider_contract", "release_activation_contract")
 foreach ($capability in $capabilities) {
     foreach ($name in @("id", "audience", "entry", "package_requirements", "scenario", "risk_tier")) {
         Assert-True ($capability.PSObject.Properties.Name -contains $name) "Public capability is missing $name."

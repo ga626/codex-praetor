@@ -544,6 +544,14 @@ if (Test-Path -LiteralPath $publicCapabilityTest -PathType Leaf) {
     } catch { Add-Fail "Public capability contract regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Public capability contract script missing: $publicCapabilityTest" }
 
+$taskMaterialTest = Join-Path $projectRoot "scripts\verify\test-evaluation-task-material.ps1"
+if (Test-Path -LiteralPath $taskMaterialTest -PathType Leaf) {
+    try {
+        $taskMaterialOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $taskMaterialTest -ProjectRoot $projectRoot
+        if ($LASTEXITCODE -eq 0 -and (($taskMaterialOutput | Out-String) -match "Evaluation task material")) { Add-Pass "Evaluation task material contract regression passes" } else { Add-Fail "Evaluation task material contract regression failed: $($taskMaterialOutput | Out-String)" }
+    } catch { Add-Fail "Evaluation task material contract regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Evaluation task material contract script missing: $taskMaterialTest" }
+
 $devIsolationTest = Join-Path $projectRoot "scripts\verify\test-dev-channel-isolation.ps1"
 if (Test-Path -LiteralPath $devIsolationTest -PathType Leaf) {
     try {

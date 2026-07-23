@@ -42,6 +42,22 @@ try {
   ]);
   assert.match(preparation, /plan_path/);
 
+  const bounded = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "bounded-test-fix", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
+  const boundedRecord = bounded as Record<string, unknown>;
+  assert.equal(bounded.ok, true, String(boundedRecord.stderr ?? boundedRecord.message ?? ""));
+  assert.equal(boundedRecord.task_kind, "code_change");
+  assert.match(String(boundedRecord.stdout ?? ""), /Task material destination: \.codex-praetor\/evaluation\/bounded-test-fix/);
+
+  const preparedPlanPath = path.join(planRoot, planId, "plan.json");
+  const boundedPlan = JSON.parse(readFileSync(preparedPlanPath, "utf8").replace(/^\uFEFF/, ""));
+  const boundedTask = boundedPlan.tasks.find((task: { task_id: string }) => task.task_id === "bounded-test-fix");
+  delete boundedTask.task_material;
+  writeFileSync(preparedPlanPath, `${JSON.stringify(boundedPlan, null, 2)}\n`, "utf8");
+  const missingMaterial = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "bounded-test-fix", provider: "qoder", dry_run: true });
+  const missingMaterialRecord = missingMaterial as Record<string, unknown>;
+  assert.equal(missingMaterial.ok, false);
+  assert.match(String(missingMaterialRecord.message ?? ""), /immutable task material/);
+
   const dispatched = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "fixed-profile-regression", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
   const dispatchedRecord = dispatched as Record<string, unknown>;
   assert.equal(dispatched.ok, true, String(dispatchedRecord.stderr ?? dispatchedRecord.message ?? ""));

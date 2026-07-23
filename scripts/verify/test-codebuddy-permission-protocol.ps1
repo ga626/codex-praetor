@@ -38,6 +38,7 @@ function Invoke-ProtocolFixture {
         "-DryRun"
     )
     if ($AllowNetwork) { $arguments += "-AllowWorkerNetwork" }
+    if ($TaskKind -eq "code_change") { $arguments += @("-TaskMaterialPath", $codeChangeMaterialPath) }
     if (-not [string]::IsNullOrWhiteSpace($WorktreeName)) {
         $arguments += @("-WorktreeName", $WorktreeName)
     }
@@ -82,6 +83,15 @@ try {
     $lockRoot = Join-Path $scratch "locks"
     $planRoot = Join-Path $scratch "plans"
     $scratchRoot = Join-Path $scratch "worker-scratch"
+    $initializer = Join-Path $root "scripts\evaluation\initialize-codex-praetor-evaluation.ps1"
+    & $initializer -ProjectRoot $root -Action Prepare -PlanRoot $planRoot -PlanId "permission-protocol" -Apply | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Unable to prepare immutable task material for the CodeBuddy permission fixture." }
+    $preparedPlan = Get-Content -LiteralPath (Join-Path $planRoot "permission-protocol\plan.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $codeChangeTask = @($preparedPlan.tasks | Where-Object { $_.task_id -eq "bounded-test-fix" })[0]
+    $codeChangeMaterialJson = $codeChangeTask.task_material | ConvertTo-Json -Compress -Depth 12
+    Assert-True (-not [string]::IsNullOrWhiteSpace($codeChangeMaterialJson)) "Permission fixture did not prepare immutable code-change material."
+    $codeChangeMaterialPath = Join-Path $scratch "code-change-task-material.json"
+    Set-Content -LiteralPath $codeChangeMaterialPath -Value $codeChangeMaterialJson -Encoding UTF8
 
     Invoke-ProtocolFixture -Mode "readonly" -TaskKind "local_audit" -ExpectedTools "Read,Glob,Grep"
     Invoke-ProtocolFixture -Mode "readonly" -TaskKind "test_execution" -ExpectedTools "Read,Glob,Grep,Bash"

@@ -36,7 +36,8 @@ import {
   routeIntentTool,
   runtimeInfoTool,
   statusTool,
-  verifyTaskTool
+  verifyTaskTool,
+  verifyEvaluationTaskTool
 } from "./tools.js";
 
 const readOnlyClosedWorld = {
@@ -67,7 +68,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.10.0-alpha"
+    version: "0.11.0-alpha"
   });
 
   server.registerTool(
@@ -429,6 +430,22 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(await dispatchPlanTaskTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_verify_evaluation_task",
+    {
+      title: "Independently Verify Codex Praetor Evaluation Task",
+      description: "Verify supplied task material, immutable files, write-set boundaries, and required checks in a worker worktree. This returns evidence only and never records Codex acceptance.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: z.string().min(1),
+        plan_id: z.string().min(1),
+        task_id: z.string().min(1),
+        worktree: z.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(await verifyEvaluationTaskTool(input))
   );
 
   server.registerTool(

@@ -47,7 +47,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.10.0-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.11.0-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -83,7 +83,7 @@ Required before release:
 
 - Packaged runtime imports successfully.
 - Protocol smoke can call route-intent, dry-run, lane listing, and conflict detection.
-- Protocol smoke can see the real dispatch loop tools: `codex_praetor_dispatch`, `codex_praetor_result`, `codex_praetor_next_ready`, `codex_praetor_dispatch_plan_task`, and `codex_praetor_verify_task`.
+- Protocol smoke can see the real dispatch loop tools: `codex_praetor_dispatch`, `codex_praetor_result`, `codex_praetor_next_ready`, `codex_praetor_dispatch_plan_task`, `codex_praetor_verify_evaluation_task`, and `codex_praetor_verify_task`.
 - A completed worker job does not automatically unblock dependent plan tasks; release validation must confirm plan tasks advance only after a Codex verification verdict.
 - `scripts/verify/reload-codex-praetor-mcp.ps1 -Json` reports what a separately started app-server resolves; it must state that it does not refresh Desktop.
 - `scripts/verify/probe-codex-praetor-mcp.ps1 -Json` is a separate-host thread probe, not proof that the current Desktop host changed.

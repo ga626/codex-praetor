@@ -31003,6 +31003,13 @@ function getEvaluationInitializerPath() {
   }
   return path.join(getScriptRoot(), "initialize-codex-praetor-evaluation.ps1");
 }
+function getEvaluationVerifierPath() {
+  const source = path.join(getProjectRoot(), "scripts", "evaluation", "verify-codex-praetor-task-material.ps1");
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getScriptRoot(), "verify-codex-praetor-task-material.ps1");
+}
 function getHealthScriptPath() {
   const source = path.join(getProjectRoot(), "scripts", "verify", "get-codex-praetor-health.ps1");
   if (existsSync(source)) {
@@ -31472,6 +31479,7 @@ function asRecord2(value) {
 }
 function evaluationSuiteTool() {
   const suitePath = getRuntimeDataPath("evaluation-suite.json");
+  const templateRoot = getRuntimeDataPath("evaluation-task-templates");
   const suite = asRecord2(JSON.parse(readFileSync2(suitePath, "utf8")));
   const tasks = Array.isArray(suite.tasks) ? suite.tasks.map(asRecord2) : [];
   return {
@@ -31501,12 +31509,13 @@ function evaluationSuiteTool() {
 async function prepareEvaluationTool(input) {
   const repo = resolveExistingRepo(input.repo);
   const suitePath = getRuntimeDataPath("evaluation-suite.json");
+  const templateRoot = getRuntimeDataPath("evaluation-task-templates");
   const initializerPath = getEvaluationInitializerPath();
   const planRoot = getPlanRoot(repo);
   const planScript = getPlanScriptPath();
   const planId = input.plan_id?.trim() || "";
   const prepared = await runPowerShell(
-    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", initializerPath, "-ProjectRoot", repo, "-SuitePath", suitePath, "-PlanRoot", planRoot, "-PlanScript", planScript, "-PlanId", planId, "-Action", "Prepare", "-Apply"],
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", initializerPath, "-ProjectRoot", repo, "-SuitePath", suitePath, "-TemplateRoot", templateRoot, "-PlanRoot", planRoot, "-PlanScript", planScript, "-PlanId", planId, "-Action", "Prepare", "-Apply"],
     { timeoutMs: 3e4 }
   );
   if (prepared.exitCode !== 0) {
@@ -31519,6 +31528,40 @@ async function prepareEvaluationTool(input) {
     throw new Error("Evaluation initializer returned an incomplete prepared plan.");
   }
   return { ok: true, repo, suite_path: suitePath, plan_id: String(summary.plan_id ?? ""), plan_path: String(summary.plan_path), task_ids: taskIds, policy: "Preparation writes only a project-local plan. It does not dispatch a worker or count as capability evidence." };
+}
+async function verifyEvaluationTaskTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const planPath = `${getPlanRoot(repo)}\\${input.plan_id}\\plan.json`;
+  const plan = asRecord2(JSON.parse(readFileSync2(planPath, "utf8")));
+  const tasks = Array.isArray(plan.tasks) ? plan.tasks.map(asRecord2) : [];
+  const task = tasks.find((candidate) => String(candidate.task_id ?? "") === input.task_id.trim());
+  if (!task || String(task.task_kind ?? "") !== "code_change") {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: input.task_id, message: "Only a prepared code-change task can use material verification." };
+  }
+  const material = asRecord2(task.task_material);
+  const completion = asRecord2(task.completion_definition);
+  const checks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
+  if (Object.keys(material).length === 0 || checks.length === 0) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: input.task_id, message: "Prepared task lacks immutable material or required checks." };
+  }
+  const result = await runPowerShell([
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    getEvaluationVerifierPath(),
+    "-Worktree",
+    input.worktree,
+    "-TaskMaterialJson",
+    JSON.stringify(material),
+    "-RequiredChecksJson",
+    JSON.stringify(checks)
+  ], { timeoutMs: 12e4 });
+  if (result.exitCode !== 0) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: input.task_id, exit_code: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+  }
+  const verification = asRecord2(JSON.parse(result.stdout.replace(/^\uFEFF/, "")));
+  return { ok: true, repo, plan_id: input.plan_id, task_id: input.task_id, verification, policy: "This is independent evidence only. Codex must still record the final accepted or rejected verdict." };
 }
 
 // src/explainable-routing.ts
@@ -31750,6 +31793,9 @@ function evaluationSuiteTool2() {
 async function prepareEvaluationTool2(input) {
   return prepareEvaluationTool(input);
 }
+async function verifyEvaluationTaskTool2(input) {
+  return verifyEvaluationTaskTool(input);
+}
 function explainableRouteTool2(input) {
   return explainableRouteTool(input);
 }
@@ -31926,6 +31972,7 @@ function buildDispatchArgs(input) {
   if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
   appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
   appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
+  if (input.task_material) args.push("-TaskMaterialJson", JSON.stringify(input.task_material));
   if (input.dry_run) {
     args.push("-DryRun");
   }
@@ -32661,11 +32708,15 @@ async function dispatchPlanTaskTool(input) {
   const completion = task.completion_definition && typeof task.completion_definition === "object" ? task.completion_definition : {};
   const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
   const budget = task.budget && typeof task.budget === "object" ? task.budget : {};
+  const taskMaterial = task.task_material && typeof task.task_material === "object" && !Array.isArray(task.task_material) ? task.task_material : void 0;
   if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
   }
   if (taskKind === "code_change" !== (mode === "edit") || taskKind === "test_execution" && mode !== "readonly") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task mode and task kind conflict; dispatch is blocked before worker launch." };
+  }
+  if (taskKind === "code_change" && !taskMaterial) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Code-change task lacks immutable task material; dispatch is blocked before worker launch." };
   }
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
@@ -32690,6 +32741,7 @@ async function dispatchPlanTaskTool(input) {
     budget,
     failure_injection: String(task.failure_injection ?? ""),
     sensitivity: String(task.sensitivity ?? ""),
+    task_material: taskMaterial,
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });
@@ -32767,7 +32819,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.10.0-alpha"
+    version: "0.11.0-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -33107,6 +33159,21 @@ function createServer() {
       }
     },
     async (input) => asJsonContent(await dispatchPlanTaskTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_verify_evaluation_task",
+    {
+      title: "Independently Verify Codex Praetor Evaluation Task",
+      description: "Verify supplied task material, immutable files, write-set boundaries, and required checks in a worker worktree. This returns evidence only and never records Codex acceptance.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1),
+        task_id: external_exports.string().min(1),
+        worktree: external_exports.string().min(1)
+      }
+    },
+    async (input) => asJsonContent(await verifyEvaluationTaskTool2(input))
   );
   server.registerTool(
     "codex_praetor_verify_task",

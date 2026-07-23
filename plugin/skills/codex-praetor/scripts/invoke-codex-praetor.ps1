@@ -23,6 +23,8 @@
 
     [switch]$DryRun,
 
+    [switch]$PreflightOnly,
+
     [switch]$PreferQoder,
 
     [int]$MaxTurns = 8,
@@ -105,12 +107,21 @@
 
     [string]$Sensitivity = "",
 
+    [string]$TaskMaterialJson = "",
+
+    [string]$TaskMaterialPath = "",
+
     [switch]$AllowWorkerNetwork,
 
     [switch]$CapabilityCanary
 )
 
 $ErrorActionPreference = "Stop"
+if (-not [string]::IsNullOrWhiteSpace($TaskMaterialJson) -and -not [string]::IsNullOrWhiteSpace($TaskMaterialPath)) { throw "Specify either TaskMaterialJson or TaskMaterialPath, not both." }
+if (-not [string]::IsNullOrWhiteSpace($TaskMaterialPath)) {
+    if (-not (Test-Path -LiteralPath $TaskMaterialPath -PathType Leaf)) { throw "TaskMaterialPath does not exist: $TaskMaterialPath" }
+    $TaskMaterialJson = Get-Content -LiteralPath $TaskMaterialPath -Raw -Encoding UTF8
+}
 if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { $AllowedPath = @($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
 if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { $ForbiddenPath = @($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
 if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { $RequiredCheck = @($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
@@ -166,6 +177,97 @@ function Get-FileSha256 {
             return (([System.BitConverter]::ToString($sha256.ComputeHash($stream))).Replace("-", "").ToLowerInvariant())
         } finally { $sha256.Dispose() }
     } finally { $stream.Dispose() }
+}
+
+function Get-SafeRelativePath {
+    param([Parameter(Mandatory = $true)][string]$PathValue)
+    $normalized = $PathValue.Replace('/', '\\').Trim()
+    if ([string]::IsNullOrWhiteSpace($normalized) -or [IO.Path]::IsPathRooted($normalized)) {
+        throw "Task material path must be a non-empty relative path: $PathValue"
+    }
+    $parts = @($normalized -split '\\' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($parts.Count -eq 0 -or @($parts | Where-Object { $_ -in @('.', '..') }).Count -gt 0) {
+        throw "Task material path escapes its declared root: $PathValue"
+    }
+    return ($parts -join '\\')
+}
+
+function Join-CheckedChildPath {
+    param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$RelativePath)
+    $rootFull = [IO.Path]::GetFullPath($Root)
+    $childFull = [IO.Path]::GetFullPath((Join-Path $rootFull (Get-SafeRelativePath -PathValue $RelativePath)))
+    $prefix = $rootFull.TrimEnd('\\') + [IO.Path]::DirectorySeparatorChar
+    if (-not $childFull.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Task material path escapes its declared root: $RelativePath"
+    }
+    return $childFull
+}
+
+function ConvertTo-TaskMaterial {
+    param([string]$Json)
+    if ([string]::IsNullOrWhiteSpace($Json)) { return $null }
+    try { $material = $Json | ConvertFrom-Json } catch { throw "TaskMaterialJson is not valid JSON." }
+    foreach ($name in @('schema', 'source_root', 'destination', 'write_set', 'immutable_paths', 'baseline_command', 'baseline_exit_code', 'files', 'manifest_sha256')) {
+        if (-not ($material.PSObject.Properties.Name -contains $name)) { throw "Task material is missing $name." }
+    }
+    if ([string]$material.schema -ne 'codex-praetor-task-material-instance/v1') { throw "Task material schema is not supported." }
+    if ([string]::IsNullOrWhiteSpace([string]$material.baseline_command) -or [int]$material.baseline_exit_code -lt 1) { throw "Task material baseline contract is invalid." }
+    if (@($material.files).Count -eq 0 -or @($material.write_set).Count -eq 0 -or @($material.immutable_paths).Count -eq 0) { throw "Task material file, write-set, or immutable-path contract is empty." }
+    $destination = Get-SafeRelativePath -PathValue ([string]$material.destination)
+    foreach ($pathValue in @($material.write_set) + @($material.immutable_paths)) {
+        $relative = Get-SafeRelativePath -PathValue ([string]$pathValue)
+        if (-not $relative.StartsWith($destination + '\\', [StringComparison]::OrdinalIgnoreCase)) { throw "Task material path is outside its destination: $pathValue" }
+    }
+    return $material
+}
+
+function Test-TaskMaterialSource {
+    param([Parameter(Mandatory = $true)][object]$Material)
+    $sourceRoot = [string]$Material.source_root
+    if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) { throw "Task material source root is missing: $sourceRoot" }
+    $manifestPath = Join-Path $sourceRoot 'material-manifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or (Get-FileSha256 -Path $manifestPath) -ne [string]$Material.manifest_sha256) {
+        throw "Task material manifest hash mismatch."
+    }
+    foreach ($entry in @($Material.files)) {
+        if (-not ($entry.PSObject.Properties.Name -contains 'path') -or -not ($entry.PSObject.Properties.Name -contains 'sha256')) { throw "Task material file manifest is malformed." }
+        $source = Join-CheckedChildPath -Root $sourceRoot -RelativePath ([string]$entry.path)
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Task material file is missing: $($entry.path)" }
+        if ((Get-FileSha256 -Path $source) -ne [string]$entry.sha256) { throw "Task material hash mismatch: $($entry.path)" }
+    }
+}
+
+function Inject-TaskMaterial {
+    param([Parameter(Mandatory = $true)][object]$Material, [Parameter(Mandatory = $true)][string]$ExecutionRoot)
+    Test-TaskMaterialSource -Material $Material
+    $destination = Get-SafeRelativePath -PathValue ([string]$Material.destination)
+    $destinationRoot = Join-CheckedChildPath -Root $ExecutionRoot -RelativePath $destination
+    if (Test-Path -LiteralPath $destinationRoot) { throw "Task material destination already exists in the isolated worktree: $destination. Refuse to overwrite prior evidence." }
+    New-Item -ItemType Directory -Path $destinationRoot -Force | Out-Null
+    foreach ($entry in @($Material.files)) {
+        $source = Join-CheckedChildPath -Root ([string]$Material.source_root) -RelativePath ([string]$entry.path)
+        $target = Join-CheckedChildPath -Root $destinationRoot -RelativePath ([string]$entry.path)
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $target -Force
+        if ((Get-FileSha256 -Path $target) -ne [string]$entry.sha256) { throw "Injected task material hash mismatch: $($entry.path)" }
+    }
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = $env:ComSpec
+    $processInfo.Arguments = "/d /s /c $([string]$Material.baseline_command)"
+    $processInfo.WorkingDirectory = $ExecutionRoot
+    $processInfo.UseShellExecute = $false
+    $processInfo.RedirectStandardOutput = $true
+    $processInfo.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($processInfo)
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    [void]$process.WaitForExit()
+    [void]$stdoutTask.GetAwaiter().GetResult()
+    [void]$stderrTask.GetAwaiter().GetResult()
+    $baselineExitCode = $process.ExitCode
+    [void]$process.Dispose()
+    if ($baselineExitCode -ne [int]$Material.baseline_exit_code) { throw "Task material baseline exit code was $baselineExitCode, expected $($Material.baseline_exit_code). Worker launch is blocked." }
+    return [ordered]@{ schema = [string]$Material.schema; destination = $destination.Replace('\\', '/'); write_set = @($Material.write_set); immutable_paths = @($Material.immutable_paths); baseline_command = [string]$Material.baseline_command; baseline_exit_code = [int]$Material.baseline_exit_code; baseline_observed_exit_code = $baselineExitCode; files = @($Material.files); manifest_sha256 = [string]$Material.manifest_sha256 }
 }
 
 $runtimeContractPath = [string]$runtimeContractPath[0]
@@ -957,6 +1059,9 @@ if ($TaskKind -eq "external_research") {
 if ($TaskKind -eq "code_change" -and $Mode -ne "edit") {
     throw "code_change requires -Mode edit so the worker contract cannot be mistaken for a readonly audit."
 }
+if ($TaskKind -eq "code_change" -and [string]::IsNullOrWhiteSpace($TaskMaterialJson)) {
+    throw "code_change requires immutable task material; dispatch is blocked before worker launch."
+}
 if ($TaskKind -eq "test_execution" -and $Mode -ne "readonly") {
     throw "test_execution requires -Mode readonly. It may run only the declared checks and must not receive edit tools."
 }
@@ -975,7 +1080,7 @@ if ([string]::IsNullOrWhiteSpace($ScratchRoot)) {
     $ScratchRoot = Join-Path $ProjectArtifactRoot "scratch"
 }
 
-if (-not $DryRun -and -not $CapabilityCanary) {
+if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
     $healthScript = Join-Path $scriptDir "get-codex-praetor-health.ps1"
     if (-not (Test-Path -LiteralPath $healthScript -PathType Leaf)) {
         $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
@@ -1101,7 +1206,7 @@ $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
 } else {
     [System.IO.Path]::GetFullPath($ReadinessPath)
 }
-if (-not $DryRun -and -not $CapabilityCanary) {
+if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind
     if (-not $readiness.ok) {
         throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Run test-provider-capability-canary.ps1 for the exact provider tuple first."
@@ -1123,6 +1228,16 @@ try {
             $executionRepo = Get-WorkerWorktreePath -RepoPath $Repo -Name $WorktreeName
         } else {
             $executionRepo = Ensure-WorkerWorktree -RepoPath $Repo -Name $WorktreeName
+        }
+    }
+    $taskMaterial = if ([string]::IsNullOrWhiteSpace($TaskMaterialJson)) { $null } else { ConvertTo-TaskMaterial -Json $TaskMaterialJson }
+    $taskMaterialEvidence = $null
+    if ($null -ne $taskMaterial) {
+        if ($DryRun) {
+            Test-TaskMaterialSource -Material $taskMaterial
+            $taskMaterialEvidence = [ordered]@{ schema = [string]$taskMaterial.schema; destination = (Get-SafeRelativePath -PathValue ([string]$taskMaterial.destination)).Replace('\\', '/'); write_set = @($taskMaterial.write_set); immutable_paths = @($taskMaterial.immutable_paths); baseline_command = [string]$taskMaterial.baseline_command; baseline_exit_code = [int]$taskMaterial.baseline_exit_code; files = @($taskMaterial.files); manifest_sha256 = [string]$taskMaterial.manifest_sha256; preflight = 'validated_dry_run' }
+        } else {
+            $taskMaterialEvidence = Inject-TaskMaterial -Material $taskMaterial -ExecutionRoot $executionRepo
         }
     }
     $dependencyBootstrap = if ($DryRun) { if ($TaskKind -eq "code_change") { "mcp_npm_ci_if_mcp_lock_present" } else { "not_required" } } else { Initialize-WorkerDependencyBootstrap -WorkingDirectory $executionRepo -TaskKindName $TaskKind }
@@ -1147,6 +1262,7 @@ try {
         budget = if ([string]::IsNullOrWhiteSpace($BudgetJson)) { $null } else { $BudgetJson | ConvertFrom-Json }
         failure_injection = $FailureInjection
         sensitivity = $Sensitivity
+        task_material = $taskMaterialEvidence
         worker_network = if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }
         research_contract = $researchContract
         acceptance = $Acceptance
@@ -1160,6 +1276,14 @@ try {
     if (-not $DryRun) {
         New-Item -ItemType Directory -Path $ScratchRoot -Force | Out-Null
         Set-Content -LiteralPath $contractPath -Value $contractJson -Encoding UTF8
+    }
+
+    if ($PreflightOnly) {
+        Write-Output "preflight=passed"
+        Write-Output "execution_worktree=$executionRepo"
+        Write-Output "contract_path=$contractPath"
+        Write-Output "task_material_manifest_sha256=$($taskMaterialEvidence.manifest_sha256)"
+        return
     }
 
     $networkRule = if ($AllowWorkerNetwork) {
@@ -1192,11 +1316,14 @@ Allowed paths: $(@($AllowedPath) -join ', ')
 Forbidden paths: $(@($ForbiddenPath) -join ', ')
 Required checks: $(@($RequiredCheck) -join ' | ')
 Failure injection: $FailureInjection
+Task material destination: $(if ($null -eq $taskMaterialEvidence) { '' } else { [string]$taskMaterialEvidence.destination })
+Declared write set: $(if ($null -eq $taskMaterialEvidence) { '' } else { @($taskMaterialEvidence.write_set) -join ', ' })
 
 Rules:
 - Complete only this task.
 $networkRule
 - You may read, search, edit, and run only the actions necessary for the task contract inside this worktree.
+- For code_change, repair the supplied material only. Do not replace tests, alter immutable files, or create your own test harness.
 - For test_execution, run only the declared required checks. Do not edit or create source files; report each check's exit code exactly.
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the execution worktree or the project artifact root unless Codex explicitly allowed another path.

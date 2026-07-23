@@ -43,6 +43,14 @@
       "risk_tier": "deterministic_artifact"
     },
     {
+      "id": "evaluation.verify",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_verify_evaluation_task" },
+      "package_requirements": ["plugin/data/evaluation-suite.json", "plugin/data/evaluation-task-templates/bounded-test-fix/test.ps1", "plugin/skills/codex-praetor/scripts/verify-codex-praetor-task-material.ps1", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1"],
+      "scenario": "evaluation_verify",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
       "id": "provider.dispatch",
       "audience": "installed_plugin",
       "entry": { "kind": "mcp_tool", "name": "codex_praetor_dispatch" },
