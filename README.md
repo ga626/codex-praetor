@@ -6,13 +6,13 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy。Codex 仍然负责规划、风险判断、整合结果和最终验收。
 
-当前产品化目标版本是 **0.9.9-alpha**。这一版把发布影响 PR、版本一致性、不可变 Release 和合并后自动远端复验串成一个闭环；本机 Desktop host 仍按 fresh-context 边界单独验收。
+当前产品化目标版本是 **0.10.0-alpha**。这一版把发布影响 PR、版本一致性、不可变 Release 和合并后自动远端复验串成一个闭环；本机 Desktop host 仍按 fresh-context 边界单独验收。
 
 本版还新增只读能力画像：它按具体 provider、模型、权限和任务类型汇总真实尝试与 Codex 验收结论，帮助你看清证据；它不会在未经后续验证前擅自改变默认派工。
 
 同时新增真实任务评测合同：每项任务都有隔离范围、确定性验收、预算和失败注入；准备任务不会被误当成 provider 已通过评测。
 
-[下载 0.9.9-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.9.9-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
+[下载 0.10.0-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.10.0-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
 
 ## 适合你吗
 
@@ -33,14 +33,14 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 普通 Windows 用户不需要打开 PowerShell。下载并解压 Release 包后，直接双击根目录里的 `setup.cmd`，按中文向导操作即可。
 
-1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.9.9-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.9.9-alpha.zip`。
+1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.10.0-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.10.0-alpha.zip`。
 
    如果你更习惯 PowerShell，也可以运行：
 
    ```powershell
-   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.9-alpha/codex-praetor-setup-0.9.9-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.9-alpha.zip"
-   Expand-Archive .\codex-praetor-setup-0.9.9-alpha.zip .\codex-praetor-setup-0.9.9-alpha
-   cd .\codex-praetor-setup-0.9.9-alpha
+   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.10.0-alpha/codex-praetor-setup-0.10.0-alpha.zip" -OutFile ".\codex-praetor-setup-0.10.0-alpha.zip"
+   Expand-Archive .\codex-praetor-setup-0.10.0-alpha.zip .\codex-praetor-setup-0.10.0-alpha
+   cd .\codex-praetor-setup-0.10.0-alpha
    ```
 
 2. 双击 `setup.cmd`。

@@ -1,0 +1,62 @@
+{
+  "schema": "codex-praetor-public-capabilities/v1",
+  "product": "codex-praetor",
+  "capabilities": [
+    {
+      "id": "mcp.runtime-contract",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_contract" },
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/runtime-contract.json"],
+      "scenario": "mcp_contract",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
+      "id": "routing.intent",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_route_intent" },
+      "package_requirements": ["plugin/mcp/dist/server.js"],
+      "scenario": "route_intent",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
+      "id": "provider.operations",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_provider_operations" },
+      "package_requirements": ["plugin/data/provider-onboarding-checklist.json", "plugin/data/provider-adapters/qoder.json", "plugin/data/provider-adapters/codebuddy.json"],
+      "scenario": "provider_operations",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
+      "id": "evaluation.read",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_evaluation_suite" },
+      "package_requirements": ["plugin/data/evaluation-suite.json"],
+      "scenario": "evaluation_suite",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
+      "id": "evaluation.prepare",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_prepare_evaluation" },
+      "package_requirements": ["plugin/data/evaluation-suite.json", "plugin/skills/codex-praetor/scripts/initialize-codex-praetor-evaluation.ps1", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1"],
+      "scenario": "evaluation_prepare",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
+      "id": "provider.dispatch",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_dispatch" },
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/scripts/invoke-codex-praetor.ps1"],
+      "scenario": "provider_contract",
+      "risk_tier": "external_provider"
+    },
+    {
+      "id": "release.activation",
+      "audience": "release_bundle",
+      "entry": { "kind": "release_installer", "path": "scripts/release/activate-published-codex-praetor-release.ps1" },
+      "package_requirements": ["scripts/release/activate-published-codex-praetor-release.ps1", "scripts/install/install-user.ps1"],
+      "scenario": "release_activation_contract",
+      "risk_tier": "deterministic_artifact"
+    }
+  ]
+}

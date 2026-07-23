@@ -1,0 +1,124 @@
+{
+  "schema": "codex-praetor-research-evidence/v1",
+  "report": "Codex执政官发布能力闭环考古与稳定开发流程重构报告-2026-07-23.md",
+  "scope": "read_only_archaeology_and_external_research",
+  "generated_at": "2026-07-23",
+  "access_paths": [
+    {
+      "kind": "native_mcp",
+      "tool": "mcp__knowledgeradar__health_check",
+      "fact": "KnowledgeRadar native MCP tool surface was available and health summary was ok."
+    },
+    {
+      "kind": "native_mcp",
+      "tool": "mcp__knowledgeradar__kr_research",
+      "fact": "Deep research route selected generic web and GitHub repository evidence; no browser login or account action was used."
+    }
+  ],
+  "local_evidence": [
+    {
+      "path": "AGENTS.md",
+      "fact": "plugin is the final installable product; repository checkout is not the installation directory; release-impact changes require final stage/zip validation."
+    },
+    {
+      "path": "C:/Users/ga990/.codex/AGENTS.md",
+      "fact": "Global rules already require same-artifact publication, remote verification and accurate post-merge states."
+    },
+    {
+      "path": ".github/workflows/release-pipeline.yml",
+      "fact": "PR candidate and main publication use the same shared pipeline, including final artifact runtime acceptance and historical mutation checks."
+    },
+    {
+      "path": "scripts/release/build-codex-praetor-release.ps1",
+      "fact": "The release zip includes both plugin and source scripts, while installation promotes plugin as the stable product surface."
+    },
+    {
+      "path": "scripts/verify/test-release-artifact-runtime.ps1",
+      "fact": "Final zip acceptance starts bundled MCP, validates runtime identity and probes packaged canary bootstrap, but does not execute a generic public-capability scenario registry."
+    },
+    {
+      "path": "mcp/scripts/smoke-plugin-mcp.js",
+      "fact": "Bundled MCP smoke verifies tool names, contract identity, provider operations data and evaluation-suite read access."
+    },
+    {
+      "path": "scripts/verify/test-runtime-contract-mutations.ps1",
+      "fact": "Known data-loss incidents are guarded by manual mutations for runtime contract, evaluation suite and provider operations data."
+    },
+    {
+      "path": "scripts/evaluation/initialize-codex-praetor-evaluation.ps1",
+      "fact": "The source-only evaluation initializer preserves classified task contracts and can prepare a durable plan."
+    },
+    {
+      "path": "plugin/skills/codex-praetor/scripts",
+      "fact": "The stable plugin script directory does not contain initialize-codex-praetor-evaluation.ps1."
+    },
+    {
+      "path": "mcp/src/server.ts",
+      "fact": "MCP exposes codex_praetor_evaluation_suite but no prepare-evaluation equivalent."
+    },
+    {
+      "path": "mcp/src/tools.ts",
+      "fact": "Generic plan creation is separate from the evaluation initializer and cannot provide the latter's classified contract by itself."
+    },
+    {
+      "path": "docs/release/release-notes-0.9.4-alpha.md through docs/release/release-notes-0.9.9-alpha.md",
+      "fact": "Five post-feature repairs document provider-data packaging, evaluation-data packaging, task-kind loss, provider scope change and packaged canary bootstrap."
+    },
+    {
+      "path": "GitHub PR #39 through #47",
+      "fact": "The four capability PRs and five subsequent repairs were merged sequentially on 2026-07-22 and 2026-07-23."
+    }
+  ],
+  "external_evidence": [
+    {
+      "url": "https://docs.github.com/en/actions/concepts/security/artifact-attestations",
+      "source": "GitHub Docs",
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "strength": "official",
+      "fact": "Artifact attestations bind an artifact to build provenance but must be verified and do not themselves prove the artifact is secure or functionally correct.",
+      "use_in_report": "Separate artifact identity assurance from capability completion assurance."
+    },
+    {
+      "url": "https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases",
+      "source": "GitHub Docs",
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "strength": "official",
+      "fact": "Immutable releases lock release assets and tags; GitHub recommends attaching all assets to a draft before publication.",
+      "use_in_report": "Catch internal product gaps before merge/publication instead of replacing release assets later."
+    },
+    {
+      "url": "https://slsa.dev/spec/v1.2/distributing-provenance",
+      "source": "SLSA specification",
+      "access_path": "native_mcp",
+      "tool": "extract_web_page",
+      "strength": "official_standard",
+      "fact": "Provenance should accompany the artifact and be bound to it; provenance and artifact verification are separate from policy/content evaluation.",
+      "use_in_report": "Retain same-artifact release evidence while adding functional scenario evidence."
+    },
+    {
+      "url": "https://github.com/modelcontextprotocol/inspector",
+      "source": "Model Context Protocol Inspector",
+      "access_path": "native_mcp",
+      "tool": "search_github_repositories",
+      "strength": "upstream_implementation",
+      "fact": "The upstream Inspector describes itself as a visual testing tool for MCP servers; its README documents running it against a built server command.",
+      "use_in_report": "Support protocol-level testing of the bundled MCP rather than relying only on source functions."
+    },
+    {
+      "url": "https://docs.pact.io/",
+      "source": "Pact documentation",
+      "access_path": "native_mcp",
+      "tool": "kr_web_search",
+      "strength": "vendor_documentation",
+      "fact": "Contract tests capture a shared understanding of consumer/provider behavior instead of relying only on broad integration tests.",
+      "use_in_report": "Model public capability scenarios as executable contracts."
+    }
+  ],
+  "known_limits": [
+    "No source can prove Qoder, CodeBuddy, Codex Desktop, GitHub or the network will never change externally.",
+    "This report identifies a verified evaluation-preparation gap and structural test gaps; it does not claim that every future product bug has already been enumerated.",
+    "No real provider dispatch was performed in this read-only report task."
+  ]
+}

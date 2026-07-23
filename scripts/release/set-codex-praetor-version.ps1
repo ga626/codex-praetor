@@ -51,6 +51,7 @@ $textFiles = @(
 )
 $runtimeDataSources = @(
     "config\evaluation-suite.json",
+    "config\public-capabilities.json",
     "config\provider-onboarding-checklist.json",
     "config\provider-adapters\qoder.json",
     "config\provider-adapters\codebuddy.json"

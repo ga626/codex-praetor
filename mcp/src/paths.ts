@@ -35,6 +35,14 @@ export function getPlanScriptPath(): string {
   return path.join(getScriptRoot(), "manage-codex-praetor-plan.ps1");
 }
 
+export function getEvaluationInitializerPath(): string {
+  const source = path.join(getProjectRoot(), "scripts", "evaluation", "initialize-codex-praetor-evaluation.ps1");
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getScriptRoot(), "initialize-codex-praetor-evaluation.ps1");
+}
+
 export function getHealthScriptPath(): string {
   const source = path.join(getProjectRoot(), "scripts", "verify", "get-codex-praetor-health.ps1");
   if (existsSync(source)) {

@@ -40,7 +40,14 @@ try {
     $dataStderr = Join-Path $scratch "provider-data.stderr.log"
     $dataProcess = Start-Process -FilePath "node" -ArgumentList $arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $dataStdout -RedirectStandardError $dataStderr
     Assert-True ($dataProcess.ExitCode -ne 0) "Removing packaged provider operations data must fail final runtime acceptance."
-    Write-Host "[PASS] Contract, evaluation-suite, and provider-operations runtime-data fault injection are killed by the final artifact mutation gate."
+
+    Copy-Item -LiteralPath (Join-Path $root "plugin\data") -Destination (Join-Path $pluginRoot "data") -Recurse -Force
+    Remove-Item -LiteralPath (Join-Path $pluginRoot "data\public-capabilities.json") -Force
+    $capabilitiesStdout = Join-Path $scratch "capabilities.stdout.log"
+    $capabilitiesStderr = Join-Path $scratch "capabilities.stderr.log"
+    $capabilitiesProcess = Start-Process -FilePath "node" -ArgumentList $arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $capabilitiesStdout -RedirectStandardError $capabilitiesStderr
+    Assert-True ($capabilitiesProcess.ExitCode -ne 0) "Removing the packaged public capability manifest must fail final runtime acceptance."
+    Write-Host "[PASS] Contract, evaluation-suite, provider data, and public-capability manifest fault injection are killed by the final artifact mutation gate."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
 }

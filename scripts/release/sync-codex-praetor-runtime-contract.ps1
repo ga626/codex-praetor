@@ -17,6 +17,7 @@ $derived = @(
 )
 $runtimeData = @(
     [ordered]@{ source = "config\evaluation-suite.json"; target = "plugin\data\evaluation-suite.json" },
+    [ordered]@{ source = "config\public-capabilities.json"; target = "plugin\data\public-capabilities.json" },
     [ordered]@{ source = "config\provider-onboarding-checklist.json"; target = "plugin\data\provider-onboarding-checklist.json" },
     [ordered]@{ source = "config\provider-adapters\qoder.json"; target = "plugin\data\provider-adapters\qoder.json" },
     [ordered]@{ source = "config\provider-adapters\codebuddy.json"; target = "plugin\data\provider-adapters\codebuddy.json" }

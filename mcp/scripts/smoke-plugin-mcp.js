@@ -2,7 +2,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,6 +53,37 @@ function readExpectedContract() {
   };
 }
 
+function readPublicCapabilities() {
+  const pluginData = path.join(repo, "plugin", "data", "public-capabilities.json");
+  const runtimeData = path.join(repo, "data", "public-capabilities.json");
+  const manifestPath = existsSync(pluginData) ? pluginData : runtimeData;
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Public capability manifest is missing: ${manifestPath}`);
+  }
+  const payload = JSON.parse(readFileSync(manifestPath, "utf8"));
+  if (payload.schema !== "codex-praetor-public-capabilities/v1" || !Array.isArray(payload.capabilities) || payload.capabilities.length === 0) {
+    throw new Error(`Public capability manifest is invalid: ${manifestPath}`);
+  }
+  const ids = payload.capabilities.map((item) => String(item?.id ?? ""));
+  if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
+    throw new Error("Public capability ids must be non-empty and unique.");
+  }
+  const supportedScenarios = new Set(["mcp_contract", "route_intent", "provider_operations", "evaluation_suite", "evaluation_prepare", "provider_contract", "release_activation_contract"]);
+  for (const capability of payload.capabilities) {
+    const scenario = String(capability?.scenario ?? "");
+    if (!supportedScenarios.has(scenario)) {
+      throw new Error(`Unsupported public-capability scenario: ${scenario}`);
+    }
+    for (const requirement of capability?.package_requirements ?? []) {
+      const requiredPath = path.join(repo, String(requirement));
+      if (!existsSync(requiredPath)) {
+        throw new Error(`Public capability ${capability.id} is missing packaged dependency: ${requirement}`);
+      }
+    }
+  }
+  return payload;
+}
+
 const expectedReadOnlyTools = [
   "codex_praetor_route_intent",
   "codex_praetor_dispatch_dry_run",
@@ -81,11 +112,17 @@ try {
 
   const tools = await client.listTools();
   const toolNames = tools.tools.map((tool) => tool.name);
+  const publicCapabilities = readPublicCapabilities();
   const expectedContract = readExpectedContract();
   const expectedToolNames = expectedContract ? expectedContract.payload.requiredMcpTools : requiredTools;
   const missingTools = expectedToolNames.filter((toolName) => !toolNames.includes(toolName));
   if (missingTools.length > 0) {
     throw new Error(`Missing MCP tools: ${missingTools.join(", ")}`);
+  }
+  for (const capability of publicCapabilities.capabilities) {
+    if (capability.entry?.kind === "mcp_tool" && !toolNames.includes(capability.entry.name)) {
+      throw new Error(`Public capability ${capability.id} points to a missing MCP tool: ${capability.entry.name}`);
+    }
   }
 
   for (const toolName of expectedReadOnlyTools) {
@@ -104,6 +141,10 @@ try {
     if (tool?.annotations?.readOnlyHint !== false || tool.annotations.destructiveHint !== false) {
       throw new Error(`Missing additive non-destructive annotations on MCP tool: ${toolName}`);
     }
+  }
+  const prepareTool = tools.tools.find((candidate) => candidate.name === "codex_praetor_prepare_evaluation");
+  if (prepareTool?.annotations?.readOnlyHint !== false || prepareTool.annotations.destructiveHint !== false) {
+    throw new Error("Missing additive non-destructive annotations on MCP tool: codex_praetor_prepare_evaluation");
   }
 
   const routeResult = await client.callTool({
@@ -133,6 +174,7 @@ try {
   ) {
     throw new Error(`Runtime identity is incomplete: ${JSON.stringify(runtimeInfoPayload)}`);
   }
+
   if (expectedVersion) {
     const contractVersion = runtimeInfoPayload.runtime_contract?.version;
     const serverVersion = typeof client.getServerVersion === "function" ? client.getServerVersion()?.version : "";
@@ -193,6 +235,25 @@ try {
     !String(evaluationSuitePayload.suite_path ?? "").replace(/\\/g, "/").endsWith("/data/evaluation-suite.json")
   ) {
     throw new Error(`Packaged evaluation suite data is missing or invalid: ${JSON.stringify(evaluationSuitePayload)}`);
+  }
+
+  const evaluationPrepareResult = await client.callTool({
+    name: "codex_praetor_prepare_evaluation",
+    arguments: {
+      repo,
+      plan_id: `capability-smoke-${process.pid}`
+    }
+  });
+  const evaluationPreparePayload = JSON.parse(evaluationPrepareResult.content?.[0]?.text ?? "{}");
+  if (evaluationPreparePayload.ok !== true || !Array.isArray(evaluationPreparePayload.task_ids) || evaluationPreparePayload.task_ids.length !== evaluationSuitePayload.tasks.length || !evaluationPreparePayload.plan_path) {
+    throw new Error(`Packaged evaluation preparation failed: ${JSON.stringify(evaluationPreparePayload)}`);
+  }
+  const preparedPlan = JSON.parse(readFileSync(evaluationPreparePayload.plan_path, "utf8").replace(/^\uFEFF/, ""));
+  if (
+    !Array.isArray(preparedPlan.tasks) ||
+    preparedPlan.tasks.some((task) => task.task_family === "unclassified" || !task.task_kind || !Array.isArray(task.allowed_paths) || !Array.isArray(task.forbidden_paths))
+  ) {
+    throw new Error(`Packaged evaluation preparation lost a dispatch contract: ${JSON.stringify(preparedPlan)}`);
   }
   if (observedOutputPath) {
     writeFileSync(observedOutputPath, `${JSON.stringify({

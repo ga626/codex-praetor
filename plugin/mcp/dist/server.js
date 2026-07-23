@@ -30996,6 +30996,13 @@ function getInvokeScriptPath() {
 function getPlanScriptPath() {
   return path.join(getScriptRoot(), "manage-codex-praetor-plan.ps1");
 }
+function getEvaluationInitializerPath() {
+  const source = path.join(getProjectRoot(), "scripts", "evaluation", "initialize-codex-praetor-evaluation.ps1");
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getScriptRoot(), "initialize-codex-praetor-evaluation.ps1");
+}
 function getHealthScriptPath() {
   const source = path.join(getProjectRoot(), "scripts", "verify", "get-codex-praetor-health.ps1");
   if (existsSync(source)) {
@@ -31491,6 +31498,28 @@ function evaluationSuiteTool() {
     }
   };
 }
+async function prepareEvaluationTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const suitePath = getRuntimeDataPath("evaluation-suite.json");
+  const initializerPath = getEvaluationInitializerPath();
+  const planRoot = getPlanRoot(repo);
+  const planScript = getPlanScriptPath();
+  const planId = input.plan_id?.trim() || "";
+  const prepared = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", initializerPath, "-ProjectRoot", repo, "-SuitePath", suitePath, "-PlanRoot", planRoot, "-PlanScript", planScript, "-PlanId", planId, "-Action", "Prepare", "-Apply"],
+    { timeoutMs: 3e4 }
+  );
+  if (prepared.exitCode !== 0) {
+    return { ok: false, exit_code: prepared.exitCode, stderr: prepared.stderr, stdout: prepared.stdout };
+  }
+  const summary = asRecord2(JSON.parse(prepared.stdout.replace(/^\uFEFF/, "")));
+  const tasks = Array.isArray(summary.tasks) ? summary.tasks.map(asRecord2) : [];
+  const taskIds = tasks.map((task) => String(task.task_id ?? "")).filter(Boolean);
+  if (!String(summary.plan_path ?? "") || taskIds.length === 0) {
+    throw new Error("Evaluation initializer returned an incomplete prepared plan.");
+  }
+  return { ok: true, repo, suite_path: suitePath, plan_id: String(summary.plan_id ?? ""), plan_path: String(summary.plan_path), task_ids: taskIds, policy: "Preparation writes only a project-local plan. It does not dispatch a worker or count as capability evidence." };
+}
 
 // src/explainable-routing.ts
 function asString2(value) {
@@ -31717,6 +31746,9 @@ function capabilityProfilesTool2(input) {
 }
 function evaluationSuiteTool2() {
   return evaluationSuiteTool();
+}
+async function prepareEvaluationTool2(input) {
+  return prepareEvaluationTool(input);
 }
 function explainableRouteTool2(input) {
   return explainableRouteTool(input);
@@ -32735,7 +32767,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.9-alpha"
+    version: "0.10.0-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -32759,6 +32791,19 @@ function createServer() {
       inputSchema: {}
     },
     async () => asJsonContent(evaluationSuiteTool2())
+  );
+  server.registerTool(
+    "codex_praetor_prepare_evaluation",
+    {
+      title: "Prepare Codex Praetor Real Task Evaluation",
+      description: "Create a classified, project-local evaluation plan from the bundled suite. This does not dispatch a worker or change routing.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1).optional()
+      }
+    },
+    async (input) => asJsonContent(await prepareEvaluationTool2(input))
   );
   server.registerTool(
     "codex_praetor_explainable_route",

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { getRuntimeDataPath } from "./paths.js";
+import { getEvaluationInitializerPath, getPlanRoot, getPlanScriptPath, getRuntimeDataPath, resolveExistingRepo } from "./paths.js";
+import { runPowerShell } from "./powershell.js";
 
 type RecordValue = Record<string, unknown>;
 
@@ -34,4 +35,28 @@ export function evaluationSuiteTool() {
       default_routing_changed: false
     }
   };
+}
+
+/** Prepare the bundled evaluation suite without dispatching a worker. */
+export async function prepareEvaluationTool(input: { repo: string; plan_id?: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  const suitePath = getRuntimeDataPath("evaluation-suite.json");
+  const initializerPath = getEvaluationInitializerPath();
+  const planRoot = getPlanRoot(repo);
+  const planScript = getPlanScriptPath();
+  const planId = input.plan_id?.trim() || "";
+  const prepared = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", initializerPath, "-ProjectRoot", repo, "-SuitePath", suitePath, "-PlanRoot", planRoot, "-PlanScript", planScript, "-PlanId", planId, "-Action", "Prepare", "-Apply"],
+    { timeoutMs: 30_000 }
+  );
+  if (prepared.exitCode !== 0) {
+    return { ok: false, exit_code: prepared.exitCode, stderr: prepared.stderr, stdout: prepared.stdout };
+  }
+  const summary = asRecord(JSON.parse(prepared.stdout.replace(/^\uFEFF/, "")));
+  const tasks = Array.isArray(summary.tasks) ? summary.tasks.map(asRecord) : [];
+  const taskIds = tasks.map((task) => String(task.task_id ?? "")).filter(Boolean);
+  if (!String(summary.plan_path ?? "") || taskIds.length === 0) {
+    throw new Error("Evaluation initializer returned an incomplete prepared plan.");
+  }
+  return { ok: true, repo, suite_path: suitePath, plan_id: String(summary.plan_id ?? ""), plan_path: String(summary.plan_path), task_ids: taskIds, policy: "Preparation writes only a project-local plan. It does not dispatch a worker or count as capability evidence." };
 }

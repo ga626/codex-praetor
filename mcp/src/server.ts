@@ -17,6 +17,7 @@ import {
   detectConflictsTool,
   cancelJobTool,
   capabilityProfilesTool,
+  prepareEvaluationTool,
   evaluationSuiteTool,
   explainableRouteTool,
   providerOperationsTool,
@@ -66,7 +67,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.9-alpha"
+    version: "0.10.0-alpha"
   });
 
   server.registerTool(
@@ -92,6 +93,20 @@ export function createServer(): McpServer {
       inputSchema: {}
     },
     async () => asJsonContent(evaluationSuiteTool())
+  );
+
+  server.registerTool(
+    "codex_praetor_prepare_evaluation",
+    {
+      title: "Prepare Codex Praetor Real Task Evaluation",
+      description: "Create a classified, project-local evaluation plan from the bundled suite. This does not dispatch a worker or change routing.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: z.string().min(1),
+        plan_id: z.string().min(1).optional()
+      }
+    },
+    async (input) => asJsonContent(await prepareEvaluationTool(input))
   );
 
   server.registerTool(
