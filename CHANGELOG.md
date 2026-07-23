@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.6-alpha - 2026-07-23
+
+- Repaired the real-evaluation dispatch contract exposed after the `0.9.5-alpha` runtime-data recovery: deterministic test tasks now use a distinct read/search/Bash-only `test_execution` permission profile instead of being silently downgraded to a no-shell local audit.
+- Persisted evaluation task kind, path boundaries, required checks, budget, fault injection and sensitivity in the durable plan ledger; plan dispatch now fails closed when any of that contract is missing or inconsistent.
+- Added adapter, permission-protocol, plan round-trip and downgrade fault-injection coverage so a test-execution task cannot be dispatched as `local_audit`.
+- Made file-integrity checks portable across supported Windows PowerShell hosts, including the GitHub Windows runner; the evaluation regression now forces the no-`Get-FileHash` path before dispatching its fixed test task.
+
 ## 0.9.4-alpha - 2026-07-23
 
 - Recovered the `0.9.3-alpha` provider-operations release incident with a new immutable version; the published `0.9.3-alpha` artifact remains unchanged.

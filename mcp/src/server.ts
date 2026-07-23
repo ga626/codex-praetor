@@ -66,7 +66,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.5-alpha"
+    version: "0.9.6-alpha"
   });
 
   server.registerTool(
@@ -196,7 +196,7 @@ export function createServer(): McpServer {
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
-        task_kind: z.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        task_kind: z.enum(["local_audit", "test_execution", "code_change", "external_research_support"]).optional(),
         research_contract: researchContractSchema.optional()
       }
     },
@@ -216,7 +216,7 @@ export function createServer(): McpServer {
         tier: z.string().optional(),
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
-        task_kind: z.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        task_kind: z.enum(["local_audit", "test_execution", "code_change", "external_research_support"]).optional(),
         research_contract: researchContractSchema.optional(),
         plan_id: z.string().optional(),
         task_id: z.string().optional(),
@@ -407,10 +407,10 @@ export function createServer(): McpServer {
         task_id: z.string().min(1),
         provider: z.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
         tier: z.string().optional(),
-        mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
         max_turns: z.number().int().positive().max(80).optional(),
-        no_notify: z.boolean().optional()
+        no_notify: z.boolean().optional(),
+        dry_run: z.boolean().optional()
       }
     },
     async (input) => asJsonContent(await dispatchPlanTaskTool(input))

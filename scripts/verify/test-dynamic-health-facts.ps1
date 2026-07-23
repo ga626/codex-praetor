@@ -1,6 +1,7 @@
 ﻿param([string]$ProjectRoot = "")
 
 $ErrorActionPreference = "Stop"
+. (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) { $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
 $readiness = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-readiness-" + [Guid]::NewGuid().ToString("N") + ".json")
 $cli = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-cli-" + [Guid]::NewGuid().ToString("N") + ".bin")

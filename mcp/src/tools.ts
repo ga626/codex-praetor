@@ -24,8 +24,10 @@ import { explainableRouteTool as buildExplainableRoute } from "./explainable-rou
 import { providerOperationsTool as buildProviderOperations } from "./provider-operations.js";
 import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
 
+type WorkerTaskKind = "local_audit" | "test_execution" | "code_change" | "external_research_support";
+
 function assertResearchContract(input: {
-  task_kind?: "local_audit" | "code_change" | "external_research_support";
+  task_kind?: WorkerTaskKind;
   mode?: "readonly" | "edit";
   research_contract?: ResearchContract;
 }) {
@@ -185,7 +187,7 @@ export async function dispatchDryRunTool(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
-  task_kind?: "local_audit" | "code_change" | "external_research_support";
+  task_kind?: WorkerTaskKind;
   research_contract?: ResearchContract;
 }) {
   const repo = resolveExistingRepo(input.repo);
@@ -266,7 +268,7 @@ function buildDispatchArgs(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
-  task_kind?: "local_audit" | "code_change" | "external_research_support";
+  task_kind?: WorkerTaskKind;
   research_contract?: ResearchContract;
   dry_run?: boolean;
   plan_id?: string;
@@ -275,6 +277,13 @@ function buildDispatchArgs(input: {
   acceptance?: string;
   worktree_name?: string;
   max_turns?: number;
+  timeout_seconds?: number;
+  allowed_paths?: string[];
+  forbidden_paths?: string[];
+  required_checks?: string[];
+  budget?: Record<string, unknown>;
+  failure_injection?: string;
+  sensitivity?: string;
   no_notify?: boolean;
 }) {
   const args = [
@@ -310,6 +319,13 @@ function buildDispatchArgs(input: {
   appendOptionalStringArg(args, "-Acceptance", input.acceptance);
   appendOptionalStringArg(args, "-WorktreeName", input.worktree_name);
   appendOptionalNumberArg(args, "-MaxTurns", input.max_turns);
+  appendOptionalNumberArg(args, "-TimeoutSeconds", input.timeout_seconds);
+  if ((input.allowed_paths?.length ?? 0) > 0) args.push("-AllowedPathsJson", JSON.stringify(input.allowed_paths));
+  if ((input.forbidden_paths?.length ?? 0) > 0) args.push("-ForbiddenPathsJson", JSON.stringify(input.forbidden_paths));
+  if ((input.required_checks?.length ?? 0) > 0) args.push("-RequiredChecksJson", JSON.stringify(input.required_checks));
+  if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
+  appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
+  appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
 
   if (input.dry_run) {
     args.push("-DryRun");
@@ -466,7 +482,7 @@ export async function dispatchTool(input: {
   tier?: string;
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
-  task_kind?: "local_audit" | "code_change" | "external_research_support";
+  task_kind?: WorkerTaskKind;
   research_contract?: ResearchContract;
   plan_id?: string;
   task_id?: string;
@@ -474,6 +490,14 @@ export async function dispatchTool(input: {
   acceptance?: string;
   worktree_name?: string;
   max_turns?: number;
+  timeout_seconds?: number;
+  allowed_paths?: string[];
+  forbidden_paths?: string[];
+  required_checks?: string[];
+  budget?: Record<string, unknown>;
+  failure_injection?: string;
+  sensitivity?: string;
+  dry_run?: boolean;
   no_notify?: boolean;
 }) {
   const repo = resolveExistingRepo(input.repo);
@@ -1149,10 +1173,10 @@ export async function dispatchPlanTaskTool(input: {
   task_id: string;
   provider?: "auto" | "qoder" | "codebuddy" | "mimo";
   tier?: string;
-  mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
   max_turns?: number;
   no_notify?: boolean;
+  dry_run?: boolean;
 }) {
   const repo = resolveExistingRepo(input.repo);
   const taskId = input.task_id.trim();
@@ -1172,19 +1196,44 @@ export async function dispatchPlanTaskTool(input: {
   const title = String(task.title ?? "");
   const acceptance = String(task.acceptance ?? "");
   const dependsOn = Array.isArray(task.depends_on) ? (task.depends_on as unknown[]).map(String).join(",") : "";
+  const taskKind = String(task.task_kind ?? "") as WorkerTaskKind;
+  const mode = String(task.mode ?? "");
+  const allowedPaths = Array.isArray(task.allowed_paths) ? task.allowed_paths.map(String) : [];
+  const forbiddenPaths = Array.isArray(task.forbidden_paths) ? task.forbidden_paths.map(String) : [];
+  const completion = task.completion_definition && typeof task.completion_definition === "object" ? task.completion_definition as Record<string, unknown> : {};
+  const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
+  const budget = task.budget && typeof task.budget === "object" ? task.budget as Record<string, unknown> : {};
+  if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
+  }
+  if ((taskKind === "code_change") !== (mode === "edit") || (taskKind === "test_execution" && mode !== "readonly")) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task mode and task kind conflict; dispatch is blocked before worker launch." };
+  }
+  if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
+  }
   return dispatchTool({
     repo,
     task: title,
     provider: input.provider ?? "auto",
     tier: input.tier,
-    mode: input.mode ?? (String(task.mode ?? "") === "edit" ? "edit" : "readonly"),
+    mode: mode as "readonly" | "edit",
+    task_kind: taskKind,
     run_mode: input.run_mode ?? "background",
     plan_id: input.plan_id,
     task_id: taskId,
     depends_on: dependsOn,
     acceptance,
-    max_turns: input.max_turns,
-    no_notify: input.no_notify ?? true
+    max_turns: input.max_turns ?? (Number(budget.max_turns ?? 0) || undefined),
+    timeout_seconds: Number(budget.max_wall_seconds ?? 0) || undefined,
+    allowed_paths: allowedPaths,
+    forbidden_paths: forbiddenPaths,
+    required_checks: requiredChecks,
+    budget,
+    failure_injection: String(task.failure_injection ?? ""),
+    sensitivity: String(task.sensitivity ?? ""),
+    no_notify: input.no_notify ?? true,
+    dry_run: input.dry_run ?? false
   });
 }
 

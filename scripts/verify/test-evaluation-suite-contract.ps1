@@ -14,5 +14,13 @@ try {
     $plan = Get-Content -LiteralPath $prepared.plan_path -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True (@($plan.tasks).Count -eq @($preview.tasks).Count) "Prepared plan task count drifted from the suite."
     Assert-True (@($plan.tasks | Where-Object { [string]$_.task_family -eq "unclassified" }).Count -eq 0) "Prepared evaluation task was left unclassified."
-    Write-Host "[PASS] Evaluation suite contract prepares a bounded project-local plan without dispatching a worker."
+    $fixed = @($plan.tasks | Where-Object { [string]$_.task_family -eq "fixed_test_execution" })
+    Assert-True ($fixed.Count -gt 0 -and @($fixed | Where-Object { [string]$_.task_kind -ne "test_execution" }).Count -eq 0) "Fixed test tasks lost their test_execution kind in the prepared plan."
+    foreach ($task in @($plan.tasks)) {
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$task.task_kind)) "Prepared task $($task.task_id) lost task_kind."
+        Assert-True (@($task.allowed_paths).Count -gt 0 -and @($task.forbidden_paths).Count -gt 0) "Prepared task $($task.task_id) lost path boundaries."
+        Assert-True (@($task.completion_definition.required_checks).Count -gt 0) "Prepared task $($task.task_id) lost required checks."
+        Assert-True ([int]$task.budget.max_turns -gt 0 -and [int]$task.budget.max_wall_seconds -gt 0) "Prepared task $($task.task_id) lost its budget."
+    }
+    Write-Host "[PASS] Evaluation suite contract preserves the complete bounded dispatch contract in a project-local plan without dispatching a worker."
 } finally { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force } }

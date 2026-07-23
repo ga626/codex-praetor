@@ -13,6 +13,8 @@ param(
     [string]$TaskTitle = "",
     [ValidateSet("", "read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery", "unclassified")]
     [string]$TaskFamily = "",
+    [ValidateSet("", "local_audit", "test_execution", "code_change", "external_research")]
+    [string]$TaskKind = "",
     [string]$DependsOn = "",
     [ValidateSet("pending", "running", "awaiting_verification", "completed", "failed", "blocked", "new_problem", "skipped", "retryable", "needs_decision")]
     [string]$Status = "pending",
@@ -25,6 +27,12 @@ param(
     [string]$Mode = "",
     [string]$CompletionPath = "",
     [string]$Summary = "",
+    [string[]]$AllowedPath = @(),
+    [string[]]$ForbiddenPath = @(),
+    [string[]]$RequiredCheck = @(),
+    [string]$BudgetJson = "",
+    [string]$FailureInjection = "",
+    [string]$Sensitivity = "",
     [ValidateSet("", "accepted", "rejected", "retry", "human_required", "skipped")]
     [string]$VerificationVerdict = "",
     [string]$VerificationSummary = "",
@@ -112,6 +120,9 @@ function Read-Plan {
                 }
                 if (-not ($task.PSObject.Properties.Name -contains "attempts")) { $task | Add-Member -NotePropertyName attempts -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "write_set")) { $task | Add-Member -NotePropertyName write_set -NotePropertyValue @() }
+                if (-not ($task.PSObject.Properties.Name -contains "task_kind")) { $task | Add-Member -NotePropertyName task_kind -NotePropertyValue "" }
+                if (-not ($task.PSObject.Properties.Name -contains "allowed_paths")) { $task | Add-Member -NotePropertyName allowed_paths -NotePropertyValue @() }
+                if (-not ($task.PSObject.Properties.Name -contains "forbidden_paths")) { $task | Add-Member -NotePropertyName forbidden_paths -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "completion_definition")) { $task | Add-Member -NotePropertyName completion_definition -NotePropertyValue ([pscustomobject]@{ required_evidence = @(); required_checks = @(); success_predicate = "" }) }
                 if (-not ($task.PSObject.Properties.Name -contains "budget")) { $task | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ max_attempts = 1; max_turns = 8; max_wall_seconds = 1200 }) }
                 if (-not ($task.PSObject.Properties.Name -contains "stop_loss")) { $task | Add-Member -NotePropertyName stop_loss -NotePropertyValue ([pscustomobject]@{ on_tool_denied = "needs_decision"; on_write_set_overlap = "needs_decision"; on_missing_evidence = "needs_decision" }) }
@@ -187,6 +198,7 @@ function Upsert-Task {
             task_id = $Id
             title = ""
             task_family = "unclassified"
+            task_kind = ""
             depends_on = @()
             status = "pending"
             acceptance = ""
@@ -196,6 +208,8 @@ function Upsert-Task {
             tier = ""
             model = ""
             mode = ""
+            allowed_paths = @()
+            forbidden_paths = @()
             completion = ""
             summary = ""
             verification_verdict = ""
@@ -227,6 +241,13 @@ function Upsert-Task {
     if (-not [string]::IsNullOrWhiteSpace($TierValue)) { $existing.tier = $TierValue }
     if (-not [string]::IsNullOrWhiteSpace($ModelValue)) { $existing.model = $ModelValue }
     if (-not [string]::IsNullOrWhiteSpace($ModeValue)) { $existing.mode = $ModeValue }
+    if (-not [string]::IsNullOrWhiteSpace($TaskKind)) { $existing.task_kind = $TaskKind }
+    if ($AllowedPath.Count -gt 0) { $existing.allowed_paths = @($AllowedPath) }
+    if ($ForbiddenPath.Count -gt 0) { $existing.forbidden_paths = @($ForbiddenPath) }
+    if ($RequiredCheck.Count -gt 0) { $existing.completion_definition.required_checks = @($RequiredCheck) }
+    if (-not [string]::IsNullOrWhiteSpace($BudgetJson)) { try { $existing.budget = $BudgetJson | ConvertFrom-Json } catch { throw "BudgetJson is not valid JSON." } }
+    if (-not [string]::IsNullOrWhiteSpace($FailureInjection)) { Set-DynamicProperty -Target $existing -Name "failure_injection" -Value $FailureInjection }
+    if (-not [string]::IsNullOrWhiteSpace($Sensitivity)) { Set-DynamicProperty -Target $existing -Name "sensitivity" -Value $Sensitivity }
     if (-not [string]::IsNullOrWhiteSpace($CompletionValue)) { $existing.completion = $CompletionValue }
     if (-not [string]::IsNullOrWhiteSpace($SummaryValue)) { $existing.summary = $SummaryValue }
     $existing.updated_at = (Get-Date).ToString("o")

@@ -31477,9 +31477,13 @@ function evaluationSuiteTool() {
       task_id: String(task.task_id ?? ""),
       task_family: String(task.task_family ?? ""),
       mode: String(task.mode ?? ""),
+      task_kind: String(task.task_kind ?? ""),
       provider_candidates: Array.isArray(task.provider_candidates) ? task.provider_candidates.map(String) : [],
+      allowed_paths: Array.isArray(task.allowed_paths) ? task.allowed_paths.map(String) : [],
+      forbidden_paths: Array.isArray(task.forbidden_paths) ? task.forbidden_paths.map(String) : [],
       acceptance: String(task.acceptance ?? ""),
-      required_checks: Array.isArray(task.required_checks) ? task.required_checks.map(String) : []
+      required_checks: Array.isArray(task.required_checks) ? task.required_checks.map(String) : [],
+      budget: asRecord2(task.budget)
     })),
     policy: {
       prepared_plan_is_not_evidence: true,
@@ -31881,6 +31885,13 @@ function buildDispatchArgs(input) {
   appendOptionalStringArg(args, "-Acceptance", input.acceptance);
   appendOptionalStringArg(args, "-WorktreeName", input.worktree_name);
   appendOptionalNumberArg(args, "-MaxTurns", input.max_turns);
+  appendOptionalNumberArg(args, "-TimeoutSeconds", input.timeout_seconds);
+  if ((input.allowed_paths?.length ?? 0) > 0) args.push("-AllowedPathsJson", JSON.stringify(input.allowed_paths));
+  if ((input.forbidden_paths?.length ?? 0) > 0) args.push("-ForbiddenPathsJson", JSON.stringify(input.forbidden_paths));
+  if ((input.required_checks?.length ?? 0) > 0) args.push("-RequiredChecksJson", JSON.stringify(input.required_checks));
+  if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
+  appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
+  appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
   if (input.dry_run) {
     args.push("-DryRun");
   }
@@ -32609,19 +32620,44 @@ async function dispatchPlanTaskTool(input) {
   const title = String(task.title ?? "");
   const acceptance = String(task.acceptance ?? "");
   const dependsOn = Array.isArray(task.depends_on) ? task.depends_on.map(String).join(",") : "";
+  const taskKind = String(task.task_kind ?? "");
+  const mode = String(task.mode ?? "");
+  const allowedPaths = Array.isArray(task.allowed_paths) ? task.allowed_paths.map(String) : [];
+  const forbiddenPaths = Array.isArray(task.forbidden_paths) ? task.forbidden_paths.map(String) : [];
+  const completion = task.completion_definition && typeof task.completion_definition === "object" ? task.completion_definition : {};
+  const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
+  const budget = task.budget && typeof task.budget === "object" ? task.budget : {};
+  if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
+  }
+  if (taskKind === "code_change" !== (mode === "edit") || taskKind === "test_execution" && mode !== "readonly") {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task mode and task kind conflict; dispatch is blocked before worker launch." };
+  }
+  if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
+  }
   return dispatchTool({
     repo,
     task: title,
     provider: input.provider ?? "auto",
     tier: input.tier,
-    mode: input.mode ?? (String(task.mode ?? "") === "edit" ? "edit" : "readonly"),
+    mode,
+    task_kind: taskKind,
     run_mode: input.run_mode ?? "background",
     plan_id: input.plan_id,
     task_id: taskId,
     depends_on: dependsOn,
     acceptance,
-    max_turns: input.max_turns,
-    no_notify: input.no_notify ?? true
+    max_turns: input.max_turns ?? (Number(budget.max_turns ?? 0) || void 0),
+    timeout_seconds: Number(budget.max_wall_seconds ?? 0) || void 0,
+    allowed_paths: allowedPaths,
+    forbidden_paths: forbiddenPaths,
+    required_checks: requiredChecks,
+    budget,
+    failure_injection: String(task.failure_injection ?? ""),
+    sensitivity: String(task.sensitivity ?? ""),
+    no_notify: input.no_notify ?? true,
+    dry_run: input.dry_run ?? false
   });
 }
 async function verifyTaskTool(input) {
@@ -32697,7 +32733,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.5-alpha"
+    version: "0.9.6-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -32819,7 +32855,7 @@ function createServer() {
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
-        task_kind: external_exports.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        task_kind: external_exports.enum(["local_audit", "test_execution", "code_change", "external_research_support"]).optional(),
         research_contract: researchContractSchema.optional()
       }
     },
@@ -32838,7 +32874,7 @@ function createServer() {
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
-        task_kind: external_exports.enum(["local_audit", "code_change", "external_research_support"]).optional(),
+        task_kind: external_exports.enum(["local_audit", "test_execution", "code_change", "external_research_support"]).optional(),
         research_contract: researchContractSchema.optional(),
         plan_id: external_exports.string().optional(),
         task_id: external_exports.string().optional(),
@@ -33017,10 +33053,10 @@ function createServer() {
         task_id: external_exports.string().min(1),
         provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
         tier: external_exports.string().optional(),
-        mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
         max_turns: external_exports.number().int().positive().max(80).optional(),
-        no_notify: external_exports.boolean().optional()
+        no_notify: external_exports.boolean().optional(),
+        dry_run: external_exports.boolean().optional()
       }
     },
     async (input) => asJsonContent(await dispatchPlanTaskTool(input))

@@ -7,6 +7,7 @@
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "ensure-file-hash.ps1")
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $candidateRoot = $scriptDir
 $projectRoot = ""

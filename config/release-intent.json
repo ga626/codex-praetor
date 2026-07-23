@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.9.5-alpha",
-    "previous_version":  "0.9.4-alpha",
-    "tag":  "v0.9.5-alpha",
+    "version":  "0.9.6-alpha",
+    "previous_version":  "0.9.5-alpha",
+    "tag":  "v0.9.6-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.9.5-alpha.zip",
-    "reason":  "修复 0.9.3-alpha 发布事故：把 provider adapter 合同和 onboarding 清单随最终插件安装，并以最终 bundled MCP 的真实调用和故障注入阻断运行时数据缺失。"
+    "artifact":  "codex-praetor-setup-0.9.6-alpha.zip",
+    "reason":  "修复真实评测派工合同：固定测试任务以只读、可执行指定检查的 test_execution 合同派发，完整路径、检查、预算与故障注入合同在计划台账中持久化并 fail-closed。"
 }

@@ -14,9 +14,10 @@
   "permissions": {
     "mappings": [
       { "profile": "mimo-isolated-audit-v1", "provider_semantics": "Use Build in a disposable worktree. This is isolated-project work, not a filesystem-readonly promise." },
+      { "profile": "mimo-isolated-test-execution-v1", "provider_semantics": "Use Build in a disposable worktree solely to run declared deterministic checks. MiMo does not promise a filesystem-readonly tool mode, so Codex verifies the worktree diff and rejects edits." },
       { "profile": "edit-worktree-v1", "provider_semantics": "Use Build only in the disposable worker worktree for an approved code-change packet." }
     ],
-    "minimum_canaries": ["local_audit", "code_change"]
+    "minimum_canaries": ["local_audit", "test_execution", "code_change"]
   },
   "lifecycle": {
     "launch": "invoke-codex-praetor.ps1 starts MiMo only after the tuple and isolated worktree contract are approved.",

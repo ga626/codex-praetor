@@ -1,6 +1,7 @@
 param([string]$ProjectRoot = "")
 
 $ErrorActionPreference = "Stop"
+. (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) { $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
 $profile = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-health-profile-" + [Guid]::NewGuid().ToString("N"))
 $cli = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-praetor-health-cli-" + [Guid]::NewGuid().ToString("N") + ".bin")

@@ -8,7 +8,7 @@
 
     [string]$ConfigPath = "",
 
-    [ValidateSet("local_audit", "code_change")]
+    [ValidateSet("local_audit", "test_execution", "code_change")]
     [string]$TaskKind = "local_audit",
 
     [int]$ExpiresAfterHours = 168,
@@ -23,6 +23,7 @@
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $wrapperCandidates = @(
@@ -100,6 +101,8 @@ $mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }
 $canaryFileName = "CODEX_PRAETOR_EDIT_CANARY.txt"
 $task = if ($TaskKind -eq "code_change") {
     "Create $canaryFileName at the repository root with exactly $marker, run git status --short, then reply exactly $marker."
+} elseif ($TaskKind -eq "test_execution") {
+    "Run the fixed PowerShell check `"Test-Path README.md`" in the execution worktree. Do not edit files. Reply exactly $marker only if the command returns True."
 } else {
     "Read README.md and reply exactly $marker."
 }
