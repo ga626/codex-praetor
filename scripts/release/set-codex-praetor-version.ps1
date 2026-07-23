@@ -50,6 +50,7 @@ $textFiles = @(
     "docs\release\release-notes-$Version.md"
 )
 $runtimeDataSources = @(
+    "config\evaluation-suite.json",
     "config\provider-onboarding-checklist.json",
     "config\provider-adapters\qoder.json",
     "config\provider-adapters\codebuddy.json",

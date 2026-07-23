@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.9.4-alpha",
-    "previous_version":  "0.9.3-alpha",
-    "tag":  "v0.9.4-alpha",
+    "version":  "0.9.5-alpha",
+    "previous_version":  "0.9.4-alpha",
+    "tag":  "v0.9.5-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.9.4-alpha.zip",
+    "artifact":  "codex-praetor-setup-0.9.5-alpha.zip",
     "reason":  "修复 0.9.3-alpha 发布事故：把 provider adapter 合同和 onboarding 清单随最终插件安装，并以最终 bundled MCP 的真实调用和故障注入阻断运行时数据缺失。"
 }

@@ -119,7 +119,7 @@ assert.equal(
   "worker_max_turns_exceeded"
 );
 
-const planId = "mcp-self-test";
+const planId = `mcp-self-test-${process.pid}-${Date.now()}`;
 const plan = await planTool({
   repo,
   title: "MCP self-test plan",

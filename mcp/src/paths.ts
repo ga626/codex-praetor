@@ -55,6 +55,19 @@ export function getRuntimeContractPath(): string {
   return path.join(getProjectRoot(), "runtime-contract.json");
 }
 
+/**
+ * Resolve a data file that is required by the MCP at runtime.
+ * Source checkouts keep canonical data in config/; installed plugins carry the
+ * same immutable copy under data/ because config/ is not part of the plugin.
+ */
+export function getRuntimeDataPath(relativePath: string): string {
+  const source = path.join(getProjectRoot(), "config", relativePath);
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getProjectRoot(), "data", relativePath);
+}
+
 export function resolveExistingRepo(repo: string): string {
   if (!repo || !repo.trim()) {
     throw new Error("repo is required.");
