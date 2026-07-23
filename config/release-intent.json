@@ -2,7 +2,7 @@
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
     "version":  "0.9.8-alpha",
-    "previous_version":  "0.9.7-alpha",
+    "previous_version":  "0.9.6-alpha",
     "tag":  "v0.9.8-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",

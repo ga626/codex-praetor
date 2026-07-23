@@ -8,6 +8,7 @@
 - MCP、派工、安装向导、配置、验收任务和发布包同步采用两家白名单。
 - 新增针对 provider 集合、派生数据和发布包的完整性验收；未知 provider 不会被静默接入。
 - 真实 worker 验收继续要求隔离 worktree、真实 completion、diff 或输出证据，以及 Codex 的最终验收。
+- worker 的成功证据收敛为真实 stdout、completion 与退出码的一致回执；拒绝、超时、无法观察退出码与部分产物都会明确失败，不能伪装成“等待验收”。
 
 ## 用户影响
 
