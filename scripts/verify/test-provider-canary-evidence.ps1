@@ -51,24 +51,37 @@ for ($index = 0; $index -lt $args.Count; $index++) {
         break
     }
 }
-if ($taskKind -eq "code_change") {
-    $workerRepo = $env:CODEX_PRAETOR_CANARY_WORKER_REPO
-    $jobDir = $env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR
-    New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $workerRepo "CODEX_PRAETOR_EDIT_CANARY.txt") -Value "CODEX_PRAETOR_CAPABILITY_CANARY_OK" -Encoding ASCII
-    [ordered]@{ execution_repo = $workerRepo } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
+$workerRepo = $env:CODEX_PRAETOR_CANARY_WORKER_REPO
+$jobDir = $env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR
+New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
+$stdoutPath = Join-Path $jobDir "stdout.log"
+$completionPath = Join-Path $jobDir "completion.json"
+$failure = $env:CODEX_PRAETOR_CANARY_FAKE_FAILURE -eq "1"
+$permission = if ($taskKind -eq "code_change") { "edit_worktree" } elseif ($taskKind -eq "test_execution") { "test-execution-v1" } else { "readonly_read_grep_glob" }
+[ordered]@{ job_id = "fake-canary-$taskKind"; execution_repo = $workerRepo; stdout = $stdoutPath; completion = $completionPath; provider_tuple = [ordered]@{ model = "Qwen3.7-Plus"; permission_profile = $permission } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
+if ($failure) {
+    Set-Content -LiteralPath $stdoutPath -Value "Request blocked by risk control" -Encoding UTF8
+    [ordered]@{ status = "process_exited"; exit_code = 0; failure_class = "provider_output_unparseable" } | ConvertTo-Json | Set-Content -LiteralPath $completionPath -Encoding UTF8
+    Write-Output "command=TASK: CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     Write-Output "job_dir=$jobDir"
-    Write-Output "permission_profile=edit_worktree"
+    Write-Output "model=Qwen3.7-Plus"
+    Write-Output "permission_profile=$permission"
+    exit 0
+}
+Set-Content -LiteralPath $stdoutPath -Value "CODEX_PRAETOR_CAPABILITY_CANARY_OK" -Encoding UTF8
+[ordered]@{ status = "process_exited"; exit_code = 0; failure_class = "" } | ConvertTo-Json | Set-Content -LiteralPath $completionPath -Encoding UTF8
+if ($taskKind -eq "code_change") {
+    Set-Content -LiteralPath (Join-Path $workerRepo "CODEX_PRAETOR_EDIT_CANARY.txt") -Value "CODEX_PRAETOR_CAPABILITY_CANARY_OK" -Encoding ASCII
 } elseif ($taskKind -eq "test_execution") {
     Start-Sleep -Milliseconds 120
     Set-Content -LiteralPath $env:CODEX_PRAETOR_CANARY_DRIFT_PATH -Value "concurrent editor" -Encoding UTF8
-    Write-Output "permission_profile=test-execution-v1"
 } else {
     Start-Sleep -Milliseconds 120
     Set-Content -LiteralPath $env:CODEX_PRAETOR_CANARY_DRIFT_PATH -Value "concurrent editor" -Encoding UTF8
-    Write-Output "permission_profile=readonly_read_grep_glob"
 }
+Write-Output "job_dir=$jobDir"
 Write-Output "model=Qwen3.7-Plus"
+Write-Output "permission_profile=$permission"
 Write-Output "version=fake-provider"
 Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
 '@ | Set-Content -LiteralPath $wrapperPath -Encoding UTF8
@@ -98,6 +111,25 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     $testEntry = @($state.entries | Where-Object { [string]$_.task_kind -eq "test_execution" }) | Select-Object -First 1
     Assert-True ($null -ne $testEntry) "Test-execution capability canary did not write its readiness tuple."
     Assert-True ([string]$testEntry.permission_profile -eq "test-execution-v1") "Test-execution canary did not record its distinct permission profile."
+    Assert-True ([string]$testEntry.evidence.schema -eq "codex-praetor-canary-evidence/v1") "Readiness tuple did not retain authenticated worker evidence."
+
+    Remove-Item -LiteralPath $driftPath -Force
+    $beforeFailureEntries = @($state.entries).Count
+    $env:CODEX_PRAETOR_CANARY_FAKE_FAILURE = "1"
+    $failureStdoutPath = Join-Path $scratch "failure-stdout.txt"
+    $failureStderrPath = Join-Path $scratch "failure-stderr.txt"
+    $previousFailureErrorAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -Apply 1>$failureStdoutPath 2>$failureStderrPath
+        $failureExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousFailureErrorAction
+    }
+    Remove-Item Env:CODEX_PRAETOR_CANARY_FAKE_FAILURE -ErrorAction SilentlyContinue
+    Assert-True ($failureExitCode -ne 0) "A wrapper echo must not turn a rejected worker into readiness."
+    $afterFailureState = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True (@($afterFailureState.entries).Count -eq $beforeFailureEntries) "Rejected worker output must not mutate readiness."
 
     Set-Content -LiteralPath (Join-Path $repo "dirty-before.txt") -Value "dirty" -Encoding UTF8
     $dirtyStdoutPath = Join-Path $scratch "dirty-stdout.txt"
@@ -122,6 +154,7 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     Remove-Item Env:CODEX_PRAETOR_CANARY_DRIFT_PATH -ErrorAction SilentlyContinue
     Remove-Item Env:CODEX_PRAETOR_CANARY_WORKER_REPO -ErrorAction SilentlyContinue
     Remove-Item Env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR -ErrorAction SilentlyContinue
+    Remove-Item Env:CODEX_PRAETOR_CANARY_FAKE_FAILURE -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
 }
 

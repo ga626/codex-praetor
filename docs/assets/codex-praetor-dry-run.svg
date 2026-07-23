@@ -9,8 +9,8 @@
   <text x="88" y="690" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="20">Codex Praetor / Codex 执政官</text>
   <text x="128" y="174" fill="#E5E7EB" font-family="Consolas, 'Courier New', monospace" font-size="30">拆分一下任务，分配给其他 agent 做 dry-run，不要真实修改文件。</text>
   <text x="128" y="236" fill="#22C55E" font-family="Consolas, 'Courier New', monospace" font-size="28">[PASS] route = codex_praetor_external_worker</text>
-  <text x="128" y="294" fill="#CBD5E1" font-family="Consolas, 'Courier New', monospace" font-size="26">provider = mimo</text>
-  <text x="128" y="342" fill="#CBD5E1" font-family="Consolas, 'Courier New', monospace" font-size="26">tier     = mimo-isolated-audit</text>
+  <text x="128" y="294" fill="#CBD5E1" font-family="Consolas, 'Courier New', monospace" font-size="26">provider = codebuddy</text>
+  <text x="128" y="342" fill="#CBD5E1" font-family="Consolas, 'Courier New', monospace" font-size="26">tier     = codebuddy-free</text>
   <text x="128" y="390" fill="#CBD5E1" font-family="Consolas, 'Courier New', monospace" font-size="26">mode     = readonly</text>
   <text x="128" y="438" fill="#CBD5E1" font-family="Consolas, 'Courier New', monospace" font-size="26">dry_run  = true</text>
   <text x="128" y="506" fill="#FBBF24" font-family="Consolas, 'Courier New', monospace" font-size="26">No native Codex subagent was created.</text>

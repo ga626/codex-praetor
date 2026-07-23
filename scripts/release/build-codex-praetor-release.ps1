@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.9.6-alpha",
+    [string]$Version = "0.9.8-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
@@ -41,6 +41,7 @@ function Copy-ReleaseItem {
         Get-ChildItem -LiteralPath $source -Recurse -File -Force | ForEach-Object {
             $sourceRelative = $_.FullName.Substring($projectRoot.Length).TrimStart("\")
             if (Test-BlockedReleasePath -RelativePath $sourceRelative) { return }
+            if ($sourceRelative -like "docs\release\release-notes-*.md" -and $sourceRelative -ne "docs\release\release-notes-$Version.md") { return }
             $target = Join-Path $stagePath $sourceRelative
             $targetParent = Split-Path -Parent $target
             New-Item -ItemType Directory -Path $targetParent -Force | Out-Null
@@ -320,7 +321,6 @@ $include = @(
     "setup.cmd",
     "setup.ps1",
     "LICENSE",
-    "CHANGELOG.md",
     "SECURITY.md",
     "CONTRIBUTING.md",
     ".gitignore",

@@ -4,15 +4,15 @@
 
 Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Agent 派工插件。
 
-它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy、MiMo。Codex 仍然负责规划、风险判断、整合结果和最终验收。
+它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy。Codex 仍然负责规划、风险判断、整合结果和最终验收。
 
-当前产品化目标版本是 **0.9.6-alpha**。这一版把发布影响 PR、版本一致性、不可变 Release 和合并后自动远端复验串成一个闭环；本机 Desktop host 仍按 fresh-context 边界单独验收。
+当前产品化目标版本是 **0.9.8-alpha**。这一版把发布影响 PR、版本一致性、不可变 Release 和合并后自动远端复验串成一个闭环；本机 Desktop host 仍按 fresh-context 边界单独验收。
 
 本版还新增只读能力画像：它按具体 provider、模型、权限和任务类型汇总真实尝试与 Codex 验收结论，帮助你看清证据；它不会在未经后续验证前擅自改变默认派工。
 
 同时新增真实任务评测合同：每项任务都有隔离范围、确定性验收、预算和失败注入；准备任务不会被误当成 provider 已通过评测。
 
-[下载 0.9.6-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.9.6-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
+[下载 0.9.8-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.9.8-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
 
 ## 适合你吗
 
@@ -20,7 +20,7 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 - 你在 Windows 上使用 Codex Desktop 或 Codex CLI。
 - 你希望 Codex 把小而清楚的任务交给外部 CLI worker。
-- 你已经有，或准备按向导配置 Qoder、CodeBuddy、MiMo 其中至少一个。
+- 你已经有，或准备按向导配置 Qoder、CodeBuddy 其中至少一个。
 - 你想先验证 dry-run、计划、状态查询和冲突检测，再决定是否真实派工。
 
 不适合：
@@ -33,14 +33,14 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 普通 Windows 用户不需要打开 PowerShell。下载并解压 Release 包后，直接双击根目录里的 `setup.cmd`，按中文向导操作即可。
 
-1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.9.6-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.9.6-alpha.zip`。
+1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.9.8-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.9.8-alpha.zip`。
 
    如果你更习惯 PowerShell，也可以运行：
 
    ```powershell
-   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.6-alpha/codex-praetor-setup-0.9.6-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.6-alpha.zip"
-   Expand-Archive .\codex-praetor-setup-0.9.6-alpha.zip .\codex-praetor-setup-0.9.6-alpha
-   cd .\codex-praetor-setup-0.9.6-alpha
+   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.9.8-alpha/codex-praetor-setup-0.9.8-alpha.zip" -OutFile ".\codex-praetor-setup-0.9.8-alpha.zip"
+   Expand-Archive .\codex-praetor-setup-0.9.8-alpha.zip .\codex-praetor-setup-0.9.8-alpha
+   cd .\codex-praetor-setup-0.9.8-alpha
    ```
 
 2. 双击 `setup.cmd`。
@@ -51,7 +51,6 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 - 先不配置 provider，只安装并验证 Codex Praetor 本体。
 - 只配置 Qoder。
 - 只配置 CodeBuddy。
-- 只配置 MiMo。
 
 选择 provider 后，向导会先检测本机命令；如果没装，会让你确认是否执行官方安装命令。安装完成后，它会刷新当前终端的 PATH、复检版本，并停在同一个向导里等待你完成官方登录、扫码、浏览器授权、站点选择、企业域、Token Plan 或 API key 等账号动作。你回到向导继续后，它会再次复检，写入当前用户的本机配置，并在最后给出一张中文状态总览。
 
@@ -81,7 +80,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 | 本机状态 | 可以做什么 | 不能做什么 |
 | --- | --- | --- |
-| 没有安装 Qoder、CodeBuddy、MiMo | 本体安装、计划、dry-run、任务状态、lane 查询、冲突检测 | 真实派工 |
+| 没有安装 Qoder、CodeBuddy | 本体安装、计划、dry-run、任务状态、lane 查询、冲突检测 | 真实派工 |
 | 已安装 provider，但未登录 | dry-run、路径检查、配置检查、向导复检 | 真实派工通常会被 provider 拒绝 |
 | 已安装并登录 provider | 先跑 readonly canary，再做真实派工 | 不建议跳过 canary 直接改代码 |
 
@@ -92,7 +91,7 @@ Codex Praetor 不会在未经你确认时安装 provider，不会替你登录，
 - 不默认创建 Codex 原生 subagent。
 - 不默认使用 provider `auto`。
 - 不读取或发布 provider 账号数据库、token、cookie、使用截图。
-- 不要求用户必须同时安装 Qoder、CodeBuddy、MiMo。
+- 不要求用户必须同时安装 Qoder、CodeBuddy。
 - 没装某个 provider 时，只禁用那个 provider 的真实派工，不影响计划、dry-run、状态查询和 MCP 基础能力。
 - 修改型 worker 任务必须使用隔离 worktree。
 - 源码目录和本机安装目录保持分离，不做软链接、不自动同步。
@@ -139,15 +138,13 @@ Codex Praetor 有四层：
 
 - Qoder 或 QoderWork CN
 - Tencent CodeBuddy 或 WorkBuddy
-- Xiaomi MiMo Code
 
-Qoder 和 CodeBuddy 通常需要你按官方流程登录或授权。MiMo 可以先尝试官方 `mimo/mimo-auto` 限时免费匿名通道；如果该通道不可用，或者你要指定 MiMo Platform / Token Plan / 自定义 provider，再按 MiMo 官方流程连接账号或 API key。
+Qoder 和 CodeBuddy 通常需要你按官方流程登录或授权。
 
 provider 说明：
 
 - [Qoder](docs/provider-notes/qoder.md)
 - [CodeBuddy](docs/provider-notes/codebuddy.md)
-- [MiMo](docs/provider-notes/mimo.md)
 
 ## 本地配置
 
@@ -182,8 +179,8 @@ dry-run 成功时，输出会说明 selected provider、tier、repo、artifact r
 简化示例：
 
 ```text
-provider=mimo
-tier=mimo-isolated-audit
+provider=codebuddy
+tier=codebuddy-free
 mode=readonly
 dry_run=True
 project_artifact_root=...\<repo>\.codex-praetor
@@ -196,13 +193,13 @@ project_artifact_root=...\<repo>\.codex-praetor
 当你已经安装并登录某个 provider 后，先跑只读 canary。它默认只预览命令，不会启动真实 worker：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
 ```
 
 确认 provider 已经登录、命令看起来正确后，再加 `-Apply`：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy -Apply
 ```
 
 这个 canary 只要求 worker 读取 `README.md` 并返回固定标记。成功时主仓库的 Git 状态应保持不变。
@@ -243,13 +240,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor-dev-env.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
 ```
 
 运行 dry-run：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dispatch\invoke-codex-praetor.ps1 -Provider mimo -Tier mimo-isolated-audit -Repo "<repo>" -Task "Dry run only. Verify Codex Praetor." -Mode readonly -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dispatch\invoke-codex-praetor.ps1 -Provider codebuddy -Tier codebuddy-free -Repo "<repo>" -Task "Dry run only. Verify Codex Praetor." -Mode readonly -DryRun
 ```
 
 ## 发布包边界

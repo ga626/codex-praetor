@@ -12,7 +12,7 @@
   → observed / provisional / qualified / cooling_down / blocked
 ```
 
-一个画像的键同时包含 provider、CLI 身份、模型、权限配置、任务类型、运行时代际和合同 hash。这样 Qoder 的只读成功，不能自动证明 MiMo 的写代码也可靠；同一 provider 换模型、换 CLI 或换权限后也不会错误继承旧结论。
+一个画像的键同时包含 provider、CLI 身份、模型、权限配置、任务类型、运行时代际和合同 hash。这样 Qoder 的只读成功，不能自动证明 CodeBuddy 的写代码也可靠；同一 provider 换模型、换 CLI 或换权限后也不会错误继承旧结论。
 
 ## 状态的简单含义
 
@@ -35,7 +35,7 @@
 
 ## 日常运营与新增 provider
 
-`codex_praetor_provider_operations` 把 Qoder、CodeBuddy、MiMo 的当前 readiness、画像和最近失败翻译成“能派、可小范围验证、冷却中、需要登录、证据过期或暂不可派”。它只显示下一步，不展示认证数据、完整本机路径或原始敏感日志。
+`codex_praetor_provider_operations` 把 Qoder、CodeBuddy 的当前 readiness、画像和最近失败翻译成“能派、可小范围验证、冷却中、需要登录、证据过期或暂不可派”。它只显示下一步，不展示认证数据、完整本机路径或原始敏感日志。
 
 新增 provider 只能先添加 adapter，再完成 onboarding checklist 中的官方 CLI 边界、最小权限 canary、真实任务族、失败恢复、文档和敏感信息审查。任何一项不可观察时，新 provider 都不进入默认候选路由。
 
@@ -45,7 +45,7 @@
 
 它不保存本机 CLI 路径、账号、token 或 provider 数据库。真实配置仍只存在本机私有配置中。
 
-MiMo 的边界尤其明确：Build agent 可以在 disposable worktree 写文件。因此 `mimo-isolated-audit-v1` 表示“只在隔离项目内做审计”，不是承诺整个文件系统只读。worktree 保护主项目，不是操作系统沙箱。
+所有 provider 的修改型任务都只在 disposable worktree 中运行。worktree 保护主项目，不是操作系统沙箱。
 
 ## 新 provider 的准入清单
 

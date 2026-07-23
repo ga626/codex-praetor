@@ -1,7 +1,7 @@
 import { capabilityProfilesTool } from "./capability-profiles.js";
 
 type TaskFamily = "read_only_diagnosis" | "bounded_code_change" | "fixed_test_execution" | "failure_recovery";
-type FailureClass = "provider_risk_control" | "provider_auth_required" | "provider_cli_missing" | "provider_rejected" | "provider_output_unparseable" | "permission_denied" | "worker_timed_out" | "network_timeout" | "rate_limited" | "provider_unavailable" | "max_turns_exceeded" | "test_failed" | "scope_violation" | "unknown";
+type FailureClass = "provider_risk_control" | "provider_auth_required" | "provider_cli_missing" | "provider_rejected" | "provider_output_unparseable" | "worker_process_failed" | "worker_exit_code_unavailable" | "permission_denied" | "worker_timed_out" | "network_timeout" | "rate_limited" | "provider_unavailable" | "max_turns_exceeded" | "test_failed" | "scope_violation" | "unknown";
 
 export type ExplainableRouteCandidate = {
   provider: string;
@@ -35,7 +35,7 @@ function sameTuple(left: Record<string, unknown>, right: ExplainableRouteCandida
 }
 
 function recoveryFor(failureClass: FailureClass) {
-  if (["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable"].includes(failureClass)) {
+  if (["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable"].includes(failureClass)) {
     return { state: "blocked", automatic_retry: false, action: "停止自动重试；等待官方登录、风控解除、CLI 修复或重新 canary。", preserve_worktree: false };
   }
   if (["network_timeout", "rate_limited", "provider_unavailable", "worker_timed_out"].includes(failureClass)) {

@@ -67,27 +67,6 @@
       "defaultOutputFormat": "text",
       "supportsJsonSchema": true,
       "notes": "Install CodeBuddy or WorkBuddy CLI, then set nodePath and cliPath in a local config. The auto model is blocked by default."
-    },
-    "mimo": {
-      "cliPath": "C:\\Path\\To\\mimo.cmd",
-      "versionCommand": ["--version"],
-      "profileRoot": "",
-      "allowedModels": ["mimo/mimo-auto"],
-      "knownButNotDefaultModels": ["xiaomi/mimo-v2.5", "xiaomi/mimo-v2.5-pro"],
-      "blockedModels": [
-        "auto",
-        "openai/*",
-        "xiaomi/mimo-v2-flash",
-        "xiaomi/mimo-v2-pro",
-        "xiaomi/mimo-v2-omni",
-        "xiaomi/mimo-v2.5-pro-ultraspeed"
-      ],
-      "effortFlag": "--variant",
-      "agentFlag": "--agent",
-      "defaultOutputFormat": "json",
-      "jsonMode": "event-stream",
-      "supportsJsonSchema": false,
-      "notes": "Install MiMo Code CLI and set cliPath in a local config. Free or paid routing depends on your own MiMo account and current product policy."
     }
   },
   "tiers": {
@@ -171,30 +150,6 @@
       "outputFormat": "text",
       "permissionProfile": "readonly-or-worktree",
       "role": "stronger CodeBuddy fallback for harder bounded tasks"
-    },
-    "mimo-isolated-audit": {
-      "provider": "mimo",
-      "modelDisplay": "MiMo Auto",
-      "modelCli": "mimo/mimo-auto",
-      "creditMultiplier": "provider-defined; verify in your account",
-      "allowedWindow": "any",
-      "agent": "",
-      "reasoningEffort": "",
-      "outputFormat": "json",
-      "permissionProfile": "mimo-isolated-audit-v1",
-      "role": "MiMo isolated audit worker. This is not a filesystem-readonly promise because the default Build agent can write inside its disposable worktree."
-    },
-    "mimo-auto-edit": {
-      "provider": "mimo",
-      "modelDisplay": "MiMo Auto",
-      "modelCli": "mimo/mimo-auto",
-      "creditMultiplier": "provider-defined; verify in your account",
-      "allowedWindow": "any",
-      "agent": "build",
-      "reasoningEffort": "",
-      "outputFormat": "json",
-      "permissionProfile": "edit-worktree-v1",
-      "role": "MiMo edit worker only inside isolated git worktree"
     }
   }
 }

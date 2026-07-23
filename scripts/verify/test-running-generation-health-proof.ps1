@@ -40,10 +40,10 @@ try {
     $entry = [ordered]@{
         generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $contractHash; task_contract_schema = [string]$contract.taskContractSchema
         provider = "codebuddy"; cli_path = $cli; cli_hash = $cliHash; model = "hy3"; permission_profile = "local-audit-v1"; task_kind = "local_audit"
-        status = "passed"; expires_at = (Get-Date).AddHours(1).ToString("o")
+        status = "passed"; expires_at = (Get-Date).AddHours(1).ToString("o"); evidence = [ordered]@{ schema = "codex-praetor-canary-evidence/v1"; job_id = "health-proof"; worker_stdout_sha256 = "a"; completion_sha256 = "b"; completion_status = "process_exited"; worker_exit_code = 0; failure_class = "" }
     }
     [ordered]@{
-        schema = "codex-praetor-generation-readiness/v2"; status = "passed"; generation_id = [string]$generation.generation_id
+        schema = "codex-praetor-generation-readiness/v3"; status = "passed"; generation_id = [string]$generation.generation_id
         runtime_contract_sha256 = $contractHash; task_contract_schema = [string]$contract.taskContractSchema; entries = @($entry)
     } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $profile ".codex\codex-praetor-readiness.json") -Encoding UTF8
 
@@ -60,7 +60,7 @@ try {
 
     $entry.generation_id = "wrong-generation"
     [ordered]@{
-        schema = "codex-praetor-generation-readiness/v2"; status = "passed"; generation_id = "wrong-generation"
+        schema = "codex-praetor-generation-readiness/v3"; status = "passed"; generation_id = "wrong-generation"
         runtime_contract_sha256 = $contractHash; task_contract_schema = [string]$contract.taskContractSchema; entries = @($entry)
     } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $profile ".codex\codex-praetor-readiness.json") -Encoding UTF8
     $previousErrorAction = $ErrorActionPreference

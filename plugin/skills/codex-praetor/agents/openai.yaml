@@ -1,5 +1,4 @@
 ﻿interface:
   display_name: "Codex Praetor"
-  short_description: "Codex dispatch to Qoder, CodeBuddy, and MiMo workers"
+  short_description: "Codex dispatch to Qoder and CodeBuddy workers"
   default_prompt: "Use $codex-praetor to dispatch a small coding task to the cheapest safe worker and verify the result."
-

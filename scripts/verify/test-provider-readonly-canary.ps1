@@ -1,8 +1,8 @@
 param(
     [string]$Repo = (Get-Location).Path,
 
-    [ValidateSet("qoder", "codebuddy", "mimo")]
-    [string]$Provider = "mimo",
+    [ValidateSet("qoder", "codebuddy")]
+    [string]$Provider = "codebuddy",
 
     [string]$Tier = "",
 
@@ -30,7 +30,6 @@ $nativeHelper = Join-Path $projectRoot "scripts\maintenance\invoke-codex-praetor
 function Get-DefaultTier {
     param([string]$ProviderName)
     switch ($ProviderName) {
-        "mimo" { return "mimo-isolated-audit" }
         "codebuddy" { return "codebuddy-free" }
         default { return "" }
     }

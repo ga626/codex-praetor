@@ -8,7 +8,7 @@ export type CapabilityProfileStatus = "unknown" | "observed" | "provisional" | "
 type JsonRecord = Record<string, unknown>;
 
 const taskFamilies = new Set(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]);
-const hardBlockedFailures = new Set(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "tool_denied", "permission_denied"]);
+const hardBlockedFailures = new Set(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "tool_denied", "permission_denied"]);
 const transientFailures = new Set(["worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable"]);
 const profileEvidenceMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 const transientCooldownMs = 60 * 60 * 1000;

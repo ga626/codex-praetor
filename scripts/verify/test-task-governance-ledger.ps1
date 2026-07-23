@@ -28,6 +28,16 @@ try {
     Assert-True ([string]$failedTask[0].governance_state -eq "rejected") "A structured worker failure must enter rejected governance state."
     Assert-True ([string]$failedTask[0].attempts[-1].supervisor_verdict -eq "rejected") "Structured failure was not bound to its immutable attempt."
 
+    $nonzeroJobDir = Join-Path $root "nonzero-job"
+    New-Item -ItemType Directory -Path $nonzeroJobDir -Force | Out-Null
+    $nonzeroCompletion = Join-Path $nonzeroJobDir "completion.json"
+    [ordered]@{ job_id = "failed-process"; status = "process_exited"; process_state = "process_exited"; failure_class = ""; evidence_state = "evidence_missing"; provider = "codebuddy"; tier = "codebuddy-free"; model = "hy3"; mode = "edit"; acceptance = "fixture"; exit_code = 7 } | ConvertTo-Json | Set-Content -LiteralPath $nonzeroCompletion -Encoding UTF8
+    & $planScript -Action RecordJob -PlanId ledger -PlanRoot $root -TaskId nonzero-task -JobDir $nonzeroJobDir -CompletionPath $nonzeroCompletion | Out-Null
+    $plan = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $nonzeroTask = @($plan.tasks | Where-Object { $_.task_id -eq "nonzero-task" } | Select-Object -First 1)
+    Assert-True ($nonzeroTask.Count -eq 1 -and [string]$nonzeroTask[0].status -eq "failed") "A nonzero exit must not enter the verification queue."
+    Assert-True ([string]$nonzeroTask[0].governance_state -eq "rejected") "A nonzero exit must enter rejected governance state."
+
     $successJobDir = Join-Path $root "success-job"
     New-Item -ItemType Directory -Path $successJobDir -Force | Out-Null
     $successCompletion = Join-Path $successJobDir "completion.json"

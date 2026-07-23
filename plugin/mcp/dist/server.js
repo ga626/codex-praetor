@@ -31152,10 +31152,8 @@ var codexPraetorTerms = [
   "qoder",
   "codebuddy",
   "workbuddy",
-  "mimo",
   "\u817E\u8BAF",
-  "\u963F\u91CC",
-  "\u5C0F\u7C73"
+  "\u963F\u91CC"
 ];
 var delegationTerms = [
   "split",
@@ -31301,7 +31299,7 @@ import { createHash } from "node:crypto";
 import { existsSync as existsSync2, readdirSync, readFileSync } from "node:fs";
 import path2 from "node:path";
 var taskFamilies = /* @__PURE__ */ new Set(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]);
-var hardBlockedFailures = /* @__PURE__ */ new Set(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "tool_denied", "permission_denied"]);
+var hardBlockedFailures = /* @__PURE__ */ new Set(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "tool_denied", "permission_denied"]);
 var transientFailures = /* @__PURE__ */ new Set(["worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable"]);
 var profileEvidenceMaxAgeMs = 30 * 24 * 60 * 60 * 1e3;
 var transientCooldownMs = 60 * 60 * 1e3;
@@ -31502,7 +31500,7 @@ function sameTuple(left, right) {
   return ["provider", "model", "cli_path", "cli_hash", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema"].every((key) => asString2(left[key]) === right[key]);
 }
 function recoveryFor(failureClass) {
-  if (["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable"].includes(failureClass)) {
+  if (["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable"].includes(failureClass)) {
     return { state: "blocked", automatic_retry: false, action: "\u505C\u6B62\u81EA\u52A8\u91CD\u8BD5\uFF1B\u7B49\u5F85\u5B98\u65B9\u767B\u5F55\u3001\u98CE\u63A7\u89E3\u9664\u3001CLI \u4FEE\u590D\u6216\u91CD\u65B0 canary\u3002", preserve_worktree: false };
   }
   if (["network_timeout", "rate_limited", "provider_unavailable", "worker_timed_out"].includes(failureClass)) {
@@ -31590,6 +31588,10 @@ function asRecords(value) {
 function asString3(value) {
   return typeof value === "string" ? value : "";
 }
+function hasCanaryEvidence(entry) {
+  const evidence = asRecord3(entry.evidence);
+  return asString3(evidence.schema) === "codex-praetor-canary-evidence/v1" && asString3(evidence.job_id) !== "" && asString3(evidence.worker_stdout_sha256) !== "" && asString3(evidence.completion_sha256) !== "" && asString3(evidence.completion_status) === "process_exited" && evidence.worker_exit_code === 0 && asString3(evidence.failure_class) === "";
+}
 function readJson(pathname) {
   if (!existsSync3(pathname)) return {};
   try {
@@ -31621,11 +31623,11 @@ function providerOperationsTool(input) {
   const contractHash = existsSync3(contractPath) ? createHash2("sha256").update(readFileSync3(contractPath)).digest("hex") : "";
   const profiles = capabilityProfilesTool({ repo: input.repo }).profiles;
   const readiness = input.readiness_entries ?? readReadiness();
-  const providers = ["qoder", "codebuddy", "mimo"].map((provider) => {
+  const providers = ["qoder", "codebuddy"].map((provider) => {
     const adapter = readJson(getRuntimeDataPath(path3.join("provider-adapters", `${provider}.json`)));
     const providerProfiles = profiles.filter((profile2) => asString3(profile2.provider_tuple.provider) === provider && (!input.task_family || profile2.task_family === input.task_family));
     const profile = [...providerProfiles].sort((left, right) => asString3(right.evidence.at(-1)?.recorded_at).localeCompare(asString3(left.evidence.at(-1)?.recorded_at))).at(0);
-    const matchingReadiness = readiness.filter((entry) => asString3(entry.provider) === provider && asString3(entry.status) === "passed" && asString3(entry.runtime_contract_sha256) === contractHash);
+    const matchingReadiness = readiness.filter((entry) => asString3(entry.provider) === provider && asString3(entry.status) === "passed" && asString3(entry.runtime_contract_sha256) === contractHash && hasCanaryEvidence(entry));
     const status = statusFor(profile, matchingReadiness);
     const accepted = asRecords(profile?.evidence).filter((item) => asString3(item.verdict) === "accepted").length;
     return {
@@ -31943,7 +31945,7 @@ ${input.stderr_tail}`.toLowerCase();
   if (failureClass === "provider_risk_control") {
     return {
       class: "provider_risk_control",
-      explanation: "MiMo provider \u5DF2\u56E0\u98CE\u63A7\u62D2\u7EDD\u672C\u6B21\u8BF7\u6C42\uFF1B\u8FD9\u4E0D\u662F\u6210\u529F\u7ED3\u679C\uFF0C\u4E5F\u4E0D\u662F\u672C\u5730 worktree \u95EE\u9898\u3002",
+      explanation: "provider \u5DF2\u56E0\u98CE\u63A7\u62D2\u7EDD\u672C\u6B21\u8BF7\u6C42\uFF1B\u8FD9\u4E0D\u662F\u6210\u529F\u7ED3\u679C\uFF0C\u4E5F\u4E0D\u662F\u672C\u5730 worktree \u95EE\u9898\u3002",
       next_action: "\u505C\u6B62\u91CD\u8BD5\u540C\u4E00\u8BF7\u6C42\uFF0C\u7B49\u5F85 provider \u89E3\u9664\u9650\u5236\u6216\u6539\u7528\u5DF2\u901A\u8FC7 canary \u7684 provider\u3002"
     };
   }
@@ -32733,7 +32735,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.9.6-alpha"
+    version: "0.9.8-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -32767,9 +32769,9 @@ function createServer() {
       inputSchema: {
         repo: external_exports.string().min(1),
         task_family: external_exports.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
-        failure_class: external_exports.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "test_failed", "scope_violation", "unknown"]).optional(),
+        failure_class: external_exports.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "test_failed", "scope_violation", "unknown"]).optional(),
         candidates: external_exports.array(external_exports.object({
-          provider: external_exports.enum(["qoder", "codebuddy", "mimo"]),
+          provider: external_exports.enum(["qoder", "codebuddy"]),
           model: external_exports.string().min(1),
           cli_path: external_exports.string().min(1),
           cli_hash: external_exports.string().min(1),
@@ -32797,7 +32799,7 @@ function createServer() {
     "codex_praetor_provider_operations",
     {
       title: "Read Codex Praetor Provider Operations",
-      description: "Show user-readable Qoder, CodeBuddy and MiMo availability, evidence freshness, next recovery action and the provider onboarding checklist. This never reads authentication material or dispatches a worker.",
+      description: "Show user-readable Qoder and CodeBuddy availability, evidence freshness, next recovery action and the provider onboarding checklist. This never reads authentication material or dispatches a worker.",
       annotations: readOnlyClosedWorld,
       inputSchema: {
         repo: external_exports.string().min(1),
@@ -32851,7 +32853,7 @@ function createServer() {
       inputSchema: {
         repo: external_exports.string().min(1),
         task: external_exports.string().min(1),
-        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy"]),
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
@@ -32870,7 +32872,7 @@ function createServer() {
       inputSchema: {
         repo: external_exports.string().min(1),
         task: external_exports.string().min(1),
-        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy"]).optional(),
         tier: external_exports.string().optional(),
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
@@ -33051,7 +33053,7 @@ function createServer() {
         repo: external_exports.string().min(1),
         plan_id: external_exports.string().min(1),
         task_id: external_exports.string().min(1),
-        provider: external_exports.enum(["auto", "qoder", "codebuddy", "mimo"]).optional(),
+        provider: external_exports.enum(["auto", "qoder", "codebuddy"]).optional(),
         tier: external_exports.string().optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
         max_turns: external_exports.number().int().positive().max(80).optional(),

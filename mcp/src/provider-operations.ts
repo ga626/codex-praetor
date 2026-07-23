@@ -10,6 +10,16 @@ type TaskFamily = "read_only_diagnosis" | "bounded_code_change" | "fixed_test_ex
 function asRecord(value: unknown): RecordValue { return value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {}; }
 function asRecords(value: unknown): RecordValue[] { return Array.isArray(value) ? value.map(asRecord) : []; }
 function asString(value: unknown): string { return typeof value === "string" ? value : ""; }
+function hasCanaryEvidence(entry: RecordValue): boolean {
+  const evidence = asRecord(entry.evidence);
+  return asString(evidence.schema) === "codex-praetor-canary-evidence/v1"
+    && asString(evidence.job_id) !== ""
+    && asString(evidence.worker_stdout_sha256) !== ""
+    && asString(evidence.completion_sha256) !== ""
+    && asString(evidence.completion_status) === "process_exited"
+    && evidence.worker_exit_code === 0
+    && asString(evidence.failure_class) === "";
+}
 
 function readJson(pathname: string): RecordValue {
   if (!existsSync(pathname)) return {};
@@ -41,11 +51,11 @@ export function providerOperationsTool(input: { repo: string; task_family?: Task
   const contractHash = existsSync(contractPath) ? createHash("sha256").update(readFileSync(contractPath)).digest("hex") : "";
   const profiles = capabilityProfilesTool({ repo: input.repo }).profiles;
   const readiness = input.readiness_entries ?? readReadiness();
-  const providers = ["qoder", "codebuddy", "mimo"].map((provider) => {
+  const providers = ["qoder", "codebuddy"].map((provider) => {
     const adapter = readJson(getRuntimeDataPath(path.join("provider-adapters", `${provider}.json`)));
     const providerProfiles = profiles.filter((profile) => asString(profile.provider_tuple.provider) === provider && (!input.task_family || profile.task_family === input.task_family));
     const profile = [...providerProfiles].sort((left, right) => asString(right.evidence.at(-1)?.recorded_at).localeCompare(asString(left.evidence.at(-1)?.recorded_at))).at(0);
-    const matchingReadiness = readiness.filter((entry) => asString(entry.provider) === provider && asString(entry.status) === "passed" && asString(entry.runtime_contract_sha256) === contractHash);
+    const matchingReadiness = readiness.filter((entry) => asString(entry.provider) === provider && asString(entry.status) === "passed" && asString(entry.runtime_contract_sha256) === contractHash && hasCanaryEvidence(entry));
     const status = statusFor(profile, matchingReadiness);
     const accepted = asRecords(profile?.evidence).filter((item) => asString(item.verdict) === "accepted").length;
     return {

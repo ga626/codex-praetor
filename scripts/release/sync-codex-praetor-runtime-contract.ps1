@@ -19,8 +19,7 @@ $runtimeData = @(
     [ordered]@{ source = "config\evaluation-suite.json"; target = "plugin\data\evaluation-suite.json" },
     [ordered]@{ source = "config\provider-onboarding-checklist.json"; target = "plugin\data\provider-onboarding-checklist.json" },
     [ordered]@{ source = "config\provider-adapters\qoder.json"; target = "plugin\data\provider-adapters\qoder.json" },
-    [ordered]@{ source = "config\provider-adapters\codebuddy.json"; target = "plugin\data\provider-adapters\codebuddy.json" },
-    [ordered]@{ source = "config\provider-adapters\mimo.json"; target = "plugin\data\provider-adapters\mimo.json" }
+    [ordered]@{ source = "config\provider-adapters\codebuddy.json"; target = "plugin\data\provider-adapters\codebuddy.json" }
 )
 
 if (-not (Test-Path -LiteralPath $canonical -PathType Leaf)) {

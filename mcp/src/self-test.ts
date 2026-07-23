@@ -168,15 +168,15 @@ if (process.env.CODEX_PRAETOR_SELF_TEST_DRY_RUN === "1") {
   const dryRun = await dispatchDryRunTool({
     repo,
     task: "Dry run only. MCP self-test.",
-    provider: "mimo",
-    tier: "mimo-isolated-audit",
+    provider: "qoder",
+    tier: "qoder-day-cheap",
     mode: "readonly",
     run_mode: "blocking"
   });
   assert.equal(dryRun.ok, true);
-  assert.equal(dryRun.provider, "mimo");
-  assert.equal(dryRun.tier, "mimo-isolated-audit");
-  assert.match(dryRun.command, /mimo/);
+  assert.equal(dryRun.provider, "qoder");
+  assert.equal(dryRun.tier, "qoder-day-cheap");
+  assert.match(dryRun.command, /qoder/i);
 }
 
 console.log("codex-praetor-mcp self-test ok");

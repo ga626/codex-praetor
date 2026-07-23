@@ -17,7 +17,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $utf8NoBom
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$productVersion = "0.9.6-alpha"
+$productVersion = "0.9.8-alpha"
 $runtimeContractPath = Join-Path $scriptRoot "config\runtime-contract.json"
 $installScript = Join-Path $scriptRoot "scripts\install\install-user.ps1"
 $configTemplate = Join-Path $scriptRoot "config\codex-praetor-tiers.example.json"
@@ -141,45 +141,6 @@ function Get-ProviderDefinitions {
             CanaryProvider = "codebuddy";
             KnownBinDirs = @("%USERPROFILE%\AppData\Local\codebuddy\bin");
             ExecutablePatterns = @("codebuddy.exe", "workbuddy.exe", "codebuddy.cmd", "workbuddy.cmd");
-        }
-        [pscustomobject]@{
-            Id = "mimo";
-            Name = "MiMo";
-            Commands = @("mimo", "mimo.cmd");
-            Docs = "https://github.com/XiaomiMiMo/MiMo-Code";
-            Installers = @(
-                [pscustomobject]@{
-                    Label = "官方 Windows PowerShell 安装";
-                    DisplayCommand = "powershell -ep Bypass -c `"irm https://mimo.xiaomi.com/install.ps1 | iex`"";
-                    Command = "irm https://mimo.xiaomi.com/install.ps1 | iex";
-                    NetworkHost = "mimo.xiaomi.com";
-                    TimeoutSeconds = 1200;
-                    RequiresNode = $false;
-                    Preferred = $true;
-                },
-                [pscustomobject]@{
-                    Label = "npm 全局安装";
-                    Command = "npm install -g @mimo-ai/cli --registry https://registry.npmjs.org";
-                    NetworkHost = "registry.npmjs.org";
-                    TimeoutSeconds = 600;
-                    RequiresNode = $true;
-                    Preferred = $false;
-                },
-                [pscustomobject]@{
-                    Label = "Windows 平台包 fallback";
-                    Command = "npm install -g @mimo-ai/mimocode-windows-x64 --registry https://registry.npmjs.org";
-                    NetworkHost = "registry.npmjs.org";
-                    TimeoutSeconds = 600;
-                    RequiresNode = $true;
-                    Preferred = $false;
-                }
-            );
-            AuthHint = "优先尝试 mimo/mimo-auto。它是官方限时免费匿名通道；MiMo Platform、Token Plan、自定义 provider 或 API key 属于用户自己的官方账号流程。";
-            AuthLaunchHint = "如果 MiMo Auto 不可用，向导会启动 mimo auth login。请在弹出的官方登录/授权流程里完成账号、余额或 Token Plan 检查。";
-            AuthCommand = "auth login";
-            CanaryProvider = "mimo";
-            KnownBinDirs = @("%USERPROFILE%\.mimocode\bin", "%USERPROFILE%\AppData\Local\mimo\bin", "%APPDATA%\npm");
-            ExecutablePatterns = @("mimo.exe", "mimo.cmd");
         }
     )
 }
@@ -444,7 +405,7 @@ function Read-ProviderChoice {
         Write-Host ""
         Write-Host "发现上次未完成的向导状态：选择 $($State.providerChoice)，更新时间 $($State.updatedAt)。" -ForegroundColor Yellow
         $resume = Read-TrimmedHost "按 Enter 继续上次进度；输入 N 重新选择"
-        if ($resume -notmatch "^n(?:o)?$" -and $State.providerChoice -in @("1", "2", "3", "4", "5")) {
+        if ($resume -notmatch "^n(?:o)?$" -and $State.providerChoice -in @("1", "2", "3", "4")) {
             return $State.providerChoice
         }
     }
@@ -455,12 +416,11 @@ function Read-ProviderChoice {
     Write-Host "  2. 先不配置 provider，只安装并验证 Codex Praetor 本体"
     Write-Host "  3. 只配置 Qoder"
     Write-Host "  4. 只配置 CodeBuddy"
-    Write-Host "  5. 只配置 MiMo"
     $choice = Read-TrimmedHost "输入选项 [默认 2]"
     if ([string]::IsNullOrWhiteSpace($choice)) {
         return "2"
     }
-    if ($choice -notin @("1", "2", "3", "4", "5")) {
+    if ($choice -notin @("1", "2", "3", "4")) {
         Write-Host "无法识别选项，按“暂不配置 provider”继续。" -ForegroundColor Yellow
         return "2"
     }
@@ -470,10 +430,9 @@ function Read-ProviderChoice {
 function Get-SelectedProviderIds {
     param([string]$Choice)
     switch ($Choice) {
-        "1" { return @("qoder", "codebuddy", "mimo") }
+        "1" { return @("qoder", "codebuddy") }
         "3" { return @("qoder") }
         "4" { return @("codebuddy") }
-        "5" { return @("mimo") }
         default { return @() }
     }
 }
@@ -749,9 +708,6 @@ function Update-ProviderConfig {
                 $config.providers.codebuddy.nodePath = $nodeCommand.Path
             }
         }
-        if ($status.Id -eq "mimo" -and $null -ne $config.providers.mimo) {
-            $config.providers.mimo.cliPath = $status.CommandPath
-        }
         $status.ConfigWritten = $true
         Set-ProviderState -State $State -ProviderId $status.Id -Status "config_written" -ProviderStatus $status -Message "本机配置已记录 CLI 路径"
     }
@@ -945,7 +901,7 @@ Write-Section "Codex Praetor 安装向导"
 Write-Item -Label "产品版本" -Value $productVersion -Color "Green"
 Write-Host "版本：$productVersion"
 Write-Host "安装范围：当前 Windows 用户插件目录，不需要管理员权限。"
-Write-Host "这个向导会安装 Codex Praetor 本体，并把 Qoder、CodeBuddy、MiMo 的安装、登录陪跑、复检和 canary 串在同一个命令里。"
+Write-Host "这个向导会安装 Codex Praetor 本体，并把 Qoder、CodeBuddy 的安装、登录陪跑、复检和 canary 串在同一个命令里。"
 Write-Host "它不会替你登录账号，不会读取 token、cookie、账号数据库，也不会替你确认账单。"
 
 Write-Section "安装前检查"
@@ -956,7 +912,7 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
     $nodeVersion = (& node --version 2>$null | Select-Object -First 1)
     Write-Item -Label "Node.js" -Value "已发现 $nodeVersion" -Color "Green"
 } else {
-    Write-Item -Label "Node.js" -Value "未发现。本体可先安装；CodeBuddy/MiMo 的 npm fallback 和 MCP runtime 会受影响。" -Color "Yellow"
+    Write-Item -Label "Node.js" -Value "未发现。本体可先安装；CodeBuddy 的 npm fallback 和 MCP runtime 会受影响。" -Color "Yellow"
 }
 
 if (Get-Command git -ErrorAction SilentlyContinue) {

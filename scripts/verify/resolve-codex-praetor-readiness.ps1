@@ -13,6 +13,24 @@ function Read-CodexPraetorJson {
     try { return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { return $null }
 }
 
+function Test-CodexPraetorReadinessEvidence {
+    param([object]$Entry)
+
+    # Readiness is a compact pointer to a real worker receipt.  Legacy entries
+    # without this shape may be historical, but cannot authorize a new task.
+    $evidence = $Entry.evidence
+    if ($null -eq $evidence) { return $false }
+    return (
+        [string]$evidence.schema -eq "codex-praetor-canary-evidence/v1" -and
+        -not [string]::IsNullOrWhiteSpace([string]$evidence.job_id) -and
+        -not [string]::IsNullOrWhiteSpace([string]$evidence.worker_stdout_sha256) -and
+        -not [string]::IsNullOrWhiteSpace([string]$evidence.completion_sha256) -and
+        [string]$evidence.completion_status -eq "process_exited" -and
+        [int]$evidence.worker_exit_code -eq 0 -and
+        [string]$evidence.failure_class -eq ""
+    )
+}
+
 function Test-CodexPraetorProviderReadiness {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -34,7 +52,7 @@ function Test-CodexPraetorProviderReadiness {
         generation_id = $ExpectedGeneration; runtime_contract_sha256 = $ExpectedRuntimeContract
         task_contract_schema = $ExpectedTaskContract; checked_at = (Get-Date).ToString("o")
     }
-    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2") -or $null -eq $state.entries) {
+    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2", "codex-praetor-provider-readiness/v3", "codex-praetor-generation-readiness/v3") -or $null -eq $state.entries) {
         $result.reason = "缺少可解析的 readiness canary。"
         return [pscustomobject]$result
     }
@@ -42,6 +60,7 @@ function Test-CodexPraetorProviderReadiness {
     # is only a last-write summary and must never hide a valid matching entry.
     foreach ($entry in @($state.entries)) {
         if ([string]$entry.status -ne "passed") { continue }
+        if (-not (Test-CodexPraetorReadinessEvidence -Entry $entry)) { continue }
         if ([string]$entry.provider -ne $ProviderName -or [string]$entry.cli_path -ne $Cli -or [string]$entry.cli_hash -ne $cliHash) { continue }
         if ([string]$entry.model -ne $ModelName -or [string]$entry.permission_profile -ne $Permission -or [string]$entry.task_kind -ne $Kind) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedGeneration) -and [string]$entry.generation_id -ne $ExpectedGeneration) { continue }
@@ -70,7 +89,7 @@ function Get-CodexPraetorCurrentReadinessEntries {
         generation_id = $ExpectedGeneration; runtime_contract_sha256 = $ExpectedRuntimeContract
         task_contract_schema = $ExpectedTaskContract; entries = @(); checked_at = (Get-Date).ToString("o")
     }
-    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2") -or $null -eq $state.entries) {
+    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2", "codex-praetor-provider-readiness/v3", "codex-praetor-generation-readiness/v3") -or $null -eq $state.entries) {
         $result.reason = "缺少可解析的 readiness canary。"
         return [pscustomobject]$result
     }
@@ -80,6 +99,7 @@ function Get-CodexPraetorCurrentReadinessEntries {
     $valid = New-Object System.Collections.Generic.List[object]
     foreach ($entry in @($state.entries)) {
         if ([string]$entry.status -ne "passed") { continue }
+        if (-not (Test-CodexPraetorReadinessEvidence -Entry $entry)) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedGeneration) -and [string]$entry.generation_id -ne $ExpectedGeneration) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedRuntimeContract) -and [string]$entry.runtime_contract_sha256 -ne $ExpectedRuntimeContract) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedTaskContract) -and [string]$entry.task_contract_schema -ne $ExpectedTaskContract) { continue }

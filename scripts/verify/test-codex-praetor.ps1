@@ -197,7 +197,7 @@ if (-not $SkipGlobalRuleCheck) {
     if (Test-Path -LiteralPath $globalAgents) {
         $globalAgentsText = Get-Content -LiteralPath $globalAgents -Raw -Encoding UTF8
         $hasPraetorRoute = [regex]::IsMatch($globalAgentsText, '(?i)codex[- ]praetor|\u6267\u653f\u5b98')
-        $hasExternalProviderRoute = [regex]::IsMatch($globalAgentsText, '(?i)qoder|codebuddy|mimo')
+        $hasExternalProviderRoute = [regex]::IsMatch($globalAgentsText, '(?i)qoder|codebuddy')
         $hasNativeSubagentBoundary = [regex]::IsMatch($globalAgentsText, '(?i)subagent|\u5b50\u4ee3\u7406|\u539f\u751f\s*Codex')
         if ($hasPraetorRoute -and $hasExternalProviderRoute -and $hasNativeSubagentBoundary) {
             Add-Pass "Global AGENTS has Codex Praetor delegation route"
@@ -363,8 +363,8 @@ if ($oldNameHits.Count -eq 0) {
 if (-not $SkipDryRun) {
     try {
         $dryRunOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $sourceInvoke `
-            -Provider mimo `
-            -Tier mimo-isolated-audit `
+            -Provider codebuddy `
+            -Tier codebuddy-free `
             -Repo $Repo `
             -Task "Dry run only. Verify Codex Praetor current project baseline." `
             -Mode readonly `
@@ -372,13 +372,13 @@ if (-not $SkipDryRun) {
             -NoNotify
 
         $dryRunText = ($dryRunOutput | Out-String)
-        if ($LASTEXITCODE -eq 0 -and $dryRunText -match "provider=mimo" -and $dryRunText -match "project_artifact_root=" -and $dryRunText -match "CodexPraetor[\\\/]\.codex-praetor" -and $dryRunText -match "CodexPraetor[\\\/]\.codex-praetor[\\\/]worktrees") {
-            Add-Pass "MiMo isolated-audit dry-run succeeds and resolves in-project artifact and worktree roots"
+        if ($LASTEXITCODE -eq 0 -and $dryRunText -match "provider=codebuddy" -and $dryRunText -match "project_artifact_root=" -and $dryRunText -match "CodexPraetor[\\\/]\.codex-praetor" -and $dryRunText -match "CodexPraetor[\\\/]\.codex-praetor[\\\/]worktrees") {
+            Add-Pass "CodeBuddy dry-run succeeds and resolves in-project artifact and worktree roots"
         } else {
-            Add-Fail "MiMo isolated-audit dry-run returned unexpected output"
+            Add-Fail "CodeBuddy dry-run returned unexpected output"
         }
     } catch {
-        Add-Fail "MiMo isolated-audit dry-run failed: $($_.Exception.Message)"
+        Add-Fail "CodeBuddy dry-run failed: $($_.Exception.Message)"
     }
 }
 
@@ -658,8 +658,8 @@ if (-not $SkipUserInstallSmoke) {
     try {
         New-Item -ItemType Directory -Path $providerSetupHome -Force | Out-Null
         New-Item -ItemType Directory -Path $providerSetupBin -Force | Out-Null
-        $fakeMimo = Join-Path $providerSetupBin "mimo.cmd"
-        "@echo off`r`necho 0.0.0-test`r`n" | Set-Content -LiteralPath $fakeMimo -Encoding ASCII
+        $fakeCodeBuddy = Join-Path $providerSetupBin "codebuddy.cmd"
+        "@echo off`r`necho 0.0.0-test`r`n" | Set-Content -LiteralPath $fakeCodeBuddy -Encoding ASCII
 
         $oldUserProfile = $env:USERPROFILE
         $oldPath = $env:PATH
@@ -668,7 +668,7 @@ if (-not $SkipUserInstallSmoke) {
         $providerSetupOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $setupScript `
             -Apply `
             -NonInteractive `
-            -ProviderChoice 5 `
+            -ProviderChoice 4 `
             -SkipMaintenance 2>&1
         if ($LASTEXITCODE -ne 0) {
             Add-Fail "Provider setup wizard smoke failed: $($providerSetupOutput | Out-String)"
@@ -681,10 +681,10 @@ if (-not $SkipUserInstallSmoke) {
             $providerStateText = Get-Content -LiteralPath $providerSetupState -Raw -Encoding UTF8
             $providerState = $providerStateText | ConvertFrom-Json
             $secretPattern = "token|cookie|api[_-]?key|personal[_-]?access[_-]?token|secret"
-            if ([string]$providerConfig.providers.mimo.cliPath -ne $fakeMimo) {
-                Add-Fail "Provider setup wizard wrote unexpected MiMo path: $($providerConfig.providers.mimo.cliPath)"
-            } elseif ($providerState.providerChoice -ne "5" -or $providerState.providers.mimo.status -notin @("canary_not_run", "config_written", "auth_not_checked", "cli_rechecked")) {
-                Add-Fail "Provider setup wizard wrote unexpected onboarding state for MiMo: $($providerState.providers.mimo.status)"
+            if ([string]$providerConfig.providers.codebuddy.cliPath -ne $fakeCodeBuddy) {
+                Add-Fail "Provider setup wizard wrote unexpected CodeBuddy path: $($providerConfig.providers.codebuddy.cliPath)"
+            } elseif ($providerState.providerChoice -ne "4" -or $providerState.providers.codebuddy.status -notin @("canary_not_run", "config_written", "auth_not_checked", "cli_rechecked")) {
+                Add-Fail "Provider setup wizard wrote unexpected onboarding state for CodeBuddy: $($providerState.providers.codebuddy.status)"
             } elseif ($providerStateText -match $secretPattern) {
                 Add-Fail "Provider setup wizard state contains a secret-like field name"
             } else {

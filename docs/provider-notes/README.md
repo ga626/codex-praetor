@@ -4,7 +4,6 @@ Codex Praetor 支持以下可选外部 CLI provider：
 
 - [Qoder](qoder.md)
 - [CodeBuddy](codebuddy.md)
-- [MiMo](mimo.md)
 
 这些 provider 不随 Codex Praetor 附带。安装向导会帮用户检查本机命令；如果命令不存在，会在用户确认后执行 provider 官方安装命令；安装后刷新 PATH、复检，等待用户完成官方授权，并把已发现的 CLI 路径写入不会提交的本机配置。
 
@@ -15,10 +14,10 @@ Codex Praetor 支持以下可选外部 CLI provider：
 只读 canary 统一入口：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider mimo -Apply
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy -Apply
 ```
 
-第一条只预览命令；第二条才会真实调用 provider。把 `mimo` 换成 `qoder` 或 `codebuddy` 可以验证其它 provider。
+第一条只预览命令；第二条才会真实调用 provider。把 `codebuddy` 换成 `qoder` 可以验证另一家 provider。
 
 返回安装入口：[README](../../README.md)。

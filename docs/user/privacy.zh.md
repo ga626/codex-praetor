@@ -17,14 +17,14 @@ Codex Praetor 是本机插件和脚本工具，不托管账号服务，不替用
 
 - GitHub Personal Access Token。
 - provider token、cookie、账号数据库、桌面端数据库。
-- Qoder、CodeBuddy、MiMo 的账号页面和余额截图。
+- Qoder、CodeBuddy 的账号页面和余额截图。
 - 浏览器 cookie。
 - 本机其他项目的私有文件，除非你明确把那个路径作为任务仓库传入。
 - 你的完整 Codex 会话历史、其他任务的 worker 输出或未选择的仓库。
 
 ## 它不会做什么
 
-- 不在未经用户确认时安装 Qoder、CodeBuddy、MiMo；用户选择后只调用官方安装命令。
+- 不在未经用户确认时安装 Qoder、CodeBuddy；用户选择后只调用官方安装命令。
 - 不替用户登录 provider。
 - 不把源码目录和本机安装目录做软链接或自动同步。
 - 不默认创建 Codex 原生 subagent。

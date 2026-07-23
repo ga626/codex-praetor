@@ -20,10 +20,8 @@ const codexPraetorTerms = [
   "qoder",
   "codebuddy",
   "workbuddy",
-  "mimo",
   "腾讯",
   "阿里",
-  "小米"
 ];
 
 const delegationTerms = [

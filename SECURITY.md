@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-`0.9.6-alpha` is the current source pre-release version. Security fixes are handled on the main branch and are included in the latest tagged pre-release when a release is cut.
+`0.9.8-alpha` is the current source pre-release version. Security fixes are handled on the main branch and are included in the latest tagged pre-release when a release is cut.
 
 ## Reporting
 
@@ -10,7 +10,7 @@ Please report suspected security issues privately to the repository owner once t
 
 ## Local Data Boundary
 
-Codex Praetor should not require provider account files, API keys, browser cookies, local app databases, or model-provider caches to be committed. Provider credentials stay in the user's normal Qoder, CodeBuddy, or MiMo installation.
+Codex Praetor should not require provider account files, API keys, browser cookies, local app databases, or model-provider caches to be committed. Provider credentials stay in the user's normal Qoder or CodeBuddy installation.
 
 Before publishing a fork or bug report, remove:
 

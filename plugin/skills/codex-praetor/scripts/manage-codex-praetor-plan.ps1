@@ -380,7 +380,7 @@ if ($Action -eq "Init") {
     }
     $completion = Get-Content -LiteralPath $completionFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $recordTaskId = if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $TaskId } else { [string]$completion.task_id }
-    $recordStatus = if ($completion.status -eq "process_exited" -and [string]::IsNullOrWhiteSpace([string]$completion.failure_class)) { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } else { "failed" }
+    $recordStatus = if ($completion.status -eq "process_exited" -and [string]::IsNullOrWhiteSpace([string]$completion.failure_class) -and $null -ne $completion.exit_code -and [int]$completion.exit_code -eq 0) { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } else { "failed" }
     $summaryText = "process_state=$($completion.process_state); failure_class=$($completion.failure_class); exit_code=$($completion.exit_code)"
     Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
     $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)

@@ -1,7 +1,7 @@
 ﻿param(
     [string]$Repo = (Get-Location).Path,
 
-    [ValidateSet("qoder", "codebuddy", "mimo")]
+    [ValidateSet("qoder", "codebuddy")]
     [string]$Provider,
 
     [string]$Tier = "",
@@ -15,11 +15,15 @@
 
     [string]$ReadinessPath = "",
 
+    # Test-only override. The production path always resolves the bundled
+    # dispatcher from the installed/source generation.
+    [string]$WrapperPath = "",
+
     [switch]$Apply
 )
 
 $ErrorActionPreference = "Stop"
-. (Join-Path $PSScriptRoot "ensure-file-hash.ps1")
+. (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $wrapperCandidates = @(
@@ -62,11 +66,47 @@ function Get-ProviderCliPath {
     return [string]$config.providers.$ProviderName.cliPath
 }
 
-if (@($wrapper).Count -ne 1) {
+function Get-CanaryWorkerEvidence {
+    param([string]$WrapperOutput, [string]$ExpectedMarker)
+
+    # The wrapper echoes its command, which includes the natural-language
+    # prompt.  That echo is transport diagnostics, never worker evidence.
+    $jobDir = Get-Field -Text $WrapperOutput -Name "job_dir"
+    $jobPath = if ([string]::IsNullOrWhiteSpace($jobDir)) { "" } else { Join-Path $jobDir "job.json" }
+    if (-not (Test-Path -LiteralPath $jobPath -PathType Leaf)) { throw "Capability canary did not publish job metadata." }
+    $job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $completionPath = [string]$job.completion
+    if ([string]::IsNullOrWhiteSpace($completionPath)) { $completionPath = Join-Path $jobDir "completion.json" }
+    if (-not (Test-Path -LiteralPath $completionPath -PathType Leaf)) { throw "Capability canary did not publish completion evidence." }
+    $completion = Get-Content -LiteralPath $completionPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$completion.status -ne "process_exited" -or [int]$completion.exit_code -ne 0 -or -not [string]::IsNullOrWhiteSpace([string]$completion.failure_class)) {
+        throw "Capability canary worker did not complete successfully."
+    }
+    $stdoutPath = [string]$job.stdout
+    if ([string]::IsNullOrWhiteSpace($stdoutPath)) { $stdoutPath = Join-Path $jobDir "stdout.log" }
+    if (-not (Test-Path -LiteralPath $stdoutPath -PathType Leaf)) { throw "Capability canary did not publish worker stdout." }
+    $workerOutput = Get-Content -LiteralPath $stdoutPath -Raw -Encoding UTF8
+    if ($workerOutput -notmatch [regex]::Escape($ExpectedMarker)) { throw "Worker stdout did not return the required marker." }
+    return [pscustomobject]@{
+        job = $job
+        completion = $completion
+        job_dir = $jobDir
+        job_path = $jobPath
+        stdout_path = $stdoutPath
+        completion_path = $completionPath
+        worker_stdout_sha256 = (Get-FileHash -LiteralPath $stdoutPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        completion_sha256 = (Get-FileHash -LiteralPath $completionPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($WrapperPath)) {
+    $wrapper = [System.IO.Path]::GetFullPath($WrapperPath)
+}
+if (@($wrapper).Count -ne 1 -or -not (Test-Path -LiteralPath $wrapper -PathType Leaf)) {
     throw "Dispatcher is missing: $wrapper"
 }
 if (@($nativeHelper).Count -ne 1) { throw "Native invocation helper is missing." }
-$wrapper = [string]$wrapper[0]
+$wrapper = if ($wrapper -is [array]) { [string]$wrapper[0] } else { [string]$wrapper }
 $nativeHelper = [string]$nativeHelper[0]
 . $nativeHelper
 $runningGenerationHelperPath = @($runningGenerationHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
@@ -88,13 +128,16 @@ if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
 }
 
 $mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }
+# Keep the worker instruction natural and small. Readonly permissions,
+# network policy, timeout, marker parsing and repository observations are
+# supervisor-side protocol, not prompt padding.
 $canaryFileName = "CODEX_PRAETOR_EDIT_CANARY.txt"
 $task = if ($TaskKind -eq "code_change") {
     "Create $canaryFileName at the repository root with exactly $marker, run git status --short, then reply exactly $marker."
 } elseif ($TaskKind -eq "test_execution") {
     "Run the fixed PowerShell check `"Test-Path README.md`" in the execution worktree. Do not edit files. Reply exactly $marker only if the command returns True."
 } else {
-    "Read README.md and return exactly $marker in the final response. Do not perform external network research. Do not modify files."
+    "Read README.md and reply exactly $marker."
 }
 
 $argsList = @(
@@ -121,6 +164,9 @@ if (-not $Apply) {
 }
 
 $beforeStatus = (& git -C $Repo status --short 2>$null | Out-String).Trim()
+if ($Apply -and -not [string]::IsNullOrWhiteSpace($beforeStatus)) {
+    throw "Capability canary requires a clean repository before it starts. Use an isolated checkout or commit/stash the current changes first."
+}
 $nativeResult = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList $argsList -WorkingDirectory $projectRoot -TimeoutSeconds 360
 $exitCode = [int]$nativeResult.exit_code
 $outputText = (([string]$nativeResult.stdout) + "`n" + ([string]$nativeResult.stderr)).Trim()
@@ -134,19 +180,34 @@ if (-not $Apply) {
 }
 
 if ($exitCode -ne 0) { throw "Capability canary failed with exit code $exitCode." }
-if ($outputText -notmatch [regex]::Escape($marker)) { throw "Worker did not return the required marker." }
+$workerEvidence = Get-CanaryWorkerEvidence -WrapperOutput $outputText -ExpectedMarker $marker
 if ($TaskKind -eq "code_change") {
-    $jobMatch = [regex]::Match($outputText, "(?m)^job_dir=(.+)$")
-    $jobPath = if ($jobMatch.Success) { Join-Path $jobMatch.Groups[1].Value.Trim() "job.json" } else { "" }
-    if (-not (Test-Path -LiteralPath $jobPath -PathType Leaf)) { throw "Edit capability canary did not publish job metadata." }
-    $job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $job = $workerEvidence.job
     $workerRepo = [string]$job.execution_repo
     $canaryPath = Join-Path $workerRepo $canaryFileName
     if (-not (Test-Path -LiteralPath $canaryPath -PathType Leaf)) { throw "Edit capability canary produced no canary file in the worker worktree." }
-    if ((Get-Content -LiteralPath $canaryPath -Raw -Encoding UTF8) -notmatch [regex]::Escape($marker)) { throw "Edit capability canary file does not contain the required marker." }
-    if ([string]::IsNullOrWhiteSpace((& git -C $workerRepo status --short 2>$null | Out-String).Trim())) { throw "Edit capability canary produced no observable worker worktree change." }
+    $canaryText = Get-Content -LiteralPath $canaryPath -Raw -Encoding UTF8
+    if ($canaryText -notmatch [regex]::Escape($marker)) { throw "Edit capability canary file does not contain the required marker." }
+    $workerStatus = (& git -C $workerRepo status --short 2>$null | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($workerStatus)) { throw "Edit capability canary produced no observable worker worktree change." }
 }
-if ($beforeStatus -ne $afterStatus) { throw "Canary changed the main checkout status." }
+
+# The worker proof and the caller checkout are independent observations. A
+# concurrent editor can change the checkout while a genuinely readonly worker
+# succeeds; losing that proof would deadlock every subsequent dispatch. A dirty
+# *starting* checkout remains unsafe and is rejected above. Drift during the
+# run is preserved as evidence rather than being misattributed to the worker.
+$repoObservation = [ordered]@{
+    clean_before = [string]::IsNullOrWhiteSpace($beforeStatus)
+    clean_after = [string]::IsNullOrWhiteSpace($afterStatus)
+    status = if ($beforeStatus -eq $afterStatus) { "unchanged" } else { "external_repo_drift_observed" }
+    before_status = $beforeStatus
+    after_status = $afterStatus
+    observed_at = (Get-Date).ToString("o")
+}
+if ($repoObservation.status -eq "external_repo_drift_observed") {
+    Write-Warning "Repository status changed while the canary ran. Provider proof remains valid; checkout drift was recorded for review."
+}
 
 $cliPath = Get-ProviderCliPath -Path $ConfigPath -ProviderName $Provider
 $cliHash = if (Test-Path -LiteralPath $cliPath -PathType Leaf) { (Get-FileHash -LiteralPath $cliPath -Algorithm SHA256).Hash } else { "" }
@@ -157,8 +218,8 @@ $entry = [pscustomobject]@{
     provider = $Provider
     cli_path = $cliPath
     cli_hash = $cliHash
-    model = Get-Field -Text $outputText -Name "model"
-    permission_profile = Get-Field -Text $outputText -Name "permission_profile"
+    model = [string]$workerEvidence.job.provider_tuple.model
+    permission_profile = [string]$workerEvidence.job.provider_tuple.permission_profile
     task_kind = $TaskKind
     status = "passed"
     passed_at = (Get-Date).ToString("o")
@@ -166,6 +227,19 @@ $entry = [pscustomobject]@{
     wrapper_protocol = [string]$runtimeContract.wrapperProtocol
     provider_source = "capability_canary"
     cli_version = Get-Field -Text $outputText -Name "version"
+    repo_observation = $repoObservation
+    evidence = [ordered]@{
+        schema = "codex-praetor-canary-evidence/v1"
+        job_id = [string]$workerEvidence.job.job_id
+        job_path = $workerEvidence.job_path
+        stdout_path = $workerEvidence.stdout_path
+        completion_path = $workerEvidence.completion_path
+        worker_stdout_sha256 = $workerEvidence.worker_stdout_sha256
+        completion_sha256 = $workerEvidence.completion_sha256
+        completion_status = [string]$workerEvidence.completion.status
+        worker_exit_code = [int]$workerEvidence.completion.exit_code
+        failure_class = [string]$workerEvidence.completion.failure_class
+    }
 }
 
 $entries = @()
@@ -186,7 +260,7 @@ $entries = @($entries | Where-Object {
 })
 $entries += $entry
 $state = [pscustomobject]@{
-    schema = "codex-praetor-generation-readiness/v2"
+    schema = "codex-praetor-generation-readiness/v3"
     status = "passed"
     generation_id = [string]$generation.generation_id
     runtime_contract_sha256 = $runtimeContractHash
@@ -200,6 +274,7 @@ $state = [pscustomobject]@{
         task_kind = [string]$entry.task_kind
     }
     provider_source = "capability_canary"
+    repo_observation = $repoObservation
     updated_at = (Get-Date).ToString("o")
     entries = $entries
 }

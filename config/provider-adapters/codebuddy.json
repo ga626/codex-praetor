@@ -23,7 +23,7 @@
     "launch": "invoke-codex-praetor.ps1 creates the command from the approved fixed model and permission tuple.",
     "parse_terminal_state": "watch-codex-praetor-job.ps1 separates a clean process exit from a usable worker result.",
     "cleanup": "The job record persists for Codex review; controlled retention later reclaims disposable worktrees.",
-    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "permission_denied", "worker_timed_out", "provider_unavailable"]
+    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable"]
   },
   "evidence": {
     "fixture": "scripts/verify/test-provider-canary-evidence.ps1",

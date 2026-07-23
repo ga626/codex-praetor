@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.9.6-alpha",
-    "previous_version":  "0.9.5-alpha",
-    "tag":  "v0.9.6-alpha",
+    "version":  "0.9.8-alpha",
+    "previous_version":  "0.9.6-alpha",
+    "tag":  "v0.9.8-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.9.6-alpha.zip",
-    "reason":  "修复真实评测派工合同：固定测试任务以只读、可执行指定检查的 test_execution 合同派发，完整路径、检查、预算与故障注入合同在计划台账中持久化并 fail-closed。"
+    "artifact":  "codex-praetor-setup-0.9.8-alpha.zip",
+    "reason":  "统一修复 worker 证据链：canary 只接受真实 stdout/completion 回执，Windows watcher 可靠采集退出码，readiness、任务账本、路由与运营面均对失败 fail-closed。"
 }

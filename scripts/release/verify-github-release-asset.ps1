@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.9.6-alpha",
+    [string]$Version = "0.9.8-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
@@ -200,7 +200,6 @@ try {
     Assert-Contains -Text $setupText -Needle 'Write-Host "  2.' -Label "skip providers choice"
     Assert-Contains -Text $setupText -Needle "Qoder" -Label "Qoder choice"
     Assert-Contains -Text $setupText -Needle "CodeBuddy" -Label "CodeBuddy choice"
-    Assert-Contains -Text $setupText -Needle "MiMo" -Label "MiMo choice"
 
     Write-Host "[PASS] Downloaded GitHub Release zip verified: $remoteZipHash"
     Write-Host "[PASS] GitHub Release SHA256 file matches."

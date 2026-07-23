@@ -123,85 +123,6 @@ function Update-LockForWorker {
     $updated | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $Path -Encoding UTF8
 }
 
-function Read-MiMoJsonEventSummary {
-    param([string]$Path)
-    $summary = [ordered]@{
-        text = ""
-        cost = $null
-        input_tokens = $null
-        output_tokens = $null
-        reasoning_tokens = $null
-        cache_read = $null
-        cache_write = $null
-        tool_use_count = 0
-        parse_errors = 0
-        provider_error = $null
-    }
-
-    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
-        return $summary
-    }
-
-    $texts = New-Object System.Collections.Generic.List[string]
-    foreach ($line in Get-Content -LiteralPath $Path) {
-        if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart()[0] -ne "{") {
-            continue
-        }
-        try {
-            $event = $line | ConvertFrom-Json
-        } catch {
-            $summary.parse_errors = [int]$summary.parse_errors + 1
-            continue
-        }
-
-        if ($event.type -eq "text" -and $null -ne $event.part.text) {
-            $texts.Add([string]$event.part.text) | Out-Null
-        }
-
-        if ($event.type -eq "tool_use") {
-            $summary.tool_use_count = [int]$summary.tool_use_count + 1
-        }
-
-        if ($event.type -eq "error" -and $null -ne $event.error) {
-            $error = $event.error
-            $data = $error.data
-            $responseError = $null
-            if ($null -ne $data -and -not [string]::IsNullOrWhiteSpace([string]$data.responseBody)) {
-                try {
-                    $responseError = (($data.responseBody | ConvertFrom-Json).error)
-                } catch {
-                    # Keep the provider's top-level error when its response body is not JSON.
-                }
-            }
-            $summary.provider_error = [ordered]@{
-                name = [string]$error.name
-                message = if ($null -ne $responseError) { [string]$responseError.message } elseif ($null -ne $data) { [string]$data.message } else { "" }
-                status_code = if ($null -ne $data) { $data.statusCode } else { $null }
-                code = if ($null -ne $responseError) { [string]$responseError.code } else { "" }
-                type = if ($null -ne $responseError) { [string]$responseError.type } else { "" }
-                retryable = if ($null -ne $data) { $data.isRetryable } else { $null }
-            }
-        }
-
-        if ($event.type -eq "step_finish" -and $null -ne $event.part) {
-            if ($null -ne $event.part.cost) { $summary.cost = $event.part.cost }
-            if ($null -ne $event.part.tokens) {
-                $tokens = $event.part.tokens
-                if ($null -ne $tokens.input) { $summary.input_tokens = $tokens.input }
-                if ($null -ne $tokens.output) { $summary.output_tokens = $tokens.output }
-                if ($null -ne $tokens.reasoning) { $summary.reasoning_tokens = $tokens.reasoning }
-                if ($null -ne $tokens.cache) {
-                    if ($null -ne $tokens.cache.read) { $summary.cache_read = $tokens.cache.read }
-                    if ($null -ne $tokens.cache.write) { $summary.cache_write = $tokens.cache.write }
-                }
-            }
-        }
-    }
-
-    $summary.text = ($texts -join "`n")
-    return $summary
-}
-
 $metaPath = Join-Path $JobDir "job.json"
 $completionPath = Join-Path $JobDir "completion.json"
 $watcherLog = Join-Path $JobDir "watcher.log"
@@ -215,6 +136,8 @@ try {
     $exitCode = $null
     $waitError = $null
     $alreadyWaited = $false
+    $stdoutReadTask = $null
+    $stderrReadTask = $null
     $timedOut = $false
 
     try {
@@ -252,7 +175,19 @@ try {
             Set-JsonProperty -Object $meta -Name "status_note" -Value "Worker was started and is being waited by the watcher process."
             Write-JsonFile -Path $metaPath -Value $meta
             Update-LockForWorker -Path $LockPath -JobId $meta.job_id -WorkerProcessId 0
-            $proc = Start-Process -FilePath $Exe -ArgumentList $argumentLine -WorkingDirectory $WorkingDirectory -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath -WindowStyle Hidden -PassThru
+            $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $startInfo.FileName = $Exe
+            $startInfo.Arguments = $argumentLine
+            $startInfo.WorkingDirectory = $WorkingDirectory
+            $startInfo.UseShellExecute = $false
+            $startInfo.CreateNoWindow = $true
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+            $proc = New-Object System.Diagnostics.Process
+            $proc.StartInfo = $startInfo
+            if (-not $proc.Start()) { throw "Worker process did not start." }
+            $stdoutReadTask = $proc.StandardOutput.ReadToEndAsync()
+            $stderrReadTask = $proc.StandardError.ReadToEndAsync()
             $WorkerPid = $proc.Id
             Set-JsonProperty -Object $meta -Name "pid" -Value $WorkerPid
             Set-JsonProperty -Object $meta -Name "worker_started_at" -Value $proc.StartTime.ToUniversalTime().ToString("o")
@@ -271,9 +206,14 @@ try {
                 }
             }
         }
+        if ($null -ne $stdoutReadTask -and $null -ne $stderrReadTask) {
+            [System.IO.File]::WriteAllText($StdoutPath, [string]$stdoutReadTask.GetAwaiter().GetResult(), (New-Object System.Text.UTF8Encoding($false)))
+            [System.IO.File]::WriteAllText($StderrPath, [string]$stderrReadTask.GetAwaiter().GetResult(), (New-Object System.Text.UTF8Encoding($false)))
+        }
         $proc.Refresh()
         try {
-            $exitCode = [int]$proc.ExitCode
+            $rawExitCode = $proc.ExitCode
+            if ($null -ne $rawExitCode) { $exitCode = [int]$rawExitCode }
         } catch {
             $exitCode = $null
         }
@@ -289,26 +229,15 @@ try {
     # A worker exit is execution evidence, not a logical-task acceptance.
     $status = "process_exited"
     $semanticFailure = ""
-    $mimoSummary = $null
     $combinedOutput = ""
     foreach ($outputPath in @([string]$meta.stdout, [string]$meta.stderr)) {
         if (Test-Path -LiteralPath $outputPath -PathType Leaf) {
             $combinedOutput += [Environment]::NewLine + (Get-Content -LiteralPath $outputPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
         }
     }
-    if ([string]$meta.provider -eq "mimo") {
-        $mimoSummary = Read-MiMoJsonEventSummary -Path ([string]$meta.stdout)
-        if ($null -ne $mimoSummary.provider_error) {
-            if ([string]$mimoSummary.provider_error.type -eq "risk_control" -or [string]$mimoSummary.provider_error.code -eq "441") {
-                $semanticFailure = "provider_risk_control"
-            } else {
-                $semanticFailure = "provider_rejected"
-            }
-        } elseif ([int]$mimoSummary.parse_errors -gt 0 -and [string]::IsNullOrWhiteSpace([string]$mimoSummary.text)) {
-            $semanticFailure = "provider_output_unparseable"
-        }
-    }
-    if ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)max(?:imum)?\s+turns?.*(?:exceeded|limit)|turns?\s+exceeded") {
+    if ($combinedOutput -match "(?is)provider[_ -]?(?:rejected|risk[_ -]?control)|request blocked|status(?:Code)?\s*[:=]?\s*4\d\d") {
+        $semanticFailure = "provider_rejected"
+    } elseif ($combinedOutput -match "(?is)max(?:imum)?\s+turns?.*(?:exceeded|limit)|turns?\s+exceeded") {
         $semanticFailure = "max_turns_exceeded"
     } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
         $semanticFailure = "tool_contract_mismatch"
@@ -324,6 +253,10 @@ try {
         $status = "process_exited"
     } elseif ($null -ne $exitCode -and $exitCode -ne 0) {
         $status = "process_exited"
+        $semanticFailure = "worker_process_failed"
+    } elseif ($null -eq $exitCode) {
+        $status = "unknown"
+        $semanticFailure = "worker_exit_code_unavailable"
     } elseif ($waitError) {
         $status = "unknown"
     }
@@ -365,7 +298,7 @@ try {
     Set-JsonProperty -Object $meta -Name "evidence_state" -Value $evidenceState
     Set-JsonProperty -Object $meta -Name "artifact_state" -Value $artifactState
     Set-JsonProperty -Object $meta -Name "evidence_observation" -Value $evidenceObservation
-    $governanceState = if ([string]::IsNullOrWhiteSpace($semanticFailure)) { "awaiting_supervisor" } else { "rejected" }
+    $governanceState = if ([string]::IsNullOrWhiteSpace($semanticFailure) -and $null -ne $exitCode -and $exitCode -eq 0) { "awaiting_supervisor" } else { "rejected" }
     Set-JsonProperty -Object $meta -Name "governance_state" -Value $governanceState
     Set-JsonProperty -Object $meta -Name "exit_code" -Value $exitCode
     Set-JsonProperty -Object $meta -Name "exited_at" -Value $now.ToString("o")
@@ -411,20 +344,6 @@ try {
         notify_attempted = $false
         notify_ok = $false
         notify_error = ""
-    }
-
-    if ($null -ne $mimoSummary) {
-        $completion.provider_cost = $mimoSummary.cost
-        $completion.input_tokens = $mimoSummary.input_tokens
-        $completion.output_tokens = $mimoSummary.output_tokens
-        $completion.reasoning_tokens = $mimoSummary.reasoning_tokens
-        $completion.cache_read = $mimoSummary.cache_read
-        $completion.cache_write = $mimoSummary.cache_write
-        $completion.tool_use_count = $mimoSummary.tool_use_count
-        $completion.parser = "mimo_json_event_summary"
-        $completion.parser_errors = $mimoSummary.parse_errors
-        $completion.summary_text = $mimoSummary.text
-        $completion.provider_error = $mimoSummary.provider_error
     }
 
     if (-not [string]::IsNullOrWhiteSpace($LockPath) -and (Test-Path -LiteralPath $LockPath)) {
