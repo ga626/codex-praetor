@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.9-alpha - 2026-07-23
+
+- Recovered the `0.9.8-alpha` capability-canary release incident with a new immutable version; the published `0.9.8-alpha` artifact remains unchanged.
+- Fixed helper resolution for the same capability-canary script when it runs from the installed plugin Skill rather than the source-tree verification directory.
+- Added an executable regression for the plugin Skill copy, proving that a first post-install canary can bootstrap, retain worker evidence and write a readiness tuple.
+
 ## 0.9.8-alpha - 2026-07-23
 
 - Retired the third provider from the active public product: adapters, tiers, MCP schemas, dispatcher, watcher, setup wizard, examples, Skill mirrors and user documentation now use the exact Qoder + CodeBuddy allowlist.
