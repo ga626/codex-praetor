@@ -335,7 +335,13 @@ function buildDispatchArgs(input: {
   if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
   appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
   appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
-  if (input.task_material) args.push("-TaskMaterialBase64", Buffer.from(JSON.stringify(input.task_material), "utf8").toString("base64"));
+  if (input.task_material) {
+    const sourceRoot = String(input.task_material.source_root ?? "").trim();
+    if (!sourceRoot) {
+      throw new Error("Code-change task material lacks its durable source root.");
+    }
+    args.push("-TaskMaterialPath", path.join(sourceRoot, "task-material.json"));
+  }
 
   if (input.dry_run) {
     args.push("-DryRun");

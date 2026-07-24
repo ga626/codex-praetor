@@ -39,7 +39,12 @@ function New-TaskMaterial { param([object]$Task, [string]$PlanDirectory)
     }
     $material = [ordered]@{ schema='codex-praetor-task-material-instance/v1'; source_root=$instance; destination=[string]$spec.destination; write_set=@($spec.write_set); immutable_paths=@($spec.immutable_paths); baseline_command=[string]$spec.baseline_command; baseline_exit_code=[int]$spec.baseline_exit_code; files=$files }
     $materialPath = Join-Path $instance 'material-manifest.json'; $material | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $materialPath -Encoding UTF8
-    $material.manifest_sha256 = Get-TextSha256 $materialPath; return $material
+    $material.manifest_sha256 = Get-TextSha256 $materialPath
+    # Dispatch reads this durable contract by path.  Passing the full JSON through
+    # a Windows command line can alter backslash-containing payloads before the
+    # wrapper validates them.
+    $contractPath = Join-Path $instance 'task-material.json'; $material | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $contractPath -Encoding UTF8
+    return $material
 }
 function Assert-Task { param([object]$Task)
     foreach ($name in @("task_id", "task_family", "goal", "mode", "task_kind", "provider_candidates", "allowed_paths", "forbidden_paths", "acceptance", "required_checks", "budget", "failure_injection")) {
