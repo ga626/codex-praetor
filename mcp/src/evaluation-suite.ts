@@ -62,7 +62,10 @@ export async function prepareEvaluationTool(input: { repo: string; plan_id?: str
   const planId = input.plan_id?.trim() || "";
   const prepared = await runPowerShell(
     ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", initializerPath, "-ProjectRoot", repo, "-SuitePath", suitePath, "-TemplateRoot", templateRoot, "-PlanRoot", planRoot, "-PlanScript", planScript, "-PlanId", planId, "-Action", "Prepare", "-Apply"],
-    { timeoutMs: 30_000 }
+    // Preparation copies immutable task material and writes a plan ledger. On
+    // GitHub's Windows runners that legitimately exceeds the old 30-second
+    // smoke-only limit, while verification already permits two minutes.
+    { timeoutMs: 120_000 }
   );
   if (prepared.exitCode !== 0) {
     return { ok: false, exit_code: prepared.exitCode, stderr: prepared.stderr, stdout: prepared.stdout };
