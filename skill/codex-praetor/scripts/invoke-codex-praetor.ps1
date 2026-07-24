@@ -70,6 +70,9 @@
 
     [string]$TaskId = "",
 
+    [ValidateSet("", "read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery")]
+    [string]$TaskFamily = "",
+
     [string]$ResearchContractJson = "",
 
     [string]$DependsOn = "",
@@ -83,6 +86,8 @@
     [string]$ReadinessPath = "",
 
     [string]$UserProfileRoot = "",
+
+    [string]$CapabilityEvidenceRoot = "$env:USERPROFILE\.codex\codex-praetor-capability-evidence",
 
     [ValidateSet("stable", "dev")]
     [string]$RuntimeChannel = "stable",
@@ -915,7 +920,7 @@ function Invoke-Or-StartWorker {
         generation_id = [string]$generation.generation_id
         runtime_contract_sha256 = $runtimeContractHash
         wrapper_protocol = [string]$runtimeContract.wrapperProtocol
-        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $Exe; model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName }
+        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $Exe; cli_hash = (Get-FileSha256OrEmpty -Path $Exe); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
         contract_hash = $ContractHash
         run_mode = $RunMode
         status = "starting"
@@ -1223,6 +1228,14 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
     if (-not $readiness.ok) {
         throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Run test-provider-capability-canary.ps1 for the exact provider tuple first."
     }
+
+    if ([string]::IsNullOrWhiteSpace($TaskFamily)) { throw "Normal dispatch requires an explicit task family. Use an approved plan task or run a bounded CapabilityCanary; do not infer a family from free-form task text." }
+    $capabilityGateScript = Join-Path $scriptDir "test-codex-praetor-capability-evidence.ps1"
+    if (-not (Test-Path -LiteralPath $capabilityGateScript -PathType Leaf)) { throw "Capability evidence gate is missing: $capabilityGateScript" }
+    $capabilityGateRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $capabilityGateScript -TaskFamily $TaskFamily -Provider $resolvedProvider -CliPath $providerCliPath -CliHash (Get-FileSha256OrEmpty -Path $providerCliPath) -Model $model -PermissionProfile $effectivePermissionProfile -TaskKind $TaskKind -GenerationId ([string]$generation.generation_id) -RuntimeContractSha256 $runtimeContractHash -TaskContractSchema ([string]$runtimeContract.taskContractSchema) -EvidenceRoot $CapabilityEvidenceRoot
+    if ($LASTEXITCODE -ne 0) { throw "Capability evidence gate failed to execute: $($capabilityGateRaw -join ' ')" }
+    try { $capabilityGate = ($capabilityGateRaw -join "`n") | ConvertFrom-Json } catch { throw "Capability evidence gate returned invalid JSON: $($capabilityGateRaw -join ' ')" }
+    if (-not [bool]$capabilityGate.allowed) { throw "Capability evidence gate blocked '$resolvedProvider' for '$TaskFamily': $([string]$capabilityGate.reason) Use an explicit bounded CapabilityCanary for this exact tuple; do not disguise it as normal dispatch." }
 }
 
 $dispatchJobId = New-WorkerJobId -ProviderName $resolvedProvider -TierName $Tier
@@ -1261,6 +1274,7 @@ try {
         runtime_contract_sha256 = $runtimeContractHash
         wrapper_protocol = [string]$runtimeContract.wrapperProtocol
         task_kind = $TaskKind
+        task_family = $TaskFamily
         repo = (Resolve-Path -LiteralPath $Repo).Path
         execution_worktree = $executionRepo
         provider = $resolvedProvider

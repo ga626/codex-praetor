@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.12.0-alpha",
+    [string]$Version = "0.13.0-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [string]$ArtifactManifestPath = "",
     [string]$ObservedToolsPath = "",

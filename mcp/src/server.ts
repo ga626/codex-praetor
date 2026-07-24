@@ -68,7 +68,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.12.0-alpha"
+    version: "0.13.0-alpha"
   });
 
   server.registerTool(
@@ -223,7 +223,7 @@ export function createServer(): McpServer {
     "codex_praetor_dispatch",
     {
       title: "Dispatch Codex Praetor Worker",
-      description: "Start a real Codex Praetor worker job through the existing dispatcher and return job metadata for later Codex verification.",
+      description: "Start a real Codex Praetor worker job only after the exact task family has qualified capability evidence; return job metadata for later Codex verification.",
       annotations: additiveProjectLocalWrite,
       inputSchema: {
         repo: z.string().min(1),
@@ -233,6 +233,7 @@ export function createServer(): McpServer {
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
         task_kind: z.enum(["local_audit", "test_execution", "code_change", "external_research_support"]).optional(),
+        task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
         research_contract: researchContractSchema.optional(),
         plan_id: z.string().optional(),
         task_id: z.string().optional(),

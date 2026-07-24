@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.0-alpha
+
+- Made normal Qoder and CodeBuddy dispatch fail closed unless three fresh, Codex-accepted receipts match the exact task family and full provider tuple.
+- Persisted accepted capability evidence outside disposable worktrees and rejected legacy plan history, malformed receipts, stale receipts and tuple mismatches as route authorization.
+- Bound the same capability gate into the MCP path, source dispatcher and both packaged Skill mirrors, with regressions for insufficient, stale, malformed and mismatched evidence.
+
 ## 0.12.0-alpha
 
 - Added independently accepted, isolated real code-change evidence for Qoder and CodeBuddy; task completion is now distinct from Codex acceptance.

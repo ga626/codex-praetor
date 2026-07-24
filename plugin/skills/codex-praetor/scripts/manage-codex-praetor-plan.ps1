@@ -7,6 +7,7 @@ param(
     [string]$PlanId,
 
     [string]$PlanRoot = "$env:USERPROFILE\.codex\codex-praetor-plans",
+    [string]$CapabilityEvidenceRoot = "$env:USERPROFILE\.codex\codex-praetor-capability-evidence",
     [string]$Title = "",
     [string]$Repo = "",
     [string]$TaskId = "",
@@ -67,6 +68,21 @@ function Write-JsonFile {
     } finally {
         if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
     }
+}
+
+function Write-CapabilityEvidence {
+    param([object]$Task, [object]$Job, [object]$Completion)
+    $family = [string]$Task.task_family
+    $tuple = $Completion.provider_tuple
+    $requiredTupleFields = @("provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema")
+    $hasCompleteTuple = $null -ne $tuple -and @($requiredTupleFields | Where-Object { [string]::IsNullOrWhiteSpace([string]$tuple.$_) }).Count -eq 0
+    if ([string]::IsNullOrWhiteSpace($family) -or $family -eq "unclassified" -or -not $hasCompleteTuple) { return }
+    New-Item -ItemType Directory -Path $CapabilityEvidenceRoot -Force | Out-Null
+    $jobPath = Join-Path ([string]$Task.job_dir) "job.json"
+    $completionPath = [string]$Task.completion
+    if ([string]::IsNullOrWhiteSpace($completionPath)) { $completionPath = Join-Path ([string]$Task.job_dir) "completion.json" }
+    $receipt = [ordered]@{ schema = "codex-praetor-capability-evidence/v1"; evidence_id = [string]$Completion.job_id; accepted_at = (Get-Date).ToUniversalTime().ToString("o"); task_family = $family; provider_tuple = $tuple; task_kind = [string]$Task.task_kind; supervisor_verdict = "accepted"; contract_sha256 = [string]$Completion.contract_sha256; job_sha256 = (Get-FileHash -LiteralPath $jobPath -Algorithm SHA256).Hash.ToLowerInvariant(); completion_sha256 = (Get-FileHash -LiteralPath $completionPath -Algorithm SHA256).Hash.ToLowerInvariant(); required_checks = @($Task.completion_definition.required_checks) }
+    Write-JsonFile -Path (Join-Path $CapabilityEvidenceRoot ((Get-SafeName ([string]$Completion.job_id)) + ".json")) -Value $receipt
 }
 
 function ConvertTo-StringArray {
@@ -357,6 +373,7 @@ function Set-TaskVerification {
     if ($Verdict -eq "accepted") {
         Set-DynamicProperty -Target $target -Name "status" -Value "completed"
         Set-DynamicProperty -Target $target -Name "governance_state" -Value "accepted"
+        Write-CapabilityEvidence -Task $target -Job $job -Completion $completion
     } elseif ($Verdict -eq "retry") {
         Set-DynamicProperty -Target $target -Name "status" -Value "new_problem"
         Set-DynamicProperty -Target $target -Name "governance_state" -Value "retryable"

@@ -31064,6 +31064,13 @@ function getJobRoot(repo) {
 function getPlanRoot(repo) {
   return path.join(getProjectArtifactRoot(repo), "plans");
 }
+function getCapabilityEvidenceRoot() {
+  const explicit = process.env.CODEX_PRAETOR_CAPABILITY_EVIDENCE_ROOT?.trim();
+  if (explicit) return path.resolve(explicit);
+  const profile = process.env.USERPROFILE?.trim() || process.env.HOME?.trim();
+  if (!profile) throw new Error("USERPROFILE or CODEX_PRAETOR_CAPABILITY_EVIDENCE_ROOT is required for capability evidence.");
+  return path.join(path.resolve(profile), ".codex", "codex-praetor-capability-evidence");
+}
 function getLockRoot(repo) {
   return path.join(getProjectArtifactRoot(repo), "locks");
 }
@@ -31317,6 +31324,7 @@ var hardBlockedFailures = /* @__PURE__ */ new Set(["provider_risk_control", "pro
 var transientFailures = /* @__PURE__ */ new Set(["worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable"]);
 var profileEvidenceMaxAgeMs = 30 * 24 * 60 * 60 * 1e3;
 var transientCooldownMs = 60 * 60 * 1e3;
+var requiredTupleFields = ["provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema"];
 function asRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -31380,6 +31388,21 @@ function readPlanFiles(repo) {
   }
   return plans;
 }
+function readAcceptedEvidence(root) {
+  if (!existsSync2(root)) return [];
+  const receipts = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    try {
+      const receipt = asRecord(JSON.parse(readFileSync(path2.join(root, entry.name), "utf8")));
+      const tuple2 = asRecord(receipt.provider_tuple);
+      if (asString(receipt.schema) !== "codex-praetor-capability-evidence/v1" || asString(receipt.supervisor_verdict) !== "accepted" || !asString(receipt.evidence_id) || !asString(receipt.task_family) || requiredTupleFields.some((field) => !asString(tuple2[field]))) continue;
+      receipts.push(receipt);
+    } catch {
+    }
+  }
+  return receipts;
+}
 function capabilityProfilesTool(input) {
   const repo = resolveExistingRepo(input.repo);
   const buckets = /* @__PURE__ */ new Map();
@@ -31406,22 +31429,48 @@ function capabilityProfilesTool(input) {
           failure_class: asString(attempt.failure_class),
           supervisor_verdict: asString(attempt.supervisor_verdict),
           evidence_state: asString(attempt.evidence_state),
-          completion_path: asString(attempt.completion)
+          completion_path: asString(attempt.completion),
+          evidence_source: "legacy_plan"
         });
         buckets.set(key, bucket);
       }
     }
   }
+  const evidenceRoot = input.evidence_root ? path2.resolve(input.evidence_root) : getCapabilityEvidenceRoot();
+  for (const receipt of readAcceptedEvidence(evidenceRoot)) {
+    const tuple2 = asRecord(receipt.provider_tuple);
+    const taskFamily = asString(receipt.task_family);
+    if (taskFamily === "unclassified" && !input.include_unclassified) continue;
+    if (!taskFamilies.has(taskFamily) && taskFamily !== "unclassified") continue;
+    const key = `${taskFamily}${tupleKey(tuple2)}`;
+    const bucket = buckets.get(key) ?? { tuple: tuple2, taskFamily, evidence: [] };
+    bucket.evidence.push({
+      plan_id: "durable-evidence",
+      task_id: asString(receipt.evidence_id),
+      attempt_id: asString(receipt.evidence_id),
+      verdict: "accepted",
+      recorded_at: asString(receipt.accepted_at),
+      failure_class: "",
+      supervisor_verdict: "accepted",
+      evidence_state: "artifact_valid",
+      completion_path: asString(receipt.completion_sha256),
+      evidence_source: "durable_receipt"
+    });
+    buckets.set(key, bucket);
+  }
   const profiles = [...buckets.values()].map((bucket) => {
     const evidence = [...bucket.evidence].sort((a, b) => asString(a.recorded_at).localeCompare(asString(b.recorded_at)));
     const latest = evidence.at(-1) ?? {};
     const accepted = evidence.filter((item) => item.verdict === "accepted");
+    const durableAccepted = accepted.filter((item) => item.evidence_source === "durable_receipt");
+    const latestDurable = durableAccepted.at(-1) ?? {};
     const failureClass = asString(latest.failure_class);
     let status = "unknown";
     let statusReason = "\u5C1A\u65E0\u88AB Codex \u91C7\u4FE1\u7684\u6709\u6548\u8BC1\u636E\u3002";
     let cooldownUntil = "";
     const latestRecordedAt = Date.parse(asString(latest.recorded_at));
-    const hasFreshEvidence = !Number.isNaN(latestRecordedAt) && Date.now() - latestRecordedAt <= profileEvidenceMaxAgeMs;
+    const latestDurableRecordedAt = Date.parse(asString(latestDurable.recorded_at));
+    const hasFreshEvidence = !Number.isNaN(latestDurableRecordedAt) && Date.now() - latestDurableRecordedAt <= profileEvidenceMaxAgeMs;
     if (hardBlockedFailures.has(failureClass)) {
       status = "blocked";
       statusReason = `\u6700\u8FD1\u4E00\u6B21\u5C1D\u8BD5\u4E3A\u4E0D\u53EF\u81EA\u52A8\u91CD\u8BD5\u7684 ${failureClass || "provider"} \u5931\u8D25\u3002`;
@@ -31434,16 +31483,19 @@ function capabilityProfilesTool(input) {
         status = "stale";
         statusReason = `\u6700\u8FD1\u4E00\u6B21 ${failureClass} \u5DF2\u8FC7\u51B7\u5374\u7A97\u53E3\uFF1B\u5FC5\u987B\u91CD\u65B0 canary\uFF0C\u65E7\u7ED3\u679C\u4E0D\u80FD\u7528\u4E8E\u8DEF\u7531\u3002`;
       }
-    } else if (Object.keys(latest).length > 0 && !hasFreshEvidence) {
+    } else if (durableAccepted.length === 0) {
+      status = "unknown";
+      statusReason = accepted.length > 0 ? "\u5386\u53F2 plan \u8BB0\u5F55\u53EA\u80FD\u7528\u4E8E\u8FFD\u6EAF\uFF1B\u6B63\u5E38\u6D3E\u5DE5\u5FC5\u987B\u91CD\u65B0\u83B7\u5F97\u5B8C\u6574\u3001\u53EF\u643A\u5E26\u7684 accepted \u8BC1\u636E\u3002" : "\u5C1A\u65E0\u88AB Codex \u91C7\u4FE1\u7684\u6709\u6548\u8BC1\u636E\u3002";
+    } else if (Object.keys(latestDurable).length > 0 && !hasFreshEvidence) {
       status = "stale";
       statusReason = "\u6700\u8FD1\u80FD\u529B\u8BC1\u636E\u5DF2\u8D85\u8FC7 30 \u5929\uFF1B\u5FC5\u987B\u91CD\u65B0 canary\uFF0C\u65E7\u7ED3\u679C\u4E0D\u80FD\u7528\u4E8E\u8DEF\u7531\u3002";
-    } else if (accepted.length >= 3) {
+    } else if (durableAccepted.length >= 3) {
       status = "qualified";
       statusReason = "\u81F3\u5C11\u4E09\u6B21\u72EC\u7ACB attempt \u5DF2\u88AB Codex \u91C7\u4FE1\uFF1B\u4ECD\u987B\u901A\u8FC7\u5F53\u524D\u786C\u95E8\u3002";
-    } else if (accepted.length >= 2) {
+    } else if (durableAccepted.length >= 2) {
       status = "provisional";
       statusReason = "\u5DF2\u6709\u5C11\u91CF\u72EC\u7ACB\u91C7\u4FE1\uFF0C\u53EA\u80FD\u5728\u4F4E\u98CE\u9669\u5DE5\u4F5C\u5305\u4E2D\u4FDD\u5B88\u5EFA\u8BAE\u3002";
-    } else if (accepted.length === 1) {
+    } else if (durableAccepted.length === 1) {
       status = "observed";
       statusReason = "\u53EA\u6709\u4E00\u6B21\u88AB\u91C7\u4FE1\u7684\u89C2\u5BDF\uFF0C\u4E0D\u80FD\u4F5C\u4E3A\u9ED8\u8BA4\u8DEF\u7531\u4F9D\u636E\u3002";
     }
@@ -31461,12 +31513,14 @@ function capabilityProfilesTool(input) {
     schema: "codex-praetor-capability-profile-set/v1",
     generated_at: (/* @__PURE__ */ new Date()).toISOString(),
     repo,
+    evidence_root: evidenceRoot,
     profiles,
     malformed_plan_ids: malformedPlans,
     policy: {
       profile_is_projection: true,
       default_routing_changed: false,
       hard_gates_remain_authoritative: true,
+      normal_dispatch_requires_durable_exact_tuple_evidence: true,
       qualified_minimum_accepted_attempts: 3
     }
   };
@@ -31602,12 +31656,12 @@ function recoveryFor(failureClass) {
   return { state: "human_review", automatic_retry: false, action: "\u672A\u77E5\u5931\u8D25\u5148\u7531 Codex \u8BFB\u53D6\u8BC1\u636E\u5E76\u5F52\u7C7B\uFF0C\u4E0D\u81EA\u52A8\u6539\u6D3E\u3002", preserve_worktree: true };
 }
 function explainableRouteTool(input) {
-  const profileSet = capabilityProfilesTool({ repo: input.repo });
+  const profileSet = capabilityProfilesTool({ repo: input.repo, evidence_root: input.evidence_root });
   const evaluations = input.candidates.map((candidate) => {
     const profile = profileSet.profiles.find((item) => item.task_family === input.task_family && sameTuple(item.provider_tuple, candidate));
     const failedGates = Object.entries(candidate.hard_gates).filter(([, passed]) => !passed).map(([name]) => name);
     const profileStatus = profile?.status ?? "unknown";
-    const profileEligible = ["provisional", "qualified"].includes(profileStatus);
+    const profileEligible = profileStatus === "qualified";
     const profileBlocked = ["blocked", "cooling_down", "stale"].includes(profileStatus);
     const acceptedEvidence = (profile?.evidence ?? []).filter((item) => item.verdict === "accepted");
     const viable = failedGates.length === 0 && profileEligible && !profileBlocked;
@@ -31619,7 +31673,7 @@ function explainableRouteTool(input) {
       reasons.push(`\u753B\u50CF\u4E3A ${profileStatus}\uFF1A${profile.status_reason}`);
       if (acceptedEvidence.length > 0) reasons.push(`\u6700\u8FD1\u53EF\u91C7\u4FE1\u8BC1\u636E\uFF1A${acceptedEvidence.at(-1)?.attempt_id ?? "\u672A\u77E5 attempt"}\u3002`);
     }
-    if (!profileEligible && !profileBlocked && failedGates.length === 0) reasons.push("\u8BC1\u636E\u4E0D\u8DB3\uFF0C\u53EA\u80FD\u5EFA\u8BAE\u5C0F\u800C\u53EF\u56DE\u9000\u7684\u9A8C\u8BC1\u4EFB\u52A1\u3002");
+    if (!profileEligible && !profileBlocked && failedGates.length === 0) reasons.push("\u8BC1\u636E\u4E0D\u8DB3\uFF1B\u6B63\u5E38\u6D3E\u5DE5\u5FC5\u987B\u505C\u6B62\uFF0C\u53EA\u80FD\u6267\u884C\u660E\u786E\u6807\u8BB0\u7684\u5C0F\u800C\u53EF\u56DE\u9000\u7684 capability canary\u3002");
     return {
       candidate,
       profile_id: profile?.profile_id ?? "",
@@ -31654,7 +31708,8 @@ function explainableRouteTool(input) {
       hard_gates_authoritative: true,
       fallback_requires_same_task_family_and_current_evidence: true,
       automatic_merge_or_publish: false,
-      profile_projection_is_not_authorization: true
+      profile_projection_is_not_authorization: true,
+      normal_dispatch_requires_qualified_durable_evidence: true
     }
   };
 }
@@ -31973,6 +32028,7 @@ function buildDispatchArgs(input) {
   appendOptionalStringArg(args, "-Tier", input.tier);
   appendOptionalStringArg(args, "-PlanId", input.plan_id);
   appendOptionalStringArg(args, "-TaskId", input.task_id);
+  appendOptionalStringArg(args, "-TaskFamily", input.task_family);
   appendOptionalStringArg(args, "-DependsOn", input.depends_on);
   appendOptionalStringArg(args, "-Acceptance", input.acceptance);
   appendOptionalStringArg(args, "-WorktreeName", input.worktree_name);
@@ -32720,6 +32776,7 @@ async function dispatchPlanTaskTool(input) {
   const acceptance = String(task.acceptance ?? "");
   const dependsOn = Array.isArray(task.depends_on) ? task.depends_on.map(String).join(",") : "";
   const taskKind = String(task.task_kind ?? "");
+  const taskFamily = String(task.task_family ?? "");
   const mode = String(task.mode ?? "");
   const allowedPaths = Array.isArray(task.allowed_paths) ? task.allowed_paths.map(String) : [];
   const forbiddenPaths = Array.isArray(task.forbidden_paths) ? task.forbidden_paths.map(String) : [];
@@ -32727,7 +32784,7 @@ async function dispatchPlanTaskTool(input) {
   const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
   const budget = task.budget && typeof task.budget === "object" ? task.budget : {};
   const taskMaterial = task.task_material && typeof task.task_material === "object" && !Array.isArray(task.task_material) ? task.task_material : void 0;
-  if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
+  if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || !["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"].includes(taskFamily) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
   }
   if (taskKind === "code_change" !== (mode === "edit") || taskKind === "test_execution" && mode !== "readonly") {
@@ -32746,6 +32803,7 @@ async function dispatchPlanTaskTool(input) {
     tier: input.tier,
     mode,
     task_kind: taskKind,
+    task_family: taskFamily,
     run_mode: input.run_mode ?? "background",
     plan_id: input.plan_id,
     task_id: taskId,
@@ -32779,6 +32837,8 @@ async function verifyTaskTool(input) {
       input.plan_id,
       "-PlanRoot",
       getPlanRoot(repo),
+      "-CapabilityEvidenceRoot",
+      getCapabilityEvidenceRoot(),
       "-TaskId",
       input.task_id,
       "-VerificationVerdict",
@@ -32837,7 +32897,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.12.0-alpha"
+    version: "0.13.0-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -32982,7 +33042,7 @@ function createServer() {
     "codex_praetor_dispatch",
     {
       title: "Dispatch Codex Praetor Worker",
-      description: "Start a real Codex Praetor worker job through the existing dispatcher and return job metadata for later Codex verification.",
+      description: "Start a real Codex Praetor worker job only after the exact task family has qualified capability evidence; return job metadata for later Codex verification.",
       annotations: additiveProjectLocalWrite,
       inputSchema: {
         repo: external_exports.string().min(1),
@@ -32992,6 +33052,7 @@ function createServer() {
         mode: external_exports.enum(["readonly", "edit"]).optional(),
         run_mode: external_exports.enum(["blocking", "background"]).optional(),
         task_kind: external_exports.enum(["local_audit", "test_execution", "code_change", "external_research_support"]).optional(),
+        task_family: external_exports.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
         research_contract: researchContractSchema.optional(),
         plan_id: external_exports.string().optional(),
         task_id: external_exports.string().optional(),
