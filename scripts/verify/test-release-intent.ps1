@@ -83,9 +83,13 @@ if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') 
     if ($RequireReleaseImpact -and $impact.Count -gt 0) {
         $baseIntentText = & git -C $root show "$BaseRef`:config/release-intent.json"
         if ($LASTEXITCODE -ne 0) { throw "Unable to read the base release intent from $BaseRef." }
-        $baseIntent = ($baseIntentText -join [Environment]::NewLine) | ConvertFrom-Json
-        Assert-True ([string]$intent.previous_version -eq [string]$baseIntent.version) "Release intent previous_version must equal the target branch version ($($baseIntent.version))."
-        Assert-True (Test-VersionGreater -Candidate ([string]$intent.version) -Baseline ([string]$baseIntent.version)) "Release intent version must be greater than the target branch version ($($baseIntent.version))."
+        # Windows PowerShell may decode non-ASCII prose from git stdout through
+        # the active console code page. This comparison needs only the ASCII
+        # version field, so do not parse unrelated historical prose here.
+        $baseIntentVersion = [regex]::Match(($baseIntentText -join [Environment]::NewLine), '"version"\s*:\s*"(?<version>[0-9A-Za-z.-]+)"').Groups["version"].Value
+        Assert-True (-not [string]::IsNullOrWhiteSpace($baseIntentVersion)) "Unable to read the target branch version from its release intent."
+        Assert-True ([string]$intent.previous_version -eq $baseIntentVersion) "Release intent previous_version must equal the target branch version ($baseIntentVersion)."
+        Assert-True (Test-VersionGreater -Candidate ([string]$intent.version) -Baseline $baseIntentVersion) "Release intent version must be greater than the target branch version ($baseIntentVersion)."
     }
     if ($nonReleaseDependencyOnly) { Write-Host "[PASS] Development-only MCP dependency update does not require a product release." }
 }
