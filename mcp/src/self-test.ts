@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getInvokeScriptPath } from "./paths.js";
 import { decodeUtf8Chunks } from "./powershell.js";
+import { parseJsonDocument } from "./evaluation-suite.js";
 import {
   classifyWorkerOutcome,
   capabilityProfilesTool,
@@ -26,6 +27,12 @@ import {
 } from "./tools.js";
 
 const repo = process.env.CODEX_PRAETOR_TEST_REPO ?? resolve(process.cwd(), "..");
+
+assert.deepEqual(
+  parseJsonDocument("\r\n\uFEFF{\"windows\":true}", "BOM regression fixture"),
+  { windows: true },
+  "PowerShell JSON with leading whitespace and a BOM must remain parseable."
+);
 
 assert.equal(routeIntentTool({ request: "把这个任务拆一下，分配给其他 agent 做" }).route, "codex_praetor_external_worker");
 assert.equal(routeIntentTool({ request: "拆分一下任务，分配给其他 agent 做只读验收" }).route, "codex_praetor_external_worker");

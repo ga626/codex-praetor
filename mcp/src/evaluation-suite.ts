@@ -8,10 +8,23 @@ function asRecord(value: unknown): RecordValue {
   return value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {};
 }
 
+/** Accept the leading BOM emitted by Windows PowerShell when JSON is redirected. */
+export function parseJsonDocument(text: string, source: string): unknown {
+  const normalized = text.replace(/^[\s\uFEFF]+/u, "");
+  try {
+    return JSON.parse(normalized);
+  } catch (error) {
+    const prefix = [...text.slice(0, 8)]
+      .map((character) => `U+${character.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}`)
+      .join(" ");
+    throw new Error(`Invalid JSON from ${source}; leading code points: ${prefix || "(empty)"}.`, { cause: error });
+  }
+}
+
 export function evaluationSuiteTool() {
   const suitePath = getRuntimeDataPath("evaluation-suite.json");
   const templateRoot = getRuntimeDataPath("evaluation-task-templates");
-  const suite = asRecord(JSON.parse(readFileSync(suitePath, "utf8")));
+  const suite = asRecord(parseJsonDocument(readFileSync(suitePath, "utf8"), suitePath));
   const tasks = Array.isArray(suite.tasks) ? suite.tasks.map(asRecord) : [];
   return {
     schema: "codex-praetor-evaluation-suite-view/v1",
@@ -54,7 +67,7 @@ export async function prepareEvaluationTool(input: { repo: string; plan_id?: str
   if (prepared.exitCode !== 0) {
     return { ok: false, exit_code: prepared.exitCode, stderr: prepared.stderr, stdout: prepared.stdout };
   }
-  const summary = asRecord(JSON.parse(prepared.stdout.replace(/^\uFEFF/, "")));
+  const summary = asRecord(parseJsonDocument(prepared.stdout, `evaluation initializer ${initializerPath}`));
   const tasks = Array.isArray(summary.tasks) ? summary.tasks.map(asRecord) : [];
   const taskIds = tasks.map((task) => String(task.task_id ?? "")).filter(Boolean);
   if (!String(summary.plan_path ?? "") || taskIds.length === 0) {
@@ -67,7 +80,7 @@ export async function prepareEvaluationTool(input: { repo: string; plan_id?: str
 export async function verifyEvaluationTaskTool(input: { repo: string; plan_id: string; task_id: string; worktree: string }) {
   const repo = resolveExistingRepo(input.repo);
   const planPath = `${getPlanRoot(repo)}\\${input.plan_id}\\plan.json`;
-  const plan = asRecord(JSON.parse(readFileSync(planPath, "utf8")));
+  const plan = asRecord(parseJsonDocument(readFileSync(planPath, "utf8"), planPath));
   const tasks = Array.isArray(plan.tasks) ? plan.tasks.map(asRecord) : [];
   const task = tasks.find((candidate) => String(candidate.task_id ?? "") === input.task_id.trim());
   if (!task || String(task.task_kind ?? "") !== "code_change") {
@@ -88,6 +101,6 @@ export async function verifyEvaluationTaskTool(input: { repo: string; plan_id: s
   if (result.exitCode !== 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: input.task_id, exit_code: result.exitCode, stdout: result.stdout, stderr: result.stderr };
   }
-  const verification = asRecord(JSON.parse(result.stdout.replace(/^\uFEFF/, "")));
+  const verification = asRecord(parseJsonDocument(result.stdout, `evaluation verifier ${getEvaluationVerifierPath()}`));
   return { ok: true, repo, plan_id: input.plan_id, task_id: input.task_id, verification, policy: "This is independent evidence only. Codex must still record the final accepted or rejected verdict." };
 }
