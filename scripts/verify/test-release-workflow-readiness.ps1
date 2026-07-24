@@ -17,6 +17,7 @@ $releasePath = Join-Path $workflowRoot "release-on-main.yml"
 $pipelinePath = Join-Path $workflowRoot "release-pipeline.yml"
 $publisherPath = Join-Path $root "scripts\release\publish-github-release-asset.ps1"
 $intentGatePath = Join-Path $root "scripts\verify\test-release-intent.ps1"
+$preflightPath = Join-Path $root "scripts\verify\invoke-release-candidate-preflight.ps1"
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -48,33 +49,36 @@ foreach ($path in @($ciPath, $releasePath, $pipelinePath)) {
 }
 Assert-True (Test-Path -LiteralPath $publisherPath -PathType Leaf) "Release publisher is missing: $publisherPath"
 Assert-True (Test-Path -LiteralPath $intentGatePath -PathType Leaf) "Release intent gate is missing: $intentGatePath"
+Assert-True (Test-Path -LiteralPath $preflightPath -PathType Leaf) "Candidate preflight is missing: $preflightPath"
 
 $ciText = Get-Content -LiteralPath $ciPath -Raw -Encoding UTF8
 $releaseText = Get-Content -LiteralPath $releasePath -Raw -Encoding UTF8
 $pipelineText = Get-Content -LiteralPath $pipelinePath -Raw -Encoding UTF8
 $publisherText = Get-Content -LiteralPath $publisherPath -Raw -Encoding UTF8
 $intentGateText = Get-Content -LiteralPath $intentGatePath -Raw -Encoding UTF8
+$preflightText = Get-Content -LiteralPath $preflightPath -Raw -Encoding UTF8
 
 Assert-True ($ciText -match 'uses:\s*\./\.github/workflows/release-pipeline\.yml') "PR CI must call the shared release pipeline."
 Assert-True ($ciText -match 'publish:\s*false') "PR CI must run the shared pipeline in candidate-only mode."
 Assert-True ($ciText -match '(?ms)permissions:\s*\r?\n\s+contents:\s*read') "PR CI caller must use read-only contents permission."
-Assert-True ($ciText -match "base_ref:\s*\$\{\{\s*github\.event\.pull_request\.base\.sha\s*\|\|\s*'origin/main'\s*\}\}") "Branch-push CI must compare the full candidate against origin/main, not only the previous branch commit."
+Assert-True ($ciText -notmatch '(?ms)^\s*push:') "PR candidates must not trigger duplicate branch-push CI."
+Assert-True ($ciText -match "base_ref:\s*\$\{\{\s*github\.event\.pull_request\.base\.sha\s*\|\|\s*'origin/main'\s*\}\}") "PR CI must compare the full candidate against its target branch."
 Assert-True ($releaseText -match 'uses:\s*\./\.github/workflows/release-pipeline\.yml') "Release On Main must call the shared release pipeline."
 Assert-True ($releaseText -match 'publish:\s*true') "Release On Main must run the shared pipeline in publication mode."
 Assert-True ($releaseText -match '(?ms)permissions:\s*\r?\n\s+contents:\s*write') "Release On Main must explicitly request contents: write."
 Assert-True ($releaseText -notmatch '(?m)^\s*workflow_dispatch:') "Release recovery must re-run the original SHA, not manually dispatch the latest branch head."
 Assert-True ($releaseText -match 'release-pipeline\.yml') "Changes to the shared pipeline must trigger Release On Main on main."
 Assert-True ($pipelineText -match '(?ms)on:\s*\r?\n\s+workflow_call:') "Shared release pipeline must be reusable through workflow_call."
-Assert-True ($pipelineText -match 'test-release-intent\.ps1\s+@arguments') "Shared pipeline must enforce the release-intent gate."
+Assert-True ($pipelineText -match 'invoke-release-candidate-preflight\.ps1\s+@arguments') "Shared pipeline must use the one candidate preflight entry."
 Assert-True ($intentGateText -match 'Pipeline classification: non_release') "Release intent gate must expose the non-release classification."
 Assert-True ($intentGateText -match 'if \(\$CheckRemote -and \$releaseImpact\)') "Remote immutable-tag checks must run only for release-impact candidates."
-Assert-True ($pipelineText -match 'test-release-workflow-readiness\.ps1\s+-CheckRemoteActionPins') "Shared pipeline must preflight action pins before publication."
-Assert-True ($pipelineText -match 'test-release-intent-classification\.ps1') "Shared pipeline must regress dependency-only classification."
+Assert-True ($preflightText -match 'test-release-workflow-readiness\.ps1') "Candidate preflight must validate workflow readiness."
+Assert-True ($preflightText -match 'test-release-intent-classification\.ps1') "Candidate preflight must regress dependency-only classification."
 Assert-True ($pipelineText -match 'publish-github-release-asset\.ps1') "Shared pipeline must own the only publication command."
 Assert-True ($pipelineText -match 'ResumeExistingRelease') "A retry at the original SHA must verify an existing immutable Release instead of overwriting it."
-Assert-True ($pipelineText -match 'test-release-artifact-runtime\.ps1') "Shared pipeline must execute final zip runtime acceptance before publication."
-Assert-True ($pipelineText -match 'test-release-artifact-runtime\.ps1.+-MarkVerified') "Shared pipeline must mark the verified artifact before publication."
-Assert-True ($pipelineText -match 'test-provider-canary-evidence\.ps1') "Shared pipeline must regress the canary clean-before and concurrent-drift contract."
+Assert-True ($preflightText -match 'test-release-artifact-runtime\.ps1') "Candidate preflight must execute final zip runtime acceptance."
+Assert-True ($preflightText -match 'test-release-artifact-runtime\.ps1.*-MarkVerified') "Candidate preflight must mark the verified artifact."
+Assert-True ($preflightText -match 'test-provider-canary-evidence\.ps1') "Candidate preflight must regress canary evidence."
 Assert-True ($pipelineText -notmatch 'OutputRoot\s+"\.codex-praetor\\ci-release"') "Publication must not switch to a second ci-release build output."
 Assert-True ($publisherText -match 'artifact_verified') "Publisher must require an artifact_verified manifest."
 Assert-True ($publisherText -notmatch 'build-codex-praetor-release\.ps1') "Publisher must not rebuild a second upload artifact."

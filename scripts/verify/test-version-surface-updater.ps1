@@ -41,7 +41,7 @@ try {
     $targetNotes = Join-Path $scratch "docs\release\release-notes-$targetVersion.md"
     Copy-Item -LiteralPath $sourceNotes -Destination $targetNotes -Force
 
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scratch "scripts\release\set-codex-praetor-version.ps1") -ProjectRoot $scratch -Version $targetVersion -Apply
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scratch "scripts\release\set-codex-praetor-version.ps1") -ProjectRoot $scratch -Version $targetVersion -Apply -SkipBundledMcpBuild
     if ($LASTEXITCODE -ne 0) { throw "Version surface updater failed in its isolated fixture." }
 
     $setupPath = Join-Path $scratch "setup.ps1"

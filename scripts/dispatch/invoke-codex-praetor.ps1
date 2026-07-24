@@ -492,7 +492,7 @@ function Initialize-WorkerDependencyBootstrap {
         [Parameter(Mandatory = $true)][string]$WorkingDirectory,
         [Parameter(Mandatory = $true)][string]$TaskKindName
     )
-    if ($TaskKindName -ne "code_change") { return "not_required" }
+    if ($TaskKindName -notin @("code_change", "test_execution")) { return "not_required" }
     $mcpRoot = Join-Path $WorkingDirectory "mcp"
     $lockPath = Join-Path $mcpRoot "package-lock.json"
     if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) { return "not_applicable" }
@@ -1074,6 +1074,9 @@ if ($TaskKind -eq "code_change" -and [string]::IsNullOrWhiteSpace($TaskMaterialJ
 if ($TaskKind -eq "test_execution" -and $Mode -ne "readonly") {
     throw "test_execution requires -Mode readonly. It may run only the declared checks and must not receive edit tools."
 }
+if ($TaskKind -eq "test_execution" -and -not $CapabilityCanary -and @($RequiredCheck | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) {
+    throw "test_execution requires at least one -RequiredCheck so supervisor acceptance can verify the declared command."
+}
 
 $ProjectArtifactRoot = Get-ProjectArtifactRoot -RepoPath $Repo
 if ([string]::IsNullOrWhiteSpace($JobRoot)) {
@@ -1249,7 +1252,7 @@ try {
             $taskMaterialEvidence = Inject-TaskMaterial -Material $taskMaterial -ExecutionRoot $executionRepo
         }
     }
-    $dependencyBootstrap = if ($DryRun) { if ($TaskKind -eq "code_change") { "mcp_npm_ci_if_mcp_lock_present" } else { "not_required" } } else { Initialize-WorkerDependencyBootstrap -WorkingDirectory $executionRepo -TaskKindName $TaskKind }
+    $dependencyBootstrap = if ($DryRun) { if ($TaskKind -in @("code_change", "test_execution")) { "mcp_npm_ci_if_mcp_lock_present" } else { "not_required" } } else { Initialize-WorkerDependencyBootstrap -WorkingDirectory $executionRepo -TaskKindName $TaskKind }
 
     $contract = [ordered]@{
         schema = [string]$runtimeContract.taskContractSchema
@@ -1333,7 +1336,8 @@ Rules:
 $networkRule
 - You may read, search, edit, and run only the actions necessary for the task contract inside this worktree.
 - For code_change, repair the supplied material only. Do not replace tests, alter immutable files, or create your own test harness.
-- For test_execution, run only the declared required checks. Do not edit or create source files; report each check's exit code exactly.
+- For test_execution, run only the declared required checks. Do not run npm install/update, edit or create source files; the supervisor prepares dependencies with npm ci. Report each check's exit code exactly.
+- For a non-canary test_execution, reply exactly CODEX_PRAETOR_REQUIRED_CHECKS_OK only if every declared required check exits 0; otherwise report the failed command and exit code.
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the execution worktree or the project artifact root unless Codex explicitly allowed another path.
 - Do not pause for progress reports. Work autonomously until this task is complete, blocked, or unsafe.
@@ -1358,7 +1362,10 @@ $networkRule
         }
         $cmdArgs += "--permission-mode"
         if ($TaskKind -eq "test_execution") {
-            $cmdArgs += @("dont_ask", "--tools", "Read", "Grep", "Glob", "Bash")
+            # Qoder's dont_ask profile denies Bash even when Bash is explicitly
+            # allowlisted.  Test execution needs shell access but never write
+            # tools, so bypass_permissions remains bounded by this allowlist.
+            $cmdArgs += @("bypass_permissions", "--tools", "Read", "Grep", "Glob", "Bash")
         } elseif ($Mode -eq "readonly") {
             $cmdArgs += @("dont_ask", "--tools", "Read", "Grep", "Glob")
         } else {

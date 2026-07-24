@@ -297,6 +297,52 @@ function Set-TaskVerification {
         throw "Task not found for verification: $Id"
     }
 
+    if ($Verdict -eq "accepted") {
+        $jobDir = [string]$target.job_dir
+        if ([string]::IsNullOrWhiteSpace($jobDir) -or -not (Test-Path -LiteralPath $jobDir -PathType Container)) {
+            throw "Accepted verification requires a recorded job directory."
+        }
+        $jobPath = Join-Path $jobDir "job.json"
+        $completionPath = [string]$target.completion
+        if ([string]::IsNullOrWhiteSpace($completionPath)) { $completionPath = Join-Path $jobDir "completion.json" }
+        if (-not (Test-Path -LiteralPath $jobPath -PathType Leaf) -or -not (Test-Path -LiteralPath $completionPath -PathType Leaf)) {
+            throw "Accepted verification requires job.json and completion.json."
+        }
+        $job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $completion = Get-Content -LiteralPath $completionPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$completion.status -ne "process_exited" -or [int]$completion.exit_code -ne 0 -or -not [string]::IsNullOrWhiteSpace([string]$completion.failure_class)) {
+            throw "Accepted verification requires a clean process_exited/0 completion."
+        }
+        if ([string]$target.mode -eq "readonly") {
+            $executionRepo = [string]$job.execution_repo
+            if ([string]::IsNullOrWhiteSpace($executionRepo) -or -not (Test-Path -LiteralPath $executionRepo -PathType Container)) {
+                throw "Readonly accepted verification requires the recorded execution worktree."
+            }
+            $status = (& git -C $executionRepo status --short 2>$null | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) { throw "Could not inspect readonly worker worktree status." }
+            if (-not [string]::IsNullOrWhiteSpace($status)) {
+                throw "Readonly worker changed its execution worktree; it cannot be accepted."
+            }
+        }
+        if ([string]$target.task_kind -eq "test_execution") {
+            $contractPath = [string]$job.task_contract
+            if ([string]::IsNullOrWhiteSpace($contractPath) -or -not (Test-Path -LiteralPath $contractPath -PathType Leaf)) {
+                throw "Accepted test_execution verification requires its task contract."
+            }
+            $contract = Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if (@($contract.required_checks | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) {
+                throw "Accepted test_execution verification requires declared required_checks."
+            }
+            $stdoutPath = [string]$job.stdout
+            if ([string]::IsNullOrWhiteSpace($stdoutPath)) { $stdoutPath = Join-Path $jobDir "stdout.log" }
+            if (-not (Test-Path -LiteralPath $stdoutPath -PathType Leaf)) { throw "Accepted test_execution verification requires worker stdout." }
+            $stdout = Get-Content -LiteralPath $stdoutPath -Raw -Encoding UTF8
+            if ($stdout -notmatch [regex]::Escape("CODEX_PRAETOR_REQUIRED_CHECKS_OK")) {
+                throw "Accepted test_execution verification requires the worker success marker."
+            }
+        }
+    }
+
     Set-DynamicProperty -Target $target -Name "verification_verdict" -Value $Verdict
     Set-DynamicProperty -Target $target -Name "verification_summary" -Value $SummaryValue
     Set-DynamicProperty -Target $target -Name "verified_at" -Value (Get-Date).ToString("o")

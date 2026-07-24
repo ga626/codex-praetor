@@ -42,17 +42,17 @@ try {
     $lockRoot = Join-Path $scratch "locks"
     $planRoot = Join-Path $scratch "plans"
     $scratchRoot = Join-Path $scratch "scratch"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $wrapper -Provider qoder -Tier qoder-day-cheap -ConfigPath $configPath -Repo $repo -Task "Return the canary marker only." -Mode edit -TaskKind code_change -CapabilityCanary -WorktreeName $worktreeName -JobRoot $jobRoot -LockRoot $lockRoot -PlanRoot $planRoot -ScratchRoot $scratchRoot -NoNotify -TimeoutSeconds 30 2>$null | Out-Null
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $wrapper -Provider qoder -Tier qoder-day-cheap -ConfigPath $configPath -Repo $repo -Task "Return the canary marker only." -Mode readonly -TaskKind test_execution -RequiredCheck "Test-Path README.md" -CapabilityCanary -WorktreeName $worktreeName -JobRoot $jobRoot -LockRoot $lockRoot -PlanRoot $planRoot -ScratchRoot $scratchRoot -NoNotify -TimeoutSeconds 30 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Detached-HEAD dispatch failed." }
     $workerTree = Join-Path $repo ".codex-praetor\worktrees\$worktreeName"
     Assert-True (Test-Path -LiteralPath $workerTree -PathType Container) "Detached HEAD did not create a worker worktree."
     $branch = (& git -C $workerTree branch --show-current | Out-String).Trim()
     Assert-True ($branch -eq "cw-$worktreeName") "Worker worktree did not receive its isolated branch."
     $jobDirs = @(Get-ChildItem -LiteralPath $jobRoot -Directory | Select-Object -First 1)
-    Assert-True ($jobDirs.Count -eq 1) "Code-change fixture did not record a dispatch job."
+    Assert-True ($jobDirs.Count -eq 1) "Test-execution fixture did not record a dispatch job."
     $job = Get-Content -LiteralPath (Join-Path $jobDirs[0].FullName "job.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-True ([string]$job.dependency_bootstrap -eq "mcp_npm_ci") "Code-change worker worktree did not complete its MCP dependency bootstrap."
-    Write-Output "[PASS] Detached HEAD resolves HEAD commit, creates an isolated worker branch, and bootstraps MCP dependencies before dispatch."
+    Assert-True ([string]$job.dependency_bootstrap -eq "mcp_npm_ci") "Test-execution worker worktree did not complete its MCP dependency bootstrap."
+    Write-Output "[PASS] Detached HEAD resolves HEAD commit, creates an isolated worker branch, and bootstraps MCP dependencies before test execution."
 } finally {
     $workerTree = Join-Path $scratch "repo\.codex-praetor\worktrees\detached-regression"
     $repoPath = Join-Path $scratch "repo"

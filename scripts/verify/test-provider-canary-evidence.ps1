@@ -47,10 +47,17 @@ try {
     $wrapperPath = Join-Path $scratch "fake-wrapper.ps1"
     @'
 $taskKind = ""
+$taskMaterialPath = ""
+$argumentValues = @{}
 for ($index = 0; $index -lt $args.Count; $index++) {
+    if ([string]$args[$index] -like "-*" -and $index + 1 -lt $args.Count) {
+        $argumentValues[[string]$args[$index]] = [string]$args[$index + 1]
+    }
     if ($args[$index] -eq "-TaskKind" -and $index + 1 -lt $args.Count) {
         $taskKind = [string]$args[$index + 1]
-        break
+    }
+    if ($args[$index] -eq "-TaskMaterialPath" -and $index + 1 -lt $args.Count) {
+        $taskMaterialPath = [string]$args[$index + 1]
     }
 }
 $workerRepo = $env:CODEX_PRAETOR_CANARY_WORKER_REPO
@@ -60,7 +67,22 @@ $stdoutPath = Join-Path $jobDir "stdout.log"
 $completionPath = Join-Path $jobDir "completion.json"
 $failure = $env:CODEX_PRAETOR_CANARY_FAKE_FAILURE -eq "1"
 $permission = if ($taskKind -eq "code_change") { "edit_worktree" } elseif ($taskKind -eq "test_execution") { "test-execution-v1" } else { "readonly_read_grep_glob" }
-[ordered]@{ job_id = "fake-canary-$taskKind"; execution_repo = $workerRepo; stdout = $stdoutPath; completion = $completionPath; provider_tuple = [ordered]@{ model = "Qwen3.7-Plus"; permission_profile = $permission } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
+$material = $null
+$taskContractPath = Join-Path $jobDir "task-contract.json"
+if ($taskKind -eq "code_change") {
+    foreach ($name in @("-TaskMaterialPath", "-AllowedPathsJson", "-ForbiddenPathsJson", "-RequiredChecksJson", "-BudgetJson", "-FailureInjection", "-Sensitivity", "-Acceptance", "-PlanId", "-TaskId")) {
+        if (-not $argumentValues.ContainsKey($name) -or [string]::IsNullOrWhiteSpace([string]$argumentValues[$name])) { throw "Fake code-change canary is missing $name." }
+    }
+    if ([string]::IsNullOrWhiteSpace($taskMaterialPath) -or -not (Test-Path -LiteralPath $taskMaterialPath -PathType Leaf)) { throw "Fake code-change canary requires TaskMaterialPath." }
+    $material = Get-Content -LiteralPath $taskMaterialPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $allowedPaths = @($argumentValues["-AllowedPathsJson"] | ConvertFrom-Json)
+    $requiredChecks = @($argumentValues["-RequiredChecksJson"] | ConvertFrom-Json)
+    $normalizedAllowedPaths = @($allowedPaths | ForEach-Object { (([string]$_).Replace('\', '/') -replace '^\./', '') })
+    $normalizedDestination = (([string]$material.destination).Replace('\', '/') -replace '^\./', '')
+    if ($normalizedAllowedPaths -notcontains $normalizedDestination -or $requiredChecks -notcontains [string]$material.baseline_command) { throw "Fake code-change canary received an incomplete material contract. allowed=$($normalizedAllowedPaths -join ','); destination=$normalizedDestination; checks=$($requiredChecks -join '|'); baseline=$($material.baseline_command)" }
+}
+[ordered]@{ schema = "codex-praetor-task-contract/v5"; task_material = $material } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $taskContractPath -Encoding UTF8
+[ordered]@{ job_id = "fake-canary-$taskKind"; execution_repo = $workerRepo; stdout = $stdoutPath; completion = $completionPath; task_contract = $taskContractPath; provider_tuple = [ordered]@{ model = "Qwen3.7-Plus"; permission_profile = $permission } } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
 if ($failure) {
     Set-Content -LiteralPath $stdoutPath -Value "Request blocked by risk control" -Encoding UTF8
     [ordered]@{ status = "process_exited"; exit_code = 0; failure_class = "provider_output_unparseable" } | ConvertTo-Json | Set-Content -LiteralPath $completionPath -Encoding UTF8
@@ -73,7 +95,16 @@ if ($failure) {
 Set-Content -LiteralPath $stdoutPath -Value "CODEX_PRAETOR_CAPABILITY_CANARY_OK" -Encoding UTF8
 [ordered]@{ status = "process_exited"; exit_code = 0; failure_class = "" } | ConvertTo-Json | Set-Content -LiteralPath $completionPath -Encoding UTF8
 if ($taskKind -eq "code_change") {
-    Set-Content -LiteralPath (Join-Path $workerRepo "CODEX_PRAETOR_EDIT_CANARY.txt") -Value "CODEX_PRAETOR_CAPABILITY_CANARY_OK" -Encoding ASCII
+    $destination = Join-Path $workerRepo ([string]$material.destination)
+    New-Item -ItemType Directory -Path $destination -Force | Out-Null
+    foreach ($entry in @($material.files)) {
+        $source = Join-Path ([string]$material.source_root) ([string]$entry.path)
+        $target = Join-Path $destination ([string]$entry.path)
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $target -Force
+    }
+    $computePath = Join-Path $destination "compute.ps1"
+    (Get-Content -LiteralPath $computePath -Raw -Encoding UTF8).Replace('$Left - $Right', '$Left + $Right') | Set-Content -LiteralPath $computePath -Encoding UTF8
 } elseif ($taskKind -eq "test_execution") {
     Start-Sleep -Milliseconds 120
     Set-Content -LiteralPath $env:CODEX_PRAETOR_CANARY_DRIFT_PATH -Value "concurrent editor" -Encoding UTF8
@@ -116,8 +147,12 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     $state = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $editEntry = @($state.entries | Where-Object { [string]$_.task_kind -eq "code_change" }) | Select-Object -First 1
     Assert-True ($null -ne $editEntry) "Edit capability canary did not write a code-change readiness tuple."
-    Assert-True (Test-Path -LiteralPath (Join-Path $workerRepo "CODEX_PRAETOR_EDIT_CANARY.txt") -PathType Leaf) "Edit capability canary did not require a worker-worktree artifact."
-    Assert-True (-not [string]::IsNullOrWhiteSpace((& git -C $workerRepo status --short | Out-String).Trim())) "Edit capability canary did not require a worker-worktree diff."
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $workerRepo "CODEX_PRAETOR_EDIT_CANARY.txt") -PathType Leaf)) "Edit capability canary must not use a root-marker shortcut."
+    Assert-True ([string]$editEntry.evidence.material_verdict -eq "accepted_candidate") "Edit capability canary did not independently verify its immutable material."
+    Assert-True (-not [string]::IsNullOrWhiteSpace([string]$editEntry.evidence.task_material_manifest_sha256)) "Edit capability canary did not retain the material manifest hash."
+    Assert-True (-not [string]::IsNullOrWhiteSpace([string]$editEntry.evidence.task_contract_sha256)) "Edit capability canary did not retain the task-contract hash."
+    Assert-True (Test-Path -LiteralPath (Join-Path $workerRepo ".codex-praetor\evaluation\capability-canary-code-change\compute.ps1") -PathType Leaf) "Edit capability canary did not inject the bounded task material."
+    Assert-True (@(Get-ChildItem -LiteralPath $scratch -Directory -Filter "canary-material-*" -ErrorAction SilentlyContinue).Count -eq 0) "Edit capability canary did not clean its temporary immutable material after recording evidence."
 
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -TaskKind test_execution -Apply
     if ($LASTEXITCODE -ne 0) { throw "A test-execution canary must record a distinct readonly-with-Bash capability tuple." }

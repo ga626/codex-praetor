@@ -2,7 +2,10 @@
     [string]$Version = "",
     [string]$ProjectRoot = "",
     [switch]$Apply,
-    [switch]$ListSourcePaths
+    [switch]$ListSourcePaths,
+    # Test fixtures may not carry npm dependencies. Production version
+    # updates rebuild the committed bundled MCP runtime by default.
+    [switch]$SkipBundledMcpBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -116,6 +119,19 @@ foreach ($relative in $textFiles) {
         [IO.File]::WriteAllText($path, $updated, (Get-Utf8EncodingForExistingFile $path))
     } else {
         Write-Host "would-update $relative"
+    }
+}
+
+if ($Apply -and -not $SkipBundledMcpBuild) {
+    $mcpRoot = Join-Path $root "mcp"
+    $mcpPackage = Join-Path $mcpRoot "package.json"
+    if (-not (Test-Path -LiteralPath $mcpPackage -PathType Leaf)) {
+        throw "Bundled MCP build metadata is missing: $mcpPackage"
+    }
+    Write-Host "Rebuilding bundled MCP runtime after version update..."
+    & npm run build:plugin --prefix $mcpRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bundled MCP runtime rebuild failed after version update."
     }
 }
 

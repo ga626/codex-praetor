@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.11.0-alpha`
+Target release: `0.12.0-alpha`
 
-Status: `v0.9.3-alpha` is a public release incident and must not be activated or overwritten. `v0.11.0-alpha` is its new immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
+Status: `v0.9.3-alpha` is a public release incident and must not be activated or overwritten. `v0.12.0-alpha` is its new immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
@@ -50,10 +50,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 
    ```powershell
    git status --short
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease -AllowDraftMetadataPlaceholders
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
-   npm test --prefix .\mcp
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\invoke-release-candidate-preflight.ps1 -BaseRef origin/main -CheckRemote -AllowDraftMetadataPlaceholders
    ```
 
 2. Create or connect the GitHub repository:
@@ -77,12 +74,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 4. Re-run final gates without draft placeholders:
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
-   npm test --prefix .\mcp
-   git diff --check
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\build-codex-praetor-release.ps1 -Apply
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\invoke-release-candidate-preflight.ps1 -BaseRef origin/main -CheckRemote
    ```
 
 5. Run the final fresh-context native MCP canary:
@@ -113,7 +105,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 8. 远端下载复验通过后，Codex 在本机执行同一 Release 的自动激活：
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.11.0-alpha -Json
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.12.0-alpha -Json
    ```
 
    它不手改 cache 或 readiness；会停在 `needs_host_restart` 或 `needs_canary`。前者只需要一次受支持的 Desktop 刷新，之后必须先用 `runtime_info` 验明运行身份，再运行 canary。

@@ -22,9 +22,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Fixture release build failed." }
     $zip = Join-Path $releaseRoot "codex-praetor-setup-$version.zip"
     $sha = "$zip.sha256"
+    $profile = Join-Path $scratch "profile"
+    $expectedCodexHome = Join-Path $profile ".codex"
     $fakeCodex = Join-Path $scratch "fake-codex.cmd"
     @"
 @echo off
+if /I not "%USERPROFILE%"=="$profile" exit /b 17
+if /I not "%HOME%"=="$profile" exit /b 18
+if /I not "%CODEX_HOME%"=="$expectedCodexHome" exit /b 19
+if not exist "%CODEX_HOME%\\" exit /b 20
 if "%1"=="plugin" if "%2"=="add" exit /b 0
  if "%1"=="plugin" if "%2"=="list" (
    echo PLUGIN                            STATUS              VERSION                     PATH
@@ -32,7 +38,6 @@ if "%1"=="plugin" if "%2"=="add" exit /b 0
  )
 exit /b 0
 "@ | Set-Content -LiteralPath $fakeCodex -Encoding ASCII
-    $profile = Join-Path $scratch "profile"
     $result = (& powershell -NoProfile -ExecutionPolicy Bypass -File $activation -Version $version -ReleaseZip $zip -ReleaseSha256 $sha -UserProfileRoot $profile -CodexCommand $fakeCodex -SkipMaintenance -Json | Out-String | ConvertFrom-Json)
     Assert-True ([string]$result.source_kind -eq "explicit_release_fixture") "Fixture activation must be labeled as a fixture, never as a published delivery proof."
     Assert-True ([string]$result.status -eq "needs_host_restart") "Verified installation must stop at the explicit host refresh boundary."

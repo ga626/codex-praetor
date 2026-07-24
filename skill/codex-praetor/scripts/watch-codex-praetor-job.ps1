@@ -229,19 +229,22 @@ try {
     # A worker exit is execution evidence, not a logical-task acceptance.
     $status = "process_exited"
     $semanticFailure = ""
-    $combinedOutput = ""
-    foreach ($outputPath in @([string]$meta.stdout, [string]$meta.stderr)) {
-        if (Test-Path -LiteralPath $outputPath -PathType Leaf) {
-            $combinedOutput += [Environment]::NewLine + (Get-Content -LiteralPath $outputPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
-        }
+    # stdout is the worker's untrusted natural-language report. It can describe
+    # a failure class as an example while the actual task succeeded, so it must
+    # never drive terminal classification. Provider process diagnostics belong
+    # on stderr; a non-zero process exit is handled below as well.
+    $providerDiagnostics = ""
+    $stderrPath = [string]$meta.stderr
+    if (-not [string]::IsNullOrWhiteSpace($stderrPath) -and (Test-Path -LiteralPath $stderrPath -PathType Leaf)) {
+        $providerDiagnostics = Get-Content -LiteralPath $stderrPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
     }
-    if ($combinedOutput -match "(?is)provider[_ -]?(?:rejected|risk[_ -]?control)|request blocked|status(?:Code)?\s*[:=]?\s*4\d\d") {
+    if ($providerDiagnostics -match "(?is)provider[_ -]?(?:rejected|risk[_ -]?control)|request blocked|status(?:Code)?\s*[:=]?\s*4\d\d") {
         $semanticFailure = "provider_rejected"
-    } elseif ($combinedOutput -match "(?is)max(?:imum)?\s+turns?.*(?:exceeded|limit)|turns?\s+exceeded") {
+    } elseif ($providerDiagnostics -match "(?is)max(?:imum)?\s+turns?.*(?:exceeded|limit)|turns?\s+exceeded") {
         $semanticFailure = "max_turns_exceeded"
-    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
+    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $providerDiagnostics -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
         $semanticFailure = "tool_contract_mismatch"
-    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)permission denied|permission_denied") {
+    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $providerDiagnostics -match "(?is)permission denied|permission_denied") {
         $semanticFailure = "permission_denied"
     }
     if ($cancelledExternally) {

@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.11.0-alpha",
+    [string]$Version = "0.12.0-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [string]$ArtifactManifestPath = "",
     [string]$ObservedToolsPath = "",
@@ -43,6 +43,29 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($ObservedToolsPath)) { $observedArgument = @("--observed-tools-output", [IO.Path]::GetFullPath($ObservedToolsPath)) }
     & node $smoke $runtime $tmp --skip-dry-run --expected-version $Version --expected-contract $contract --expected-generation $generation @observedArgument
     if ($LASTEXITCODE -ne 0) { throw "Final release zip MCP runtime/contract acceptance failed." }
+
+    # The release bundle deliberately excludes the source-only compatibility
+    # Skill. Its own generation helper must therefore validate the bundled
+    # plugin surfaces without reaching back to a checkout-only mirror.
+    $packagedGeneration = Join-Path $tmp "scripts\release\get-codex-praetor-generation.ps1"
+    if (-not (Test-Path -LiteralPath $packagedGeneration -PathType Leaf)) { throw "Artifact does not contain the packaged generation helper." }
+    $expectedGeneration = Get-Content -LiteralPath $generation -Raw -Encoding UTF8 | ConvertFrom-Json
+    $generationProbe = Invoke-CodexPraetorNative -FilePath "powershell.exe" -ArgumentList @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $packagedGeneration,
+        "-ProjectRoot", $tmp,
+        "-Commit", [string]$expectedGeneration.commit,
+        "-Json"
+    ) -WorkingDirectory $tmp -TimeoutSeconds 45
+    if ([int]$generationProbe.exit_code -ne 0) {
+        throw "Packaged generation helper failed. Exit=$($generationProbe.exit_code) Output=$($generationProbe.stdout)`n$($generationProbe.stderr)"
+    }
+    $observedGeneration = ([string]$generationProbe.stdout | ConvertFrom-Json)
+    if ([string]$observedGeneration.generation_id -ne [string]$expectedGeneration.generation_id -or [string]$observedGeneration.runtime_contract_sha256 -ne [string]$expectedGeneration.runtime_contract_sha256) {
+        throw "Packaged generation helper does not reproduce the release generation identity."
+    }
+    Write-Host "[PASS] Final release zip derives its own generation from bundled plugin surfaces."
 
     # A source-tree path can resolve scripts/shared while the copied plugin
     # Skill cannot. Execute the packaged canary through its helper bootstrap

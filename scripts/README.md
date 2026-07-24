@@ -11,14 +11,11 @@
 常用命令：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-codex-praetor.ps1 -RequireHead -PublicRelease
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-codex-praetor.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-public-entry-consistency.ps1 -SkipRemoteRelease
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-package-determinism.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\invoke-release-candidate-preflight.ps1 -BaseRef origin/main -CheckRemote -AllowDraftMetadataPlaceholders
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\maintenance\clean-codex-praetor-runtime.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dispatch\invoke-codex-praetor.ps1 -Provider codebuddy -Tier codebuddy-free -Repo "<repo>" -Task "Dry run only." -Mode readonly -DryRun
 ```
 
-`test-codex-praetor.ps1` 默认是产品验证，不依赖当前电脑的全局 Codex 规则、已安装 skill 或 provider 登录态。需要检查本机 Codex 环境时，运行 `scripts\verify\test-codex-praetor-dev-env.ps1`。
+`invoke-release-candidate-preflight.ps1` 必须在已提交、干净的隔离候选 worktree 运行；它从最终 zip 验收并写入绑定 HEAD 与 artifact SHA 的回执。`test-codex-praetor.ps1` 仍是产品快速验证；本机 Codex 环境另用 `scripts\verify\test-codex-praetor-dev-env.ps1`。
 
 `clean-codex-praetor-runtime.ps1` 默认只预览，不删除文件。确认输出只包含已合并、干净、过期或可归档的运行态内容后，再显式加 `-Apply`。
