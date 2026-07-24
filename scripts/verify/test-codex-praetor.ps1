@@ -12,6 +12,12 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 
+# Git hooks export repository-specific variables. Child fixture repositories must
+# never inherit them, otherwise `git init` can target the caller's repository.
+foreach ($name in @('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_PREFIX', 'GIT_COMMON_DIR')) {
+    Remove-Item -LiteralPath ("Env:" + $name) -ErrorAction SilentlyContinue
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 if ([string]::IsNullOrWhiteSpace($Repo)) {
