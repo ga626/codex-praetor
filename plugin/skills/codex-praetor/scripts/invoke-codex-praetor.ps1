@@ -237,7 +237,11 @@ function Test-TaskMaterialSource {
     foreach ($entry in @($Material.files)) {
         if (-not ($entry.PSObject.Properties.Name -contains 'path') -or -not ($entry.PSObject.Properties.Name -contains 'sha256')) { throw "Task material file manifest is malformed." }
         $source = Join-CheckedChildPath -Root $sourceRoot -RelativePath ([string]$entry.path)
-        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Task material file is missing: $($entry.path)" }
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            $pathBytes = [Text.Encoding]::UTF8.GetBytes([string]$entry.path)
+            $pathBase64 = [Convert]::ToBase64String($pathBytes)
+            throw "Task material file is missing: $($entry.path) (utf8_base64=$pathBase64)"
+        }
         if ((Get-FileSha256 -Path $source) -ne [string]$entry.sha256) { throw "Task material hash mismatch: $($entry.path)" }
     }
 }
