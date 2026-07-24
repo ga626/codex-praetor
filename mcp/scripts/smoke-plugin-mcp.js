@@ -43,13 +43,26 @@ function sameSet(left, right) {
   return left.length === right.length && left.every((item) => right.includes(item));
 }
 
+function parseJsonDocument(text, source) {
+  const original = String(text);
+  const normalized = original.replace(/^[\s\uFEFF]+/u, "");
+  try {
+    return JSON.parse(normalized);
+  } catch (error) {
+    const prefix = [...original.slice(0, 8)]
+      .map((character) => `U+${character.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`)
+      .join(" ");
+    throw new Error(`Invalid JSON from ${source}; leading code points: ${prefix || "(empty)"}.`, { cause: error });
+  }
+}
+
 function readExpectedContract() {
   if (!expectedContractPath) return null;
   const bytes = readFileSync(expectedContractPath);
   return {
     path: expectedContractPath,
     sha256: createHash("sha256").update(bytes).digest("hex"),
-    payload: JSON.parse(bytes.toString("utf8"))
+    payload: parseJsonDocument(bytes.toString("utf8"), expectedContractPath)
   };
 }
 
@@ -60,7 +73,7 @@ function readPublicCapabilities() {
   if (!existsSync(manifestPath)) {
     throw new Error(`Public capability manifest is missing: ${manifestPath}`);
   }
-  const payload = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const payload = parseJsonDocument(readFileSync(manifestPath, "utf8"), manifestPath);
   if (payload.schema !== "codex-praetor-public-capabilities/v1" || !Array.isArray(payload.capabilities) || payload.capabilities.length === 0) {
     throw new Error(`Public capability manifest is invalid: ${manifestPath}`);
   }
@@ -155,7 +168,7 @@ try {
       repo
     }
   });
-  const routePayload = JSON.parse(routeResult.content?.[0]?.text ?? "{}");
+  const routePayload = parseJsonDocument(routeResult.content?.[0]?.text ?? "{}", "route intent tool response");
   if (routePayload.route !== "codex_praetor_external_worker") {
     throw new Error(`Unexpected route intent: ${routePayload.route}`);
   }
@@ -164,7 +177,7 @@ try {
     name: "codex_praetor_runtime_info",
     arguments: {}
   });
-  const runtimeInfoPayload = JSON.parse(runtimeInfoResult.content?.[0]?.text ?? "{}");
+  const runtimeInfoPayload = parseJsonDocument(runtimeInfoResult.content?.[0]?.text ?? "{}", "runtime info tool response");
   if (
     !runtimeInfoPayload.runtime_contract ||
     !/^[0-9a-f]{64}$/.test(runtimeInfoPayload.runtime_identity?.runtime_contract_sha256 ?? "") ||
@@ -197,7 +210,7 @@ try {
       throw new Error("Runtime contract payload differs from the canonical contract.");
     }
     if (expectedGenerationPath) {
-      const generation = JSON.parse(readFileSync(expectedGenerationPath, "utf8"));
+      const generation = parseJsonDocument(readFileSync(expectedGenerationPath, "utf8"), expectedGenerationPath);
       if (generation.runtime_contract_sha256 !== expectedContract.sha256 || !sameSet([...(generation.required_mcp_tools ?? [])].sort(), [...contractTools].sort())) {
         throw new Error("Release generation manifest differs from the canonical runtime contract.");
       }
@@ -211,7 +224,7 @@ try {
       task_family: "bounded_code_change"
     }
   });
-  const providerOperationsPayload = JSON.parse(providerOperationsResult.content?.[0]?.text ?? "{}");
+  const providerOperationsPayload = parseJsonDocument(providerOperationsResult.content?.[0]?.text ?? "{}", "provider operations tool response");
   const expectedProviders = ["qoder", "codebuddy"];
   if (
     providerOperationsPayload.schema !== "codex-praetor-provider-operations/v1" ||
@@ -228,7 +241,7 @@ try {
     name: "codex_praetor_evaluation_suite",
     arguments: {}
   });
-  const evaluationSuitePayload = JSON.parse(evaluationSuiteResult.content?.[0]?.text ?? "{}");
+  const evaluationSuitePayload = parseJsonDocument(evaluationSuiteResult.content?.[0]?.text ?? "{}", "evaluation suite tool response");
   if (
     evaluationSuitePayload.schema !== "codex-praetor-evaluation-suite-view/v1" ||
     !Array.isArray(evaluationSuitePayload.tasks) ||
@@ -245,11 +258,11 @@ try {
       plan_id: `capability-smoke-${process.pid}`
     }
   });
-  const evaluationPreparePayload = JSON.parse(evaluationPrepareResult.content?.[0]?.text ?? "{}");
+  const evaluationPreparePayload = parseJsonDocument(evaluationPrepareResult.content?.[0]?.text ?? "{}", "evaluation preparation tool response");
   if (evaluationPreparePayload.ok !== true || !Array.isArray(evaluationPreparePayload.task_ids) || evaluationPreparePayload.task_ids.length !== evaluationSuitePayload.tasks.length || !evaluationPreparePayload.plan_path) {
     throw new Error(`Packaged evaluation preparation failed: ${JSON.stringify(evaluationPreparePayload)}`);
   }
-  const preparedPlan = JSON.parse(readFileSync(evaluationPreparePayload.plan_path, "utf8").replace(/^\uFEFF/, ""));
+  const preparedPlan = parseJsonDocument(readFileSync(evaluationPreparePayload.plan_path, "utf8"), evaluationPreparePayload.plan_path);
   if (
     !Array.isArray(preparedPlan.tasks) ||
     preparedPlan.tasks.some((task) => task.task_family === "unclassified" || !task.task_kind || !Array.isArray(task.allowed_paths) || !Array.isArray(task.forbidden_paths))
@@ -277,7 +290,7 @@ try {
         run_mode: "blocking"
       }
     });
-    const dryRunPayload = JSON.parse(dryRunResult.content?.[0]?.text ?? "{}");
+    const dryRunPayload = parseJsonDocument(dryRunResult.content?.[0]?.text ?? "{}", "dispatch dry-run tool response");
     if (dryRunPayload.ok !== true || dryRunPayload.provider !== "qoder") {
       throw new Error(`Unexpected dispatch dry-run result: ${JSON.stringify(dryRunPayload)}`);
     }
@@ -291,7 +304,7 @@ try {
       limit: 10
     }
   });
-  const lanesPayload = JSON.parse(lanesResult.content?.[0]?.text ?? "{}");
+  const lanesPayload = parseJsonDocument(lanesResult.content?.[0]?.text ?? "{}", "lane list tool response");
   if (!Array.isArray(lanesPayload.lanes)) {
     throw new Error(`Unexpected list lanes result: ${JSON.stringify(lanesPayload)}`);
   }
@@ -303,7 +316,7 @@ try {
       mode: "readonly"
     }
   });
-  const readonlyConflictPayload = JSON.parse(readonlyConflictResult.content?.[0]?.text ?? "{}");
+  const readonlyConflictPayload = parseJsonDocument(readonlyConflictResult.content?.[0]?.text ?? "{}", "read-only conflict tool response");
   if (readonlyConflictPayload.ok !== true || readonlyConflictPayload.conflict_count !== 0) {
     throw new Error(`Unexpected readonly conflict result: ${JSON.stringify(readonlyConflictPayload)}`);
   }
@@ -316,12 +329,20 @@ try {
       file_scope: ["mcp/src/tools.ts"]
     }
   });
-  const editConflictPayload = JSON.parse(editConflictResult.content?.[0]?.text ?? "{}");
+  const editConflictPayload = parseJsonDocument(editConflictResult.content?.[0]?.text ?? "{}", "edit conflict tool response");
   if (typeof editConflictPayload.conflict_count !== "number" || !Array.isArray(editConflictPayload.conflicts)) {
     throw new Error(`Unexpected edit conflict result: ${JSON.stringify(editConflictPayload)}`);
   }
 
   console.log("plugin mcp protocol smoke ok");
+} catch (error) {
+  console.log(JSON.stringify({
+    schema: "codex-praetor-plugin-smoke-failure/v1",
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : "",
+    cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : ""
+  }, null, 2));
+  process.exitCode = 1;
 } finally {
   await client.close();
 }
