@@ -24,17 +24,20 @@ function Get-TextSha256 { param([string]$Path) $bytes = [IO.File]::ReadAllBytes(
 function New-TaskMaterial { param([object]$Task, [string]$PlanDirectory)
     if ([string]$Task.task_kind -ne 'code_change') { return $null }
     Assert-True ($Task.PSObject.Properties.Name -contains 'task_material') "Code-change task $($Task.task_id) lacks task material."
-    $spec = $Task.task_material; foreach($name in @('template','destination','write_set','baseline_command','baseline_exit_code','immutable_paths')) { Assert-True ($spec.PSObject.Properties.Name -contains $name) "Task material for $($Task.task_id) lacks $name." }
+    $spec = $Task.task_material; foreach($name in @('template','destination','write_set','baseline_command','baseline_exit_code','immutable_paths','files')) { Assert-True ($spec.PSObject.Properties.Name -contains $name) "Task material for $($Task.task_id) lacks $name." }
     $template = Join-Path $TemplateRoot ([string]$spec.template); Assert-True (Test-Path -LiteralPath $template -PathType Container) "Task material template is missing: $($spec.template)"
     $instance = Join-Path (Join-Path $PlanDirectory 'instances') ([string]$Task.task_id)
     Assert-True (-not (Test-Path -LiteralPath $instance)) "Task material instance already exists: $instance. Use a new plan id; do not overwrite prior evidence."
     New-Item -ItemType Directory -Path $instance -Force | Out-Null
     Copy-Item -Path (Join-Path $template '*') -Destination $instance -Recurse -Force
     $files = @()
-    foreach ($file in @(Get-ChildItem -LiteralPath $instance -File -Recurse)) {
+    foreach ($relativePath in @($spec.files)) {
+        Assert-True (-not [IO.Path]::IsPathRooted([string]$relativePath) -and [string]$relativePath -notmatch '(^|[\\/])\.\.([\\/]|$)') "Task material file path is unsafe: $relativePath"
+        $sourcePath = Join-Path $instance ([string]$relativePath)
+        Assert-True (Test-Path -LiteralPath $sourcePath -PathType Leaf) "Task material file is missing from template: $relativePath"
         $files += [ordered]@{
-            path = $file.FullName.Substring($instance.Length + 1).Replace('\', '/')
-            sha256 = Get-TextSha256 -Path $file.FullName
+            path = ([string]$relativePath).Replace('\', '/')
+            sha256 = Get-TextSha256 -Path $sourcePath
         }
     }
     $material = [ordered]@{ schema='codex-praetor-task-material-instance/v1'; source_root=$instance; destination=[string]$spec.destination; write_set=@($spec.write_set); immutable_paths=@($spec.immutable_paths); baseline_command=[string]$spec.baseline_command; baseline_exit_code=[int]$spec.baseline_exit_code; files=$files }
