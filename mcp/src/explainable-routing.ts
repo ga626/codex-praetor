@@ -58,13 +58,14 @@ export function explainableRouteTool(input: {
   task_family: TaskFamily;
   candidates: ExplainableRouteCandidate[];
   failure_class?: FailureClass;
+  evidence_root?: string;
 }) {
-  const profileSet = capabilityProfilesTool({ repo: input.repo });
+  const profileSet = capabilityProfilesTool({ repo: input.repo, evidence_root: input.evidence_root });
   const evaluations = input.candidates.map((candidate) => {
     const profile = profileSet.profiles.find((item) => item.task_family === input.task_family && sameTuple(item.provider_tuple, candidate));
     const failedGates = Object.entries(candidate.hard_gates).filter(([, passed]) => !passed).map(([name]) => name);
     const profileStatus = profile?.status ?? "unknown";
-    const profileEligible = ["provisional", "qualified"].includes(profileStatus);
+    const profileEligible = profileStatus === "qualified";
     const profileBlocked = ["blocked", "cooling_down", "stale"].includes(profileStatus);
     const acceptedEvidence = (profile?.evidence ?? []).filter((item) => item.verdict === "accepted");
     const viable = failedGates.length === 0 && profileEligible && !profileBlocked;
@@ -78,7 +79,7 @@ export function explainableRouteTool(input: {
       reasons.push(`画像为 ${profileStatus}：${profile.status_reason}`);
       if (acceptedEvidence.length > 0) reasons.push(`最近可采信证据：${acceptedEvidence.at(-1)?.attempt_id ?? "未知 attempt"}。`);
     }
-    if (!profileEligible && !profileBlocked && failedGates.length === 0) reasons.push("证据不足，只能建议小而可回退的验证任务。")
+    if (!profileEligible && !profileBlocked && failedGates.length === 0) reasons.push("证据不足；正常派工必须停止，只能执行明确标记的小而可回退的 capability canary。")
     return {
       candidate,
       profile_id: profile?.profile_id ?? "",
@@ -115,7 +116,8 @@ export function explainableRouteTool(input: {
       hard_gates_authoritative: true,
       fallback_requires_same_task_family_and_current_evidence: true,
       automatic_merge_or_publish: false,
-      profile_projection_is_not_authorization: true
+      profile_projection_is_not_authorization: true,
+      normal_dispatch_requires_qualified_durable_evidence: true
     }
   };
 }

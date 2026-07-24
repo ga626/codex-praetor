@@ -54,7 +54,7 @@
       "id": "provider.dispatch",
       "audience": "installed_plugin",
       "entry": { "kind": "mcp_tool", "name": "codex_praetor_dispatch" },
-      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/scripts/invoke-codex-praetor.ps1"],
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/scripts/invoke-codex-praetor.ps1", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1", "plugin/skills/codex-praetor/scripts/test-codex-praetor-capability-evidence.ps1"],
       "scenario": "provider_contract",
       "risk_tier": "external_provider"
     },

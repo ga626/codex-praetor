@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { capabilityProfilesTool } from "./capability-profiles.js";
@@ -46,7 +46,28 @@ function profileFor(result: ReturnType<typeof capabilityProfilesTool>, model: st
   return profile;
 }
 
+function writeAcceptedReceipts(model: string, count: number, acceptedAt = now) {
+  mkdirSync(evidenceRoot, { recursive: true });
+  for (let index = 1; index <= count; index += 1) {
+    const tuple = attempt({ id: `${model}-${index}`, model, family: "bounded_code_change" }).provider_tuple;
+    const receipt = {
+      schema: "codex-praetor-capability-evidence/v1",
+      evidence_id: `${model}-${index}`,
+      accepted_at: acceptedAt,
+      task_family: "bounded_code_change",
+      provider_tuple: tuple,
+      supervisor_verdict: "accepted",
+      contract_sha256: "b".repeat(64),
+      job_sha256: "c".repeat(64),
+      completion_sha256: "d".repeat(64),
+      required_checks: ["fixture"]
+    };
+    writeFileSync(path.join(evidenceRoot, `${model}-${index}.json`), JSON.stringify(receipt), "utf8");
+  }
+}
+
 const root = mkdtempSync(path.join(os.tmpdir(), "codex-praetor-capability-profile-"));
+const evidenceRoot = path.join(root, "evidence");
 const planDir = path.join(root, ".codex-praetor", "plans", "fixture");
 const planPath = path.join(planDir, "plan.json");
 
@@ -64,8 +85,12 @@ try {
   const initial = JSON.stringify(plan, null, 2);
   await import("node:fs/promises").then(({ mkdir }) => mkdir(planDir, { recursive: true }));
   writeFileSync(planPath, initial, "utf8");
+  writeAcceptedReceipts("observed", 1);
+  writeAcceptedReceipts("provisional", 2);
+  writeAcceptedReceipts("qualified", 3);
+  writeAcceptedReceipts("stale", 1, "2025-01-01T00:00:00.000Z");
 
-  const withoutUnclassified = capabilityProfilesTool({ repo: root });
+  const withoutUnclassified = capabilityProfilesTool({ repo: root, evidence_root: evidenceRoot });
   assert.equal(withoutUnclassified.schema, "codex-praetor-capability-profile-set/v1");
   assert.equal(withoutUnclassified.policy.default_routing_changed, false);
   assert.equal(profileFor(withoutUnclassified, "observed").status, "observed");
@@ -77,8 +102,8 @@ try {
   assert.equal(withoutUnclassified.profiles.some((item) => item.provider_tuple.model === "unclassified"), false);
   assert.equal(readFileSync(planPath, "utf8"), initial, "profile projection must not rewrite the ledger");
 
-  const withUnclassified = capabilityProfilesTool({ repo: root, include_unclassified: true });
-  assert.equal(profileFor(withUnclassified, "unclassified").status, "observed");
+  const withUnclassified = capabilityProfilesTool({ repo: root, include_unclassified: true, evidence_root: evidenceRoot });
+  assert.equal(profileFor(withUnclassified, "unclassified").status, "unknown", "legacy plan history must not authorize a new task family");
   assert.equal(withUnclassified.profiles.length, 7);
 
   const candidateFor = (model: string) => ({
@@ -97,16 +122,16 @@ try {
     repo: root,
     task_family: "bounded_code_change",
     candidates: [candidateFor("qualified"), candidateFor("blocked"), candidateFor("observed")],
-    failure_class: "network_timeout"
+    failure_class: "network_timeout", evidence_root: evidenceRoot
   });
   assert.equal(explained.decision, "recommend_existing");
   assert.equal(explained.recommendation?.provider_tuple.model, "qualified");
   assert.equal(explained.recovery.state, "cooling_down");
   assert.equal(explained.candidates.some((item) => item.candidate.model === "blocked" && item.viable), false);
-  const validationOnly = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "test_failed" });
+  const validationOnly = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "test_failed", evidence_root: evidenceRoot });
   assert.equal(validationOnly.decision, "bounded_validation");
   assert.equal(validationOnly.recovery.state, "rejected");
-  const processFailed = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "worker_process_failed" });
+  const processFailed = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "worker_process_failed", evidence_root: evidenceRoot });
   assert.equal(processFailed.recovery.state, "blocked");
 
   const operations = providerOperationsTool({ repo: root, task_family: "bounded_code_change", readiness_entries: [] });

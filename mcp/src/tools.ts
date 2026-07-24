@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   getInvokeScriptPath,
   getCancelScriptPath,
+  getCapabilityEvidenceRoot,
   getHealthScriptPath,
   getJobRoot,
   getLockRoot,
@@ -25,6 +26,7 @@ import { providerOperationsTool as buildProviderOperations } from "./provider-op
 import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
 
 type WorkerTaskKind = "local_audit" | "test_execution" | "code_change" | "external_research_support";
+type CapabilityTaskFamily = "read_only_diagnosis" | "bounded_code_change" | "fixed_test_execution" | "failure_recovery";
 
 function assertResearchContract(input: {
   task_kind?: WorkerTaskKind;
@@ -91,7 +93,7 @@ export function runtimeInfoTool() {
   };
 }
 
-export function capabilityProfilesTool(input: { repo: string; include_unclassified?: boolean }) {
+export function capabilityProfilesTool(input: { repo: string; include_unclassified?: boolean; evidence_root?: string }) {
   return buildCapabilityProfiles(input);
 }
 
@@ -281,6 +283,7 @@ function buildDispatchArgs(input: {
   dry_run?: boolean;
   plan_id?: string;
   task_id?: string;
+  task_family?: CapabilityTaskFamily;
   depends_on?: string;
   acceptance?: string;
   worktree_name?: string;
@@ -324,6 +327,7 @@ function buildDispatchArgs(input: {
   appendOptionalStringArg(args, "-Tier", input.tier);
   appendOptionalStringArg(args, "-PlanId", input.plan_id);
   appendOptionalStringArg(args, "-TaskId", input.task_id);
+  appendOptionalStringArg(args, "-TaskFamily", input.task_family);
   appendOptionalStringArg(args, "-DependsOn", input.depends_on);
   appendOptionalStringArg(args, "-Acceptance", input.acceptance);
   appendOptionalStringArg(args, "-WorktreeName", input.worktree_name);
@@ -502,6 +506,7 @@ export async function dispatchTool(input: {
   research_contract?: ResearchContract;
   plan_id?: string;
   task_id?: string;
+  task_family?: CapabilityTaskFamily;
   depends_on?: string;
   acceptance?: string;
   worktree_name?: string;
@@ -1214,6 +1219,7 @@ export async function dispatchPlanTaskTool(input: {
   const acceptance = String(task.acceptance ?? "");
   const dependsOn = Array.isArray(task.depends_on) ? (task.depends_on as unknown[]).map(String).join(",") : "";
   const taskKind = String(task.task_kind ?? "") as WorkerTaskKind;
+  const taskFamily = String(task.task_family ?? "") as CapabilityTaskFamily;
   const mode = String(task.mode ?? "");
   const allowedPaths = Array.isArray(task.allowed_paths) ? task.allowed_paths.map(String) : [];
   const forbiddenPaths = Array.isArray(task.forbidden_paths) ? task.forbidden_paths.map(String) : [];
@@ -1221,7 +1227,7 @@ export async function dispatchPlanTaskTool(input: {
   const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
   const budget = task.budget && typeof task.budget === "object" ? task.budget as Record<string, unknown> : {};
   const taskMaterial = task.task_material && typeof task.task_material === "object" && !Array.isArray(task.task_material) ? task.task_material as Record<string, unknown> : undefined;
-  if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
+  if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || !["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"].includes(taskFamily) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
   }
   if ((taskKind === "code_change") !== (mode === "edit") || (taskKind === "test_execution" && mode !== "readonly")) {
@@ -1240,6 +1246,7 @@ export async function dispatchPlanTaskTool(input: {
     tier: input.tier,
     mode: mode as "readonly" | "edit",
     task_kind: taskKind,
+    task_family: taskFamily,
     run_mode: input.run_mode ?? "background",
     plan_id: input.plan_id,
     task_id: taskId,
@@ -1281,6 +1288,8 @@ export async function verifyTaskTool(input: {
       input.plan_id,
       "-PlanRoot",
       getPlanRoot(repo),
+      "-CapabilityEvidenceRoot",
+      getCapabilityEvidenceRoot(),
       "-TaskId",
       input.task_id,
       "-VerificationVerdict",

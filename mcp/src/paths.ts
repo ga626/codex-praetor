@@ -119,6 +119,14 @@ export function getPlanRoot(repo: string): string {
   return path.join(getProjectArtifactRoot(repo), "plans");
 }
 
+export function getCapabilityEvidenceRoot(): string {
+  const explicit = process.env.CODEX_PRAETOR_CAPABILITY_EVIDENCE_ROOT?.trim();
+  if (explicit) return path.resolve(explicit);
+  const profile = process.env.USERPROFILE?.trim() || process.env.HOME?.trim();
+  if (!profile) throw new Error("USERPROFILE or CODEX_PRAETOR_CAPABILITY_EVIDENCE_ROOT is required for capability evidence.");
+  return path.join(path.resolve(profile), ".codex", "codex-praetor-capability-evidence");
+}
+
 export function getLockRoot(repo: string): string {
   return path.join(getProjectArtifactRoot(repo), "locks");
 }

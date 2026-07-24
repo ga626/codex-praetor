@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.12.0-alpha",
-    "previous_version":  "0.11.0-alpha",
-    "tag":  "v0.12.0-alpha",
+    "version":  "0.13.0-alpha",
+    "previous_version":  "0.12.0-alpha",
+    "tag":  "v0.13.0-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.12.0-alpha.zip",
-    "reason":  "以 Qoder 和 CodeBuddy 的隔离真实改码证据为基座，补齐失败恢复、最终候选包验收与单一发布预检闭环。"
+    "artifact":  "codex-praetor-setup-0.13.0-alpha.zip",
+    "reason":  "将 Qoder 和 CodeBuddy 的已验收能力证据持久化，并以同任务族、完整 provider tuple、三次新鲜 accepted 证据作为正常派工的硬门槛。"
 }
