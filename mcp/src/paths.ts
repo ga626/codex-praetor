@@ -43,6 +43,14 @@ export function getEvaluationInitializerPath(): string {
   return path.join(getScriptRoot(), "initialize-codex-praetor-evaluation.ps1");
 }
 
+export function getEvaluationVerifierPath(): string {
+  const source = path.join(getProjectRoot(), "scripts", "evaluation", "verify-codex-praetor-task-material.ps1");
+  if (existsSync(source)) {
+    return source;
+  }
+  return path.join(getScriptRoot(), "verify-codex-praetor-task-material.ps1");
+}
+
 export function getHealthScriptPath(): string {
   const source = path.join(getProjectRoot(), "scripts", "verify", "get-codex-praetor-health.ps1");
   if (existsSync(source)) {

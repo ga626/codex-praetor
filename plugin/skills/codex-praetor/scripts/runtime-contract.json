@@ -1,13 +1,14 @@
 {
     "schema":  "codex-praetor-runtime-contract/v1",
     "product":  "codex-praetor",
-    "version":  "0.10.0-alpha",
+    "version":  "0.11.0-alpha",
     "wrapperProtocol":  "4",
     "taskContractSchema":  "codex-praetor-task-contract/v5",
     "requiredMcpTools":  [
                              "codex_praetor_capability_profiles",
                              "codex_praetor_evaluation_suite",
                              "codex_praetor_prepare_evaluation",
+                             "codex_praetor_verify_evaluation_task",
                              "codex_praetor_explainable_route",
                              "codex_praetor_provider_operations",
                              "codex_praetor_route_intent",

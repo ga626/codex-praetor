@@ -20,10 +20,15 @@ function Assert-True([bool]$Condition, [string]$Message) {
 function Copy-RelativeFile([string]$Relative) {
     $source = Join-Path $root $Relative
     $destination = Join-Path $scratch $Relative
-    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Fixture source is missing: $Relative" }
-    $parent = Split-Path -Parent $destination
-    New-Item -ItemType Directory -Path $parent -Force | Out-Null
-    Copy-Item -LiteralPath $source -Destination $destination -Force
+    if (-not (Test-Path -LiteralPath $source)) { throw "Fixture source is missing: $Relative" }
+    if (Test-Path -LiteralPath $source -PathType Leaf) {
+        $parent = Split-Path -Parent $destination
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $destination -Force
+    } else {
+        New-Item -ItemType Directory -Path $destination -Force | Out-Null
+        Copy-Item -Path (Join-Path $source '*') -Destination $destination -Recurse -Force
+    }
 }
 
 try {

@@ -19,7 +19,7 @@ import { parseKeyValueOutput } from "./parse-key-value.js";
 import { runPowerShell } from "./powershell.js";
 import { routeIntent } from "./route-intent.js";
 import { capabilityProfilesTool as buildCapabilityProfiles } from "./capability-profiles.js";
-import { evaluationSuiteTool as buildEvaluationSuite, prepareEvaluationTool as buildPrepareEvaluation } from "./evaluation-suite.js";
+import { evaluationSuiteTool as buildEvaluationSuite, prepareEvaluationTool as buildPrepareEvaluation, verifyEvaluationTaskTool as buildVerifyEvaluationTask } from "./evaluation-suite.js";
 import { explainableRouteTool as buildExplainableRoute } from "./explainable-routing.js";
 import { providerOperationsTool as buildProviderOperations } from "./provider-operations.js";
 import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
@@ -101,6 +101,10 @@ export function evaluationSuiteTool() {
 
 export async function prepareEvaluationTool(input: { repo: string; plan_id?: string }) {
   return buildPrepareEvaluation(input);
+}
+
+export async function verifyEvaluationTaskTool(input: { repo: string; plan_id: string; task_id: string; worktree: string }) {
+  return buildVerifyEvaluationTask(input);
 }
 
 export function explainableRouteTool(input: Parameters<typeof buildExplainableRoute>[0]) {
@@ -288,6 +292,7 @@ function buildDispatchArgs(input: {
   budget?: Record<string, unknown>;
   failure_injection?: string;
   sensitivity?: string;
+  task_material?: Record<string, unknown>;
   no_notify?: boolean;
 }) {
   const args = [
@@ -330,6 +335,13 @@ function buildDispatchArgs(input: {
   if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
   appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
   appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
+  if (input.task_material) {
+    const sourceRoot = String(input.task_material.source_root ?? "").trim();
+    if (!sourceRoot) {
+      throw new Error("Code-change task material lacks its durable source root.");
+    }
+    args.push("-TaskMaterialPath", path.join(sourceRoot, "task-material.json"));
+  }
 
   if (input.dry_run) {
     args.push("-DryRun");
@@ -501,6 +513,7 @@ export async function dispatchTool(input: {
   budget?: Record<string, unknown>;
   failure_injection?: string;
   sensitivity?: string;
+  task_material?: Record<string, unknown>;
   dry_run?: boolean;
   no_notify?: boolean;
 }) {
@@ -1207,11 +1220,15 @@ export async function dispatchPlanTaskTool(input: {
   const completion = task.completion_definition && typeof task.completion_definition === "object" ? task.completion_definition as Record<string, unknown> : {};
   const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
   const budget = task.budget && typeof task.budget === "object" ? task.budget as Record<string, unknown> : {};
+  const taskMaterial = task.task_material && typeof task.task_material === "object" && !Array.isArray(task.task_material) ? task.task_material as Record<string, unknown> : undefined;
   if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
   }
   if ((taskKind === "code_change") !== (mode === "edit") || (taskKind === "test_execution" && mode !== "readonly")) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task mode and task kind conflict; dispatch is blocked before worker launch." };
+  }
+  if (taskKind === "code_change" && !taskMaterial) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Code-change task lacks immutable task material; dispatch is blocked before worker launch." };
   }
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
@@ -1236,6 +1253,7 @@ export async function dispatchPlanTaskTool(input: {
     budget,
     failure_injection: String(task.failure_injection ?? ""),
     sensitivity: String(task.sensitivity ?? ""),
+    task_material: taskMaterial,
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });

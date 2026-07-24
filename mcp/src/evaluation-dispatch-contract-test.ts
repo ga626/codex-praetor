@@ -12,8 +12,11 @@ const planId = "evaluation-dispatch-fixture";
 const previousConfig = process.env.CODEX_PRAETOR_CONFIG;
 const previousPortableFileHash = process.env.CODEX_PRAETOR_FORCE_PORTABLE_FILE_HASH;
 const wrapperSource = readFileSync(path.join(projectRoot, "scripts", "dispatch", "invoke-codex-praetor.ps1"), "utf8");
+const toolsSource = readFileSync(path.join(projectRoot, "mcp", "src", "tools.ts"), "utf8");
 
 assert.doesNotMatch(wrapperSource, /\bGet-FileHash\b/, "dispatch must use the cross-version .NET SHA-256 helper rather than a runner-specific cmdlet");
+assert.match(toolsSource, /-TaskMaterialPath/);
+assert.doesNotMatch(toolsSource, /args\.push\("-TaskMaterialBase64"/);
 
 function run(file: string, args: string[]) {
   return execFileSync(file, args, { cwd: projectRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -41,6 +44,23 @@ try {
     "-ProjectRoot", projectRoot, "-Action", "Prepare", "-PlanRoot", planRoot, "-PlanId", planId, "-Apply"
   ]);
   assert.match(preparation, /plan_path/);
+
+  const bounded = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "bounded-test-fix", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
+  const boundedRecord = bounded as Record<string, unknown>;
+  assert.equal(bounded.ok, true, String(boundedRecord.stderr ?? boundedRecord.message ?? ""));
+  assert.equal(boundedRecord.task_kind, "code_change");
+  assert.match(String(boundedRecord.stdout ?? ""), /Task material destination: \.codex-praetor\/evaluation\/bounded-test-fix/);
+
+  const preparedPlanPath = path.join(planRoot, planId, "plan.json");
+  const boundedPlan = JSON.parse(readFileSync(preparedPlanPath, "utf8").replace(/^\uFEFF/, ""));
+  const boundedTask = boundedPlan.tasks.find((task: { task_id: string }) => task.task_id === "bounded-test-fix");
+  assert.ok(existsSync(path.join(String(boundedTask.task_material.source_root), "task-material.json")), "Prepared material needs a durable dispatch contract file.");
+  delete boundedTask.task_material;
+  writeFileSync(preparedPlanPath, `${JSON.stringify(boundedPlan, null, 2)}\n`, "utf8");
+  const missingMaterial = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "bounded-test-fix", provider: "qoder", dry_run: true });
+  const missingMaterialRecord = missingMaterial as Record<string, unknown>;
+  assert.equal(missingMaterial.ok, false);
+  assert.match(String(missingMaterialRecord.message ?? ""), /immutable task material/);
 
   const dispatched = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "fixed-profile-regression", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
   const dispatchedRecord = dispatched as Record<string, unknown>;

@@ -62,6 +62,8 @@ Implemented tools:
 - `codex_praetor_route_intent`
 - `codex_praetor_capability_profiles`
 - `codex_praetor_evaluation_suite`
+- `codex_praetor_prepare_evaluation`
+- `codex_praetor_verify_evaluation_task`
 - `codex_praetor_dispatch_dry_run`
 - `codex_praetor_dispatch`
 - `codex_praetor_plan`
@@ -87,7 +89,7 @@ Later tools may still add richer lock views, dashboard summaries, or explicit me
 
 Capability profiles are a read-only, re-buildable projection of immutable attempts plus Codex's per-attempt verdict. They are keyed by the full provider tuple and task family, and do not change default routing in this release. The provider adapter contracts in `config/provider-adapters/` define each CLI's approved model, permission and lifecycle boundary without storing a local path or account data.
 
-The real-task evaluation suite is a separate, versioned task catalog. It prepares one bounded task at a time for a disposable worktree, with explicit acceptance, deterministic checks, budget, failure injection and secret boundary. Preparing a plan is not a worker result or capability evidence.
+The real-task evaluation suite is a separate, versioned task catalog. It prepares one bounded task at a time for a disposable worktree, injects a hash-checked task instance, requires a known failing baseline, and independently verifies immutable files, write boundaries and real checks. Preparing or verifying a plan is not a worker result or capability evidence; Codex alone records final acceptance.
 
 ## Plugin Layer
 

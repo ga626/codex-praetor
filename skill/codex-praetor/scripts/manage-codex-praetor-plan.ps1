@@ -33,6 +33,7 @@ param(
     [string]$BudgetJson = "",
     [string]$FailureInjection = "",
     [string]$Sensitivity = "",
+    [string]$TaskMaterialJson = "",
     [ValidateSet("", "accepted", "rejected", "retry", "human_required", "skipped")]
     [string]$VerificationVerdict = "",
     [string]$VerificationSummary = "",
@@ -225,6 +226,7 @@ function Upsert-Task {
             progress = [pscustomobject]@{ completed = 0; total = 1; summary = "" }
             attempts = @()
             write_set = @()
+            task_material = $null
             created_at = (Get-Date).ToString("o")
             updated_at = (Get-Date).ToString("o")
         }
@@ -248,6 +250,7 @@ function Upsert-Task {
     if (-not [string]::IsNullOrWhiteSpace($BudgetJson)) { try { $existing.budget = $BudgetJson | ConvertFrom-Json } catch { throw "BudgetJson is not valid JSON." } }
     if (-not [string]::IsNullOrWhiteSpace($FailureInjection)) { Set-DynamicProperty -Target $existing -Name "failure_injection" -Value $FailureInjection }
     if (-not [string]::IsNullOrWhiteSpace($Sensitivity)) { Set-DynamicProperty -Target $existing -Name "sensitivity" -Value $Sensitivity }
+    if (-not [string]::IsNullOrWhiteSpace($TaskMaterialJson)) { try { Set-DynamicProperty -Target $existing -Name "task_material" -Value ($TaskMaterialJson | ConvertFrom-Json) } catch { throw "TaskMaterialJson is not valid JSON." } }
     if (-not [string]::IsNullOrWhiteSpace($CompletionValue)) { $existing.completion = $CompletionValue }
     if (-not [string]::IsNullOrWhiteSpace($SummaryValue)) { $existing.summary = $SummaryValue }
     $existing.updated_at = (Get-Date).ToString("o")

@@ -17,6 +17,7 @@ $derived = @(
 )
 $runtimeData = @(
     [ordered]@{ source = "config\evaluation-suite.json"; target = "plugin\data\evaluation-suite.json" },
+    [ordered]@{ source = "config\evaluation-task-templates"; target = "plugin\data\evaluation-task-templates" },
     [ordered]@{ source = "config\public-capabilities.json"; target = "plugin\data\public-capabilities.json" },
     [ordered]@{ source = "config\provider-onboarding-checklist.json"; target = "plugin\data\provider-onboarding-checklist.json" },
     [ordered]@{ source = "config\provider-adapters\qoder.json"; target = "plugin\data\provider-adapters\qoder.json" },
@@ -31,6 +32,22 @@ $canonicalJson = Get-Content -LiteralPath $canonical -Raw -Encoding UTF8 | Conve
 $canonicalBytes = [IO.File]::ReadAllBytes($canonical)
 $canonicalHash = (Get-FileHash -LiteralPath $canonical -Algorithm SHA256).Hash.ToLowerInvariant()
 $mismatches = New-Object System.Collections.Generic.List[string]
+
+function Get-DataSurfaceHash {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) { throw "Data surface is missing: $Path" }
+    $root = (Resolve-Path -LiteralPath $Path).Path.TrimEnd('\\')
+    $entries = foreach ($file in @(Get-ChildItem -LiteralPath $root -File -Recurse)) {
+        $relative = $file.FullName.Substring($root.Length + 1).Replace('\\', '/')
+        "$relative $((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
+    }
+    $text = (($entries | Sort-Object) -join "`n")
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($text)))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+}
 
 foreach ($relative in $derived) {
     $path = Join-Path $root $relative
@@ -55,15 +72,19 @@ foreach ($relative in $derived) {
 foreach ($item in $runtimeData) {
     $source = Join-Path $root ([string]$item.source)
     $target = Join-Path $root ([string]$item.target)
-    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath $source)) {
         $mismatches.Add("missing-source:$($item.source)")
         continue
     }
-    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath $target)) {
         $mismatches.Add("missing:$($item.target)")
         continue
     }
-    if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()) {
+    if ((Test-Path -LiteralPath $source -PathType Leaf) -ne (Test-Path -LiteralPath $target -PathType Leaf)) {
+        $mismatches.Add("type-drift:$($item.target)")
+        continue
+    }
+    if ((Get-DataSurfaceHash -Path $source) -ne (Get-DataSurfaceHash -Path $target)) {
         $mismatches.Add("drift:$($item.target)")
     }
 }
@@ -78,9 +99,14 @@ if ($Apply) {
     foreach ($item in $runtimeData) {
         $source = Join-Path $root ([string]$item.source)
         $target = Join-Path $root ([string]$item.target)
-        $parent = Split-Path -Parent $target
-        New-Item -ItemType Directory -Path $parent -Force | Out-Null
-        Copy-Item -LiteralPath $source -Destination $target -Force
+        if (Test-Path -LiteralPath $source -PathType Leaf) {
+            $parent = Split-Path -Parent $target
+            New-Item -ItemType Directory -Path $parent -Force | Out-Null
+            Copy-Item -LiteralPath $source -Destination $target -Force
+        } else {
+            New-Item -ItemType Directory -Path $target -Force | Out-Null
+            Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
+        }
     }
     Write-Host "[PASS] Generated $($derived.Count) runtime contract surfaces and $($runtimeData.Count) runtime data surfaces from config."
     exit 0
