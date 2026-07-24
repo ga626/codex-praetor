@@ -38,7 +38,13 @@ function Write-JsonFile {
         [Parameter(Mandatory = $true)]
         [object]$Value
     )
-    $Value | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Path -Encoding UTF8
+    $tmp = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        [IO.File]::WriteAllText($tmp, ($Value | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
+        Move-Item -LiteralPath $tmp -Destination $Path -Force
+    } finally {
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 function Read-JsonWithRetry {
@@ -69,6 +75,11 @@ function Set-JsonProperty {
     } else {
         $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
     }
+}
+
+function Test-CancellationRequested {
+    param([object]$Metadata, [string]$RequestPath = "")
+    return ($null -ne $Metadata -and [string]$Metadata.status -in @("cancel_requested", "cancelled")) -or (-not [string]::IsNullOrWhiteSpace($RequestPath) -and (Test-Path -LiteralPath $RequestPath -PathType Leaf))
 }
 
 function Stop-ProcessTree {
@@ -125,6 +136,7 @@ function Update-LockForWorker {
 
 $metaPath = Join-Path $JobDir "job.json"
 $completionPath = Join-Path $JobDir "completion.json"
+$cancelRequestPath = Join-Path $JobDir "cancel-request.json"
 $watcherLog = Join-Path $JobDir "watcher.log"
 
 try {
@@ -145,6 +157,11 @@ try {
             if ([string]::IsNullOrWhiteSpace($Exe) -or [string]::IsNullOrWhiteSpace($ArgumentListPath)) {
                 throw "StartWorker requires -Exe and -ArgumentListPath."
             }
+            $latestBeforeStart = Read-JsonWithRetry -Path $metaPath
+            if (Test-CancellationRequested -Metadata $latestBeforeStart -RequestPath $cancelRequestPath) {
+                $meta = $latestBeforeStart
+                $alreadyWaited = $true
+            } else {
             if ([string]::IsNullOrWhiteSpace($WorkingDirectory)) {
                 $WorkingDirectory = $meta.execution_repo
             }
@@ -192,6 +209,12 @@ try {
             Set-JsonProperty -Object $meta -Name "pid" -Value $WorkerPid
             Set-JsonProperty -Object $meta -Name "worker_started_at" -Value $proc.StartTime.ToUniversalTime().ToString("o")
             Write-JsonFile -Path $metaPath -Value $meta
+            $latestAfterStart = Read-JsonWithRetry -Path $metaPath
+            if (Test-CancellationRequested -Metadata $latestAfterStart -RequestPath $cancelRequestPath) {
+                Stop-ProcessTree -RootProcessId $WorkerPid
+                $alreadyWaited = $true
+            }
+            }
         } else {
             $proc = [System.Diagnostics.Process]::GetProcessById($WorkerPid)
         }
@@ -225,23 +248,26 @@ try {
     try { $latestMeta = Read-JsonWithRetry -Path $metaPath } catch { $waitError = "Could not read job metadata after retries: $($_.Exception.Message)" }
     $latestCompletion = $null
     try { $latestCompletion = Read-JsonWithRetry -Path $completionPath } catch { $waitError = "Could not read existing completion after retries: $($_.Exception.Message)" }
-    $cancelledExternally = ($null -ne $latestMeta -and [string]$latestMeta.status -in @("cancel_requested", "cancelled")) -or ($null -ne $latestCompletion -and [string]$latestCompletion.status -eq "cancelled")
+    $cancelledExternally = (Test-CancellationRequested -Metadata $latestMeta -RequestPath $cancelRequestPath) -or ($null -ne $latestCompletion -and [string]$latestCompletion.status -eq "cancelled")
     # A worker exit is execution evidence, not a logical-task acceptance.
     $status = "process_exited"
     $semanticFailure = ""
-    $combinedOutput = ""
-    foreach ($outputPath in @([string]$meta.stdout, [string]$meta.stderr)) {
-        if (Test-Path -LiteralPath $outputPath -PathType Leaf) {
-            $combinedOutput += [Environment]::NewLine + (Get-Content -LiteralPath $outputPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
-        }
+    # stdout is the worker's untrusted natural-language report. It can describe
+    # a failure class as an example while the actual task succeeded, so it must
+    # never drive terminal classification. Provider process diagnostics belong
+    # on stderr; a non-zero process exit is handled below as well.
+    $providerDiagnostics = ""
+    $stderrPath = [string]$meta.stderr
+    if (-not [string]::IsNullOrWhiteSpace($stderrPath) -and (Test-Path -LiteralPath $stderrPath -PathType Leaf)) {
+        $providerDiagnostics = Get-Content -LiteralPath $stderrPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
     }
-    if ($combinedOutput -match "(?is)provider[_ -]?(?:rejected|risk[_ -]?control)|request blocked|status(?:Code)?\s*[:=]?\s*4\d\d") {
+    if ($providerDiagnostics -match "(?is)provider[_ -]?(?:rejected|risk[_ -]?control)|request blocked|status(?:Code)?\s*[:=]?\s*4\d\d") {
         $semanticFailure = "provider_rejected"
-    } elseif ($combinedOutput -match "(?is)max(?:imum)?\s+turns?.*(?:exceeded|limit)|turns?\s+exceeded") {
+    } elseif ($providerDiagnostics -match "(?is)max(?:imum)?\s+turns?.*(?:exceeded|limit)|turns?\s+exceeded") {
         $semanticFailure = "max_turns_exceeded"
-    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
+    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $providerDiagnostics -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
         $semanticFailure = "tool_contract_mismatch"
-    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $combinedOutput -match "(?is)permission denied|permission_denied") {
+    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $providerDiagnostics -match "(?is)permission denied|permission_denied") {
         $semanticFailure = "permission_denied"
     }
     if ($cancelledExternally) {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0-alpha
+
+- Added independently accepted, isolated real code-change evidence for Qoder and CodeBuddy; task completion is now distinct from Codex acceptance.
+- Corrected watcher failure classification so provider-rejection wording in a successful stdout report is not treated as a provider failure.
+- Made capability canaries use immutable task materials and independent verification, preventing marker-only proof from overclaiming test-execution capability.
+- Consolidated candidate verification, PR CI, and main publication around one final-artifact preflight and its HEAD-plus-artifact-SHA receipt.
+
 ## 0.10.0-alpha - 2026-07-23
 
 - Added a machine-readable public-capability registry that binds user-facing entries, packaged dependencies, final-zip scenarios and fault injection to one release gate.

@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  push:
   pull_request:
 
 # The candidate and publication paths deliberately share one reusable workflow.

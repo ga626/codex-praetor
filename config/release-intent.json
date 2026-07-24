@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.11.0-alpha",
-    "previous_version":  "0.10.0-alpha",
-    "tag":  "v0.11.0-alpha",
+    "version":  "0.12.0-alpha",
+    "previous_version":  "0.11.0-alpha",
+    "tag":  "v0.12.0-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.11.0-alpha.zip",
-    "reason":  "建立公开能力清单与最终包场景验证，补齐已安装插件的评测准备入口，并将范围变化与发布收口规则压缩为可长期执行的闭环。"
+    "artifact":  "codex-praetor-setup-0.12.0-alpha.zip",
+    "reason":  "以 Qoder 和 CodeBuddy 的隔离真实改码证据为基座，补齐失败恢复、最终候选包验收与单一发布预检闭环。"
 }

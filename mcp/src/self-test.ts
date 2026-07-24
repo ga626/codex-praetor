@@ -158,18 +158,20 @@ assert.equal(readonlyConflict.ok, true);
 const editConflict = detectConflictsTool({ repo, mode: "edit", file_scope: ["mcp/src/tools.ts"] });
 assert.equal(Array.isArray(editConflict.conflicts), true);
 
-const verification = await verifyTaskTool({
+const forgedAcceptance = await verifyTaskTool({
   repo,
   plan_id: planId,
   task_id: "task-01",
   verdict: "accepted",
-  summary: "Self-test verification accepted without dispatching a real worker.",
+  summary: "Self-test attempts acceptance without dispatching a real worker.",
   next_action: "No next action."
 });
-assert.equal(verification.ok, true);
+assert.equal(forgedAcceptance.ok, false);
+assert.match(forgedAcceptance.stderr, /Accepted verification requires a recorded job directory/);
 
-const readyAfterVerification = await nextReadyTool({ repo, plan_id: planId });
-assert.equal(readyAfterVerification.ok, true);
+const readyAfterRejectedAcceptance = await nextReadyTool({ repo, plan_id: planId });
+assert.equal(readyAfterRejectedAcceptance.ok, true);
+assert.ok(readyAfterRejectedAcceptance.ready_tasks.length >= 1);
 
 if (process.env.CODEX_PRAETOR_SELF_TEST_DRY_RUN === "1") {
   const dryRun = await dispatchDryRunTool({

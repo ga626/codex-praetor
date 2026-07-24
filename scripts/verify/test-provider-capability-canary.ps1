@@ -105,6 +105,57 @@ function Get-CanaryWorkerEvidence {
     }
 }
 
+function Get-CanaryFileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function New-CodeChangeCanaryMaterial {
+    param(
+        [Parameter(Mandatory = $true)][string]$StatePath,
+        [Parameter(Mandatory = $true)][string]$ProjectRoot,
+        [Parameter(Mandatory = $true)][string]$ScriptDirectory
+    )
+
+    $bundleRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptDirectory))
+    $templateCandidates = @(
+        (Join-Path $ProjectRoot "config\evaluation-task-templates\bounded-test-fix"),
+        (Join-Path $ProjectRoot "data\evaluation-task-templates\bounded-test-fix"),
+        (Join-Path $bundleRoot "data\evaluation-task-templates\bounded-test-fix")
+    )
+    $template = @($templateCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Select-Object -First 1)
+    if (@($template).Count -ne 1) { throw "Capability canary code-change template is missing from this generation." }
+
+    $materialRoot = Join-Path (Split-Path -Parent $StatePath) ("canary-material-" + [guid]::NewGuid().ToString("N"))
+    $sourceRoot = Join-Path $materialRoot "source"
+    New-Item -ItemType Directory -Path $sourceRoot -Force | Out-Null
+    Copy-Item -Path (Join-Path ([string]$template[0]) "*") -Destination $sourceRoot -Recurse -Force
+
+    $files = @()
+    foreach ($relativePath in @("compute.ps1", "task.json", "test.ps1")) {
+        $sourcePath = Join-Path $sourceRoot $relativePath
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) { throw "Capability canary material is missing $relativePath." }
+        $files += [ordered]@{ path = $relativePath; sha256 = Get-CanaryFileSha256 -Path $sourcePath }
+    }
+    $destination = ".codex-praetor/evaluation/capability-canary-code-change"
+    $material = [ordered]@{
+        schema = "codex-praetor-task-material-instance/v1"
+        source_root = $sourceRoot
+        destination = $destination
+        write_set = @("$destination/compute.ps1")
+        immutable_paths = @("$destination/test.ps1", "$destination/task.json")
+        baseline_command = "powershell -NoProfile -ExecutionPolicy Bypass -File $destination/test.ps1"
+        baseline_exit_code = 1
+        files = $files
+    }
+    $manifestPath = Join-Path $sourceRoot "material-manifest.json"
+    $material | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+    $material.manifest_sha256 = Get-CanaryFileSha256 -Path $manifestPath
+    $contractPath = Join-Path $sourceRoot "task-material.json"
+    $material | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $contractPath -Encoding UTF8
+    return [pscustomobject]@{ material = [pscustomobject]$material; contract_path = $contractPath; root = $materialRoot }
+}
+
 if (-not [string]::IsNullOrWhiteSpace($WrapperPath)) {
     $wrapper = [System.IO.Path]::GetFullPath($WrapperPath)
 }
@@ -137,13 +188,27 @@ $mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }
 # Keep the worker instruction natural and small. Readonly permissions,
 # network policy, timeout, marker parsing and repository observations are
 # supervisor-side protocol, not prompt padding.
-$canaryFileName = "CODEX_PRAETOR_EDIT_CANARY.txt"
+$canaryMaterial = $null
+$canaryMaterialRoot = ""
+$taskMaterialVerifierCandidates = @(
+    (Join-Path $projectRoot "scripts\verify\verify-codex-praetor-task-material.ps1"),
+    (Join-Path $projectRoot "skill\codex-praetor\scripts\verify-codex-praetor-task-material.ps1"),
+    (Join-Path $projectRoot "plugin\skills\codex-praetor\scripts\verify-codex-praetor-task-material.ps1"),
+    (Join-Path $scriptDir "verify-codex-praetor-task-material.ps1")
+)
+$taskMaterialVerifier = @($taskMaterialVerifierCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 $task = if ($TaskKind -eq "code_change") {
-    "Create $canaryFileName at the repository root with exactly $marker, run git status --short, then reply exactly $marker."
+    "Repair the supplied failing sum script. Change only compute.ps1, run the supplied test, then reply exactly $marker."
 } elseif ($TaskKind -eq "test_execution") {
     "Run the fixed PowerShell check `"Test-Path README.md`" in the execution worktree. Do not edit files. Reply exactly $marker only if the command returns True."
 } else {
     "Read README.md and reply exactly $marker."
+}
+
+if ($TaskKind -eq "code_change") {
+    if (@($taskMaterialVerifier).Count -ne 1) { throw "Capability canary task-material verifier is missing." }
+    $canaryMaterial = New-CodeChangeCanaryMaterial -StatePath $statePath -ProjectRoot $projectRoot -ScriptDirectory $scriptDir
+    $canaryMaterialRoot = [string]$canaryMaterial.root
 }
 
 $argsList = @(
@@ -162,8 +227,30 @@ $argsList = @(
     "-CapabilityCanary",
     "-NoNotify"
 )
+if ($TaskKind -eq "test_execution") {
+    $argsList += @("-RequiredCheck", "Test-Path README.md")
+}
 if (-not [string]::IsNullOrWhiteSpace($Tier)) {
     $argsList += @("-Tier", $Tier)
+}
+if ($TaskKind -eq "code_change") {
+    $material = $canaryMaterial.material
+    $allowedPathsJson = @($material.write_set | ForEach-Object { Split-Path -Parent $_ }) | Select-Object -Unique | ConvertTo-Json -Compress
+    $forbiddenPathsJson = @(".git", "plugin", "skill", "config", "**/*auth*") | ConvertTo-Json -Compress
+    $requiredChecksJson = @([string]$material.baseline_command) | ConvertTo-Json -Compress
+    $budgetJson = [ordered]@{ max_turns = 8; max_wall_seconds = 900 } | ConvertTo-Json -Compress
+    $argsList += @(
+        "-TaskMaterialPath", [string]$canaryMaterial.contract_path,
+        "-AllowedPathsJson", $allowedPathsJson,
+        "-ForbiddenPathsJson", $forbiddenPathsJson,
+        "-RequiredChecksJson", $requiredChecksJson,
+        "-BudgetJson", $budgetJson,
+        "-FailureInjection", "baseline_must_fail; immutable_test_or_scope_drift_must_be_rejected",
+        "-Sensitivity", "public_code_only",
+        "-Acceptance", "Baseline fails first; only compute.ps1 changes; immutable files remain unchanged; supplied test passes.",
+        "-PlanId", "capability-canary",
+        "-TaskId", "bounded-code-change"
+    )
 }
 if (-not $Apply) {
     $argsList += "-DryRun"
@@ -180,23 +267,32 @@ $afterStatus = (& git -C $Repo status --short 2>$null | Out-String).Trim()
 Write-Output $outputText.Trim()
 
 if (-not $Apply) {
-    if ($exitCode -ne 0) { throw "Canary preview failed with exit code $exitCode." }
+    if ($exitCode -ne 0) {
+        if (-not [string]::IsNullOrWhiteSpace($canaryMaterialRoot) -and (Test-Path -LiteralPath $canaryMaterialRoot)) { Remove-Item -LiteralPath $canaryMaterialRoot -Recurse -Force -ErrorAction SilentlyContinue }
+        throw "Canary preview failed with exit code $exitCode."
+    }
+    if (-not [string]::IsNullOrWhiteSpace($canaryMaterialRoot) -and (Test-Path -LiteralPath $canaryMaterialRoot)) { Remove-Item -LiteralPath $canaryMaterialRoot -Recurse -Force -ErrorAction SilentlyContinue }
     Write-Host "[PASS] Preview only. No provider worker was started."
     exit 0
 }
 
-if ($exitCode -ne 0) { throw "Capability canary failed with exit code $exitCode." }
-$workerEvidence = Get-CanaryWorkerEvidence -WrapperOutput $outputText -ExpectedMarker $marker
-if ($TaskKind -eq "code_change") {
-    $job = $workerEvidence.job
-    $workerRepo = [string]$job.execution_repo
-    $canaryPath = Join-Path $workerRepo $canaryFileName
-    if (-not (Test-Path -LiteralPath $canaryPath -PathType Leaf)) { throw "Edit capability canary produced no canary file in the worker worktree." }
-    $canaryText = Get-Content -LiteralPath $canaryPath -Raw -Encoding UTF8
-    if ($canaryText -notmatch [regex]::Escape($marker)) { throw "Edit capability canary file does not contain the required marker." }
-    $workerStatus = (& git -C $workerRepo status --short 2>$null | Out-String).Trim()
-    if ([string]::IsNullOrWhiteSpace($workerStatus)) { throw "Edit capability canary produced no observable worker worktree change." }
-}
+try {
+    if ($exitCode -ne 0) { throw "Capability canary failed with exit code $exitCode." }
+    $workerEvidence = Get-CanaryWorkerEvidence -WrapperOutput $outputText -ExpectedMarker $marker
+    $materialVerification = $null
+    if ($TaskKind -eq "code_change") {
+        $job = $workerEvidence.job
+        $workerRepo = [string]$job.execution_repo
+        $taskContractPath = [string]$job.task_contract
+        if ([string]::IsNullOrWhiteSpace($taskContractPath) -or -not (Test-Path -LiteralPath $taskContractPath -PathType Leaf)) { throw "Edit capability canary did not publish its task contract." }
+        $taskContract = Get-Content -LiteralPath $taskContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $jobMaterial = $taskContract.task_material
+        if ($null -eq $jobMaterial -or [string]$jobMaterial.manifest_sha256 -ne [string]$canaryMaterial.material.manifest_sha256) { throw "Edit capability canary did not retain the immutable material contract in its task contract evidence." }
+        $materialVerificationText = & ([string]$taskMaterialVerifier[0]) -Worktree $workerRepo -TaskMaterialJson (([pscustomobject]$canaryMaterial.material) | ConvertTo-Json -Compress -Depth 8) -RequiredChecksJson (@([string]$canaryMaterial.material.baseline_command) | ConvertTo-Json -Compress)
+        if ($LASTEXITCODE -ne 0) { throw "Edit capability canary independent material verifier did not complete." }
+        $materialVerification = $materialVerificationText | ConvertFrom-Json
+        if ([string]$materialVerification.verdict -ne "accepted_candidate") { throw "Edit capability canary failed independent contract verification: $(@($materialVerification.violations) -join '; ')." }
+    }
 
 # The worker proof and the caller checkout are independent observations. A
 # concurrent editor can change the checkout while a genuinely readonly worker
@@ -245,6 +341,10 @@ $entry = [pscustomobject]@{
         completion_status = [string]$workerEvidence.completion.status
         worker_exit_code = [int]$workerEvidence.completion.exit_code
         failure_class = [string]$workerEvidence.completion.failure_class
+        task_material_manifest_sha256 = if ($TaskKind -eq "code_change") { [string]$canaryMaterial.material.manifest_sha256 } else { "" }
+        task_contract_sha256 = if ($TaskKind -eq "code_change") { Get-CanaryFileSha256 -Path ([string]$workerEvidence.job.task_contract) } else { "" }
+        material_verdict = if ($null -eq $materialVerification) { "" } else { [string]$materialVerification.verdict }
+        material_violations = if ($null -eq $materialVerification) { @() } else { @($materialVerification.violations) }
     }
 }
 
@@ -290,3 +390,8 @@ if (-not (Test-Path -LiteralPath $stateDirectory -PathType Container)) {
 }
 $state | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $statePath -Encoding UTF8
 Write-Host "[PASS] Capability canary passed and readiness tuple was recorded."
+} finally {
+    if (-not [string]::IsNullOrWhiteSpace($canaryMaterialRoot) -and (Test-Path -LiteralPath $canaryMaterialRoot)) {
+        Remove-Item -LiteralPath $canaryMaterialRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}

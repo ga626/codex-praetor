@@ -66,6 +66,9 @@ try {
     Assert-True ([string]$semantic.governance_state -eq "rejected") "Semantic worker failure must be recorded as rejected, not awaiting supervisor acceptance."
     $report = Invoke-WatchedCase -Name "report-evidence" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'worker report'; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$report.evidence_state -eq "report_valid") "A successful worker report must be recorded as report evidence while awaiting supervisor verification."
+    $descriptiveReport = Invoke-WatchedCase -Name "descriptive-failure-word" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'The report documents provider_rejected as a profile example; required check exit code: 0.'; exit 0") -TimeoutSeconds 30
+    Assert-True ([string]$descriptiveReport.failure_class -eq "") "A success report that merely names a failure class must not be reclassified as a provider failure."
+    Assert-True ([string]$descriptiveReport.evidence_state -eq "report_valid") "A descriptive success report must remain available for Codex verification."
     $nonzeroScript = Join-Path $testRoot "nonzero-worker.ps1"
     Set-Content -LiteralPath $nonzeroScript -Value "Write-Output 'unclassified failure'; exit 7" -Encoding ASCII
     $nonzero = Invoke-WatchedCase -Name "nonzero-exit" -WorkerArguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $nonzeroScript) -TimeoutSeconds 30
@@ -98,14 +101,12 @@ try {
     [ordered]@{ schema = "codex-praetor-job/v2"; job_id = "lifecycle-cancel"; repo = $projectPath; execution_repo = $projectPath; provider = "test"; tier = "test"; model = "test"; task_kind = "local_audit"; mode = "readonly"; pid = 0; stdout = $cancelStdout; stderr = $cancelStderr; completion = $cancelCompletionPath; status = "starting" } | ConvertTo-Json | Set-Content -LiteralPath $cancelMetaPath -Encoding UTF8
     $cancelWatchArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $watcherScript, "-JobDir", $cancelDir, "-WorkerPid", "0", "-StartWorker", "-Exe", "powershell.exe", "-ArgumentListPath", $cancelArgsPath, "-WorkingDirectory", $projectPath, "-StdoutPath", $cancelStdout, "-StderrPath", $cancelStderr, "-TimeoutSeconds", "30", "-NoNotify")
     $cancelWatcher = Start-Process -FilePath "powershell.exe" -ArgumentList (($cancelWatchArgs | ForEach-Object { Quote-Arg ([string]$_) }) -join " ") -WindowStyle Hidden -PassThru
-    $workerPid = 0
-    for ($attempt = 0; $attempt -lt 50; $attempt++) { Start-Sleep -Milliseconds 100; $currentMeta = Get-Content -LiteralPath $cancelMetaPath -Raw -Encoding UTF8 | ConvertFrom-Json; if ([int]$currentMeta.pid -gt 0) { $workerPid = [int]$currentMeta.pid; break } }
-    Assert-True ($workerPid -gt 0) "Cancellation case did not publish a worker identity."
     $cancelOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cancelScript -JobDir $cancelDir 2>&1
     if ($LASTEXITCODE -ne 0) { throw "Cancellation command failed: $($cancelOutput -join "`n")" }
     if (-not $cancelWatcher.WaitForExit(15000)) { throw "Cancellation watcher did not finish." }
     $cancelCompletion = Get-Content -LiteralPath $cancelCompletionPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ([string]$cancelCompletion.status -eq "cancelled") "Cancellation was overwritten by watcher completion."
+    Assert-True ([string]$cancelCompletion.failure_class -eq "cancelled_by_operator") "Cancellation before worker identity was not recorded as an operator cancellation."
     $succeeded = $true
     Write-Host "[PASS] Job lifecycle smoke passed: semantic failures, provider rejection, partial artifacts, timeout, and durable cancellation."
 } finally {

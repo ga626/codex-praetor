@@ -16,7 +16,12 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $projectPath = [System.IO.Path]::GetFullPath($ProjectRoot)
 $contentPath = if ([string]::IsNullOrWhiteSpace($ContentRoot)) { $projectPath } else { [System.IO.Path]::GetFullPath($ContentRoot) }
 $syncScript = Join-Path $projectPath "scripts\release\sync-codex-praetor-runtime-contract.ps1"
-if ($contentPath -eq $projectPath -and (Test-Path -LiteralPath $syncScript -PathType Leaf)) {
+$compatibilitySkillContract = Join-Path $projectPath "skill\codex-praetor\scripts\runtime-contract.json"
+# A source checkout owns the legacy compatibility mirror and must validate it
+# before deriving a generation. A release bundle intentionally ships only the
+# plugin-bundled Skill, so it validates the shipped contract surfaces below
+# rather than requiring an omitted source-only mirror.
+if ($contentPath -eq $projectPath -and (Test-Path -LiteralPath $syncScript -PathType Leaf) -and (Test-Path -LiteralPath $compatibilitySkillContract -PathType Leaf)) {
     $null = & $syncScript -ProjectRoot $projectPath 6>$null
     if ($LASTEXITCODE -ne 0) { throw "Runtime contract surfaces are not generated from the canonical source." }
 }
@@ -41,22 +46,41 @@ if (-not (Test-Path -LiteralPath $skillRoot -PathType Container)) {
 $contract = Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $manifest = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $mcpPackage = Get-Content -LiteralPath $mcpPackagePath -Raw -Encoding UTF8 | ConvertFrom-Json
+$canonicalContractHash = (Get-FileHash -LiteralPath $contractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+foreach ($bundledContractPath in @(
+    (Join-Path $pluginRoot "runtime-contract.json"),
+    (Join-Path $skillRoot "scripts\runtime-contract.json")
+)) {
+    if (-not (Test-Path -LiteralPath $bundledContractPath -PathType Leaf)) {
+        throw "Bundled runtime contract is missing: $bundledContractPath"
+    }
+    $bundledHash = (Get-FileHash -LiteralPath $bundledContractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($bundledHash -ne $canonicalContractHash) {
+        throw "Bundled runtime contract differs from canonical contract: $bundledContractPath"
+    }
+}
 $version = [string]$contract.version
 if ([string]::IsNullOrWhiteSpace($version) -or [string]$manifest.version -ne $version -or [string]$mcpPackage.version -ne $version) {
     throw "Runtime contract, plugin manifest, and MCP package must have one version."
 }
 
 function Get-TreeManifest {
-    param([string]$Root, [string]$Label)
+    param(
+        [string]$Root,
+        [string]$Label,
+        [string[]]$ExcludeRelativePaths = @()
+    )
 
     $files = @(
         Get-ChildItem -LiteralPath $Root -Recurse -File -Force |
             Sort-Object FullName |
             ForEach-Object {
                 $relative = $_.FullName.Substring($Root.Length).TrimStart("\\") -replace "\\", "/"
-                [pscustomobject]@{
-                    path = $relative
-                    sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                if ($relative -notin $ExcludeRelativePaths) {
+                    [pscustomobject]@{
+                        path = $relative
+                        sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                    }
                 }
             }
     )
@@ -88,8 +112,11 @@ if ($commit -notmatch "^[0-9a-f]{40}$") {
 }
 
 $skillTree = Get-TreeManifest -Root $skillRoot -Label "skill"
-$pluginTree = Get-TreeManifest -Root $pluginRoot -Label "plugin"
-$contractHash = (Get-FileHash -LiteralPath $contractPath -Algorithm SHA256).Hash.ToLowerInvariant()
+# This manifest is written only after the generation is derived. Including it
+# would make the plugin tree self-referential and make an extracted artifact
+# derive a different identity from the one it carries.
+$pluginTree = Get-TreeManifest -Root $pluginRoot -Label "plugin" -ExcludeRelativePaths @("release-generation.json")
+$contractHash = $canonicalContractHash
 $combined = "skill|$($skillTree.sha256)`nplugin|$($pluginTree.sha256)`ncontract|$contractHash"
 $combinedBytes = [System.Text.Encoding]::UTF8.GetBytes($combined)
 $combinedSha = [System.Security.Cryptography.SHA256]::Create()

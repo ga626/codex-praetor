@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.11.0-alpha",
+    [string]$Version = "0.12.0-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ReleaseZip = "",
@@ -37,6 +37,33 @@ function Read-SidecarHash([string]$Path) {
     $text = (Get-Content -LiteralPath $Path -Raw -Encoding UTF8).Trim()
     if ($text -notmatch '^(?<hash>[0-9A-Fa-f]{64})(?:\s+\*?.*)?$') { throw "Release SHA256 sidecar is invalid: $Path" }
     return $Matches.hash.ToLowerInvariant()
+}
+
+function Invoke-CodexCommandInProfile {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+    # Codex CLI resolves its marketplace and cache from the user environment.
+    # Keep a candidate activation inside its supplied profile; never let a
+    # release fixture silently use the developer's stable Codex state.
+    $previous = @{
+        USERPROFILE = $env:USERPROFILE
+        HOME = $env:HOME
+        CODEX_HOME = $env:CODEX_HOME
+    }
+    try {
+        $env:USERPROFILE = $profileRoot
+        $env:HOME = $profileRoot
+        $env:CODEX_HOME = Join-Path $profileRoot ".codex"
+        New-Item -ItemType Directory -Path $env:CODEX_HOME -Force | Out-Null
+        $output = & $CodexCommand @Arguments
+        $exitCode = $LASTEXITCODE
+    } finally {
+        foreach ($name in $previous.Keys) {
+            if ($null -eq $previous[$name]) { Remove-Item -LiteralPath ("Env:" + $name) -ErrorAction SilentlyContinue }
+            else { Set-Item -LiteralPath ("Env:" + $name) -Value $previous[$name] }
+        }
+    }
+    return [pscustomobject]@{ output = @($output); exit_code = $exitCode }
 }
 
 function Resolve-GitHubTagCommit([string]$Repo, [string]$ReleaseTag) {
@@ -97,11 +124,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Bundled user installer failed." }
     if (-not $Json -and -not [string]::IsNullOrWhiteSpace($installOutput)) { Write-Host $installOutput.TrimEnd() }
 
-    $pluginAddOutput = (& $CodexCommand plugin add "codex-praetor@personal" | Out-String)
-    if ($LASTEXITCODE -ne 0) { throw "Official 'codex plugin add codex-praetor@personal' failed." }
+    $pluginAdd = Invoke-CodexCommandInProfile -Arguments @("plugin", "add", "codex-praetor@personal")
+    $pluginAddOutput = $pluginAdd.output | Out-String
+    if ([int]$pluginAdd.exit_code -ne 0) { throw "Official 'codex plugin add codex-praetor@personal' failed." }
     if (-not $Json -and -not [string]::IsNullOrWhiteSpace($pluginAddOutput)) { Write-Host $pluginAddOutput.TrimEnd() }
-    $pluginList = (& $CodexCommand plugin list | Out-String)
-    if ($LASTEXITCODE -ne 0) { throw "Official 'codex plugin list' failed after installation." }
+    $pluginListResult = Invoke-CodexCommandInProfile -Arguments @("plugin", "list")
+    $pluginList = $pluginListResult.output | Out-String
+    if ([int]$pluginListResult.exit_code -ne 0) { throw "Official 'codex plugin list' failed after installation." }
     $pluginListPattern = "(?m)^\s*" + [regex]::Escape("codex-praetor@personal") + "\s+.*?\s+" + [regex]::Escape($Version) + "(?:\s|$)"
     if ($pluginList -notmatch $pluginListPattern) { throw "codex plugin list does not show an installed codex-praetor@personal $Version row." }
 

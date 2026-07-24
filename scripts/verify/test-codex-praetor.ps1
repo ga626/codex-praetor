@@ -12,6 +12,12 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 
+# Git hooks export repository-specific variables. Child fixture repositories must
+# never inherit them, otherwise `git init` can target the caller's repository.
+foreach ($name in @('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_PREFIX', 'GIT_COMMON_DIR')) {
+    Remove-Item -LiteralPath ("Env:" + $name) -ErrorAction SilentlyContinue
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 if ([string]::IsNullOrWhiteSpace($Repo)) {
@@ -316,9 +322,14 @@ try {
             } else {
                 Add-Fail "Installed skill is a reparse point/link: $installedSkill"
             }
-
-            $installedMap = Get-RelativeHashMap $installedSkill
-            Compare-HashMaps -Expected $sourceMap -Actual $installedMap -ActualLabel "Installed skill"
+            $installedSkillFile = Join-Path $installedSkill "SKILL.md"
+            if (-not (Test-Path -LiteralPath $installedSkillFile -PathType Leaf)) {
+                Add-Fail "Installed global skill is missing SKILL.md: $installedSkillFile"
+            } elseif ((Get-FileHash -LiteralPath $installedSkillFile -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath (Join-Path $sourceSkill "SKILL.md") -Algorithm SHA256).Hash) {
+                Add-Pass "Installed global Skill instruction matches source; bundled plugin remains the runtime package"
+            } else {
+                Add-Fail "Installed global Skill instruction differs from source SKILL.md"
+            }
         } else {
             Add-Warn "Installed skill not found on this machine: $installedSkill"
         }
@@ -551,6 +562,14 @@ if (Test-Path -LiteralPath $taskMaterialTest -PathType Leaf) {
         if ($LASTEXITCODE -eq 0 -and (($taskMaterialOutput | Out-String) -match "Evaluation task material")) { Add-Pass "Evaluation task material contract regression passes" } else { Add-Fail "Evaluation task material contract regression failed: $($taskMaterialOutput | Out-String)" }
     } catch { Add-Fail "Evaluation task material contract regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Evaluation task material contract script missing: $taskMaterialTest" }
+
+$planAcceptanceTest = Join-Path $projectRoot "scripts\verify\test-plan-acceptance-gate.ps1"
+if (Test-Path -LiteralPath $planAcceptanceTest -PathType Leaf) {
+    try {
+        $planAcceptanceOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $planAcceptanceTest -ProjectRoot $projectRoot
+        if ($LASTEXITCODE -eq 0 -and (($planAcceptanceOutput | Out-String) -match "Plan acceptance gate")) { Add-Pass "Supervisor acceptance gate regression passes" } else { Add-Fail "Supervisor acceptance gate regression failed: $($planAcceptanceOutput | Out-String)" }
+    } catch { Add-Fail "Supervisor acceptance gate regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Supervisor acceptance gate script missing: $planAcceptanceTest" }
 
 $devIsolationTest = Join-Path $projectRoot "scripts\verify\test-dev-channel-isolation.ps1"
 if (Test-Path -LiteralPath $devIsolationTest -PathType Leaf) {
