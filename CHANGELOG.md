@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0-alpha
+
+- Recorded source, connection, verifier, timeline and human-intervention facts for real-task evidence.
+- Limited capability-profile promotion to Codex-accepted real historical issues and real user requests; fixtures, canaries and markers remain regression evidence only.
+- Added release governance for the installed Skill mirror change without making a new provider-capability claim.
+
 ## 0.13.0-alpha
 
 - Made normal Qoder and CodeBuddy dispatch fail closed unless three fresh, Codex-accepted receipts match the exact task family and full provider tuple.

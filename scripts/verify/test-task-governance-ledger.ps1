@@ -40,7 +40,9 @@ try {
 
     $successJobDir = Join-Path $root "success-job"
     New-Item -ItemType Directory -Path $successJobDir -Force | Out-Null
+    $successJob = Join-Path $successJobDir "job.json"
     $successCompletion = Join-Path $successJobDir "completion.json"
+    [ordered]@{ job_id = "accepted-attempt"; created_at = "2026-07-25T00:00:00Z" } | ConvertTo-Json | Set-Content -LiteralPath $successJob -Encoding UTF8
     [ordered]@{ job_id = "accepted-attempt"; status = "process_exited"; process_state = "process_exited"; failure_class = ""; evidence_state = "tests_passed"; provider = "codebuddy"; tier = "codebuddy-free"; model = "hy3"; mode = "edit"; acceptance = "fixture"; exit_code = 0 } | ConvertTo-Json | Set-Content -LiteralPath $successCompletion -Encoding UTF8
     & $planScript -Action RecordJob -PlanId ledger -PlanRoot $root -TaskId producer -JobDir $successJobDir -CompletionPath $successCompletion | Out-Null
     $ready = & $planScript -Action NextReady -PlanId ledger -PlanRoot $root -OutputJson

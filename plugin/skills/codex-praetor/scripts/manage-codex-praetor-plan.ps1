@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Init", "UpsertTask", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
+    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
     [string]$Action,
 
     [Parameter(Mandatory = $true)]
@@ -35,6 +35,10 @@ param(
     [string]$FailureInjection = "",
     [string]$Sensitivity = "",
     [string]$TaskMaterialJson = "",
+    [string]$EvidenceContextJson = "",
+    [string]$EvidenceContextPath = "",
+    [string]$InterventionKind = "",
+    [string]$InterventionSummary = "",
     [ValidateSet("", "accepted", "rejected", "retry", "human_required", "skipped")]
     [string]$VerificationVerdict = "",
     [string]$VerificationSummary = "",
@@ -70,18 +74,40 @@ function Write-JsonFile {
     }
 }
 
+function Get-RequiredEvidenceContext {
+    param([object]$Task)
+    $context = $Task.evidence_context
+    if ($null -eq $context) { return $null }
+    $required = @("source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256")
+    if (@($required | Where-Object { [string]::IsNullOrWhiteSpace([string]$context.$_) }).Count -gt 0) { return $null }
+    return $context
+}
+
+function Get-ElapsedMilliseconds {
+    param([string]$StartedAt, [string]$FinishedAt)
+    $start = [DateTime]::MinValue
+    $finish = [DateTime]::MinValue
+    if (-not [DateTime]::TryParse($StartedAt, [ref]$start) -or -not [DateTime]::TryParse($FinishedAt, [ref]$finish)) { return $null }
+    $elapsed = ($finish.ToUniversalTime() - $start.ToUniversalTime()).TotalMilliseconds
+    if ($elapsed -lt 0) { return $null }
+    return [Math]::Round($elapsed, 0)
+}
+
 function Write-CapabilityEvidence {
     param([object]$Task, [object]$Job, [object]$Completion)
     $family = [string]$Task.task_family
     $tuple = $Completion.provider_tuple
     $requiredTupleFields = @("provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema")
     $hasCompleteTuple = $null -ne $tuple -and @($requiredTupleFields | Where-Object { [string]::IsNullOrWhiteSpace([string]$tuple.$_) }).Count -eq 0
-    if ([string]::IsNullOrWhiteSpace($family) -or $family -eq "unclassified" -or -not $hasCompleteTuple) { return }
+    $evidenceContext = Get-RequiredEvidenceContext -Task $Task
+    $isRealSource = $null -ne $evidenceContext -and [string]$evidenceContext.source_category -in @("real_historical_issue", "real_user_request")
+    if ([string]::IsNullOrWhiteSpace($family) -or $family -eq "unclassified" -or -not $hasCompleteTuple -or -not $isRealSource) { return }
     New-Item -ItemType Directory -Path $CapabilityEvidenceRoot -Force | Out-Null
     $jobPath = Join-Path ([string]$Task.job_dir) "job.json"
     $completionPath = [string]$Task.completion
     if ([string]::IsNullOrWhiteSpace($completionPath)) { $completionPath = Join-Path ([string]$Task.job_dir) "completion.json" }
-    $receipt = [ordered]@{ schema = "codex-praetor-capability-evidence/v1"; evidence_id = [string]$Completion.job_id; accepted_at = (Get-Date).ToUniversalTime().ToString("o"); task_family = $family; provider_tuple = $tuple; task_kind = [string]$Task.task_kind; supervisor_verdict = "accepted"; contract_sha256 = [string]$Completion.contract_sha256; job_sha256 = (Get-FileHash -LiteralPath $jobPath -Algorithm SHA256).Hash.ToLowerInvariant(); completion_sha256 = (Get-FileHash -LiteralPath $completionPath -Algorithm SHA256).Hash.ToLowerInvariant(); required_checks = @($Task.completion_definition.required_checks) }
+    $attempt = @($Task.attempts | Where-Object { [string]$_.attempt_id -eq [string]$Completion.job_id } | Select-Object -Last 1)
+    $receipt = [ordered]@{ schema = "codex-praetor-capability-evidence/v1"; evidence_id = [string]$Completion.job_id; accepted_at = (Get-Date).ToUniversalTime().ToString("o"); task_family = $family; provider_tuple = $tuple; task_kind = [string]$Task.task_kind; supervisor_verdict = "accepted"; contract_sha256 = [string]$Completion.contract_sha256; job_sha256 = (Get-FileHash -LiteralPath $jobPath -Algorithm SHA256).Hash.ToLowerInvariant(); completion_sha256 = (Get-FileHash -LiteralPath $completionPath -Algorithm SHA256).Hash.ToLowerInvariant(); required_checks = @($Task.completion_definition.required_checks); evidence_context = $evidenceContext; timeline = if ($attempt.Count -eq 1) { $attempt[0].timeline } else { $null }; human_intervention_count = [int]$Task.human_intervention_count }
     Write-JsonFile -Path (Join-Path $CapabilityEvidenceRoot ((Get-SafeName ([string]$Completion.job_id)) + ".json")) -Value $receipt
 }
 
@@ -167,13 +193,15 @@ function Add-PlanEvent {
         [object]$Plan,
         [string]$Type,
         [string]$Message,
-        [object]$Data = $null
+        [object]$Data = $null,
+        [string]$Actor = "controller"
     )
     $events = @($Plan.events)
     $events += [ordered]@{
         event_id = [Guid]::NewGuid().ToString("N")
         at = (Get-Date).ToString("o")
         type = $Type
+        actor = $Actor
         message = $Message
         data = $Data
     }
@@ -243,6 +271,8 @@ function Upsert-Task {
             attempts = @()
             write_set = @()
             task_material = $null
+            evidence_context = $null
+            human_intervention_count = 0
             created_at = (Get-Date).ToString("o")
             updated_at = (Get-Date).ToString("o")
         }
@@ -368,6 +398,13 @@ function Set-TaskVerification {
     $attempts = @($target.attempts)
     if ($attempts.Count -gt 0) {
         Set-DynamicProperty -Target $attempts[$attempts.Count - 1] -Name "supervisor_verdict" -Value $Verdict
+        Set-DynamicProperty -Target $attempts[$attempts.Count - 1] -Name "accepted_at" -Value (Get-Date).ToUniversalTime().ToString("o")
+        $timeline = $attempts[$attempts.Count - 1].timeline
+        if ($null -ne $timeline) {
+            Set-DynamicProperty -Target $timeline -Name "verified_at" -Value (Get-Date).ToUniversalTime().ToString("o")
+            $elapsed = Get-ElapsedMilliseconds -StartedAt ([string]$timeline.submitted_at) -FinishedAt ([string]$timeline.verified_at)
+            if ($null -ne $elapsed) { Set-DynamicProperty -Target $timeline -Name "end_to_end_ms" -Value $elapsed }
+        }
     }
 
     if ($Verdict -eq "accepted") {
@@ -387,6 +424,29 @@ function Set-TaskVerification {
         Set-DynamicProperty -Target $target -Name "status" -Value "failed"
         Set-DynamicProperty -Target $target -Name "governance_state" -Value "rejected"
     }
+}
+
+function Set-TaskEvidenceContext {
+    param([object]$Plan, [string]$Id, [string]$ContextJson)
+    if ([string]::IsNullOrWhiteSpace($Id) -or [string]::IsNullOrWhiteSpace($ContextJson)) { throw "TaskId and EvidenceContextJson are required." }
+    try { $context = $ContextJson | ConvertFrom-Json } catch { throw "EvidenceContextJson is not valid JSON." }
+    $required = @("source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256")
+    if (@($required | Where-Object { [string]::IsNullOrWhiteSpace([string]$context.$_) }).Count -gt 0) { throw "EvidenceContextJson lacks a required field." }
+    if ([string]$context.source_category -notin @("contract_regression", "real_historical_issue", "real_user_request", "untrusted_or_unknown")) { throw "EvidenceContextJson source_category is not recognized." }
+    if ([string]$context.connection_mode -notin @("supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "codebuddy_daemon")) { throw "EvidenceContextJson connection_mode is not recognized." }
+    $target = @($Plan.tasks | Where-Object { $_.task_id -eq $Id } | Select-Object -First 1)
+    if ($target.Count -ne 1) { throw "Task not found for evidence context: $Id" }
+    Set-DynamicProperty -Target $target[0] -Name "evidence_context" -Value $context
+}
+
+function Record-TaskIntervention {
+    param([object]$Plan, [string]$Id, [string]$Kind, [string]$SummaryValue)
+    if ([string]::IsNullOrWhiteSpace($Id) -or [string]::IsNullOrWhiteSpace($Kind)) { throw "TaskId and InterventionKind are required." }
+    $target = @($Plan.tasks | Where-Object { $_.task_id -eq $Id } | Select-Object -First 1)
+    if ($target.Count -ne 1) { throw "Task not found for intervention: $Id" }
+    $count = [int]$target[0].human_intervention_count + 1
+    Set-DynamicProperty -Target $target[0] -Name "human_intervention_count" -Value $count
+    Add-PlanEvent -Plan $Plan -Type "human_intervention" -Actor "codex" -Message "Intervention $Kind recorded for task $Id." -Data @{ task_id = $Id; intervention_kind = $Kind; summary = $SummaryValue; count = $count }
 }
 
 function Get-ReadyTasks {
@@ -451,7 +511,12 @@ if ($Action -eq "Init") {
     Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
     $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
     if ($recordTask.Count -eq 1) {
-        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = [string]$completion.contract_sha256; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = @($completion.write_set); execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; created_at = (Get-Date).ToString("o"); finished_at = (Get-Date).ToString("o") }
+        $jobPath = Join-Path $JobDir "job.json"
+        $job = if (Test-Path -LiteralPath $jobPath -PathType Leaf) { Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
+        $submittedAt = if ($null -ne $job) { [string]$job.created_at } else { "" }
+        $workerStartedAt = if ($null -ne $job) { [string]$job.worker_started_at } else { "" }
+        $workerFinishedAt = [string]$completion.exited_at
+        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = [string]$completion.contract_sha256; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = @($completion.write_set); execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
         $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }
     }
@@ -460,6 +525,19 @@ if ($Action -eq "Init") {
 } elseif ($Action -eq "VerifyTask") {
     Set-TaskVerification -Plan $plan -Id $TaskId -Verdict $VerificationVerdict -SummaryValue $VerificationSummary -NextActionValue $NextAction
     Add-PlanEvent -Plan $plan -Type "task_verified" -Message "Task $TaskId verification verdict: $VerificationVerdict." -Data @{ task_id = $TaskId; verdict = $VerificationVerdict; next_action = $NextAction }
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "SetEvidenceContext") {
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceContextJson) -and -not [string]::IsNullOrWhiteSpace($EvidenceContextPath)) { throw "Specify only one evidence context transport." }
+    $contextJson = $EvidenceContextJson
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceContextPath)) {
+        if (-not (Test-Path -LiteralPath $EvidenceContextPath -PathType Leaf)) { throw "EvidenceContextPath does not exist: $EvidenceContextPath" }
+        $contextJson = Get-Content -LiteralPath $EvidenceContextPath -Raw -Encoding UTF8
+    }
+    Set-TaskEvidenceContext -Plan $plan -Id $TaskId -ContextJson $contextJson
+    Add-PlanEvent -Plan $plan -Type "evidence_context_set" -Actor "codex" -Message "Evidence context recorded for task $TaskId." -Data @{ task_id = $TaskId; source_category = ($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1).evidence_context.source_category }
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "RecordIntervention") {
+    Record-TaskIntervention -Plan $plan -Id $TaskId -Kind $InterventionKind -SummaryValue $InterventionSummary
     Save-Plan -Plan $plan
 } elseif ($Action -eq "RecordSelection") {
     if ([string]::IsNullOrWhiteSpace($SelectionJson)) { throw "SelectionJson is required for RecordSelection." }

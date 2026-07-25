@@ -35,17 +35,21 @@ try {
     New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
     $contractPath = Join-Path $jobDir "contract.json"
     [ordered]@{ required_checks = @("Test-Path README.md") } | ConvertTo-Json | Set-Content -LiteralPath $contractPath -Encoding UTF8
-    [ordered]@{ execution_repo = $repo; task_contract = $contractPath; stdout = (Join-Path $jobDir "stdout.log") } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
-    [ordered]@{ job_id = "acceptance-gate"; status = "process_exited"; exit_code = 0; failure_class = ""; provider_tuple = [ordered]@{ provider = "fixture"; cli_path = "C:\fixture\worker.exe"; cli_hash = ("a" * 64); model = "fixture-model"; permission_profile = "test-execution-v1"; task_kind = "test_execution"; generation_id = "fixture-generation"; runtime_contract_sha256 = ("b" * 64); task_contract_schema = "fixture-contract/v1" } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $jobDir "completion.json") -Encoding UTF8
+    [ordered]@{ created_at = "2026-07-25T00:00:00Z"; worker_started_at = "2026-07-25T00:00:02Z"; execution_repo = $repo; task_contract = $contractPath; stdout = (Join-Path $jobDir "stdout.log") } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
+    [ordered]@{ job_id = "acceptance-gate"; contract_sha256 = ("c" * 64); status = "process_exited"; process_state = "process_exited"; exited_at = "2026-07-25T00:00:12Z"; exit_code = 0; failure_class = ""; evidence_state = "tests_passed"; task_kind = "test_execution"; provider_tuple = [ordered]@{ provider = "fixture"; cli_path = "C:\fixture\worker.exe"; cli_hash = ("a" * 64); model = "fixture-model"; permission_profile = "test-execution-v1"; task_kind = "test_execution"; generation_id = "fixture-generation"; runtime_contract_sha256 = ("b" * 64); task_contract_schema = "fixture-contract/v1" } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $jobDir "completion.json") -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $jobDir "stdout.log") -Value "CODEX_PRAETOR_REQUIRED_CHECKS_OK" -Encoding ASCII
     Invoke-Manager @("-Action","Init","-PlanId",$planId,"-PlanRoot",$planRoot,"-Repo",$repo)
     Invoke-Manager @("-Action","UpsertTask","-PlanId",$planId,"-PlanRoot",$planRoot,"-TaskId","test","-TaskFamily","fixed_test_execution","-TaskKind","test_execution","-Mode","readonly","-Status","awaiting_verification")
+    $contextPath = Join-Path $scratch "evidence-context.json"
+    '{"source_category":"real_historical_issue","source_ref":"issue-acceptance","source_commit":"base","input_sha256":"input-sha","connection_mode":"supervised_cli_text","verifier_id":"acceptance-gate","verifier_version":"1","verifier_sha256":"verifier-sha"}' | Set-Content -LiteralPath $contextPath -Encoding UTF8
+    Invoke-Manager @("-Action","SetEvidenceContext","-PlanId",$planId,"-PlanRoot",$planRoot,"-TaskId","test","-EvidenceContextPath",$contextPath)
     Invoke-Manager @("-Action","RecordJob","-PlanId",$planId,"-PlanRoot",$planRoot,"-TaskId","test","-JobDir",$jobDir,"-CompletionPath",(Join-Path $jobDir "completion.json"))
     Invoke-Manager @("-Action","VerifyTask","-PlanId",$planId,"-PlanRoot",$planRoot,"-TaskId","test","-VerificationVerdict","accepted")
     $receipt = Join-Path $evidenceRoot "acceptance-gate.json"
     Assert-True (Test-Path -LiteralPath $receipt -PathType Leaf) "Accepted verification did not persist capability evidence."
     $evidence = Get-Content -LiteralPath $receipt -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($evidence.schema -eq "codex-praetor-capability-evidence/v1" -and $evidence.supervisor_verdict -eq "accepted") "Capability evidence receipt is invalid."
+    Assert-True ($evidence.evidence_context.source_category -eq "real_historical_issue" -and $evidence.timeline.worker_elapsed_ms -eq 10000) "Capability evidence receipt lacks its real-task context or timing."
     Set-Content -LiteralPath (Join-Path $repo "drift.txt") -Value "drift" -Encoding ASCII
     $rejected = $false
     try { Invoke-Manager @("-Action","VerifyTask","-PlanId",$planId,"-PlanRoot",$planRoot,"-TaskId","test","-VerificationVerdict","accepted") -SuppressErrors } catch { $rejected = $true }
