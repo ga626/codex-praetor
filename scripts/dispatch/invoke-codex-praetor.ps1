@@ -1402,7 +1402,7 @@ $networkRule
 
     if ($resolvedProvider -eq "qoder") {
         $qoder = $config.providers.qoder.cliPath
-        if (-not (Test-Path -LiteralPath $qoder)) {
+        if (-not $DryRun -and -not (Test-Path -LiteralPath $qoder)) {
             throw "Qoder CLI not found: $qoder"
         }
 
@@ -1442,7 +1442,7 @@ $networkRule
 
         $node = $config.providers.codebuddy.nodePath
         $codebuddy = $config.providers.codebuddy.cliPath
-        if (-not (Test-Path -LiteralPath $codebuddy)) {
+        if (-not $DryRun -and -not (Test-Path -LiteralPath $codebuddy)) {
             throw "CodeBuddy CLI not found: $codebuddy"
         }
 
