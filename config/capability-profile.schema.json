@@ -53,7 +53,10 @@
         "failure_class": { "type": "string" },
         "supervisor_verdict": { "enum": ["accepted", "rejected", "blocked", "skipped", "human_required", "retry", ""] },
         "evidence_state": { "type": "string" },
-        "completion_path": { "type": "string" }
+        "completion_path": { "type": "string" },
+        "evidence_context": { "type": "object" },
+        "timeline": { "type": "object" },
+        "human_intervention_count": { "type": "integer", "minimum": 0 }
       }
     }
   },

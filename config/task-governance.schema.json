@@ -33,6 +33,8 @@
         "budget": { "$ref": "#/$defs/budget" },
         "stop_loss": { "$ref": "#/$defs/stop_loss" },
         "selection_id": { "type": "string" },
+        "evidence_context": { "$ref": "#/$defs/evidence_context" },
+        "human_intervention_count": { "type": "integer", "minimum": 0 },
         "outcome_ids": { "type": "array", "items": { "type": "string" } },
         "progress": { "$ref": "#/$defs/progress" },
         "attempts": { "type": "array", "items": { "$ref": "#/$defs/attempt" } }
@@ -50,7 +52,7 @@
         "supervisor_verdict": { "enum": ["accepted", "rejected", "blocked", "skipped", "human_required", "retry", ""] },
         "execution_state": { "enum": ["draft", "queued", "running", "cancel_requested", "process_exited"] },
         "evidence_state": { "enum": ["report_valid", "artifact_valid", "tests_passed", "evidence_missing"] },
-        "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } }, "created_at": { "type": "string", "format": "date-time" },
+        "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } }, "timeline": { "$ref": "#/$defs/timeline" }, "accepted_at": { "type": "string", "format": "date-time" }, "created_at": { "type": "string", "format": "date-time" },
         "finished_at": { "type": "string", "format": "date-time" }
       }
     },
@@ -70,6 +72,20 @@
         "model": { "type": "string" }, "permission_profile": { "type": "string" }, "task_kind": { "type": "string" },
         "generation_id": { "type": "string" }, "runtime_contract_sha256": { "type": "string" }, "task_contract_schema": { "type": "string" }
       }
+    },
+    "evidence_context": {
+      "type": "object",
+      "required": ["source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256"],
+      "properties": {
+        "source_category": { "enum": ["contract_regression", "real_historical_issue", "real_user_request", "untrusted_or_unknown"] },
+        "source_ref": { "type": "string", "minLength": 1 }, "source_commit": { "type": "string", "minLength": 1 }, "input_sha256": { "type": "string", "minLength": 1 },
+        "connection_mode": { "enum": ["supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "codebuddy_daemon"] },
+        "verifier_id": { "type": "string", "minLength": 1 }, "verifier_version": { "type": "string", "minLength": 1 }, "verifier_sha256": { "type": "string", "minLength": 1 }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "properties": { "submitted_at": { "type": "string" }, "worker_started_at": { "type": "string" }, "worker_finished_at": { "type": "string" }, "verified_at": { "type": "string" }, "worker_elapsed_ms": { "type": "number", "minimum": 0 }, "end_to_end_ms": { "type": "number", "minimum": 0 } }
     },
     "completion_definition": {
       "type": "object",
