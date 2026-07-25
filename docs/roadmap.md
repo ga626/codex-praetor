@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-21
 
-`v0.9.3-alpha` 是当前已公开交付的基线，但已确认存在“已安装运行时缺少 provider 运营数据”的发布事故。候选 `v0.15.0-alpha` 只做该事故的不可变修复：把 adapter 合同和准入清单放进真正安装的插件，并在最终 bundled MCP 中实际调用验证。它不会读取认证材料，也不会自动扩大路由；合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
+`v0.15.0-alpha` 是当前已公开交付的基线。候选 `v0.16.0-alpha` 只修复真实改码合同：worker 必须在冻结 commit 的隔离 Git worktree 中产生可审查 diff，且由 Codex 检查范围、不可修改文件、日志和独立复跑。它不会读取认证材料，不自动扩大路由，也不把复制材料或 canary 当作 provider 能力；合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
 
 已经完成：
 
@@ -25,7 +25,7 @@
 - 产品验收与开发者本机检查分离，PR 和发布门禁不再被全局规则、本机 skill 副本或 provider 登录状态误伤。
 - 公开入口一致性检查，确保首页、安装说明、路线图、发布说明和 GitHub Release 指向同一版本。
 - release intent、版本面一致性和 main 合并后自动发布 workflow。
-- 真实 worktree 实验：Qoder fail-to-pass、background job、旧安装 CodeBuddy 拒绝与恢复源码 CodeBuddy 真实写入均已有独立证据；实验产物不合入主线。
+- 真实 worktree 改码合同：冻结 base commit、allowlist、不可修改文件清单、实际 Git diff 和 Codex 验收共同决定 accepted；复制材料只能做回归。
 
 ## 近期目标
 

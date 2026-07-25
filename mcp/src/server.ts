@@ -68,7 +68,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.15.0-alpha"
+    version: "0.16.0-alpha"
   });
 
   server.registerTool(
@@ -240,6 +240,9 @@ export function createServer(): McpServer {
         depends_on: z.string().optional(),
         acceptance: z.string().optional(),
         worktree_name: z.string().optional(),
+        real_worktree: z.boolean().optional(),
+        base_commit: z.string().regex(/^[0-9a-f]{40}$/i).optional(),
+        immutable_paths: z.array(z.string().min(1)).optional(),
         max_turns: z.number().int().positive().max(80).optional(),
         no_notify: z.boolean().optional()
       }

@@ -296,6 +296,9 @@ function buildDispatchArgs(input: {
   failure_injection?: string;
   sensitivity?: string;
   task_material?: Record<string, unknown>;
+  real_worktree?: boolean;
+  base_commit?: string;
+  immutable_paths?: string[];
   evidence_bootstrap?: boolean;
   no_notify?: boolean;
 }) {
@@ -340,6 +343,11 @@ function buildDispatchArgs(input: {
   if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
   appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
   appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
+  if (input.real_worktree) {
+    args.push("-RealWorktree");
+    appendOptionalStringArg(args, "-BaseCommit", input.base_commit);
+    if ((input.immutable_paths?.length ?? 0) > 0) args.push("-ImmutablePathsJson", JSON.stringify(input.immutable_paths));
+  }
   if (input.task_material) {
     const sourceRoot = String(input.task_material.source_root ?? "").trim();
     if (!sourceRoot) {
@@ -523,6 +531,9 @@ export async function dispatchTool(input: {
   failure_injection?: string;
   sensitivity?: string;
   task_material?: Record<string, unknown>;
+  real_worktree?: boolean;
+  base_commit?: string;
+  immutable_paths?: string[];
   evidence_bootstrap?: boolean;
   dry_run?: boolean;
   no_notify?: boolean;
@@ -1232,6 +1243,8 @@ export async function dispatchPlanTaskTool(input: {
   const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
   const budget = task.budget && typeof task.budget === "object" ? task.budget as Record<string, unknown> : {};
   const taskMaterial = task.task_material && typeof task.task_material === "object" && !Array.isArray(task.task_material) ? task.task_material as Record<string, unknown> : undefined;
+  const baseCommit = String(task.base_commit ?? "").trim();
+  const immutablePaths = Array.isArray(task.immutable_paths) ? task.immutable_paths.map(String) : [];
   const evidenceContext = task.evidence_context && typeof task.evidence_context === "object" && !Array.isArray(task.evidence_context) ? task.evidence_context as Record<string, unknown> : undefined;
   if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || !["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"].includes(taskFamily) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
@@ -1239,8 +1252,8 @@ export async function dispatchPlanTaskTool(input: {
   if ((taskKind === "code_change") !== (mode === "edit") || (taskKind === "test_execution" && mode !== "readonly")) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task mode and task kind conflict; dispatch is blocked before worker launch." };
   }
-  if (taskKind === "code_change" && !taskMaterial) {
-    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Code-change task lacks immutable task material; dispatch is blocked before worker launch." };
+  if (taskKind === "code_change" && (!/^[0-9a-f]{40}$/i.test(baseCommit) || immutablePaths.length === 0)) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Real code-change task lacks a frozen base commit or immutable paths; dispatch is blocked before worker launch." };
   }
   const requiredEvidenceContext = ["source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256"];
   const evidenceBootstrap = !!evidenceContext
@@ -1271,7 +1284,9 @@ export async function dispatchPlanTaskTool(input: {
     budget,
     failure_injection: String(task.failure_injection ?? ""),
     sensitivity: String(task.sensitivity ?? ""),
-    task_material: taskMaterial,
+    real_worktree: taskKind === "code_change",
+    base_commit: baseCommit || undefined,
+    immutable_paths: immutablePaths,
     evidence_bootstrap: evidenceBootstrap,
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false

@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.15.0-alpha",
-    "previous_version":  "0.14.0-alpha",
-    "tag":  "v0.15.0-alpha",
+    "version":  "0.16.0-alpha",
+    "previous_version":  "0.15.0-alpha",
+    "tag":  "v0.16.0-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.15.0-alpha.zip",
-    "reason":  "为真实任务评测补齐可审计证据上下文，并确保夹具、canary 与 marker 不会被提升为 provider 能力证据。"
+    "artifact":  "codex-praetor-setup-0.16.0-alpha.zip",
+    "reason":  "将真实源码改码固定为隔离 Git worktree 中可审查的 scoped diff；复制材料只保留为回归夹具，不能再冒充 provider 真实改码能力。"
 }

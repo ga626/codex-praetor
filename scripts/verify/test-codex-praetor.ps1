@@ -571,6 +571,14 @@ if (Test-Path -LiteralPath $planAcceptanceTest -PathType Leaf) {
     } catch { Add-Fail "Supervisor acceptance gate regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Supervisor acceptance gate script missing: $planAcceptanceTest" }
 
+$realWorktreeTest = Join-Path $projectRoot "scripts\verify\test-real-worktree-code-change-contract.ps1"
+if (Test-Path -LiteralPath $realWorktreeTest -PathType Leaf) {
+    try {
+        $realWorktreeOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $realWorktreeTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($realWorktreeOutput | Out-String) -match "Real code-change uses a frozen Git worktree")) { Add-Pass "Real Git worktree code-change contract regression passes" } else { Add-Fail "Real Git worktree code-change contract regression failed: $($realWorktreeOutput | Out-String)" }
+    } catch { Add-Fail "Real Git worktree code-change contract regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Real Git worktree code-change contract script missing: $realWorktreeTest" }
+
 $evidenceBootstrapTest = Join-Path $projectRoot "scripts\verify\test-real-task-evidence-bootstrap.ps1"
 if (Test-Path -LiteralPath $evidenceBootstrapTest -PathType Leaf) {
     try {

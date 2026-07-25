@@ -40,7 +40,7 @@ function Preflight-Task {
         Provider = 'qoder'; Tier = 'qoder-day-cheap'; Repo = $Repo; Task = [string]$Task.title; Mode = 'edit'; TaskKind = 'code_change'; RunMode = 'blocking';
         AllowedPathsJson = ($Task.allowed_paths | ConvertTo-Json -Compress); ForbiddenPathsJson = ($Task.forbidden_paths | ConvertTo-Json -Compress);
         RequiredChecksJson = ($Task.completion_definition.required_checks | ConvertTo-Json -Compress); BudgetJson = ($Task.budget | ConvertTo-Json -Compress);
-        TaskMaterialJson = ($Task.task_material | ConvertTo-Json -Compress -Depth 12); PreflightOnly = $true; NoNotify = $true
+        TaskMaterialJson = ($Task.task_material | ConvertTo-Json -Compress -Depth 12); CapabilityCanary = $true; PreflightOnly = $true; NoNotify = $true
     }
     $lines = @(& $invoker @arguments)
     Assert-True ($LASTEXITCODE -eq 0) 'Preflight should not start a provider and must succeed with a failing baseline.'

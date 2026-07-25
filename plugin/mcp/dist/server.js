@@ -32040,6 +32040,11 @@ function buildDispatchArgs(input) {
   if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
   appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
   appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
+  if (input.real_worktree) {
+    args.push("-RealWorktree");
+    appendOptionalStringArg(args, "-BaseCommit", input.base_commit);
+    if ((input.immutable_paths?.length ?? 0) > 0) args.push("-ImmutablePathsJson", JSON.stringify(input.immutable_paths));
+  }
   if (input.task_material) {
     const sourceRoot = String(input.task_material.source_root ?? "").trim();
     if (!sourceRoot) {
@@ -32787,6 +32792,8 @@ async function dispatchPlanTaskTool(input) {
   const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
   const budget = task.budget && typeof task.budget === "object" ? task.budget : {};
   const taskMaterial = task.task_material && typeof task.task_material === "object" && !Array.isArray(task.task_material) ? task.task_material : void 0;
+  const baseCommit = String(task.base_commit ?? "").trim();
+  const immutablePaths = Array.isArray(task.immutable_paths) ? task.immutable_paths.map(String) : [];
   const evidenceContext = task.evidence_context && typeof task.evidence_context === "object" && !Array.isArray(task.evidence_context) ? task.evidence_context : void 0;
   if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || !["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"].includes(taskFamily) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
@@ -32794,8 +32801,8 @@ async function dispatchPlanTaskTool(input) {
   if (taskKind === "code_change" !== (mode === "edit") || taskKind === "test_execution" && mode !== "readonly") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task mode and task kind conflict; dispatch is blocked before worker launch." };
   }
-  if (taskKind === "code_change" && !taskMaterial) {
-    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Code-change task lacks immutable task material; dispatch is blocked before worker launch." };
+  if (taskKind === "code_change" && (!/^[0-9a-f]{40}$/i.test(baseCommit) || immutablePaths.length === 0)) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Real code-change task lacks a frozen base commit or immutable paths; dispatch is blocked before worker launch." };
   }
   const requiredEvidenceContext = ["source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256"];
   const evidenceBootstrap = !!evidenceContext && !requiredEvidenceContext.some((field) => !String(evidenceContext[field] ?? "").trim()) && ["real_historical_issue", "real_user_request"].includes(String(evidenceContext.source_category)) && String(evidenceContext.connection_mode) === "supervised_cli_text";
@@ -32823,7 +32830,9 @@ async function dispatchPlanTaskTool(input) {
     budget,
     failure_injection: String(task.failure_injection ?? ""),
     sensitivity: String(task.sensitivity ?? ""),
-    task_material: taskMaterial,
+    real_worktree: taskKind === "code_change",
+    base_commit: baseCommit || void 0,
+    immutable_paths: immutablePaths,
     evidence_bootstrap: evidenceBootstrap,
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
@@ -32904,7 +32913,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.15.0-alpha"
+    version: "0.16.0-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -33066,6 +33075,9 @@ function createServer() {
         depends_on: external_exports.string().optional(),
         acceptance: external_exports.string().optional(),
         worktree_name: external_exports.string().optional(),
+        real_worktree: external_exports.boolean().optional(),
+        base_commit: external_exports.string().regex(/^[0-9a-f]{40}$/i).optional(),
+        immutable_paths: external_exports.array(external_exports.string().min(1)).optional(),
         max_turns: external_exports.number().int().positive().max(80).optional(),
         no_notify: external_exports.boolean().optional()
       }

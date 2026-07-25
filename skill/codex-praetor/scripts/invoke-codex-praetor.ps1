@@ -118,6 +118,14 @@
 
     [string]$TaskMaterialBase64 = "",
 
+    [switch]$RealWorktree,
+
+    [string]$BaseCommit = "",
+
+    [string[]]$ImmutablePath = @(),
+
+    [string]$ImmutablePathsJson = "",
+
     [switch]$AllowWorkerNetwork,
 
     [switch]$EvidenceBootstrap,
@@ -137,6 +145,7 @@ if (-not [string]::IsNullOrWhiteSpace($TaskMaterialBase64)) {
 if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { $AllowedPath = @($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
 if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { $ForbiddenPath = @($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
 if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { $RequiredCheck = @($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { $ImmutablePath = @($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [Console]::InputEncoding = $utf8NoBom
 [Console]::OutputEncoding = $utf8NoBom
@@ -451,6 +460,56 @@ function Test-GitHeadExists {
     }
 }
 
+function Resolve-GitCommit {
+    param([Parameter(Mandatory = $true)][string]$RepoPath, [Parameter(Mandatory = $true)][string]$Commitish)
+    $resolved = (& git -C $RepoPath rev-parse --verify "$Commitish^{commit}" 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $resolved -notmatch '^[0-9a-f]{40}$') { throw "BaseCommit is not a resolvable Git commit in this repository: $Commitish" }
+    return $resolved.ToLowerInvariant()
+}
+
+function Get-ImmutablePathManifest {
+    param([Parameter(Mandatory = $true)][string]$RepoPath, [Parameter(Mandatory = $true)][string]$Commit, [string[]]$Paths)
+    $manifest = @()
+    foreach ($pathValue in @($Paths)) {
+        $relative = Get-SafeRelativePath -PathValue ([string]$pathValue)
+        $objectId = (& git -C $RepoPath rev-parse --verify "$Commit`:$relative" 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $objectId -notmatch '^[0-9a-f]{40}$') { throw "ImmutablePath must name a tracked file at BaseCommit: $relative" }
+        $manifest += [ordered]@{ path = $relative.Replace('\\', '/'); git_blob_sha1 = $objectId.ToLowerInvariant() }
+    }
+    return @($manifest)
+}
+
+function Get-ChangedWorktreePaths {
+    param([Parameter(Mandatory = $true)][string]$WorktreePath, [Parameter(Mandatory = $true)][string]$BaseCommitValue)
+    $tracked = @((& git -C $WorktreePath diff --name-only $BaseCommitValue 2>$null | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }))
+    if ($LASTEXITCODE -ne 0) { throw "Could not inspect Git diff against base commit: $BaseCommitValue" }
+    $untracked = @((& git -C $WorktreePath ls-files --others --exclude-standard 2>$null | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }))
+    if ($LASTEXITCODE -ne 0) { throw "Could not inspect untracked paths in worker worktree." }
+    return @($tracked + $untracked | ForEach-Object { ([string]$_).Replace('\\', '/') } | Sort-Object -Unique)
+}
+
+function Test-PathMatchesContractPatterns {
+    param([Parameter(Mandatory = $true)][string]$PathValue, [string[]]$Patterns)
+    $normal = $PathValue.Replace('\\', '/')
+    foreach ($pattern in @($Patterns)) { if ($normal -like ([string]$pattern).Replace('\\', '/')) { return $true } }
+    return $false
+}
+
+function Assert-RealWorktreeDiff {
+    param([Parameter(Mandatory = $true)][string]$WorktreePath, [Parameter(Mandatory = $true)][object]$RealContract)
+    $changed = @(Get-ChangedWorktreePaths -WorktreePath $WorktreePath -BaseCommitValue ([string]$RealContract.base_commit))
+    if ($changed.Count -eq 0) { throw "Real code-change acceptance requires a non-empty Git diff." }
+    $outside = @($changed | Where-Object { -not (Test-PathMatchesContractPatterns -PathValue $_ -Patterns @($RealContract.allowed_paths)) })
+    if ($outside.Count -gt 0) { throw "Worker changed paths outside the allowlist: $($outside -join ', ')" }
+    $forbidden = @($changed | Where-Object { Test-PathMatchesContractPatterns -PathValue $_ -Patterns @($RealContract.forbidden_paths) })
+    if ($forbidden.Count -gt 0) { throw "Worker changed forbidden paths: $($forbidden -join ', ')" }
+    foreach ($entry in @($RealContract.immutable_manifest)) {
+        $actual = (& git -C $WorktreePath rev-parse --verify "HEAD:$([string]$entry.path)" 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $actual.ToLowerInvariant() -ne [string]$entry.git_blob_sha1) { throw "Worker changed immutable path: $([string]$entry.path)" }
+    }
+    return $changed
+}
+
 function Get-WorkerWorktreePath {
     param(
         [string]$RepoPath,
@@ -483,15 +542,19 @@ function Get-ProjectArtifactRoot {
 function Ensure-WorkerWorktree {
     param(
         [string]$RepoPath,
-        [string]$Name
+        [string]$Name,
+        [string]$BaseCommit = ""
     )
 
     if (-not (Test-GitHeadExists -Path $RepoPath)) {
         throw "Cannot create worker worktree because this repository has no commits yet: $RepoPath. Create a clean initial commit first; otherwise external workers cannot inspect the current project through a Git worktree."
     }
 
-    $baseBranch = Get-CurrentGitBranch -Path $RepoPath
-    $baseRef = $baseBranch
+    $baseRef = $BaseCommit
+    if ([string]::IsNullOrWhiteSpace($baseRef)) {
+        $baseBranch = Get-CurrentGitBranch -Path $RepoPath
+        $baseRef = $baseBranch
+    }
     if ([string]::IsNullOrWhiteSpace($baseRef)) {
         $baseRef = (& git -C $RepoPath rev-parse --verify HEAD 2>$null | Out-String).Trim()
         if ([string]::IsNullOrWhiteSpace($baseRef)) {
@@ -1108,9 +1171,16 @@ if ($TaskKind -eq "external_research") {
 if ($TaskKind -eq "code_change" -and $Mode -ne "edit") {
     throw "code_change requires -Mode edit so the worker contract cannot be mistaken for a readonly audit."
 }
-if ($TaskKind -eq "code_change" -and [string]::IsNullOrWhiteSpace($TaskMaterialJson)) {
-    throw "code_change requires immutable task material; dispatch is blocked before worker launch."
+if ($RealWorktree -and $TaskKind -ne "code_change") { throw "RealWorktree is reserved for code_change tasks." }
+if ($TaskKind -eq "code_change" -and -not $CapabilityCanary -and -not $RealWorktree) { throw "Real code_change requires -RealWorktree. Copied task material is regression-only and cannot prove real source editing." }
+if ($RealWorktree) {
+    if (-not [string]::IsNullOrWhiteSpace($TaskMaterialJson)) { throw "RealWorktree code_change cannot inject copied task material." }
+    if ([string]::IsNullOrWhiteSpace($BaseCommit)) { throw "RealWorktree code_change requires an explicit immutable -BaseCommit." }
+    if (@($AllowedPath | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) { throw "RealWorktree code_change requires a non-empty allowlist." }
+    if (@($ImmutablePath | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) { throw "RealWorktree code_change requires immutable tracked files." }
+    if (@($RequiredCheck | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) { throw "RealWorktree code_change requires at least one independently rerunnable check." }
 }
+if ($TaskKind -eq "code_change" -and $CapabilityCanary -and -not $RealWorktree -and [string]::IsNullOrWhiteSpace($TaskMaterialJson)) { throw "Legacy code_change canaries require immutable task material." }
 if ($TaskKind -eq "test_execution" -and $Mode -ne "readonly") {
     throw "test_execution requires -Mode readonly. It may run only the declared checks and must not receive edit tools."
 }
@@ -1289,11 +1359,17 @@ $repoEditLockPath = Acquire-RepoEditLock -RepoPath $Repo -ProviderName $resolved
 
 $executionRepo = $Repo
 try {
+    $resolvedBaseCommit = ""
+    $immutableManifest = @()
+    if ($RealWorktree) {
+        $resolvedBaseCommit = Resolve-GitCommit -RepoPath $Repo -Commitish $BaseCommit
+        $immutableManifest = @(Get-ImmutablePathManifest -RepoPath $Repo -Commit $resolvedBaseCommit -Paths $ImmutablePath)
+    }
     if ($requiresWorkerWorktree -and -not [string]::IsNullOrWhiteSpace($WorktreeName)) {
         if ($DryRun) {
             $executionRepo = Get-WorkerWorktreePath -RepoPath $Repo -Name $WorktreeName
         } else {
-            $executionRepo = Ensure-WorkerWorktree -RepoPath $Repo -Name $WorktreeName
+            $executionRepo = Ensure-WorkerWorktree -RepoPath $Repo -Name $WorktreeName -BaseCommit $resolvedBaseCommit
         }
     }
     $taskMaterial = if ([string]::IsNullOrWhiteSpace($TaskMaterialJson)) { $null } else { ConvertTo-TaskMaterial -Json $TaskMaterialJson }
@@ -1330,6 +1406,9 @@ try {
         failure_injection = $FailureInjection
         sensitivity = $Sensitivity
         task_material = $taskMaterialEvidence
+        real_worktree = [bool]$RealWorktree
+        base_commit = $resolvedBaseCommit
+        immutable_manifest = @($immutableManifest)
         evidence_bootstrap = [bool]$EvidenceBootstrap
         worker_network = if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }
         research_contract = $researchContract
@@ -1386,16 +1465,20 @@ Required checks: $(@($RequiredCheck) -join ' | ')
 Failure injection: $FailureInjection
 Task material destination: $(if ($null -eq $taskMaterialEvidence) { '' } else { [string]$taskMaterialEvidence.destination })
 Declared write set: $(if ($null -eq $taskMaterialEvidence) { '' } else { @($taskMaterialEvidence.write_set) -join ', ' })
+Real worktree task: $([bool]$RealWorktree)
+Base commit: $resolvedBaseCommit
+Immutable paths: $(@($immutableManifest | ForEach-Object { [string]$_.path }) -join ', ')
 
 Rules:
 - Complete only this task.
 $networkRule
 - You may read, search, edit, and run only the actions necessary for the task contract inside this worktree.
-- For code_change, repair the supplied material only. Do not replace tests, alter immutable files, or create your own test harness.
+- For a real code_change, make a minimal, reviewable Git diff only in the declared allowlist. Do not alter immutable files, tests outside the allowlist, or create a separate answer/material directory.
+- For a legacy code_change canary, repair the supplied material only. It is regression evidence, not proof of real source editing.
 - For test_execution, run only the declared required checks. Do not run npm install/update, edit or create source files; the supervisor prepares dependencies with npm ci. Report each check's exit code exactly.
 - For a non-canary test_execution, reply exactly CODEX_PRAETOR_REQUIRED_CHECKS_OK only if every declared required check exits 0; otherwise report the failed command and exit code.
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
-- Put scratch files, downloaded references, generated plans, and temporary outputs only under the execution worktree or the project artifact root unless Codex explicitly allowed another path.
+- Put scratch files, downloaded references, generated plans, and temporary outputs only under the project artifact root unless Codex explicitly allowed another path. Do not leave scratch or generated files in the Git worktree.
 - Do not pause for progress reports. Work autonomously until this task is complete, blocked, or unsafe.
 - Keep output concise and include: what you did, files read/changed, checks run, and risks/unknowns.
 "@

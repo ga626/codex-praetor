@@ -38,7 +38,7 @@ function Invoke-ProtocolFixture {
         "-DryRun"
     )
     if ($AllowNetwork) { $arguments += "-AllowWorkerNetwork" }
-    if ($TaskKind -eq "code_change") { $arguments += @("-TaskMaterialPath", $codeChangeMaterialPath) }
+    if ($TaskKind -eq "code_change") { $arguments += @("-TaskMaterialPath", $codeChangeMaterialPath, "-CapabilityCanary") }
     if ($TaskKind -eq "test_execution") { $arguments += @("-RequiredCheck", "Test-Path README.md") }
     if (-not [string]::IsNullOrWhiteSpace($WorktreeName)) {
         $arguments += @("-WorktreeName", $WorktreeName)
