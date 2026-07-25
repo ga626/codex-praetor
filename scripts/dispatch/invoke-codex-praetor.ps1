@@ -120,6 +120,8 @@
 
     [switch]$AllowWorkerNetwork,
 
+    [switch]$EvidenceBootstrap,
+
     [switch]$CapabilityCanary
 )
 
@@ -374,6 +376,39 @@ function Read-JsonOrNull {
         return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
     } catch {
         return $null
+    }
+}
+
+function Assert-RealTaskEvidenceBootstrap {
+    if ([string]::IsNullOrWhiteSpace($PlanId) -or [string]::IsNullOrWhiteSpace($TaskId)) {
+        throw "Evidence bootstrap requires a durable plan id and task id."
+    }
+    $planDirectory = Join-CheckedChildPath -Root $PlanRoot -RelativePath $PlanId
+    $planPath = Join-Path $planDirectory "plan.json"
+    if (-not (Test-Path -LiteralPath $planPath -PathType Leaf)) {
+        throw "Evidence bootstrap plan is missing: $planPath"
+    }
+    $plan = Get-Content -LiteralPath $planPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $matches = @($plan.tasks | Where-Object { [string]$_.task_id -eq $TaskId })
+    if ($matches.Count -ne 1) { throw "Evidence bootstrap task is missing or ambiguous: $TaskId" }
+    $planTask = $matches[0]
+    if ([string]$planTask.status -ne "pending") { throw "Evidence bootstrap requires a pending plan task." }
+    if ([string]$planTask.title -ne $Task -or [string]$planTask.task_family -ne $TaskFamily -or [string]$planTask.task_kind -ne $TaskKind -or [string]$planTask.mode -ne $Mode) {
+        throw "Evidence bootstrap dispatch arguments do not match the durable plan task."
+    }
+    $context = $planTask.evidence_context
+    $required = @("source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256")
+    if ($null -eq $context -or @($required | Where-Object { [string]::IsNullOrWhiteSpace([string]$context.$_) }).Count -gt 0) {
+        throw "Evidence bootstrap requires a complete frozen evidence context."
+    }
+    if ([string]$context.source_category -notin @("real_historical_issue", "real_user_request")) {
+        throw "Evidence bootstrap is limited to real historical issues or real user requests."
+    }
+    if ([string]$context.connection_mode -ne "supervised_cli_text") {
+        throw "Evidence bootstrap is limited to the current supervised CLI text control path."
+    }
+    if (@($planTask.allowed_paths).Count -eq 0 -or @($planTask.forbidden_paths).Count -eq 0 -or @($planTask.completion_definition.required_checks).Count -eq 0) {
+        throw "Evidence bootstrap requires a complete plan scope and independent checks."
     }
 }
 
@@ -1097,6 +1132,10 @@ if ([string]::IsNullOrWhiteSpace($ScratchRoot)) {
     $ScratchRoot = Join-Path $ProjectArtifactRoot "scratch"
 }
 
+if ($EvidenceBootstrap) {
+    Assert-RealTaskEvidenceBootstrap
+}
+
 if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
     $healthScript = Join-Path $scriptDir "get-codex-praetor-health.ps1"
     if (-not (Test-Path -LiteralPath $healthScript -PathType Leaf)) {
@@ -1229,13 +1268,15 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
         throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Run test-provider-capability-canary.ps1 for the exact provider tuple first."
     }
 
-    if ([string]::IsNullOrWhiteSpace($TaskFamily)) { throw "Normal dispatch requires an explicit task family. Use an approved plan task or run a bounded CapabilityCanary; do not infer a family from free-form task text." }
-    $capabilityGateScript = Join-Path $scriptDir "test-codex-praetor-capability-evidence.ps1"
-    if (-not (Test-Path -LiteralPath $capabilityGateScript -PathType Leaf)) { throw "Capability evidence gate is missing: $capabilityGateScript" }
-    $capabilityGateRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $capabilityGateScript -TaskFamily $TaskFamily -Provider $resolvedProvider -CliPath $providerCliPath -CliHash (Get-FileSha256OrEmpty -Path $providerCliPath) -Model $model -PermissionProfile $effectivePermissionProfile -TaskKind $TaskKind -GenerationId ([string]$generation.generation_id) -RuntimeContractSha256 $runtimeContractHash -TaskContractSchema ([string]$runtimeContract.taskContractSchema) -EvidenceRoot $CapabilityEvidenceRoot
-    if ($LASTEXITCODE -ne 0) { throw "Capability evidence gate failed to execute: $($capabilityGateRaw -join ' ')" }
-    try { $capabilityGate = ($capabilityGateRaw -join "`n") | ConvertFrom-Json } catch { throw "Capability evidence gate returned invalid JSON: $($capabilityGateRaw -join ' ')" }
-    if (-not [bool]$capabilityGate.allowed) { throw "Capability evidence gate blocked '$resolvedProvider' for '$TaskFamily': $([string]$capabilityGate.reason) Use an explicit bounded CapabilityCanary for this exact tuple; do not disguise it as normal dispatch." }
+    if (-not $EvidenceBootstrap) {
+        if ([string]::IsNullOrWhiteSpace($TaskFamily)) { throw "Normal dispatch requires an explicit task family. Use an approved plan task or run a bounded CapabilityCanary; do not infer a family from free-form task text." }
+        $capabilityGateScript = Join-Path $scriptDir "test-codex-praetor-capability-evidence.ps1"
+        if (-not (Test-Path -LiteralPath $capabilityGateScript -PathType Leaf)) { throw "Capability evidence gate is missing: $capabilityGateScript" }
+        $capabilityGateRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $capabilityGateScript -TaskFamily $TaskFamily -Provider $resolvedProvider -CliPath $providerCliPath -CliHash (Get-FileSha256OrEmpty -Path $providerCliPath) -Model $model -PermissionProfile $effectivePermissionProfile -TaskKind $TaskKind -GenerationId ([string]$generation.generation_id) -RuntimeContractSha256 $runtimeContractHash -TaskContractSchema ([string]$runtimeContract.taskContractSchema) -EvidenceRoot $CapabilityEvidenceRoot
+        if ($LASTEXITCODE -ne 0) { throw "Capability evidence gate failed to execute: $($capabilityGateRaw -join ' ')" }
+        try { $capabilityGate = ($capabilityGateRaw -join "`n") | ConvertFrom-Json } catch { throw "Capability evidence gate returned invalid JSON: $($capabilityGateRaw -join ' ')" }
+        if (-not [bool]$capabilityGate.allowed) { throw "Capability evidence gate blocked '$resolvedProvider' for '$TaskFamily': $([string]$capabilityGate.reason) Use a frozen real-task evidence bootstrap plan or an explicit bounded CapabilityCanary; do not disguise either as normal dispatch." }
+    }
 }
 
 $dispatchJobId = New-WorkerJobId -ProviderName $resolvedProvider -TierName $Tier
@@ -1289,6 +1330,7 @@ try {
         failure_injection = $FailureInjection
         sensitivity = $Sensitivity
         task_material = $taskMaterialEvidence
+        evidence_bootstrap = [bool]$EvidenceBootstrap
         worker_network = if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }
         research_contract = $researchContract
         acceptance = $Acceptance
@@ -1360,7 +1402,7 @@ $networkRule
 
     if ($resolvedProvider -eq "qoder") {
         $qoder = $config.providers.qoder.cliPath
-        if (-not (Test-Path -LiteralPath $qoder)) {
+        if (-not $DryRun -and -not (Test-Path -LiteralPath $qoder)) {
             throw "Qoder CLI not found: $qoder"
         }
 
@@ -1400,7 +1442,7 @@ $networkRule
 
         $node = $config.providers.codebuddy.nodePath
         $codebuddy = $config.providers.codebuddy.cliPath
-        if (-not (Test-Path -LiteralPath $codebuddy)) {
+        if (-not $DryRun -and -not (Test-Path -LiteralPath $codebuddy)) {
             throw "CodeBuddy CLI not found: $codebuddy"
         }
 

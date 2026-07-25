@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -255,7 +255,10 @@ try {
     name: "codex_praetor_prepare_evaluation",
     arguments: {
       repo,
-      plan_id: `capability-smoke-${process.pid}`
+      // Evaluation preparation writes immutable task material. A PID is not a
+      // durable unique identifier: Windows can reuse it between sequential
+      // bundled-runtime smokes in the same candidate closeout.
+      plan_id: `capability-smoke-${process.pid}-${randomUUID().replaceAll("-", "").slice(0, 12)}`
     }
   });
   const evaluationPreparePayload = parseJsonDocument(evaluationPrepareResult.content?.[0]?.text ?? "{}", "evaluation preparation tool response");

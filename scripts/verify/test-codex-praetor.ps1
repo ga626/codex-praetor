@@ -571,6 +571,14 @@ if (Test-Path -LiteralPath $planAcceptanceTest -PathType Leaf) {
     } catch { Add-Fail "Supervisor acceptance gate regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Supervisor acceptance gate script missing: $planAcceptanceTest" }
 
+$evidenceBootstrapTest = Join-Path $projectRoot "scripts\verify\test-real-task-evidence-bootstrap.ps1"
+if (Test-Path -LiteralPath $evidenceBootstrapTest -PathType Leaf) {
+    try {
+        $bootstrapOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $evidenceBootstrapTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($bootstrapOutput | Out-String) -match "Real-task evidence bootstrap")) { Add-Pass "Real-task evidence bootstrap gate regression passes" } else { Add-Fail "Real-task evidence bootstrap gate regression failed: $($bootstrapOutput | Out-String)" }
+    } catch { Add-Fail "Real-task evidence bootstrap gate regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Real-task evidence bootstrap gate script missing: $evidenceBootstrapTest" }
+
 $devIsolationTest = Join-Path $projectRoot "scripts\verify\test-dev-channel-isolation.ps1"
 if (Test-Path -LiteralPath $devIsolationTest -PathType Leaf) {
     try {

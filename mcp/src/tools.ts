@@ -296,6 +296,7 @@ function buildDispatchArgs(input: {
   failure_injection?: string;
   sensitivity?: string;
   task_material?: Record<string, unknown>;
+  evidence_bootstrap?: boolean;
   no_notify?: boolean;
 }) {
   const args = [
@@ -345,6 +346,9 @@ function buildDispatchArgs(input: {
       throw new Error("Code-change task material lacks its durable source root.");
     }
     args.push("-TaskMaterialPath", path.join(sourceRoot, "task-material.json"));
+  }
+  if (input.evidence_bootstrap) {
+    args.push("-EvidenceBootstrap");
   }
 
   if (input.dry_run) {
@@ -519,6 +523,7 @@ export async function dispatchTool(input: {
   failure_injection?: string;
   sensitivity?: string;
   task_material?: Record<string, unknown>;
+  evidence_bootstrap?: boolean;
   dry_run?: boolean;
   no_notify?: boolean;
 }) {
@@ -1227,6 +1232,7 @@ export async function dispatchPlanTaskTool(input: {
   const requiredChecks = Array.isArray(completion.required_checks) ? completion.required_checks.map(String) : [];
   const budget = task.budget && typeof task.budget === "object" ? task.budget as Record<string, unknown> : {};
   const taskMaterial = task.task_material && typeof task.task_material === "object" && !Array.isArray(task.task_material) ? task.task_material as Record<string, unknown> : undefined;
+  const evidenceContext = task.evidence_context && typeof task.evidence_context === "object" && !Array.isArray(task.evidence_context) ? task.evidence_context as Record<string, unknown> : undefined;
   if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || !["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"].includes(taskFamily) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
   }
@@ -1236,6 +1242,11 @@ export async function dispatchPlanTaskTool(input: {
   if (taskKind === "code_change" && !taskMaterial) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Code-change task lacks immutable task material; dispatch is blocked before worker launch." };
   }
+  const requiredEvidenceContext = ["source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256"];
+  const evidenceBootstrap = !!evidenceContext
+    && !requiredEvidenceContext.some((field) => !String(evidenceContext[field] ?? "").trim())
+    && ["real_historical_issue", "real_user_request"].includes(String(evidenceContext.source_category))
+    && String(evidenceContext.connection_mode) === "supervised_cli_text";
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
   }
@@ -1261,6 +1272,7 @@ export async function dispatchPlanTaskTool(input: {
     failure_injection: String(task.failure_injection ?? ""),
     sensitivity: String(task.sensitivity ?? ""),
     task_material: taskMaterial,
+    evidence_bootstrap: evidenceBootstrap,
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });
