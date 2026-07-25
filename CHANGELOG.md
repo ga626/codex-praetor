@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.0-alpha
+
+- Real code-change dispatch now requires a frozen-base isolated Git worktree, scoped diff, immutable tracked-file manifest, and Codex-side acceptance gate.
+- Copied evaluation material remains regression-only and can no longer become accepted real source-editing evidence.
+
 ## 0.14.0-alpha
 
 - Recorded source, connection, verifier, timeline and human-intervention facts for real-task evidence.

@@ -35,6 +35,9 @@ param(
     [string]$FailureInjection = "",
     [string]$Sensitivity = "",
     [string]$TaskMaterialJson = "",
+    [string]$BaseCommit = "",
+    [string[]]$ImmutablePath = @(),
+    [string]$ImmutablePathsJson = "",
     [string]$EvidenceContextJson = "",
     [string]$EvidenceContextPath = "",
     [string]$InterventionKind = "",
@@ -52,6 +55,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { $ImmutablePath = @($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
 
 function Get-SafeName {
     param([string]$Value)
@@ -72,6 +76,37 @@ function Write-JsonFile {
     } finally {
         if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
     }
+}
+
+function Get-ChangedWorktreePaths {
+    param([Parameter(Mandatory = $true)][string]$WorktreePath, [Parameter(Mandatory = $true)][string]$BaseCommitValue)
+    $tracked = @((& git -C $WorktreePath diff --name-only $BaseCommitValue 2>$null | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }))
+    if ($LASTEXITCODE -ne 0) { throw "Could not inspect Git diff against base commit: $BaseCommitValue" }
+    $untracked = @((& git -C $WorktreePath ls-files --others --exclude-standard 2>$null | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }))
+    if ($LASTEXITCODE -ne 0) { throw "Could not inspect untracked paths in worker worktree." }
+    return @($tracked + $untracked | ForEach-Object { ([string]$_).Replace('\\', '/') } | Sort-Object -Unique)
+}
+function Test-PathMatchesContractPatterns {
+    param([Parameter(Mandatory = $true)][string]$PathValue, [string[]]$Patterns)
+    $normal = $PathValue.Replace('\\', '/')
+    foreach ($pattern in @($Patterns)) { if ($normal -like ([string]$pattern).Replace('\\', '/')) { return $true } }
+    return $false
+}
+function Assert-RealWorktreeAcceptance {
+    param([Parameter(Mandatory = $true)][object]$Contract, [Parameter(Mandatory = $true)][string]$WorktreePath)
+    if ([string]$Contract.base_commit -notmatch '^[0-9a-f]{40}$') { throw "Real worktree contract lacks a resolved base_commit." }
+    if (@($Contract.allowed_paths).Count -eq 0 -or @($Contract.immutable_manifest).Count -eq 0) { throw "Real worktree contract lacks allowlist or immutable manifest." }
+    $changed = @(Get-ChangedWorktreePaths -WorktreePath $WorktreePath -BaseCommitValue ([string]$Contract.base_commit))
+    if ($changed.Count -eq 0) { throw "Accepted real code_change requires a non-empty Git diff." }
+    $outside = @($changed | Where-Object { -not (Test-PathMatchesContractPatterns -PathValue $_ -Patterns @($Contract.allowed_paths)) })
+    if ($outside.Count -gt 0) { throw "Accepted real code_change changed paths outside the allowlist: $($outside -join ', ')" }
+    $forbidden = @($changed | Where-Object { Test-PathMatchesContractPatterns -PathValue $_ -Patterns @($Contract.forbidden_paths) })
+    if ($forbidden.Count -gt 0) { throw "Accepted real code_change changed forbidden paths: $($forbidden -join ', ')" }
+    foreach ($entry in @($Contract.immutable_manifest)) {
+        $actual = (& git -C $WorktreePath rev-parse --verify "HEAD:$([string]$entry.path)" 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $actual.ToLowerInvariant() -ne [string]$entry.git_blob_sha1) { throw "Accepted real code_change changed immutable path: $([string]$entry.path)" }
+    }
+    return $changed
 }
 
 function Get-RequiredEvidenceContext {
@@ -271,6 +306,8 @@ function Upsert-Task {
             attempts = @()
             write_set = @()
             task_material = $null
+            base_commit = ""
+            immutable_paths = @()
             evidence_context = $null
             human_intervention_count = 0
             created_at = (Get-Date).ToString("o")
@@ -297,6 +334,8 @@ function Upsert-Task {
     if (-not [string]::IsNullOrWhiteSpace($FailureInjection)) { Set-DynamicProperty -Target $existing -Name "failure_injection" -Value $FailureInjection }
     if (-not [string]::IsNullOrWhiteSpace($Sensitivity)) { Set-DynamicProperty -Target $existing -Name "sensitivity" -Value $Sensitivity }
     if (-not [string]::IsNullOrWhiteSpace($TaskMaterialJson)) { try { Set-DynamicProperty -Target $existing -Name "task_material" -Value ($TaskMaterialJson | ConvertFrom-Json) } catch { throw "TaskMaterialJson is not valid JSON." } }
+    if (-not [string]::IsNullOrWhiteSpace($BaseCommit)) { Set-DynamicProperty -Target $existing -Name "base_commit" -Value $BaseCommit }
+    if ($ImmutablePath.Count -gt 0) { Set-DynamicProperty -Target $existing -Name "immutable_paths" -Value @($ImmutablePath) }
     if (-not [string]::IsNullOrWhiteSpace($CompletionValue)) { $existing.completion = $CompletionValue }
     if (-not [string]::IsNullOrWhiteSpace($SummaryValue)) { $existing.summary = $SummaryValue }
     $existing.updated_at = (Get-Date).ToString("o")
@@ -368,6 +407,19 @@ function Set-TaskVerification {
             if ($LASTEXITCODE -ne 0) { throw "Could not inspect readonly worker worktree status." }
             if (-not [string]::IsNullOrWhiteSpace($status)) {
                 throw "Readonly worker changed its execution worktree; it cannot be accepted."
+            }
+        }
+        if ([string]$target.task_kind -eq "code_change") {
+            $contractPath = [string]$job.task_contract
+            if ([string]::IsNullOrWhiteSpace($contractPath) -or -not (Test-Path -LiteralPath $contractPath -PathType Leaf)) { throw "Accepted code_change verification requires its task contract." }
+            $contract = Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if (-not [bool]$contract.real_worktree) { throw "Copied-material code_change cannot be accepted as real source editing." }
+            $executionRepo = [string]$job.execution_repo
+            if ([string]::IsNullOrWhiteSpace($executionRepo) -or -not (Test-Path -LiteralPath $executionRepo -PathType Container)) { throw "Accepted real code_change requires its recorded execution worktree." }
+            $null = Assert-RealWorktreeAcceptance -Contract $contract -WorktreePath $executionRepo
+            foreach ($evidenceName in @("stdout", "stderr")) {
+                $evidencePath = [string]$job.$evidenceName
+                if ([string]::IsNullOrWhiteSpace($evidencePath) -or -not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) { throw "Accepted real code_change requires recorded $evidenceName evidence." }
             }
         }
         if ([string]$target.task_kind -eq "test_execution") {
