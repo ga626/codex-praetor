@@ -73,6 +73,17 @@ function recordedAt(attempt: JsonRecord, task: JsonRecord): string {
   return asString(attempt.finished_at) || asString(attempt.created_at) || asString(task.verified_at) || asString(task.updated_at) || "";
 }
 
+function parsePlanDocument(text: string, source: string): JsonRecord {
+  try {
+    // Windows PowerShell may write otherwise valid JSON with a UTF-8 BOM.
+    // Ledger projection is read-only, so accepting that encoding must not
+    // rewrite or normalize the historical plan on disk.
+    return asRecord(JSON.parse(text.replace(/^\uFEFF/u, "")));
+  } catch {
+    throw new Error(`Invalid plan JSON: ${source}`);
+  }
+}
+
 function readPlanFiles(repo: string): Array<{ planId: string; plan: JsonRecord }> {
   const planRoot = getPlanRoot(resolveExistingRepo(repo));
   if (!existsSync(planRoot)) return [];
@@ -82,7 +93,7 @@ function readPlanFiles(repo: string): Array<{ planId: string; plan: JsonRecord }
     const planPath = path.join(planRoot, entry.name, "plan.json");
     if (!existsSync(planPath)) continue;
     try {
-      const plan = asRecord(JSON.parse(readFileSync(planPath, "utf8")));
+      const plan = parsePlanDocument(readFileSync(planPath, "utf8"), planPath);
       plans.push({ planId: asString(plan.plan_id) || entry.name, plan });
     } catch {
       // A malformed historical plan is not capability evidence. The caller

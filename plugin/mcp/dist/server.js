@@ -31371,6 +31371,13 @@ function verdictFrom(task, attempt) {
 function recordedAt(attempt, task) {
   return asString(attempt.finished_at) || asString(attempt.created_at) || asString(task.verified_at) || asString(task.updated_at) || "";
 }
+function parsePlanDocument(text, source) {
+  try {
+    return asRecord(JSON.parse(text.replace(/^\uFEFF/u, "")));
+  } catch {
+    throw new Error(`Invalid plan JSON: ${source}`);
+  }
+}
 function readPlanFiles(repo) {
   const planRoot = getPlanRoot(resolveExistingRepo(repo));
   if (!existsSync2(planRoot)) return [];
@@ -31380,7 +31387,7 @@ function readPlanFiles(repo) {
     const planPath = path2.join(planRoot, entry.name, "plan.json");
     if (!existsSync2(planPath)) continue;
     try {
-      const plan = asRecord(JSON.parse(readFileSync(planPath, "utf8")));
+      const plan = parsePlanDocument(readFileSync(planPath, "utf8"), planPath);
       plans.push({ planId: asString(plan.plan_id) || entry.name, plan });
     } catch {
       plans.push({ planId: entry.name, plan: { malformed: true } });
@@ -32981,7 +32988,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.2-alpha"
+    version: "0.16.3-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",

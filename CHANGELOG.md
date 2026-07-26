@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.3-alpha
+
+- Capability-profile projection now accepts the UTF-8 BOM emitted by Windows PowerShell ledgers, so valid durable task evidence is not misclassified as malformed.
+- This is a read-only parsing correction: it does not rewrite historical ledgers, promote old attempts, change routing, or add provider capability claims.
+
 ## 0.16.2-alpha
 
 - 计划创建时强制记录可派工的静态合同，并把范围、检查、预算和验收标准传入持久化 ledger。
