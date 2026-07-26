@@ -32236,11 +32236,27 @@ async function dispatchTool(input) {
     stderr: result.stderr
   };
 }
+function validatePlannedTaskContract(task, taskId) {
+  if (!task.title.trim() || !task.acceptance.trim()) return `Task '${taskId}' needs both title and acceptance.`;
+  if (!task.task_family || !task.task_kind || !task.mode) return `Task '${taskId}' needs task_family, task_kind, and mode.`;
+  if (task.allowed_paths.length === 0 || task.forbidden_paths.length === 0 || task.required_checks.length === 0) return `Task '${taskId}' needs non-empty allowed_paths, forbidden_paths, and required_checks.`;
+  if (Object.keys(task.budget).length === 0) return `Task '${taskId}' needs a non-empty budget.`;
+  if (task.task_kind === "code_change" !== (task.mode === "edit")) return `Task '${taskId}' has conflicting task_kind and mode.`;
+  if (task.task_kind === "test_execution" && task.mode !== "readonly") return `Task '${taskId}' must be readonly.`;
+  return void 0;
+}
 async function planTool(input) {
   const repo = resolveExistingRepo(input.repo);
   const planId = input.plan_id?.trim() || `plan-${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}`;
   const planRoot = getPlanRoot(repo);
-  const mode = input.mode ?? "readonly";
+  const taskIds = input.tasks.map((task, index) => task.task_id?.trim() || `task-${String(index + 1).padStart(2, "0")}`);
+  if (new Set(taskIds).size !== taskIds.length || taskIds.some((taskId) => !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(taskId))) {
+    return { ok: false, repo, plan_id: planId, message: "Plan task IDs must be unique ASCII identifiers." };
+  }
+  for (const [index, task] of input.tasks.entries()) {
+    const validationError = validatePlannedTaskContract(task, taskIds[index]);
+    if (validationError) return { ok: false, repo, plan_id: planId, message: validationError };
+  }
   const initResult = await runPowerShell(
     [
       "-NoProfile",
@@ -32271,30 +32287,52 @@ async function planTool(input) {
     };
   }
   for (const [index, task] of input.tasks.entries()) {
-    const taskId = `task-${String(index + 1).padStart(2, "0")}`;
+    const taskId = taskIds[index];
+    const upsertArgs = [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      getPlanScriptPath(),
+      "-Action",
+      "UpsertTask",
+      "-PlanId",
+      planId,
+      "-PlanRoot",
+      planRoot,
+      "-TaskId",
+      taskId,
+      "-TaskTitle",
+      task.title,
+      "-TaskFamily",
+      task.task_family,
+      "-TaskKind",
+      task.task_kind,
+      "-Status",
+      "pending",
+      "-Mode",
+      task.mode,
+      "-Acceptance",
+      task.acceptance,
+      "-DependsOn",
+      (task.depends_on ?? []).join(","),
+      "-BudgetJson",
+      JSON.stringify(task.budget),
+      "-FailureInjection",
+      task.failure_injection ?? "",
+      "-Sensitivity",
+      task.sensitivity ?? "",
+      "-BaseCommit",
+      task.base_commit ?? "",
+      "-ImmutablePathsJson",
+      JSON.stringify(task.immutable_paths ?? []),
+      "-OutputJson"
+    ];
+    upsertArgs.push("-AllowedPath", ...task.allowed_paths);
+    upsertArgs.push("-ForbiddenPath", ...task.forbidden_paths);
+    upsertArgs.push("-RequiredCheck", ...task.required_checks);
     const upsertResult = await runPowerShell(
-      [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        getPlanScriptPath(),
-        "-Action",
-        "UpsertTask",
-        "-PlanId",
-        planId,
-        "-PlanRoot",
-        planRoot,
-        "-TaskId",
-        taskId,
-        "-TaskTitle",
-        task,
-        "-Status",
-        "pending",
-        "-Mode",
-        mode,
-        "-OutputJson"
-      ],
+      upsertArgs,
       { timeoutMs: 3e4 }
     );
     if (upsertResult.exitCode !== 0) {
@@ -32305,6 +32343,13 @@ async function planTool(input) {
         stderr: upsertResult.stderr,
         stdout: upsertResult.stdout
       };
+    }
+    if (task.evidence_context) {
+      const contextResult = await runPowerShell(
+        ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "SetEvidenceContext", "-PlanId", planId, "-PlanRoot", planRoot, "-TaskId", taskId, "-EvidenceContextJson", JSON.stringify(task.evidence_context), "-OutputJson"],
+        { timeoutMs: 3e4 }
+      );
+      if (contextResult.exitCode !== 0) return { ok: false, exit_code: contextResult.exitCode, failed_task_id: taskId, stderr: contextResult.stderr, stdout: contextResult.stdout };
     }
   }
   const getResult = await runPowerShell(
@@ -32888,6 +32933,29 @@ var researchContractSchema = external_exports.object({
   evidence_acceptance: external_exports.literal("supervisor_verified"),
   freshness: external_exports.enum(["", "day", "week", "month", "year"]).optional()
 });
+var boundedTaskBudgetSchema = external_exports.object({
+  max_turns: external_exports.number().int().positive().max(80),
+  max_wall_seconds: external_exports.number().int().positive().max(3600),
+  max_attempts: external_exports.number().int().positive().max(10).optional()
+});
+var plannedTaskContractSchema = external_exports.object({
+  task_id: external_exports.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/).optional(),
+  title: external_exports.string().min(1),
+  task_family: external_exports.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
+  task_kind: external_exports.enum(["local_audit", "test_execution", "code_change", "external_research_support"]),
+  mode: external_exports.enum(["readonly", "edit"]),
+  acceptance: external_exports.string().min(1),
+  allowed_paths: external_exports.array(external_exports.string().min(1)).min(1),
+  forbidden_paths: external_exports.array(external_exports.string().min(1)).min(1),
+  required_checks: external_exports.array(external_exports.string().min(1)).min(1),
+  budget: boundedTaskBudgetSchema,
+  depends_on: external_exports.array(external_exports.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/)).optional(),
+  failure_injection: external_exports.string().optional(),
+  sensitivity: external_exports.string().optional(),
+  base_commit: external_exports.string().regex(/^[0-9a-f]{40}$/i).optional(),
+  immutable_paths: external_exports.array(external_exports.string().min(1)).optional(),
+  evidence_context: external_exports.record(external_exports.string(), external_exports.unknown()).optional()
+});
 var readOnlyClosedWorld = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -32913,7 +32981,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.1-alpha"
+    version: "0.16.2-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",
@@ -33078,6 +33146,11 @@ function createServer() {
         real_worktree: external_exports.boolean().optional(),
         base_commit: external_exports.string().regex(/^[0-9a-f]{40}$/i).optional(),
         immutable_paths: external_exports.array(external_exports.string().min(1)).optional(),
+        allowed_paths: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+        forbidden_paths: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+        required_checks: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+        budget: boundedTaskBudgetSchema.optional(),
+        failure_injection: external_exports.string().optional(),
         max_turns: external_exports.number().int().positive().max(80).optional(),
         no_notify: external_exports.boolean().optional()
       }
@@ -33088,13 +33161,12 @@ function createServer() {
     "codex_praetor_plan",
     {
       title: "Create Codex Praetor Plan",
-      description: "Create a small durable Codex Praetor plan under the project-local artifact root.",
+      description: "Create a durable, dispatchable Codex Praetor plan whose tasks carry explicit scope, checks, budget, and acceptance contracts.",
       annotations: additiveProjectLocalWrite,
       inputSchema: {
         repo: external_exports.string().min(1),
         title: external_exports.string().min(1),
-        tasks: external_exports.array(external_exports.string().min(1)).min(1),
-        mode: external_exports.enum(["readonly", "edit"]).optional(),
+        tasks: external_exports.array(plannedTaskContractSchema).min(1),
         plan_id: external_exports.string().optional()
       }
     },

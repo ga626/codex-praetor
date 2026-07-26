@@ -139,13 +139,25 @@ const planId = `mcp-self-test-${process.pid}-${Date.now()}`;
 const plan = await planTool({
   repo,
   title: "MCP self-test plan",
-  tasks: ["Dry-run route and status verification only."],
-  mode: "readonly",
+  tasks: [{
+    title: "Dry-run route and status verification only.",
+    task_family: "read_only_diagnosis",
+    task_kind: "local_audit",
+    mode: "readonly",
+    acceptance: "The worker reports the requested route evidence and leaves no diff.",
+    allowed_paths: ["README.md"],
+    forbidden_paths: [".git", "**/*auth*"],
+    required_checks: ["git diff --exit-code"],
+    budget: { max_turns: 4, max_wall_seconds: 300 }
+  }],
   plan_id: planId
 });
 assert.equal(plan.ok, true);
 assert.equal(plan.plan_id, planId);
-assert.equal(plan.task_ids.length, 1);
+assert.equal(plan.task_ids?.length, 1);
+
+const planDispatchPreview = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "task-01", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
+assert.equal(planDispatchPreview.ok, true, String((planDispatchPreview as Record<string, unknown>).stderr ?? (planDispatchPreview as Record<string, unknown>).message ?? ""));
 
 const planStatus = statusTool({ repo, plan_id: planId });
 assert.equal(planStatus.found, true);
