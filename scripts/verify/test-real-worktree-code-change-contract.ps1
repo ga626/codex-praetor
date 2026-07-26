@@ -37,15 +37,15 @@ try {
     $jobRoot = Join-Path $scratch "jobs"; $lockRoot = Join-Path $scratch "locks"; $planRoot = Join-Path $scratch "plans"; $scratchRoot = Join-Path $scratch "worker-scratch"
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File $planScript -Action Init -PlanId real-edit -PlanRoot $planRoot -Title "real edit" -Repo $repo | Out-Null
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $planScript -Action UpsertTask -PlanId real-edit -PlanRoot $planRoot -TaskId change -TaskTitle "repair allowed file" -TaskFamily bounded_code_change -TaskKind code_change -Mode edit -AllowedPath "src/allowed.txt" -ForbiddenPath ".git/**" -RequiredCheck "cmd /c findstr /x fixed src\allowed.txt" -BudgetJson '{"max_attempts":1,"max_turns":1,"max_wall_seconds":30}' -BaseCommit $baseCommit -ImmutablePath "README.md" -Acceptance "real diff" | Out-Null
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $wrapper -Provider qoder -Tier qoder-day-cheap -ConfigPath $configPath -Repo $repo -Task "Repair src/allowed.txt so it contains fixed." -Mode edit -TaskKind code_change -TaskFamily bounded_code_change -RealWorktree -BaseCommit $baseCommit -ImmutablePath "README.md" -AllowedPath "src/allowed.txt" -ForbiddenPath ".git/**" -RequiredCheck "cmd /c findstr /x fixed src\allowed.txt" -CapabilityCanary -PlanId real-edit -TaskId change -WorktreeName real-edit -JobRoot $jobRoot -LockRoot $lockRoot -PlanRoot $planRoot -ScratchRoot $scratchRoot -NoNotify -TimeoutSeconds 30 | Out-Null
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $planScript -Action UpsertTask -PlanId real-edit -PlanRoot $planRoot -TaskId change -TaskTitle "repair allowed file" -TaskFamily bounded_code_change -TaskKind code_change -Mode edit -AllowedPath "src/allowed.txt" -ForbiddenPath ".git/**" -RequiredCheck "cmd /c findstr /x fixed src\allowed.txt" -BudgetJson '{"max_attempts":1,"max_turns":1,"max_wall_seconds":30}' -BaseCommit $baseCommit -ImmutablePath "mcp/package.json" -Acceptance "real diff" | Out-Null
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $wrapper -Provider qoder -Tier qoder-day-cheap -ConfigPath $configPath -Repo $repo -Task "Repair src/allowed.txt so it contains fixed." -Mode edit -TaskKind code_change -TaskFamily bounded_code_change -RealWorktree -BaseCommit $baseCommit -ImmutablePath "mcp/package.json" -AllowedPath "src/allowed.txt" -ForbiddenPath ".git/**" -RequiredCheck "cmd /c findstr /x fixed src\allowed.txt" -CapabilityCanary -PlanId real-edit -TaskId change -WorktreeName real-edit -JobRoot $jobRoot -LockRoot $lockRoot -PlanRoot $planRoot -ScratchRoot $scratchRoot -NoNotify -TimeoutSeconds 30 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Real-worktree fixture dispatch failed." }
     $workerTree = Join-Path $repo ".codex-praetor\worktrees\real-edit"
     Assert-True (Test-Path -LiteralPath $workerTree -PathType Container) "Real code-change did not create its Git worktree."
     $changed = (& git -C $workerTree diff --name-only $baseCommit | Out-String).Trim()
     Assert-True ($changed -eq "src/allowed.txt") "Real code-change did not produce the expected source Git diff."
-    $immutable = (& git -C $workerTree show HEAD:README.md | Out-String).Trim()
-    Assert-True ($immutable -eq "immutable") "Real code-change changed an immutable path."
+    $immutable = (& git -C $workerTree show HEAD:mcp/package.json | Out-String).Trim()
+    Assert-True ($immutable -eq '{"name":"fixture-mcp","version":"1.0.0"}') "Real code-change changed an immutable path."
     Push-Location $workerTree
     try { cmd /c "findstr /x fixed src\allowed.txt" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "Independent required check failed." } } finally { Pop-Location }
     & powershell -NoProfile -ExecutionPolicy Bypass -File $planScript -Action VerifyTask -PlanId real-edit -PlanRoot $planRoot -TaskId change -VerificationVerdict accepted -VerificationSummary "independent check passed" | Out-Null
