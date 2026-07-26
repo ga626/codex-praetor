@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.1-alpha
+
+- Normalized legacy worker `contract_hash` into the canonical ledger and durable-evidence `contract_sha256` field, and preserved an absent read-only write set as an empty array.
+- Narrowed provider-auth detection so a successful report mentioning that no auth material was accessed remains awaiting Codex verification, while explicit login and authentication failures remain blocked.
+
 ## 0.16.0-alpha
 
 - Real code-change dispatch now requires a frozen-base isolated Git worktree, scoped diff, immutable tracked-file manifest, and Codex-side acceptance gate.

@@ -93,10 +93,19 @@ assert.equal(
   classifyWorkerOutcome({
     meta: { status: "process_exited" },
     completion: { status: "process_exited", exit_code: 0 },
-    stdout_tail: "worker report",
+    stdout_tail: "worker report: no auth material was accessed.",
     stderr_tail: ""
   }).class,
   "awaiting_codex_verification"
+);
+assert.equal(
+  classifyWorkerOutcome({
+    meta: { status: "process_exited" },
+    completion: { status: "process_exited", exit_code: 0 },
+    stdout_tail: "login required before the worker can start.",
+    stderr_tail: ""
+  }).class,
+  "provider_auth_required"
 );
 assert.equal(
   classifyWorkerOutcome({

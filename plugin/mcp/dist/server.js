@@ -32138,7 +32138,7 @@ ${input.stderr_tail}`.toLowerCase();
       next_action: "\u56DE\u5230\u5B89\u88C5\u5411\u5BFC\u6216\u672C\u673A\u914D\u7F6E\uFF0C\u4FEE\u590D provider CLI \u8DEF\u5F84\u540E\u91CD\u8BD5\u3002"
     };
   }
-  if (combined.includes("login") || combined.includes("not logged") || combined.includes("unauthorized") || combined.includes("auth")) {
+  if (combined.includes("login required") || combined.includes("not logged in") || combined.includes("unauthorized") || combined.includes("authentication required") || combined.includes("authentication failed") || combined.includes("authorization required") || combined.includes("auth required") || combined.includes("invalid token") || combined.includes("token expired")) {
     return {
       class: "provider_auth_required",
       explanation: "provider \u9700\u8981\u7528\u6237\u5B8C\u6210\u767B\u5F55\u3001\u626B\u7801\u3001\u6388\u6743\u6216\u8D26\u53F7\u914D\u7F6E\u3002",
@@ -32913,7 +32913,7 @@ function asJsonContent(value) {
 function createServer() {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.0-alpha"
+    version: "0.16.1-alpha"
   });
   server.registerTool(
     "codex_praetor_capability_profiles",

@@ -450,7 +450,17 @@ export function classifyWorkerOutcome(input: {
       next_action: "回到安装向导或本机配置，修复 provider CLI 路径后重试。"
     };
   }
-  if (combined.includes("login") || combined.includes("not logged") || combined.includes("unauthorized") || combined.includes("auth")) {
+  if (
+    combined.includes("login required") ||
+    combined.includes("not logged in") ||
+    combined.includes("unauthorized") ||
+    combined.includes("authentication required") ||
+    combined.includes("authentication failed") ||
+    combined.includes("authorization required") ||
+    combined.includes("auth required") ||
+    combined.includes("invalid token") ||
+    combined.includes("token expired")
+  ) {
     return {
       class: "provider_auth_required",
       explanation: "provider 需要用户完成登录、扫码、授权或账号配置。",
