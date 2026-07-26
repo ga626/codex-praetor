@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.2-alpha
+
+- 计划创建时强制记录可派工的静态合同，并把范围、检查、预算和验收标准传入持久化 ledger。
+- MCP 的普通派工入口现在公开范围、检查、预算和故障注入字段，和内部安全合同保持一致。
+
 ## 0.16.1-alpha
 
 - Normalized legacy worker `contract_hash` into the canonical ledger and durable-evidence `contract_sha256` field, and preserved an absent read-only write set as an empty array.

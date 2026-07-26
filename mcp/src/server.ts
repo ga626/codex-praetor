@@ -13,6 +13,31 @@ const researchContractSchema = z.object({
   evidence_acceptance: z.literal("supervisor_verified"),
   freshness: z.enum(["", "day", "week", "month", "year"]).optional()
 });
+
+const boundedTaskBudgetSchema = z.object({
+  max_turns: z.number().int().positive().max(80),
+  max_wall_seconds: z.number().int().positive().max(3600),
+  max_attempts: z.number().int().positive().max(10).optional()
+});
+
+const plannedTaskContractSchema = z.object({
+  task_id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/).optional(),
+  title: z.string().min(1),
+  task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
+  task_kind: z.enum(["local_audit", "test_execution", "code_change", "external_research_support"]),
+  mode: z.enum(["readonly", "edit"]),
+  acceptance: z.string().min(1),
+  allowed_paths: z.array(z.string().min(1)).min(1),
+  forbidden_paths: z.array(z.string().min(1)).min(1),
+  required_checks: z.array(z.string().min(1)).min(1),
+  budget: boundedTaskBudgetSchema,
+  depends_on: z.array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/)).optional(),
+  failure_injection: z.string().optional(),
+  sensitivity: z.string().optional(),
+  base_commit: z.string().regex(/^[0-9a-f]{40}$/i).optional(),
+  immutable_paths: z.array(z.string().min(1)).optional(),
+  evidence_context: z.record(z.string(), z.unknown()).optional()
+});
 import {
   detectConflictsTool,
   cancelJobTool,
@@ -68,7 +93,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.1-alpha"
+    version: "0.16.2-alpha"
   });
 
   server.registerTool(
@@ -243,6 +268,11 @@ export function createServer(): McpServer {
         real_worktree: z.boolean().optional(),
         base_commit: z.string().regex(/^[0-9a-f]{40}$/i).optional(),
         immutable_paths: z.array(z.string().min(1)).optional(),
+        allowed_paths: z.array(z.string().min(1)).min(1).optional(),
+        forbidden_paths: z.array(z.string().min(1)).min(1).optional(),
+        required_checks: z.array(z.string().min(1)).min(1).optional(),
+        budget: boundedTaskBudgetSchema.optional(),
+        failure_injection: z.string().optional(),
         max_turns: z.number().int().positive().max(80).optional(),
         no_notify: z.boolean().optional()
       }
@@ -254,13 +284,12 @@ export function createServer(): McpServer {
     "codex_praetor_plan",
     {
       title: "Create Codex Praetor Plan",
-      description: "Create a small durable Codex Praetor plan under the project-local artifact root.",
+      description: "Create a durable, dispatchable Codex Praetor plan whose tasks carry explicit scope, checks, budget, and acceptance contracts.",
       annotations: additiveProjectLocalWrite,
       inputSchema: {
         repo: z.string().min(1),
         title: z.string().min(1),
-        tasks: z.array(z.string().min(1)).min(1),
-        mode: z.enum(["readonly", "edit"]).optional(),
+        tasks: z.array(plannedTaskContractSchema).min(1),
         plan_id: z.string().optional()
       }
     },

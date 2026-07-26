@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.1-alpha",
-    "previous_version":  "0.16.0-alpha",
-    "tag":  "v0.16.1-alpha",
+    "version":  "0.16.2-alpha",
+    "previous_version":  "0.16.1-alpha",
+    "tag":  "v0.16.2-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.1-alpha.zip",
-    "reason":  "修复两条独立真实 Qoder 只读任务共同暴露的 completion 到账本/回执合同字段丢失与成功文本认证误判；不扩大 provider、任务族或自动路由承诺。"
+    "artifact":  "codex-praetor-setup-0.16.2-alpha.zip",
+    "reason":  "修复公开 MCP 计划入口只能生成标题、而 plan-task 派工又要求完整静态合同的共同断点；同时公开已有的范围、检查、预算和故障注入派工字段，不扩大 provider、任务族或自动路由承诺。"
 }

@@ -596,17 +596,52 @@ export async function dispatchTool(input: {
   };
 }
 
+export type PlannedTaskContract = {
+  task_id?: string;
+  title: string;
+  task_family: CapabilityTaskFamily;
+  task_kind: WorkerTaskKind;
+  mode: "readonly" | "edit";
+  acceptance: string;
+  allowed_paths: string[];
+  forbidden_paths: string[];
+  required_checks: string[];
+  budget: Record<string, unknown>;
+  depends_on?: string[];
+  failure_injection?: string;
+  sensitivity?: string;
+  base_commit?: string;
+  immutable_paths?: string[];
+  evidence_context?: Record<string, unknown>;
+};
+
+function validatePlannedTaskContract(task: PlannedTaskContract, taskId: string): string | undefined {
+  if (!task.title.trim() || !task.acceptance.trim()) return `Task '${taskId}' needs both title and acceptance.`;
+  if (!task.task_family || !task.task_kind || !task.mode) return `Task '${taskId}' needs task_family, task_kind, and mode.`;
+  if (task.allowed_paths.length === 0 || task.forbidden_paths.length === 0 || task.required_checks.length === 0) return `Task '${taskId}' needs non-empty allowed_paths, forbidden_paths, and required_checks.`;
+  if (Object.keys(task.budget).length === 0) return `Task '${taskId}' needs a non-empty budget.`;
+  if ((task.task_kind === "code_change") !== (task.mode === "edit")) return `Task '${taskId}' has conflicting task_kind and mode.`;
+  if (task.task_kind === "test_execution" && task.mode !== "readonly") return `Task '${taskId}' must be readonly.`;
+  return undefined;
+}
+
 export async function planTool(input: {
   repo: string;
   title: string;
-  tasks: string[];
-  mode?: "readonly" | "edit";
+  tasks: PlannedTaskContract[];
   plan_id?: string;
 }) {
   const repo = resolveExistingRepo(input.repo);
   const planId = input.plan_id?.trim() || `plan-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   const planRoot = getPlanRoot(repo);
-  const mode = input.mode ?? "readonly";
+  const taskIds = input.tasks.map((task, index) => task.task_id?.trim() || `task-${String(index + 1).padStart(2, "0")}`);
+  if (new Set(taskIds).size !== taskIds.length || taskIds.some((taskId) => !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(taskId))) {
+    return { ok: false, repo, plan_id: planId, message: "Plan task IDs must be unique ASCII identifiers." };
+  }
+  for (const [index, task] of input.tasks.entries()) {
+    const validationError = validatePlannedTaskContract(task, taskIds[index]);
+    if (validationError) return { ok: false, repo, plan_id: planId, message: validationError };
+  }
 
   const initResult = await runPowerShell(
     [
@@ -640,30 +675,22 @@ export async function planTool(input: {
   }
 
   for (const [index, task] of input.tasks.entries()) {
-    const taskId = `task-${String(index + 1).padStart(2, "0")}`;
+    const taskId = taskIds[index];
+    const upsertArgs = [
+      "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(),
+      "-Action", "UpsertTask", "-PlanId", planId, "-PlanRoot", planRoot,
+      "-TaskId", taskId, "-TaskTitle", task.title, "-TaskFamily", task.task_family,
+      "-TaskKind", task.task_kind, "-Status", "pending", "-Mode", task.mode,
+      "-Acceptance", task.acceptance, "-DependsOn", (task.depends_on ?? []).join(","),
+      "-BudgetJson", JSON.stringify(task.budget), "-FailureInjection", task.failure_injection ?? "",
+      "-Sensitivity", task.sensitivity ?? "", "-BaseCommit", task.base_commit ?? "",
+      "-ImmutablePathsJson", JSON.stringify(task.immutable_paths ?? []), "-OutputJson"
+    ];
+    upsertArgs.push("-AllowedPath", ...task.allowed_paths);
+    upsertArgs.push("-ForbiddenPath", ...task.forbidden_paths);
+    upsertArgs.push("-RequiredCheck", ...task.required_checks);
     const upsertResult = await runPowerShell(
-      [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        getPlanScriptPath(),
-        "-Action",
-        "UpsertTask",
-        "-PlanId",
-        planId,
-        "-PlanRoot",
-        planRoot,
-        "-TaskId",
-        taskId,
-        "-TaskTitle",
-        task,
-        "-Status",
-        "pending",
-        "-Mode",
-        mode,
-        "-OutputJson"
-      ],
+      upsertArgs,
       { timeoutMs: 30_000 }
     );
 
@@ -675,6 +702,13 @@ export async function planTool(input: {
         stderr: upsertResult.stderr,
         stdout: upsertResult.stdout
       };
+    }
+    if (task.evidence_context) {
+      const contextResult = await runPowerShell(
+        ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "SetEvidenceContext", "-PlanId", planId, "-PlanRoot", planRoot, "-TaskId", taskId, "-EvidenceContextJson", JSON.stringify(task.evidence_context), "-OutputJson"],
+        { timeoutMs: 30_000 }
+      );
+      if (contextResult.exitCode !== 0) return { ok: false, exit_code: contextResult.exitCode, failed_task_id: taskId, stderr: contextResult.stderr, stdout: contextResult.stdout };
     }
   }
 
