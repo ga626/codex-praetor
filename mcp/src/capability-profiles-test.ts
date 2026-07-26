@@ -82,7 +82,7 @@ try {
     { task_id: "unclassified", governance_state: "accepted", attempts: [attempt({ id: "u1", model: "unclassified", family: "unclassified", verdict: "accepted" })] }
   ];
   const plan = { schema: "codex-praetor-task-ledger/v2", plan_id: "fixture", tasks };
-  const initial = JSON.stringify(plan, null, 2);
+  const initial = `\uFEFF${JSON.stringify(plan, null, 2)}`;
   await import("node:fs/promises").then(({ mkdir }) => mkdir(planDir, { recursive: true }));
   writeFileSync(planPath, initial, "utf8");
   writeAcceptedReceipts("observed", 1);
@@ -100,6 +100,7 @@ try {
   assert.equal(profileFor(withoutUnclassified, "cooldown").status, "cooling_down");
   assert.equal(profileFor(withoutUnclassified, "stale").status, "stale");
   assert.equal(withoutUnclassified.profiles.some((item) => item.provider_tuple.model === "unclassified"), false);
+  assert.deepEqual(withoutUnclassified.malformed_plan_ids, [], "a PowerShell UTF-8 BOM must not hide durable ledger evidence");
   assert.equal(readFileSync(planPath, "utf8"), initial, "profile projection must not rewrite the ledger");
 
   const withUnclassified = capabilityProfilesTool({ repo: root, include_unclassified: true, evidence_root: evidenceRoot });

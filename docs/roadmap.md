@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-21
 
-`v0.15.0-alpha` 是当前已公开交付的基线。候选 `v0.16.2-alpha` 只修复真实改码合同：worker 必须在冻结 commit 的隔离 Git worktree 中产生可审查 diff，且由 Codex 检查范围、不可修改文件、日志和独立复跑。它不会读取认证材料，不自动扩大路由，也不把复制材料或 canary 当作 provider 能力；合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
+`v0.16.2-alpha` 是当前已公开交付的基线。候选 `v0.16.3-alpha` 只修复 Windows PowerShell UTF-8 BOM 使有效 ledger 被能力画像误判为损坏的解析断点；它不改写历史记录、不提升旧尝试、不读取认证材料，也不自动扩大路由或 provider 能力承诺。合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
 
 已经完成：
 
