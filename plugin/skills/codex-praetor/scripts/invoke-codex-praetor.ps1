@@ -472,9 +472,13 @@ function Get-ImmutablePathManifest {
     $manifest = @()
     foreach ($pathValue in @($Paths)) {
         $relative = Get-SafeRelativePath -PathValue ([string]$pathValue)
-        $objectId = (& git -C $RepoPath rev-parse --verify "$Commit`:$relative" 2>$null | Out-String).Trim()
+        # Git revision paths always use forward slashes.  Get-SafeRelativePath
+        # normalizes Windows inputs to backslashes, so convert at this boundary
+        # before asking Git for the immutable blob.
+        $gitRelative = (($relative -split '\\+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join '/')
+        $objectId = (& git -C $RepoPath rev-parse --verify "$Commit`:$gitRelative" 2>$null | Out-String).Trim()
         if ($LASTEXITCODE -ne 0 -or $objectId -notmatch '^[0-9a-f]{40}$') { throw "ImmutablePath must name a tracked file at BaseCommit: $relative" }
-        $manifest += [ordered]@{ path = $relative.Replace('\\', '/'); git_blob_sha1 = $objectId.ToLowerInvariant() }
+        $manifest += [ordered]@{ path = $gitRelative; git_blob_sha1 = $objectId.ToLowerInvariant() }
     }
     return @($manifest)
 }

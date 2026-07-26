@@ -10,6 +10,9 @@
 
 - 改 `plugin/`、`mcp/`、`skill/`、安装/排错/发布路径、版本、用户体验或公开能力即为发布影响 PR；同一 PR 更新版本面、changelog、release notes、`config/release-intent.json` 与能力清单。
 - PR 就绪前从最终 stage/zip 验证受影响场景和全量确定性能力矩阵；源码、`mcp/dist`、`plugin/mcp/dist`、zip、runtime contract 或 generation 任一漂移即失败。真实 provider 仅在其合同、权限、派工或恢复行为变化时，于隔离环境验证并记录真实状态。
+- 阶段 1 的 route、plan、dry-run 和真实 worker 任务属于取证；单样本失败只记录分类并继续冻结矩阵，不得直接触发版本、Release 或 host 刷新。只有至少两条独立真实任务证明同一产品根因，才建立一个集中修复 PR。
+- 共同根因 PR 的开发期只跑受影响组。版本面、候选 artifact 和全量确定性矩阵只能在范围冻结后各运行一次；候选冻结后发现的独立问题记入下一证据门，不回填当前 PR。host 刷新只属于 PR D 的用户交付链，不得作为 PR B 或阶段 1 的诊断工具。
+- 对话只在阶段 1/2 事实报告、公开边界变化、PR D host 刷新或不可恢复 release incident 停下。
 - main 合并后仅由受保护的 `Release On Main` 从合并 SHA 自动构建、发布和远端下载复验；同一带 SHA manifest 的 zip 贯穿运行时验收、上传、下载和 attestation。tag/draft 后失败只重跑原 run；创建 tag 前发现 workflow 缺陷才可用递增版本恢复 PR。
 - release incident 的修复必须把故障纳入能力场景或故障注入；模拟 proof 不替代最终包证据。不得同版本补发、手工上传替代包或把收口缺口留给下一 PR。
 
