@@ -128,6 +128,13 @@ function Get-ElapsedMilliseconds {
     return [Math]::Round($elapsed, 0)
 }
 
+function Get-CompletionContractSha256 {
+    param([object]$Completion)
+    $canonical = [string]$Completion.contract_sha256
+    if (-not [string]::IsNullOrWhiteSpace($canonical)) { return $canonical }
+    return [string]$Completion.contract_hash
+}
+
 function Write-CapabilityEvidence {
     param([object]$Task, [object]$Job, [object]$Completion)
     $family = [string]$Task.task_family
@@ -142,7 +149,7 @@ function Write-CapabilityEvidence {
     $completionPath = [string]$Task.completion
     if ([string]::IsNullOrWhiteSpace($completionPath)) { $completionPath = Join-Path ([string]$Task.job_dir) "completion.json" }
     $attempt = @($Task.attempts | Where-Object { [string]$_.attempt_id -eq [string]$Completion.job_id } | Select-Object -Last 1)
-    $receipt = [ordered]@{ schema = "codex-praetor-capability-evidence/v1"; evidence_id = [string]$Completion.job_id; accepted_at = (Get-Date).ToUniversalTime().ToString("o"); task_family = $family; provider_tuple = $tuple; task_kind = [string]$Task.task_kind; supervisor_verdict = "accepted"; contract_sha256 = [string]$Completion.contract_sha256; job_sha256 = (Get-FileHash -LiteralPath $jobPath -Algorithm SHA256).Hash.ToLowerInvariant(); completion_sha256 = (Get-FileHash -LiteralPath $completionPath -Algorithm SHA256).Hash.ToLowerInvariant(); required_checks = @($Task.completion_definition.required_checks); evidence_context = $evidenceContext; timeline = if ($attempt.Count -eq 1) { $attempt[0].timeline } else { $null }; human_intervention_count = [int]$Task.human_intervention_count }
+    $receipt = [ordered]@{ schema = "codex-praetor-capability-evidence/v1"; evidence_id = [string]$Completion.job_id; accepted_at = (Get-Date).ToUniversalTime().ToString("o"); task_family = $family; provider_tuple = $tuple; task_kind = [string]$Task.task_kind; supervisor_verdict = "accepted"; contract_sha256 = Get-CompletionContractSha256 -Completion $Completion; job_sha256 = (Get-FileHash -LiteralPath $jobPath -Algorithm SHA256).Hash.ToLowerInvariant(); completion_sha256 = (Get-FileHash -LiteralPath $completionPath -Algorithm SHA256).Hash.ToLowerInvariant(); required_checks = @($Task.completion_definition.required_checks); evidence_context = $evidenceContext; timeline = if ($attempt.Count -eq 1) { $attempt[0].timeline } else { $null }; human_intervention_count = [int]$Task.human_intervention_count }
     Write-JsonFile -Path (Join-Path $CapabilityEvidenceRoot ((Get-SafeName ([string]$Completion.job_id)) + ".json")) -Value $receipt
 }
 
@@ -568,7 +575,9 @@ if ($Action -eq "Init") {
         $submittedAt = if ($null -ne $job) { [string]$job.created_at } else { "" }
         $workerStartedAt = if ($null -ne $job) { [string]$job.worker_started_at } else { "" }
         $workerFinishedAt = [string]$completion.exited_at
-        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = [string]$completion.contract_sha256; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = @($completion.write_set); execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
+        $attemptWriteSet = [object[]]@()
+        if ($null -ne $completion.write_set) { $attemptWriteSet = @($completion.write_set) }
+        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = Get-CompletionContractSha256 -Completion $completion; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = $attemptWriteSet; execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
         $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }
     }

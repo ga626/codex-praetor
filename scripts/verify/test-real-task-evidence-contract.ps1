@@ -28,7 +28,7 @@ try {
     'CODEX_PRAETOR_REQUIRED_CHECKS_OK' | Set-Content -LiteralPath $stdoutPath -Encoding UTF8
     [ordered]@{ created_at = "2026-07-25T00:00:00Z"; worker_started_at = "2026-07-25T00:00:02Z"; execution_repo = $executionRepo; task_contract = $contractPath; stdout = $stdoutPath } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jobPath -Encoding UTF8
     $tuple = [ordered]@{ provider = "codebuddy"; cli_path = "codebuddy"; cli_hash = "cli-sha"; model = "test-model"; permission_profile = "readonly"; task_kind = "test_execution"; generation_id = "generation"; runtime_contract_sha256 = "runtime-sha"; task_contract_schema = "task-contract/v1" }
-    [ordered]@{ job_id = "real-evidence-attempt"; base_commit = "base"; contract_sha256 = "contract-sha"; status = "process_exited"; process_state = "process_exited"; failure_class = ""; evidence_state = "tests_passed"; provider = "codebuddy"; tier = "fixture"; model = "test-model"; mode = "readonly"; acceptance = "independent"; exit_code = 0; task_kind = "test_execution"; write_set = @(); provider_tuple = $tuple; exited_at = "2026-07-25T00:00:12Z" } | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $completionPath -Encoding UTF8
+    [ordered]@{ job_id = "real-evidence-attempt"; base_commit = "base"; contract_hash = "contract-sha"; status = "process_exited"; process_state = "process_exited"; failure_class = ""; evidence_state = "tests_passed"; provider = "codebuddy"; tier = "fixture"; model = "test-model"; mode = "readonly"; acceptance = "independent"; exit_code = 0; task_kind = "test_execution"; provider_tuple = $tuple; exited_at = "2026-07-25T00:00:12Z" } | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $completionPath -Encoding UTF8
 
     & $planScript -Action Init -PlanId evidence -PlanRoot $planRoot -Title evidence -Repo $ProjectRoot | Out-Null
     & $planScript -Action UpsertTask -PlanId evidence -PlanRoot $planRoot -TaskId task -TaskTitle task -TaskFamily fixed_test_execution -TaskKind test_execution -Mode readonly -Status pending -Acceptance independent -RequiredCheck "powershell -File verify.ps1" | Out-Null
@@ -46,7 +46,10 @@ try {
     Assert-True ([string]$task[0].attempts[-1].timeline.worker_started_at -eq "2026-07-25T00:00:02Z") "Worker start time was not retained."
     Assert-True ([double]$task[0].attempts[-1].timeline.worker_elapsed_ms -eq 10000) "Worker elapsed time was not calculated."
     Assert-True ([double]$task[0].attempts[-1].timeline.end_to_end_ms -ge 0) "End-to-end time was not calculated."
+    Assert-True ([string]$task[0].attempts[-1].contract_sha256 -eq "contract-sha") "Legacy completion contract_hash was not normalized in the ledger."
+    Assert-True (@($task[0].attempts[-1].write_set).Count -eq 0) "Absent readonly write_set was not normalized to an empty array."
     $receipt = Get-Content -LiteralPath (Join-Path $evidenceRoot "real-evidence-attempt.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$receipt.contract_sha256 -eq "contract-sha") "Legacy completion contract_hash was not normalized in the durable receipt."
     Assert-True ([string]$receipt.evidence_context.connection_mode -eq "supervised_cli_text") "Connection mode was not written to the receipt."
     Assert-True ([string]$receipt.evidence_context.verifier_sha256 -eq "verifier-sha") "Verifier identity was not written to the receipt."
     Assert-True ([int]$receipt.human_intervention_count -eq 1) "Receipt lacks intervention count."
