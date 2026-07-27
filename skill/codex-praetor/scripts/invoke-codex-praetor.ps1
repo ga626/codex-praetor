@@ -1230,6 +1230,9 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
         if (-not [string]::IsNullOrWhiteSpace($UserProfileRoot)) {
             $healthArgs += @("-UserProfileRoot", [System.IO.Path]::GetFullPath($UserProfileRoot))
         }
+        if ($EvidenceBootstrap) {
+            $healthArgs += "-BootstrapDispatch"
+        }
         $null = & powershell @healthArgs 2>$null
         if ($LASTEXITCODE -eq 2) {
             throw "Runtime generation health is blocked. Repair the installed plugin/Skill/cache generation in the selected profile before real dispatch."
@@ -1346,7 +1349,7 @@ $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
 } else {
     [System.IO.Path]::GetFullPath($ReadinessPath)
 }
-if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
+if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not $EvidenceBootstrap) {
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind
     if (-not $readiness.ok) {
         throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Run test-provider-capability-canary.ps1 for the exact provider tuple first."

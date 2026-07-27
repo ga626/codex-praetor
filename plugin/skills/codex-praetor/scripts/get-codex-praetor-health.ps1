@@ -3,6 +3,7 @@
     [ValidateSet("stable", "dev")]
     [string]$Channel = "stable",
     [string]$UserProfileRoot = $env:USERPROFILE,
+    [switch]$BootstrapDispatch,
     [switch]$Json
 )
 
@@ -238,6 +239,12 @@ if ($isIsolatedProfile) {
 }
 
 $authoritativeDispatchChecks = @("running_generation", "installed_plugin", "plugin_cache_generation", "marketplace_activation", "provider_readiness")
+if ($BootstrapDispatch) {
+    # The first frozen real-source task creates evidence; it cannot require the
+    # provider tuple that only an accepted task can later establish.  This is
+    # intentionally narrow: every runtime identity check remains authoritative.
+    $authoritativeDispatchChecks = @($authoritativeDispatchChecks | Where-Object { $_ -ne "provider_readiness" })
+}
 $dispatchBlocked = @($checks | Where-Object { $_.name -in $authoritativeDispatchChecks -and $_.status -eq "blocked" }).Count -gt 0
 $dispatchStatus = if ($dispatchBlocked) { "blocked" } else { "ready" }
 $diagnosticStatus = if (@($checks | Where-Object { $_.status -eq "blocked" }).Count -gt 0) { "blocked" } elseif (@($checks | Where-Object { $_.status -ne "ready" }).Count -gt 0) { "degraded" } else { "ready" }
@@ -245,6 +252,7 @@ $payload = [pscustomobject]@{
     schema = "codex-praetor-health/v5"
     status = $dispatchStatus
     diagnostic_status = $diagnosticStatus
+    bootstrap_dispatch = [bool]$BootstrapDispatch
     dispatch_authority_checks = $authoritativeDispatchChecks
     repo = (Resolve-Path -LiteralPath $Repo).Path
     channel = $Channel

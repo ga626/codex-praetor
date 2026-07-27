@@ -19,6 +19,9 @@ function Assert-True {
 }
 
 try {
+    $dispatcherText = Get-Content -LiteralPath $dispatcher -Raw -Encoding UTF8
+    Assert-True ($dispatcherText -match '(?s)if \(\$EvidenceBootstrap\) \{.*?\$healthArgs \+= "-BootstrapDispatch"') "Evidence bootstrap must explicitly request the narrow runtime-health exception."
+    Assert-True ($dispatcherText -match '(?s)if \(-not \$DryRun -and -not \$CapabilityCanary -and -not \$PreflightOnly -and -not \$EvidenceBootstrap\) \{\s*\$readiness = Test-ProviderReadiness') "Only an evidence bootstrap may skip the provider readiness tuple gate."
     New-Item -ItemType Directory -Path $planRoot -Force | Out-Null
     & $manager -Action Init -PlanId $planId -PlanRoot $planRoot -Title "bootstrap" -Repo $ProjectRoot | Out-Null
     & $manager -Action UpsertTask -PlanId $planId -PlanRoot $planRoot -TaskId $taskId -TaskTitle $taskTitle -TaskFamily read_only_diagnosis -TaskKind local_audit -Mode readonly -Status pending -Acceptance "Codex independently checks the report." -AllowedPath "scripts/verify/test-release-intent.ps1" -ForbiddenPath ".git" -RequiredCheck "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify/test-release-intent.ps1" | Out-Null
