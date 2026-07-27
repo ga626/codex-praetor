@@ -18,8 +18,8 @@ Codex owns:
 External workers own:
 
 - scoped readonly archaeology,
-- small isolated edits,
-- focused tests,
+- isolated implementation stages that can span multiple files,
+- focused tests and stage evidence,
 - candidate findings,
 - concise final reports.
 
@@ -33,6 +33,18 @@ Codex Praetor owns:
 - completion files,
 - repository edit locks,
 - MCP tool surface.
+
+For a complex user goal, Codex owns a changeable plan rather than forcing the
+user to pre-split every file edit. A worker receives one execution stage with a
+stage result, hard risk boundary and independent acceptance criteria. Worker
+completion is candidate evidence only; Codex may continue, pause, resume,
+re-plan, hand over or reject at a checkpoint.
+
+Capability history, current readiness, dispatch admission and final acceptance
+are deliberately separate. Historical success changes the default automation
+level; it does not forbid a low-risk isolated observation attempt. A matching
+readiness lease avoids a full doctor on every normal dispatch. Progress is new
+evidence tied to a current plan stage, not an alive process or continued text.
 
 ## Current Script Layer
 

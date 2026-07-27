@@ -27,10 +27,15 @@
 
     [switch]$PreferQoder,
 
-    [int]$MaxTurns = 8,
+    # Normal supervision is progress-driven. An explicit positive value is an
+    # exceptional provider-side hard stop, not a completion criterion.
+    [ValidateRange(0, 80)]
+    [int]$MaxTurns = 0,
 
     [ValidateRange(30, 86400)]
-    [int]$TimeoutSeconds = 1200,
+    # This is an emergency host safety ceiling only. Codex should intervene on
+    # material progress/saturation or a formal handover before it is reached.
+    [int]$TimeoutSeconds = 86400,
 
     [string]$OutputFormat = "",
 
@@ -1111,6 +1116,11 @@ function Invoke-Or-StartWorker {
                 $planArgs += @("-Acceptance", $Acceptance)
             }
             & powershell @planArgs | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Could not connect job $jobId to plan task $TaskId." }
+            $transportMode = if ($OutputFormatName -eq "stream-json") { "supervised_cli_stream_json" } elseif ($OutputFormatName -eq "json") { "supervised_cli_json" } else { "supervised_cli_text" }
+            $observation = [ordered]@{ task_id = $TaskId; pair_id = ""; transport_mode = $transportMode; observed_at = (Get-Date).ToUniversalTime().ToString("o"); evidence = [ordered]@{ job_id = $jobId; provider = $ProviderName; model = $ModelName; run_mode = $RunMode; contract_hash = $ContractHash } }
+            & $planScript -Action AppendEvent -PlanId $PlanId -PlanRoot $PlanRoot -EventType "dispatch_submitted" -EventMessage "dispatch_submitted observed for task $TaskId." -EventActor "controller" -EventDataJson ($observation | ConvertTo-Json -Depth 12 -Compress) | Out-Null
+            if (-not $?) { throw "Could not record dispatch submission for plan task $TaskId." }
         }
     }
 
@@ -1533,7 +1543,10 @@ $networkRule
             throw "CodeBuddy CLI not found: $codebuddy"
         }
 
-        $cmdArgs = @($codebuddy, "--model", $model, "--max-turns", "$MaxTurns", "--output-format", $effectiveOutputFormat)
+        $cmdArgs = @($codebuddy, "--model", $model, "--output-format", $effectiveOutputFormat)
+        if ($MaxTurns -gt 0) {
+            $cmdArgs += @("--max-turns", "$MaxTurns")
+        }
         if (-not [string]::IsNullOrWhiteSpace($effectiveReasoningEffort)) {
             $cmdArgs += @("--effort", $effectiveReasoningEffort)
         }

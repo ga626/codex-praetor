@@ -15,10 +15,11 @@ const researchContractSchema = z.object({
 });
 
 const boundedTaskBudgetSchema = z.object({
-  max_turns: z.number().int().positive().max(80),
-  max_wall_seconds: z.number().int().positive().max(3600),
-  max_attempts: z.number().int().positive().max(10).optional()
-});
+  max_turns: z.number().int().positive().max(80).optional(),
+  max_wall_seconds: z.number().int().positive().max(86400).optional(),
+  max_attempts: z.number().int().positive().max(10).optional(),
+  max_cost: z.number().nonnegative().optional()
+}).refine((budget) => Object.keys(budget).length > 0, "Budget must contain at least one explicit hard limit.");
 
 const plannedTaskContractSchema = z.object({
   task_id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/).optional(),
@@ -52,6 +53,12 @@ import {
   getLaneTool,
   healthTool,
   governanceSummaryTool,
+  supervisionTool,
+  startStageTool,
+  recordProgressTool,
+  requestHandoverTool,
+  setReadinessLeaseTool,
+  recordObservationTool,
   jobTimelineTool,
   nextReadyTool,
   resultTool,
@@ -427,6 +434,84 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(governanceSummaryTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_supervision",
+    {
+      title: "Read Codex Praetor Supervision State",
+      description: "Read stages, readiness leases, handovers, and low-frequency lifecycle observations for a plan. This never starts or monitors a worker.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: { repo: z.string().min(1), plan_id: z.string().min(1) }
+    },
+    async (input) => asJsonContent(supervisionTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_start_stage",
+    {
+      title: "Start a Codex Praetor Stage",
+      description: "Record a Codex-defined stage and checkpoint boundary in the durable plan. This does not dispatch a worker.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: { repo: z.string().min(1), plan_id: z.string().min(1), stage_id: z.string().min(1), title: z.string().min(1) }
+    },
+    async (input) => asJsonContent(await startStageTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_record_progress",
+    {
+      title: "Record Material Progress",
+      description: "Record a material evidence checkpoint, saturation, input wait, safety stop, or verification transition. This is a durable supervisor record, not high-frequency worker polling.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: z.string().min(1), plan_id: z.string().min(1), task_id: z.string().min(1), stage_id: z.string().min(1),
+        kind: z.enum(["evidence_added", "progress_saturated", "awaiting_input", "safety_stop", "verification_started", "verification_finished"]),
+        summary: z.string().min(1), checkpoint: z.record(z.string(), z.unknown()).optional()
+      }
+    },
+    async (input) => asJsonContent(await recordProgressTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_request_handover",
+    {
+      title: "Request Codex Praetor Handover",
+      description: "Put one task into needs-decision with a durable reason and checkpoint. It does not cancel a running worker; cancellation remains a separate formal action.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: { repo: z.string().min(1), plan_id: z.string().min(1), task_id: z.string().min(1), reason: z.string().min(1), checkpoint: z.record(z.string(), z.unknown()).optional() }
+    },
+    async (input) => asJsonContent(await requestHandoverTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_set_readiness_lease",
+    {
+      title: "Record Codex Praetor Readiness Lease",
+      description: "Project an already verified readiness tuple into the plan so the supervisor can reuse it until expiry. This never reads or changes provider authentication.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: z.string().min(1), plan_id: z.string().min(1),
+        lease: z.object({ lease_id: z.string().min(1), provider: z.string().min(1), cli_hash: z.string().min(1), permission_profile: z.string().min(1), workspace: z.string().min(1), generation_id: z.string().min(1), expires_at: z.string().datetime(), state: z.enum(["ready", "stale", "blocked"]) }).passthrough()
+      }
+    },
+    async (input) => asJsonContent(await setReadinessLeaseTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_record_observation",
+    {
+      title: "Record Codex Praetor Lifecycle Observation",
+      description: "Record one lifecycle timestamp and evidence pointer for paired Codex-direct or supervised worker work. It never dispatches a worker or polls logs.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: z.string().min(1), plan_id: z.string().min(1), task_id: z.string().min(1),
+        phase: z.enum(["codex_direct_started", "codex_direct_evidence", "route_completed", "plan_completed", "dry_run_completed", "dispatch_submitted", "worker_started", "worker_terminal", "verification_finished", "recovery_started", "recovery_finished"]),
+        pair_id: z.string().optional(), transport_mode: z.enum(["", "codex_direct", "supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "codebuddy_daemon"]).optional(),
+        evidence: z.record(z.string(), z.unknown()).optional(), observed_at: z.string().datetime().optional()
+      }
+    },
+    async (input) => asJsonContent(await recordObservationTool(input))
   );
 
   server.registerTool(

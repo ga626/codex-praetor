@@ -23,6 +23,12 @@ import {
   routeIntentTool,
   runtimeInfoTool,
   statusTool,
+  supervisionTool,
+  startStageTool,
+  recordProgressTool,
+  requestHandoverTool,
+  setReadinessLeaseTool,
+  recordObservationTool,
   verifyTaskTool
 } from "./tools.js";
 
@@ -161,6 +167,17 @@ assert.equal(planDispatchPreview.ok, true, String((planDispatchPreview as Record
 
 const planStatus = statusTool({ repo, plan_id: planId });
 assert.equal(planStatus.found, true);
+
+assert.equal((await startStageTool({ repo, plan_id: planId, stage_id: "inspect", title: "Inspect evidence" })).ok, true);
+assert.equal((await recordProgressTool({ repo, plan_id: planId, task_id: "task-01", stage_id: "inspect", kind: "evidence_added", summary: "A deterministic check completed.", checkpoint: { check: "git diff --exit-code" } })).ok, true);
+assert.equal((await setReadinessLeaseTool({ repo, plan_id: planId, lease: { lease_id: "self-test-lease", provider: "qoder", cli_hash: "fixture", permission_profile: "readonly", workspace: repo, generation_id: "fixture", expires_at: "2026-12-31T00:00:00.000Z", state: "ready" } })).ok, true);
+assert.equal((await recordObservationTool({ repo, plan_id: planId, task_id: "task-01", phase: "route_completed", pair_id: "self-test-pair", transport_mode: "supervised_cli_text", evidence: { route: "fixture" }, observed_at: "2026-07-27T00:00:00.000Z" })).ok, true);
+const supervision = supervisionTool({ repo, plan_id: planId });
+assert.equal(supervision.found, true);
+if (!supervision.found || !supervision.supervision || !supervision.observations) throw new Error("Supervision record was not found after it was written.");
+assert.equal(supervision.supervision.stages.length, 1);
+assert.equal(supervision.supervision.readiness_leases.length, 1);
+assert.equal(supervision.observations.length, 1);
 
 const readyBeforeVerification = await nextReadyTool({ repo, plan_id: planId });
 assert.equal(readyBeforeVerification.ok, true);

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
+    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent", "StartStage", "RecordProgress", "RequestHandover", "SetReadinessLease")]
     [string]$Action,
 
     [Parameter(Mandatory = $true)]
@@ -51,6 +51,15 @@ param(
     [string]$OutcomeJson = "",
     [string]$EventType = "",
     [string]$EventMessage = "",
+    [string]$EventDataJson = "",
+    [ValidateSet("", "worker", "watcher", "codex", "controller", "user")]
+    [string]$EventActor = "",
+    [string]$StageId = "",
+    [string]$StageTitle = "",
+    [string]$CheckpointJson = "",
+    [string]$ProgressKind = "",
+    [string]$ProgressSummary = "",
+    [string]$ReadinessLeaseJson = "",
     [switch]$OutputJson
 )
 
@@ -178,6 +187,7 @@ function New-EmptyPlan {
         selections = @()
         outcomes = @()
         release_state = "draft"
+        supervision = [ordered]@{ schema = "codex-praetor-progress-supervision/v1"; stages = @(); readiness_leases = @(); handovers = @() }
     }
 }
 
@@ -209,7 +219,7 @@ function Read-Plan {
                 if (-not ($task.PSObject.Properties.Name -contains "allowed_paths")) { $task | Add-Member -NotePropertyName allowed_paths -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "forbidden_paths")) { $task | Add-Member -NotePropertyName forbidden_paths -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "completion_definition")) { $task | Add-Member -NotePropertyName completion_definition -NotePropertyValue ([pscustomobject]@{ required_evidence = @(); required_checks = @(); success_predicate = "" }) }
-                if (-not ($task.PSObject.Properties.Name -contains "budget")) { $task | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ max_attempts = 1; max_turns = 8; max_wall_seconds = 1200 }) }
+                if (-not ($task.PSObject.Properties.Name -contains "budget")) { $task | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ max_attempts = 1 }) }
                 if (-not ($task.PSObject.Properties.Name -contains "stop_loss")) { $task | Add-Member -NotePropertyName stop_loss -NotePropertyValue ([pscustomobject]@{ on_tool_denied = "needs_decision"; on_write_set_overlap = "needs_decision"; on_missing_evidence = "needs_decision" }) }
                 if (-not ($task.PSObject.Properties.Name -contains "outcome_ids")) { $task | Add-Member -NotePropertyName outcome_ids -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "progress")) { $task | Add-Member -NotePropertyName progress -NotePropertyValue ([pscustomobject]@{ completed = 0; total = 1; summary = "" }) }
@@ -218,6 +228,8 @@ function Read-Plan {
         if (-not ($plan.PSObject.Properties.Name -contains "selections")) { $plan | Add-Member -NotePropertyName selections -NotePropertyValue @() }
         if (-not ($plan.PSObject.Properties.Name -contains "outcomes")) { $plan | Add-Member -NotePropertyName outcomes -NotePropertyValue @() }
         if (-not ($plan.PSObject.Properties.Name -contains "release_state")) { $plan | Add-Member -NotePropertyName release_state -NotePropertyValue "draft" }
+        if (-not ($plan.PSObject.Properties.Name -contains "supervision")) { $plan | Add-Member -NotePropertyName supervision -NotePropertyValue ([pscustomobject]@{ schema = "codex-praetor-progress-supervision/v1"; stages = @(); readiness_leases = @(); handovers = @() }) }
+        foreach ($field in @("stages", "readiness_leases", "handovers")) { if (-not ($plan.supervision.PSObject.Properties.Name -contains $field)) { $plan.supervision | Add-Member -NotePropertyName $field -NotePropertyValue @() } }
         return $plan
     }
     return [pscustomobject](New-EmptyPlan -Id $Id)
@@ -305,7 +317,7 @@ function Upsert-Task {
             next_action = ""
             governance_state = "awaiting_supervisor"
             completion_definition = [pscustomobject]@{ required_evidence = @(); required_checks = @(); success_predicate = "" }
-            budget = [pscustomobject]@{ max_attempts = 1; max_turns = 8; max_wall_seconds = 1200 }
+            budget = [pscustomobject]@{ max_attempts = 1 }
             stop_loss = [pscustomobject]@{ on_tool_denied = "needs_decision"; on_write_set_overlap = "needs_decision"; on_missing_evidence = "needs_decision" }
             selection_id = ""
             outcome_ids = @()
@@ -586,6 +598,8 @@ if ($Action -eq "Init") {
 } elseif ($Action -eq "VerifyTask") {
     Set-TaskVerification -Plan $plan -Id $TaskId -Verdict $VerificationVerdict -SummaryValue $VerificationSummary -NextActionValue $NextAction
     Add-PlanEvent -Plan $plan -Type "task_verified" -Message "Task $TaskId verification verdict: $VerificationVerdict." -Data @{ task_id = $TaskId; verdict = $VerificationVerdict; next_action = $NextAction }
+    $verificationEvidence = [ordered]@{ task_id = $TaskId; pair_id = ""; transport_mode = ""; observed_at = (Get-Date).ToUniversalTime().ToString("o"); evidence = [ordered]@{ verdict = $VerificationVerdict; next_action = $NextAction } }
+    Add-PlanEvent -Plan $plan -Type "verification_finished" -Actor "codex" -Message "verification_finished observed for task $TaskId." -Data $verificationEvidence
     Save-Plan -Plan $plan
 } elseif ($Action -eq "SetEvidenceContext") {
     if (-not [string]::IsNullOrWhiteSpace($EvidenceContextJson) -and -not [string]::IsNullOrWhiteSpace($EvidenceContextPath)) { throw "Specify only one evidence context transport." }
@@ -626,7 +640,40 @@ if ($Action -eq "Init") {
     Add-PlanEvent -Plan $plan -Type "outcome_recorded" -Message "Outcome $($outcome.outcome_id) recorded." -Data @{ task_id = $TaskId; outcome_id = $outcome.outcome_id; verdict = $outcome.verdict }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "AppendEvent") {
-    Add-PlanEvent -Plan $plan -Type $EventType -Message $EventMessage
+    $eventData = if ([string]::IsNullOrWhiteSpace($EventDataJson)) { $null } else { $EventDataJson | ConvertFrom-Json }
+    Add-PlanEvent -Plan $plan -Type $EventType -Message $EventMessage -Data $eventData -Actor $(if ([string]::IsNullOrWhiteSpace($EventActor)) { "controller" } else { $EventActor })
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "StartStage") {
+    if ([string]::IsNullOrWhiteSpace($StageId) -or [string]::IsNullOrWhiteSpace($StageTitle)) { throw "StageId and StageTitle are required for StartStage." }
+    $stage = [ordered]@{ stage_id = $StageId; title = $StageTitle; state = "running"; started_at = (Get-Date).ToUniversalTime().ToString("o"); updated_at = (Get-Date).ToUniversalTime().ToString("o"); checkpoint = $null }
+    $plan.supervision.stages = @($plan.supervision.stages | Where-Object { [string]$_.stage_id -ne $StageId }) + $stage
+    Add-PlanEvent -Plan $plan -Type "stage_started" -Actor "codex" -Message "Stage $StageId started." -Data @{ stage_id = $StageId }
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "RecordProgress") {
+    if ([string]::IsNullOrWhiteSpace($TaskId) -or [string]::IsNullOrWhiteSpace($StageId) -or [string]::IsNullOrWhiteSpace($ProgressKind)) { throw "TaskId, StageId and ProgressKind are required for RecordProgress." }
+    $stage = @($plan.supervision.stages | Where-Object { [string]$_.stage_id -eq $StageId } | Select-Object -First 1)
+    if ($stage.Count -ne 1) { throw "Stage not found: $StageId" }
+    $checkpoint = if ([string]::IsNullOrWhiteSpace($CheckpointJson)) { $null } else { $CheckpointJson | ConvertFrom-Json }
+    $stage[0].updated_at = (Get-Date).ToUniversalTime().ToString("o")
+    if ($null -ne $checkpoint) { $stage[0].checkpoint = $checkpoint }
+    $target = @($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1)
+    if ($target.Count -eq 1) { Set-DynamicProperty -Target $target[0] -Name "progress" -Value ([pscustomobject]@{ completed = 0; total = 1; last_event_id = ""; stage_id = $StageId; kind = $ProgressKind; summary = $ProgressSummary; checkpoint = $checkpoint }) }
+    Add-PlanEvent -Plan $plan -Type $ProgressKind -Actor "watcher" -Message $ProgressSummary -Data @{ task_id = $TaskId; stage_id = $StageId; checkpoint = $checkpoint }
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "RequestHandover") {
+    if ([string]::IsNullOrWhiteSpace($TaskId) -or [string]::IsNullOrWhiteSpace($ProgressSummary)) { throw "TaskId and ProgressSummary are required for RequestHandover." }
+    $handover = [ordered]@{ handover_id = [Guid]::NewGuid().ToString("N"); task_id = $TaskId; requested_at = (Get-Date).ToUniversalTime().ToString("o"); reason = $ProgressSummary; checkpoint = if ([string]::IsNullOrWhiteSpace($CheckpointJson)) { $null } else { $CheckpointJson | ConvertFrom-Json } }
+    $plan.supervision.handovers = @($plan.supervision.handovers) + $handover
+    $target = @($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1)
+    if ($target.Count -eq 1) { $target[0].status = "needs_decision"; $target[0].governance_state = "needs_decision" }
+    Add-PlanEvent -Plan $plan -Type "handover_requested" -Actor "watcher" -Message $ProgressSummary -Data $handover
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "SetReadinessLease") {
+    if ([string]::IsNullOrWhiteSpace($ReadinessLeaseJson)) { throw "ReadinessLeaseJson is required for SetReadinessLease." }
+    $lease = $ReadinessLeaseJson | ConvertFrom-Json
+    foreach ($required in @("lease_id", "provider", "cli_hash", "permission_profile", "workspace", "generation_id", "expires_at", "state")) { if ([string]::IsNullOrWhiteSpace([string]$lease.$required)) { throw "Readiness lease lacks $required." } }
+    $plan.supervision.readiness_leases = @($plan.supervision.readiness_leases | Where-Object { [string]$_.lease_id -ne [string]$lease.lease_id }) + $lease
+    Add-PlanEvent -Plan $plan -Type "readiness_lease_set" -Actor "controller" -Message "Readiness lease $($lease.lease_id) recorded." -Data $lease
     Save-Plan -Plan $plan
 } elseif ($Action -eq "NextReady") {
     $ready = @(Get-ReadyTasks -Plan $plan)

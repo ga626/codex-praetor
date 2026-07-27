@@ -11,6 +11,7 @@ import {
   getMcpRoot,
   getPlanRoot,
   getPlanScriptPath,
+  getObservationScriptPath,
   getProjectArtifactRoot,
   getProjectRoot,
   getRuntimeContractPath,
@@ -433,14 +434,14 @@ export function classifyWorkerOutcome(input: {
     return {
       class: "worker_max_turns_exceeded",
       explanation: artifactState === "partial_worktree_diff" ? "worker 超轮数且留下了半成品改动，不能直接验收或合并。" : "worker 超轮数且没有完成任务，不能把进程退出当作有效结果。",
-      next_action: "保留 worktree 供 Codex 检查；缩小任务、提高 MaxTurns、换 provider，或由 Codex 接管并记录原因。"
+      next_action: "保留 worktree 供 Codex 检查；判断是否仍有新增证据、需要阶段性交接、换 provider，或由 Codex 接管并记录原因。"
     };
   }
   if (combined.includes("max turns") || combined.includes("maximum turns") || combined.includes("turns exceeded")) {
     return {
       class: "worker_max_turns_exceeded",
       explanation: "worker 在轮数上限内没有完成任务，不能把它当作有效结果。",
-      next_action: "缩小任务、提高 MaxTurns、换 provider，或由 Codex 接管并记录原因。"
+      next_action: "判断是否仍有新增证据、需要阶段性交接、换 provider，或由 Codex 接管并记录原因。"
     };
   }
   if (combined.includes("cli not found") || combined.includes("not recognized") || combined.includes("cannot find path")) {
@@ -1135,6 +1136,86 @@ export function governanceSummaryTool(input: { repo: string; plan_id: string }) 
     tasks: tasks.map((task) => ({ task_id: task.task_id, status: task.status, governance_state: task.governance_state, progress: task.progress, next_action: task.next_action })),
     plan_path: planPath
   };
+}
+
+export function supervisionTool(input: { repo: string; plan_id: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  const planPath = path.join(getPlanRoot(repo), input.plan_id.trim(), "plan.json");
+  if (!existsSync(planPath)) return { found: false, repo, plan_id: input.plan_id, plan_path: planPath };
+  const plan = readJsonFile(planPath) as Record<string, unknown>;
+  const supervision = plan.supervision && typeof plan.supervision === "object" ? plan.supervision as Record<string, unknown> : {};
+  const events = Array.isArray(plan.events) ? plan.events as Record<string, unknown>[] : [];
+  const observationTypes = new Set([
+    "codex_direct_started", "codex_direct_evidence", "route_completed", "plan_completed", "dry_run_completed",
+    "dispatch_submitted", "worker_started", "worker_terminal", "verification_finished", "recovery_started", "recovery_finished"
+  ]);
+  return {
+    found: true,
+    repo,
+    plan_id: String(plan.plan_id ?? input.plan_id),
+    revision: Number(plan.revision ?? 0),
+    supervision: {
+      schema: String(supervision.schema ?? ""),
+      stages: Array.isArray(supervision.stages) ? supervision.stages : [],
+      readiness_leases: Array.isArray(supervision.readiness_leases) ? supervision.readiness_leases : [],
+      handovers: Array.isArray(supervision.handovers) ? supervision.handovers : []
+    },
+    observations: events.filter((event) => observationTypes.has(String(event.type ?? ""))),
+    plan_path: planPath
+  };
+}
+
+async function runPlanSupervisionAction(repo: string, planId: string, args: string[]) {
+  const result = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-PlanId", planId, "-PlanRoot", getPlanRoot(repo), ...args, "-OutputJson"],
+    { timeoutMs: 30_000 }
+  );
+  return {
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    repo,
+    plan_id: planId,
+    plan: result.stdout.trim() ? JSON.parse(result.stdout) : null,
+    stderr: result.stderr
+  };
+}
+
+export async function startStageTool(input: { repo: string; plan_id: string; stage_id: string; title: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  return runPlanSupervisionAction(repo, input.plan_id, ["-Action", "StartStage", "-StageId", input.stage_id, "-StageTitle", input.title]);
+}
+
+export async function recordProgressTool(input: { repo: string; plan_id: string; task_id: string; stage_id: string; kind: string; summary: string; checkpoint?: Record<string, unknown> }) {
+  const repo = resolveExistingRepo(input.repo);
+  const args = ["-Action", "RecordProgress", "-TaskId", input.task_id, "-StageId", input.stage_id, "-ProgressKind", input.kind, "-ProgressSummary", input.summary];
+  if (input.checkpoint) args.push("-CheckpointJson", JSON.stringify(input.checkpoint));
+  return runPlanSupervisionAction(repo, input.plan_id, args);
+}
+
+export async function requestHandoverTool(input: { repo: string; plan_id: string; task_id: string; reason: string; checkpoint?: Record<string, unknown> }) {
+  const repo = resolveExistingRepo(input.repo);
+  const args = ["-Action", "RequestHandover", "-TaskId", input.task_id, "-ProgressSummary", input.reason];
+  if (input.checkpoint) args.push("-CheckpointJson", JSON.stringify(input.checkpoint));
+  return runPlanSupervisionAction(repo, input.plan_id, args);
+}
+
+export async function setReadinessLeaseTool(input: { repo: string; plan_id: string; lease: Record<string, unknown> }) {
+  const repo = resolveExistingRepo(input.repo);
+  return runPlanSupervisionAction(repo, input.plan_id, ["-Action", "SetReadinessLease", "-ReadinessLeaseJson", JSON.stringify(input.lease)]);
+}
+
+export async function recordObservationTool(input: { repo: string; plan_id: string; task_id: string; phase: string; pair_id?: string; transport_mode?: string; evidence?: Record<string, unknown>; observed_at?: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  const result = await runPowerShell(
+    [
+      "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getObservationScriptPath(),
+      "-PlanId", input.plan_id, "-PlanRoot", getPlanRoot(repo), "-TaskId", input.task_id,
+      "-Phase", input.phase, "-PairId", input.pair_id ?? "", "-TransportMode", input.transport_mode ?? "",
+      "-EvidenceJson", input.evidence ? JSON.stringify(input.evidence) : "", "-ObservedAt", input.observed_at ?? ""
+    ],
+    { timeoutMs: 30_000 }
+  );
+  return { ok: result.exitCode === 0, exit_code: result.exitCode, repo, plan_id: input.plan_id, task_id: input.task_id, stderr: result.stderr };
 }
 
 export function resultTool(input: {

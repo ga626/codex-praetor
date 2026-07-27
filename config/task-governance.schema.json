@@ -10,7 +10,8 @@
     "revision": { "type": "integer", "minimum": 0 },
     "contexts": { "type": "array", "items": { "$ref": "#/$defs/context" } },
     "tasks": { "type": "array", "items": { "$ref": "#/$defs/task" } },
-    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } }
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } },
+    "supervision": { "$ref": "progress-supervision.schema.json" }
   },
   "$defs": {
     "context": {

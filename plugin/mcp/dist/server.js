@@ -30996,6 +30996,9 @@ function getInvokeScriptPath() {
 function getPlanScriptPath() {
   return path.join(getScriptRoot(), "manage-codex-praetor-plan.ps1");
 }
+function getObservationScriptPath() {
+  return path.join(getScriptRoot(), "record-codex-praetor-observation.ps1");
+}
 function getEvaluationInitializerPath() {
   const source = path.join(getProjectRoot(), "scripts", "evaluation", "initialize-codex-praetor-evaluation.ps1");
   if (existsSync(source)) {
@@ -32128,14 +32131,14 @@ ${input.stderr_tail}`.toLowerCase();
     return {
       class: "worker_max_turns_exceeded",
       explanation: artifactState === "partial_worktree_diff" ? "worker \u8D85\u8F6E\u6570\u4E14\u7559\u4E0B\u4E86\u534A\u6210\u54C1\u6539\u52A8\uFF0C\u4E0D\u80FD\u76F4\u63A5\u9A8C\u6536\u6216\u5408\u5E76\u3002" : "worker \u8D85\u8F6E\u6570\u4E14\u6CA1\u6709\u5B8C\u6210\u4EFB\u52A1\uFF0C\u4E0D\u80FD\u628A\u8FDB\u7A0B\u9000\u51FA\u5F53\u4F5C\u6709\u6548\u7ED3\u679C\u3002",
-      next_action: "\u4FDD\u7559 worktree \u4F9B Codex \u68C0\u67E5\uFF1B\u7F29\u5C0F\u4EFB\u52A1\u3001\u63D0\u9AD8 MaxTurns\u3001\u6362 provider\uFF0C\u6216\u7531 Codex \u63A5\u7BA1\u5E76\u8BB0\u5F55\u539F\u56E0\u3002"
+      next_action: "\u4FDD\u7559 worktree \u4F9B Codex \u68C0\u67E5\uFF1B\u5224\u65AD\u662F\u5426\u4ECD\u6709\u65B0\u589E\u8BC1\u636E\u3001\u9700\u8981\u9636\u6BB5\u6027\u4EA4\u63A5\u3001\u6362 provider\uFF0C\u6216\u7531 Codex \u63A5\u7BA1\u5E76\u8BB0\u5F55\u539F\u56E0\u3002"
     };
   }
   if (combined.includes("max turns") || combined.includes("maximum turns") || combined.includes("turns exceeded")) {
     return {
       class: "worker_max_turns_exceeded",
       explanation: "worker \u5728\u8F6E\u6570\u4E0A\u9650\u5185\u6CA1\u6709\u5B8C\u6210\u4EFB\u52A1\uFF0C\u4E0D\u80FD\u628A\u5B83\u5F53\u4F5C\u6709\u6548\u7ED3\u679C\u3002",
-      next_action: "\u7F29\u5C0F\u4EFB\u52A1\u3001\u63D0\u9AD8 MaxTurns\u3001\u6362 provider\uFF0C\u6216\u7531 Codex \u63A5\u7BA1\u5E76\u8BB0\u5F55\u539F\u56E0\u3002"
+      next_action: "\u5224\u65AD\u662F\u5426\u4ECD\u6709\u65B0\u589E\u8BC1\u636E\u3001\u9700\u8981\u9636\u6BB5\u6027\u4EA4\u63A5\u3001\u6362 provider\uFF0C\u6216\u7531 Codex \u63A5\u7BA1\u5E76\u8BB0\u5F55\u539F\u56E0\u3002"
     };
   }
   if (combined.includes("cli not found") || combined.includes("not recognized") || combined.includes("cannot find path")) {
@@ -32719,6 +32722,105 @@ function governanceSummaryTool(input) {
     plan_path: planPath
   };
 }
+function supervisionTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const planPath = path4.join(getPlanRoot(repo), input.plan_id.trim(), "plan.json");
+  if (!existsSync4(planPath)) return { found: false, repo, plan_id: input.plan_id, plan_path: planPath };
+  const plan = readJsonFile(planPath);
+  const supervision = plan.supervision && typeof plan.supervision === "object" ? plan.supervision : {};
+  const events = Array.isArray(plan.events) ? plan.events : [];
+  const observationTypes = /* @__PURE__ */ new Set([
+    "codex_direct_started",
+    "codex_direct_evidence",
+    "route_completed",
+    "plan_completed",
+    "dry_run_completed",
+    "dispatch_submitted",
+    "worker_started",
+    "worker_terminal",
+    "verification_finished",
+    "recovery_started",
+    "recovery_finished"
+  ]);
+  return {
+    found: true,
+    repo,
+    plan_id: String(plan.plan_id ?? input.plan_id),
+    revision: Number(plan.revision ?? 0),
+    supervision: {
+      schema: String(supervision.schema ?? ""),
+      stages: Array.isArray(supervision.stages) ? supervision.stages : [],
+      readiness_leases: Array.isArray(supervision.readiness_leases) ? supervision.readiness_leases : [],
+      handovers: Array.isArray(supervision.handovers) ? supervision.handovers : []
+    },
+    observations: events.filter((event) => observationTypes.has(String(event.type ?? ""))),
+    plan_path: planPath
+  };
+}
+async function runPlanSupervisionAction(repo, planId, args) {
+  const result = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-PlanId", planId, "-PlanRoot", getPlanRoot(repo), ...args, "-OutputJson"],
+    { timeoutMs: 3e4 }
+  );
+  return {
+    ok: result.exitCode === 0,
+    exit_code: result.exitCode,
+    repo,
+    plan_id: planId,
+    plan: result.stdout.trim() ? JSON.parse(result.stdout) : null,
+    stderr: result.stderr
+  };
+}
+async function startStageTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  return runPlanSupervisionAction(repo, input.plan_id, ["-Action", "StartStage", "-StageId", input.stage_id, "-StageTitle", input.title]);
+}
+async function recordProgressTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const args = ["-Action", "RecordProgress", "-TaskId", input.task_id, "-StageId", input.stage_id, "-ProgressKind", input.kind, "-ProgressSummary", input.summary];
+  if (input.checkpoint) args.push("-CheckpointJson", JSON.stringify(input.checkpoint));
+  return runPlanSupervisionAction(repo, input.plan_id, args);
+}
+async function requestHandoverTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const args = ["-Action", "RequestHandover", "-TaskId", input.task_id, "-ProgressSummary", input.reason];
+  if (input.checkpoint) args.push("-CheckpointJson", JSON.stringify(input.checkpoint));
+  return runPlanSupervisionAction(repo, input.plan_id, args);
+}
+async function setReadinessLeaseTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  return runPlanSupervisionAction(repo, input.plan_id, ["-Action", "SetReadinessLease", "-ReadinessLeaseJson", JSON.stringify(input.lease)]);
+}
+async function recordObservationTool(input) {
+  const repo = resolveExistingRepo(input.repo);
+  const result = await runPowerShell(
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      getObservationScriptPath(),
+      "-PlanId",
+      input.plan_id,
+      "-PlanRoot",
+      getPlanRoot(repo),
+      "-TaskId",
+      input.task_id,
+      "-Phase",
+      input.phase,
+      "-PairId",
+      input.pair_id ?? "",
+      "-TransportMode",
+      input.transport_mode ?? "",
+      "-EvidenceJson",
+      input.evidence ? JSON.stringify(input.evidence) : "",
+      "-ObservedAt",
+      input.observed_at ?? ""
+    ],
+    { timeoutMs: 3e4 }
+  );
+  return { ok: result.exitCode === 0, exit_code: result.exitCode, repo, plan_id: input.plan_id, task_id: input.task_id, stderr: result.stderr };
+}
 function resultTool(input) {
   const repo = resolveExistingRepo(input.repo);
   const jobId = input.job_id.trim();
@@ -32941,10 +33043,11 @@ var researchContractSchema = external_exports.object({
   freshness: external_exports.enum(["", "day", "week", "month", "year"]).optional()
 });
 var boundedTaskBudgetSchema = external_exports.object({
-  max_turns: external_exports.number().int().positive().max(80),
-  max_wall_seconds: external_exports.number().int().positive().max(3600),
-  max_attempts: external_exports.number().int().positive().max(10).optional()
-});
+  max_turns: external_exports.number().int().positive().max(80).optional(),
+  max_wall_seconds: external_exports.number().int().positive().max(86400).optional(),
+  max_attempts: external_exports.number().int().positive().max(10).optional(),
+  max_cost: external_exports.number().nonnegative().optional()
+}).refine((budget) => Object.keys(budget).length > 0, "Budget must contain at least one explicit hard limit.");
 var plannedTaskContractSchema = external_exports.object({
   task_id: external_exports.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/).optional(),
   title: external_exports.string().min(1),
@@ -33302,6 +33405,87 @@ function createServer() {
       }
     },
     async (input) => asJsonContent(governanceSummaryTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_supervision",
+    {
+      title: "Read Codex Praetor Supervision State",
+      description: "Read stages, readiness leases, handovers, and low-frequency lifecycle observations for a plan. This never starts or monitors a worker.",
+      annotations: readOnlyClosedWorld,
+      inputSchema: { repo: external_exports.string().min(1), plan_id: external_exports.string().min(1) }
+    },
+    async (input) => asJsonContent(supervisionTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_start_stage",
+    {
+      title: "Start a Codex Praetor Stage",
+      description: "Record a Codex-defined stage and checkpoint boundary in the durable plan. This does not dispatch a worker.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: { repo: external_exports.string().min(1), plan_id: external_exports.string().min(1), stage_id: external_exports.string().min(1), title: external_exports.string().min(1) }
+    },
+    async (input) => asJsonContent(await startStageTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_record_progress",
+    {
+      title: "Record Material Progress",
+      description: "Record a material evidence checkpoint, saturation, input wait, safety stop, or verification transition. This is a durable supervisor record, not high-frequency worker polling.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1),
+        task_id: external_exports.string().min(1),
+        stage_id: external_exports.string().min(1),
+        kind: external_exports.enum(["evidence_added", "progress_saturated", "awaiting_input", "safety_stop", "verification_started", "verification_finished"]),
+        summary: external_exports.string().min(1),
+        checkpoint: external_exports.record(external_exports.string(), external_exports.unknown()).optional()
+      }
+    },
+    async (input) => asJsonContent(await recordProgressTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_request_handover",
+    {
+      title: "Request Codex Praetor Handover",
+      description: "Put one task into needs-decision with a durable reason and checkpoint. It does not cancel a running worker; cancellation remains a separate formal action.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: { repo: external_exports.string().min(1), plan_id: external_exports.string().min(1), task_id: external_exports.string().min(1), reason: external_exports.string().min(1), checkpoint: external_exports.record(external_exports.string(), external_exports.unknown()).optional() }
+    },
+    async (input) => asJsonContent(await requestHandoverTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_set_readiness_lease",
+    {
+      title: "Record Codex Praetor Readiness Lease",
+      description: "Project an already verified readiness tuple into the plan so the supervisor can reuse it until expiry. This never reads or changes provider authentication.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1),
+        lease: external_exports.object({ lease_id: external_exports.string().min(1), provider: external_exports.string().min(1), cli_hash: external_exports.string().min(1), permission_profile: external_exports.string().min(1), workspace: external_exports.string().min(1), generation_id: external_exports.string().min(1), expires_at: external_exports.string().datetime(), state: external_exports.enum(["ready", "stale", "blocked"]) }).passthrough()
+      }
+    },
+    async (input) => asJsonContent(await setReadinessLeaseTool(input))
+  );
+  server.registerTool(
+    "codex_praetor_record_observation",
+    {
+      title: "Record Codex Praetor Lifecycle Observation",
+      description: "Record one lifecycle timestamp and evidence pointer for paired Codex-direct or supervised worker work. It never dispatches a worker or polls logs.",
+      annotations: additiveProjectLocalWrite,
+      inputSchema: {
+        repo: external_exports.string().min(1),
+        plan_id: external_exports.string().min(1),
+        task_id: external_exports.string().min(1),
+        phase: external_exports.enum(["codex_direct_started", "codex_direct_evidence", "route_completed", "plan_completed", "dry_run_completed", "dispatch_submitted", "worker_started", "worker_terminal", "verification_finished", "recovery_started", "recovery_finished"]),
+        pair_id: external_exports.string().optional(),
+        transport_mode: external_exports.enum(["", "codex_direct", "supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "codebuddy_daemon"]).optional(),
+        evidence: external_exports.record(external_exports.string(), external_exports.unknown()).optional(),
+        observed_at: external_exports.string().datetime().optional()
+      }
+    },
+    async (input) => asJsonContent(await recordObservationTool(input))
   );
   server.registerTool(
     "codex_praetor_next_ready",

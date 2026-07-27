@@ -6,6 +6,14 @@
 - `plugin/` 是稳定产品，`mcp/` 是源码，`scripts/` 按职责分组，`skill/` 只是兼容镜像；仓库检出和 zip 根目录不是安装入口。稳定入口是 personal marketplace 的 `%USERPROFILE%\plugins\codex-praetor`；开发用隔离 worktree + `UserProfileRoot`。不得手改 plugin cache、认证或 provider 数据库。
 - 公开能力以 `config/public-capabilities.json` 为准：每项声明受众、入口、包内依赖、场景和故障注入。`installed_plugin` 必须从插件 MCP/Skill 完成，`release_bundle` 必须从下载包完成，`developer_only` 不得写成普通用户承诺。
 
+## 渐进式编排与监督
+
+- Codex 接收复杂目标后负责形成可调整的分层计划；外部 worker 接收的是有阶段成果、风险边界和验收标准的执行片段，不要求用户或 Codex 预先把工作压成单文件玩具任务。
+- 历史 capability evidence、当前 readiness lease、每次 dispatch admission 和最终 acceptance 是四件不同的事。历史证据决定默认自动化等级，不得禁止低风险隔离观察期；readiness 命中时不得为每次普通派工重复执行重型 doctor。
+- 正常执行不以固定 `max_turns` 或固定软时间预算判定完成或失败。继续依据是与当前阶段验收关联的新证据；重复错误、无新增证据、风险升级、等待输入或终态才触发 Codex 检查、暂停、恢复、改派或接管。仅进程存在、文字持续输出或重复读取文件不构成进展。
+- worker 在隔离 worktree 的项目源目录中可探索相邻低风险文件；`.git`、认证资料、provider 数据库、密钥、用户配置、生产、发布和不可逆外部动作始终是硬禁止。worker 无权 merge、release 或自行扩大到敏感权限。
+- 未经独立验收的结果不得解锁依赖或进入集成。取消必须请求 provider 的正常取消路径并读取终态；checkpoint、风险事件、等待输入和 handover 必须留作可审计证据。
+
 ## 发布与验收
 
 - 改 `plugin/`、`mcp/`、`skill/`、安装/排错/发布路径、版本、用户体验或公开能力即为发布影响 PR；同一 PR 更新版本面、changelog、release notes、`config/release-intent.json` 与能力清单。

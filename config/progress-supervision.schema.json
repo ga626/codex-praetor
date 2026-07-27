@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-praetor.local/schema/progress-supervision/v1",
+  "title": "Codex Praetor progress-first supervision envelope",
+  "type": "object",
+  "required": ["schema", "stages", "readiness_leases", "handovers"],
+  "properties": {
+    "schema": {"const": "codex-praetor-progress-supervision/v1"},
+    "stages": {"type": "array", "items": {"$ref": "#/$defs/stage"}},
+    "readiness_leases": {"type": "array", "items": {"$ref": "#/$defs/readiness_lease"}},
+    "handovers": {"type": "array", "items": {"$ref": "#/$defs/handover"}}
+  },
+  "$defs": {
+    "stage": {"type": "object", "required": ["stage_id", "title", "state", "started_at", "updated_at"], "properties": {"stage_id": {"type": "string"}, "title": {"type": "string"}, "state": {"enum": ["planned", "running", "awaiting_input", "review_needed", "safety_stop", "verifying", "accepted", "handed_over", "rejected"]}, "started_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}, "checkpoint": {"type": ["object", "null"]}}},
+    "readiness_lease": {"type": "object", "required": ["lease_id", "provider", "cli_hash", "permission_profile", "workspace", "generation_id", "expires_at", "state"], "properties": {"lease_id": {"type": "string"}, "provider": {"type": "string"}, "cli_hash": {"type": "string"}, "permission_profile": {"type": "string"}, "workspace": {"type": "string"}, "generation_id": {"type": "string"}, "expires_at": {"type": "string", "format": "date-time"}, "state": {"enum": ["ready", "stale", "blocked"]}}},
+    "handover": {"type": "object", "required": ["handover_id", "task_id", "requested_at", "reason"], "properties": {"handover_id": {"type": "string"}, "task_id": {"type": "string"}, "requested_at": {"type": "string", "format": "date-time"}, "reason": {"type": "string"}, "checkpoint": {"type": ["object", "null"]}}}
+  }
+}

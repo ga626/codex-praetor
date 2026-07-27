@@ -26,6 +26,12 @@
                              "codex_praetor_detect_conflicts",
                              "codex_praetor_status",
                              "codex_praetor_governance_summary",
+                             "codex_praetor_supervision",
+                             "codex_praetor_start_stage",
+                             "codex_praetor_record_progress",
+                             "codex_praetor_request_handover",
+                             "codex_praetor_set_readiness_lease",
+                             "codex_praetor_record_observation",
                              "codex_praetor_next_ready",
                              "codex_praetor_dispatch_plan_task",
                              "codex_praetor_verify_task"

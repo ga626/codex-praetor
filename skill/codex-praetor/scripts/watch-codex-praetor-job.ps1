@@ -134,6 +134,27 @@ function Update-LockForWorker {
     $updated | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $Path -Encoding UTF8
 }
 
+function Get-ObservationTransportMode {
+    param([object]$Metadata)
+    $format = [string]$Metadata.output_format
+    if ($format -eq "stream-json") { return "supervised_cli_stream_json" }
+    if ($format -eq "json") { return "supervised_cli_json" }
+    return "supervised_cli_text"
+}
+
+function Add-PlanLifecycleObservation {
+    param([object]$Metadata, [string]$PlanRoot, [string]$Phase, [object]$Evidence)
+    if ([string]::IsNullOrWhiteSpace([string]$Metadata.plan_id) -or [string]::IsNullOrWhiteSpace([string]$Metadata.task_id)) { return }
+    $planScript = Join-Path $PSScriptRoot "manage-codex-praetor-plan.ps1"
+    if (-not (Test-Path -LiteralPath $planScript -PathType Leaf)) { return }
+    $data = [ordered]@{ task_id = [string]$Metadata.task_id; pair_id = ""; transport_mode = (Get-ObservationTransportMode -Metadata $Metadata); observed_at = (Get-Date).ToUniversalTime().ToString("o"); evidence = $Evidence }
+    try {
+        & $planScript -Action AppendEvent -PlanId ([string]$Metadata.plan_id) -PlanRoot $PlanRoot -EventType $Phase -EventMessage "$Phase observed for task $($Metadata.task_id)." -EventActor "watcher" -EventDataJson ($data | ConvertTo-Json -Depth 12 -Compress) | Out-Null
+    } catch {
+        Set-JsonProperty -Object $Metadata -Name "plan_observation_error" -Value $_.Exception.Message
+    }
+}
+
 $metaPath = Join-Path $JobDir "job.json"
 $completionPath = Join-Path $JobDir "completion.json"
 $cancelRequestPath = Join-Path $JobDir "cancel-request.json"
@@ -208,6 +229,10 @@ try {
             $WorkerPid = $proc.Id
             Set-JsonProperty -Object $meta -Name "pid" -Value $WorkerPid
             Set-JsonProperty -Object $meta -Name "worker_started_at" -Value $proc.StartTime.ToUniversalTime().ToString("o")
+            Write-JsonFile -Path $metaPath -Value $meta
+            $observationPlanRoot = [string]$meta.plan_root
+            if ([string]::IsNullOrWhiteSpace($observationPlanRoot)) { $observationPlanRoot = "$env:USERPROFILE\.codex\codex-praetor-plans" }
+            Add-PlanLifecycleObservation -Metadata $meta -PlanRoot $observationPlanRoot -Phase "worker_started" -Evidence ([ordered]@{ job_id = [string]$meta.job_id; worker_pid = $WorkerPid })
             Write-JsonFile -Path $metaPath -Value $meta
             $latestAfterStart = Read-JsonWithRetry -Path $metaPath
             if (Test-CancellationRequested -Metadata $latestAfterStart -RequestPath $cancelRequestPath) {
@@ -396,9 +421,11 @@ try {
         if ([string]::IsNullOrWhiteSpace($planRoot)) {
             $planRoot = "$env:USERPROFILE\.codex\codex-praetor-plans"
         }
+        Add-PlanLifecycleObservation -Metadata $meta -PlanRoot $planRoot -Phase "worker_terminal" -Evidence ([ordered]@{ job_id = [string]$meta.job_id; status = $status; exit_code = $exitCode; failure_class = $semanticFailure; evidence_state = $evidenceState; artifact_state = $artifactState })
+        Write-JsonFile -Path $metaPath -Value $meta
         if (Test-Path -LiteralPath $planScript) {
             try {
-                $null = & powershell -NoProfile -ExecutionPolicy Bypass -File $planScript -Action RecordJob -PlanId ([string]$meta.plan_id) -PlanRoot $planRoot -TaskId ([string]$meta.task_id) -JobDir $JobDir -CompletionPath $completionPath 2>&1
+                $null = & $planScript -Action RecordJob -PlanId ([string]$meta.plan_id) -PlanRoot $planRoot -TaskId ([string]$meta.task_id) -JobDir $JobDir -CompletionPath $completionPath
             } catch {
                 $completion.plan_record_error = $_.Exception.Message
             }

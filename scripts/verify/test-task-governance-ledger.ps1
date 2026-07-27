@@ -60,6 +60,18 @@ try {
     & $planScript -Action RecordOutcome -PlanId ledger -PlanRoot $root -TaskId producer -OutcomeJson $outcome | Out-Null
     $summary = & $planScript -Action Summary -PlanId ledger -PlanRoot $root
     Assert-True ([string]$summary -match 'outcomes.*1') "Outcome was not included in compact summary."
+    & $planScript -Action StartStage -PlanId ledger -PlanRoot $root -StageId implementation -StageTitle implementation | Out-Null
+    $checkpoint = '{"base_commit":"fixture","evidence_refs":["diff-1"],"summary":"first accepted stage evidence"}'
+    & $planScript -Action RecordProgress -PlanId ledger -PlanRoot $root -TaskId producer -StageId implementation -ProgressKind evidence_added -ProgressSummary "first verifiable evidence" -CheckpointJson $checkpoint | Out-Null
+    $lease = '{"lease_id":"lease-1","provider":"fixture","cli_hash":"hash","permission_profile":"isolated-edit","workspace":"fixture-repo","generation_id":"fixture-generation","expires_at":"2099-01-01T00:00:00Z","state":"ready"}'
+    & $planScript -Action SetReadinessLease -PlanId ledger -PlanRoot $root -ReadinessLeaseJson $lease | Out-Null
+    & $planScript -Action RequestHandover -PlanId ledger -PlanRoot $root -TaskId consumer -ProgressSummary "repeated verifier failure" -CheckpointJson $checkpoint | Out-Null
+    $plan = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$plan.supervision.schema -eq "codex-praetor-progress-supervision/v1") "Progress supervision envelope was not created."
+    Assert-True (@($plan.supervision.stages).Count -eq 1 -and [string]$plan.supervision.stages[0].stage_id -eq "implementation") "Stage checkpoint was not recorded."
+    Assert-True (@($plan.supervision.readiness_leases).Count -eq 1 -and [string]$plan.supervision.readiness_leases[0].state -eq "ready") "Readiness lease was not recorded."
+    $consumer = @($plan.tasks | Where-Object { $_.task_id -eq "consumer" } | Select-Object -First 1)
+    Assert-True ([string]$consumer[0].governance_state -eq "needs_decision") "Handover did not hold the task for Codex review."
     Write-Host "[PASS] Task governance ledger smoke passed."
 } finally {
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
