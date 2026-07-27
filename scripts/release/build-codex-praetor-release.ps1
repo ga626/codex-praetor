@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.4-alpha",
+    [string]$Version = "0.16.5-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders

@@ -49,11 +49,12 @@ function Invoke-ProtocolFixture {
     $commandLine = @($output | Where-Object { [string]$_ -like "command=*" } | Select-Object -Last 1)
     Assert-True ($commandLine.Count -eq 1) "CodeBuddy $Mode fixture did not emit its command contract."
     $command = [string]$commandLine[0]
-    Assert-True ($command -match "(?:^|\s)-y(?:\s|$)") "CodeBuddy $Mode command is missing the supported headless approval flag."
-    Assert-True ($command -match [regex]::Escape("--tools $ExpectedTools")) "CodeBuddy $Mode command did not receive the expected tool allowlist."
-    Assert-True ($command -notmatch "--permission-mode|--allowedTools|--disallowedTools|dontAsk") "CodeBuddy $Mode command regressed to the historical unsupported permission protocol."
+    Assert-True ($command -match [regex]::Escape("--permission-mode dontAsk")) "CodeBuddy $Mode command is missing the documented headless permission mode."
+    Assert-True ($command -match [regex]::Escape("--allowedTools $ExpectedTools")) "CodeBuddy $Mode command did not receive the expected tool allowlist."
+    Assert-True ($command -notmatch "(?:^|\s)-y(?:\s|$)|--tools|--disallowedTools") "CodeBuddy $Mode command regressed to the broad bypass or legacy tool protocol."
+    $allOutput = $output | Out-String
+    Assert-True ($allOutput -match [regex]::Escape("provider_cli_identity_path=$fakeCodeBuddy")) "CodeBuddy $Mode dry-run did not bind evidence identity to the configured CLI file."
     if ($AllowNetwork) {
-        $allOutput = $output | Out-String
         $source = Get-Content -LiteralPath $wrapper -Raw -Encoding UTF8
         Assert-True ($allOutput -match "worker_network=allowed_by_codex") "Allowed network contract was not recorded by the dry-run."
         Assert-True ($source -match '\$networkRule = if \(\$AllowWorkerNetwork\)' -and $source -match "External network access is allowed for this task") "Allowed network contract is not propagated into the worker prompt source."
@@ -97,7 +98,7 @@ try {
     Invoke-ProtocolFixture -Mode "readonly" -TaskKind "local_audit" -ExpectedTools "Read,Glob,Grep"
     Invoke-ProtocolFixture -Mode "readonly" -TaskKind "test_execution" -ExpectedTools "Read,Glob,Grep,Bash"
     Invoke-ProtocolFixture -Mode "edit" -TaskKind "code_change" -ExpectedTools "Read,Glob,Grep,Edit,Write,Bash" -WorktreeName "permission-protocol" -AllowNetwork
-    Write-Host "[PASS] CodeBuddy permission fault-injection regression rejects the historical dontAsk protocol and accepts the supported headless allowlists without acquiring a Git worktree lock."
+    Write-Host "[PASS] CodeBuddy permission fault-injection and identity protocol regression uses documented dontAsk/allowedTools contracts without acquiring a Git worktree lock."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
 }

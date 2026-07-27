@@ -939,9 +939,11 @@ function Invoke-Or-StartWorker {
         [string]$ContractHash = "",
         [string]$RequestedJobId = "",
         [int]$WorkerTimeoutSeconds = 1200,
-        [string]$DependencyBootstrap = "not_required"
+        [string]$DependencyBootstrap = "not_required",
+        [string]$ProviderCliIdentityPath = ""
     )
 
+    $providerCliIdentity = if ([string]::IsNullOrWhiteSpace($ProviderCliIdentityPath)) { $Exe } else { $ProviderCliIdentityPath }
     $commandLine = Join-CommandLine $Exe $ArgumentList
     Write-Output "provider=$ProviderName"
     Write-Output "tier=$TierName"
@@ -963,6 +965,7 @@ function Invoke-Or-StartWorker {
     Write-Output "price_note=$PriceNote"
     Write-Output "run_mode=$RunMode"
     Write-Output "task_kind=$TaskKindName"
+    Write-Output "provider_cli_identity_path=$providerCliIdentity"
     Write-Output "dependency_bootstrap=$DependencyBootstrap"
     Write-Output ("worker_network=" + $(if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }))
     if (-not [string]::IsNullOrWhiteSpace($ContractHash)) { Write-Output "contract_hash=$ContractHash" }
@@ -1027,7 +1030,7 @@ function Invoke-Or-StartWorker {
         generation_id = [string]$generation.generation_id
         runtime_contract_sha256 = $runtimeContractHash
         wrapper_protocol = [string]$runtimeContract.wrapperProtocol
-        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $Exe; cli_hash = (Get-FileSha256OrEmpty -Path $Exe); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
+        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $providerCliIdentity; cli_hash = (Get-FileSha256OrEmpty -Path $providerCliIdentity); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
         contract_hash = $ContractHash
         run_mode = $RunMode
         status = "starting"
@@ -1560,20 +1563,20 @@ $networkRule
             $cmdArgs += @("--json-schema", $JsonSchema)
         }
         if ($TaskKind -eq "test_execution") {
-            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep,Bash")
+            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep,Bash")
         } elseif ($Mode -eq "readonly") {
-            # CodeBuddy's current CLI does not accept the historical dontAsk
-            # mode. In headless runs, -y supplies the non-interactive approval
-            # and --tools is the complete built-in-tool allowlist.
-            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep")
+            # CodeBuddy documents dontAsk with --allowedTools for headless
+            # automation.  It rejects unlisted tool calls rather than granting
+            # the broad bypass represented by -y.
+            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep")
         } else {
-            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep,Edit,Write,Bash")
+            $cmdArgs += @("--permission-mode", "dontAsk", "--allowedTools", "Read,Glob,Grep,Edit,Write,Bash")
         }
         $cmdArgs += @("-p", $supervisedTask)
 
         $structured = ""
         if (-not [string]::IsNullOrWhiteSpace($JsonSchema)) { $structured = "json_schema" }
-        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -StructuredOutput $structured -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap
+        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -StructuredOutput $structured -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ProviderCliIdentityPath $codebuddy
     }
 
 } finally {

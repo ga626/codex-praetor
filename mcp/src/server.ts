@@ -100,7 +100,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.4-alpha"
+    version: "0.16.5-alpha"
   });
 
   server.registerTool(
