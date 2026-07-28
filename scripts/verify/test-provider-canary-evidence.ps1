@@ -82,7 +82,7 @@ if ($taskKind -eq "code_change") {
     if ($normalizedAllowedPaths -notcontains $normalizedDestination -or $requiredChecks -notcontains [string]$material.baseline_command) { throw "Fake code-change canary received an incomplete material contract. allowed=$($normalizedAllowedPaths -join ','); destination=$normalizedDestination; checks=$($requiredChecks -join '|'); baseline=$($material.baseline_command)" }
 }
 [ordered]@{ schema = "codex-praetor-task-contract/v5"; task_material = $material } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $taskContractPath -Encoding UTF8
-[ordered]@{ job_id = "fake-canary-$taskKind"; execution_repo = $workerRepo; stdout = $stdoutPath; completion = $completionPath; task_contract = $taskContractPath; provider_tuple = [ordered]@{ model = "Qwen3.7-Plus"; permission_profile = $permission } } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
+[ordered]@{ job_id = "fake-canary-$taskKind"; execution_repo = $workerRepo; stdout = $stdoutPath; completion = $completionPath; task_contract = $taskContractPath; provider_tuple = [ordered]@{ provider = "qoder"; cli_path = "C:\\fake\\qodercli.exe"; cli_hash = ("a" * 64); model = "Qwen3.7-Plus"; permission_profile = $permission } } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
 if ($failure) {
     Set-Content -LiteralPath $stdoutPath -Value "Request blocked by risk control" -Encoding UTF8
     [ordered]@{ status = "process_exited"; exit_code = 0; failure_class = "provider_output_unparseable" } | ConvertTo-Json | Set-Content -LiteralPath $completionPath -Encoding UTF8

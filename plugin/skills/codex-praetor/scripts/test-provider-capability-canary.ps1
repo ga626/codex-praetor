@@ -311,8 +311,15 @@ if ($repoObservation.status -eq "external_repo_drift_observed") {
     Write-Warning "Repository status changed while the canary ran. Provider proof remains valid; checkout drift was recorded for review."
 }
 
-$cliPath = Get-ProviderCliPath -Path $ConfigPath -ProviderName $Provider
-$cliHash = if (Test-Path -LiteralPath $cliPath -PathType Leaf) { (Get-FileHash -LiteralPath $cliPath -Algorithm SHA256).Hash } else { "" }
+$workerTuple = $workerEvidence.job.provider_tuple
+if ($null -eq $workerTuple -or [string]$workerTuple.provider -ne $Provider) {
+    throw "Capability canary did not retain the actual $Provider provider tuple."
+}
+$cliPath = [string]$workerTuple.cli_path
+$cliHash = [string]$workerTuple.cli_hash
+if ([string]::IsNullOrWhiteSpace($cliPath) -or [string]::IsNullOrWhiteSpace($cliHash)) {
+    throw "Capability canary did not retain the actual provider CLI identity."
+}
 $entry = [pscustomobject]@{
     generation_id = [string]$generation.generation_id
     runtime_contract_sha256 = $runtimeContractHash
@@ -320,8 +327,8 @@ $entry = [pscustomobject]@{
     provider = $Provider
     cli_path = $cliPath
     cli_hash = $cliHash
-    model = [string]$workerEvidence.job.provider_tuple.model
-    permission_profile = [string]$workerEvidence.job.provider_tuple.permission_profile
+    model = [string]$workerTuple.model
+    permission_profile = [string]$workerTuple.permission_profile
     task_kind = $TaskKind
     status = "passed"
     passed_at = (Get-Date).ToString("o")
