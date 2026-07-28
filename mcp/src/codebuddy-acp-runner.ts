@@ -82,9 +82,17 @@ function trace(options: RunnerOptions, event: string, data: Record<string, unkno
 }
 
 function normalizeRelative(value: string) { return value.replaceAll("\\", "/").replace(/^\.\//, ""); }
-function globMatches(pattern: string, value: string) {
-  const escaped = normalizeRelative(pattern).replace(/[|\\{}()[\]^$+?.]/g, "\\$&").replaceAll("**", "::DOUBLE_STAR::").replaceAll("*", "[^/]*").replaceAll("::DOUBLE_STAR::", ".*");
-  return new RegExp(`^${escaped}$`, "i").test(normalizeRelative(value));
+function contractPathMatches(pattern: string, value: string) {
+  const normalizedPattern = normalizeRelative(pattern).replace(/\/+$/, "");
+  const normalizedValue = normalizeRelative(value);
+  if (!normalizedPattern) return false;
+  // A literal contract entry names a file or a directory root. Directories
+  // include descendants; wildcard entries retain their explicit glob meaning.
+  if (!/[?*]/.test(normalizedPattern)) {
+    return normalizedValue === normalizedPattern || normalizedValue.startsWith(`${normalizedPattern}/`);
+  }
+  const escaped = normalizedPattern.replace(/[|\\{}()[\]^$+?.]/g, "\\$&").replaceAll("**", "::DOUBLE_STAR::").replaceAll("*", "[^/]*").replaceAll("::DOUBLE_STAR::", ".*");
+  return new RegExp(`^${escaped}$`, "i").test(normalizedValue);
 }
 function relativeInside(root: string, candidate: unknown) {
   if (typeof candidate !== "string" || candidate.trim() === "") return "";
@@ -98,17 +106,17 @@ function pathAllowed(options: RunnerOptions, candidate: unknown, write = false) 
   const relative = relativeInside(options.cwd, candidate);
   if (relative === undefined) return false;
   if (relative === "") return true;
-  if (options.forbidden_paths.some((entry) => globMatches(entry, relative))) return false;
+  if (options.forbidden_paths.some((entry) => contractPathMatches(entry, relative))) return false;
   const allowlist = write ? options.writable_paths : options.allowed_paths;
-  return allowlist.some((entry) => globMatches(entry, relative));
+  return allowlist.some((entry) => contractPathMatches(entry, relative));
 }
 function pathScope(options: RunnerOptions, candidate: unknown, write = false) {
   const relative = relativeInside(options.cwd, candidate);
   if (relative === undefined) return "outside_worktree";
   if (relative === "") return "no_path";
-  if (options.forbidden_paths.some((entry) => globMatches(entry, relative))) return "forbidden_path";
+  if (options.forbidden_paths.some((entry) => contractPathMatches(entry, relative))) return "forbidden_path";
   const allowlist = write ? options.writable_paths : options.allowed_paths;
-  return allowlist.some((entry) => globMatches(entry, relative)) ? "allowed_path" : "not_allowlisted";
+  return allowlist.some((entry) => contractPathMatches(entry, relative)) ? "allowed_path" : "not_allowlisted";
 }
 function requestedPath(params: Record<string, unknown> = {}) {
   const rawInput = (params.toolCall as { rawInput?: Record<string, unknown> } | undefined)?.rawInput;

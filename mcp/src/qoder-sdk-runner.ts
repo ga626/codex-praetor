@@ -95,13 +95,19 @@ function normalizeRelative(value: string) {
   return value.replaceAll("\\", "/").replace(/^\.\//, "");
 }
 
-function globMatches(pattern: string, value: string) {
-  const escaped = normalizeRelative(pattern)
+function contractPathMatches(pattern: string, value: string) {
+  const normalizedPattern = normalizeRelative(pattern).replace(/\/+$/, "");
+  const normalizedValue = normalizeRelative(value);
+  if (!normalizedPattern) return false;
+  if (!/[?*]/.test(normalizedPattern)) {
+    return normalizedValue === normalizedPattern || normalizedValue.startsWith(`${normalizedPattern}/`);
+  }
+  const escaped = normalizedPattern
     .replace(/[|\\{}()[\]^$+?.]/g, "\\$&")
     .replaceAll("**", "::DOUBLE_STAR::")
     .replaceAll("*", "[^/]*")
     .replaceAll("::DOUBLE_STAR::", ".*");
-  return new RegExp(`^${escaped}$`, "i").test(normalizeRelative(value));
+  return new RegExp(`^${escaped}$`, "i").test(normalizedValue);
 }
 
 function pathAllowed(options: RunnerOptions, candidate: unknown) {
@@ -109,8 +115,8 @@ function pathAllowed(options: RunnerOptions, candidate: unknown) {
   if (path.isAbsolute(candidate) ? !insideRoot(options.cwd, candidate) : candidate.split(/[\\/]/).includes("..")) return false;
   const relative = normalizeRelative(path.relative(options.cwd, path.resolve(options.cwd, candidate)));
   if (relative.startsWith("../")) return false;
-  if (options.forbidden_paths.some((entry) => globMatches(entry, relative))) return false;
-  return options.allowed_paths.some((entry) => globMatches(entry, relative));
+  if (options.forbidden_paths.some((entry) => contractPathMatches(entry, relative))) return false;
+  return options.allowed_paths.some((entry) => contractPathMatches(entry, relative));
 }
 
 function requestedPathInputs(input: Record<string, unknown>) {

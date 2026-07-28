@@ -147,10 +147,10 @@ if (-not [string]::IsNullOrWhiteSpace($TaskMaterialPath)) {
 if (-not [string]::IsNullOrWhiteSpace($TaskMaterialBase64)) {
     try { $TaskMaterialJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($TaskMaterialBase64)) } catch { throw "TaskMaterialBase64 is not valid UTF-8 Base64." }
 }
-if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { $AllowedPath = @($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
-if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { $ForbiddenPath = @($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
-if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { $RequiredCheck = @($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
-if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { $ImmutablePath = @($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { $AllowedPath = [string[]]($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { $ForbiddenPath = [string[]]($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { $RequiredCheck = [string[]]($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { $ImmutablePath = [string[]]($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [Console]::InputEncoding = $utf8NoBom
 [Console]::OutputEncoding = $utf8NoBom
@@ -500,7 +500,15 @@ function Get-ChangedWorktreePaths {
 function Test-PathMatchesContractPatterns {
     param([Parameter(Mandatory = $true)][string]$PathValue, [string[]]$Patterns)
     $normal = $PathValue.Replace('\\', '/')
-    foreach ($pattern in @($Patterns)) { if ($normal -like ([string]$pattern).Replace('\\', '/')) { return $true } }
+    foreach ($pattern in @($Patterns)) {
+        $normalizedPattern = ([string]$pattern).Replace('\\', '/').TrimEnd('/')
+        if ([string]::IsNullOrWhiteSpace($normalizedPattern)) { continue }
+        if ($normalizedPattern -notmatch '[*?]') {
+            if ($normal -eq $normalizedPattern -or $normal.StartsWith($normalizedPattern + '/', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+        } elseif ($normal -like $normalizedPattern) {
+            return $true
+        }
+    }
     return $false
 }
 

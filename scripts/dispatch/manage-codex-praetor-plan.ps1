@@ -89,7 +89,15 @@ function Get-ChangedWorktreePaths {
 function Test-PathMatchesContractPatterns {
     param([Parameter(Mandatory = $true)][string]$PathValue, [string[]]$Patterns)
     $normal = $PathValue.Replace('\\', '/')
-    foreach ($pattern in @($Patterns)) { if ($normal -like ([string]$pattern).Replace('\\', '/')) { return $true } }
+    foreach ($pattern in @($Patterns)) {
+        $normalizedPattern = ([string]$pattern).Replace('\\', '/').TrimEnd('/')
+        if ([string]::IsNullOrWhiteSpace($normalizedPattern)) { continue }
+        if ($normalizedPattern -notmatch '[*?]') {
+            if ($normal -eq $normalizedPattern -or $normal.StartsWith($normalizedPattern + '/', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+        } elseif ($normal -like $normalizedPattern) {
+            return $true
+        }
+    }
     return $false
 }
 function Assert-RealWorktreeAcceptance {

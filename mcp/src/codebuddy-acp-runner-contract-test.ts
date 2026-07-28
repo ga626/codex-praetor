@@ -23,6 +23,14 @@ lines.on("line", (line) => {
     send({ method: "session/update", params: { sessionId: "fixture-session", update: { sessionUpdate: "tool_call_update" } } });
     const chunkCount = mode === "high_volume" ? 512 : 1;
     for (let index = 0; index < chunkCount; index += 1) send({ method: "session/update", params: { sessionId: "fixture-session", update: { sessionUpdate: "agent_message_chunk", messageId: "fixture-final", content: { type: "text", text: chunkCount === 1 ? "ACP fixture complete" : "x" } } } });
+    send({ id: 50, method: "fs/read_text_file", params: { path: process.env.CP_FAKE_INSIDE } });
+    return;
+  }
+  if (message.id === 50) {
+    send({ id: 51, method: "fs/write_text_file", params: { path: process.env.CP_FAKE_INSIDE, content: "changed" } });
+    return;
+  }
+  if (message.id === 51) {
     send({ id: 90, method: "fs/read_text_file", params: { path: process.env.CP_FAKE_OUTSIDE } });
     return;
   }
@@ -53,9 +61,9 @@ function options(jobId: string) {
     launcher_path: process.execPath,
     cli_path: fakeAgent,
     model: "hy3",
-    allowed_paths: ["**"],
+    allowed_paths: ["material"],
     forbidden_paths: [],
-    writable_paths: [],
+    writable_paths: ["material"],
     required_checks: [],
     max_stall_seconds: 30,
     state_path: path.join(job, "session.json"),
@@ -71,12 +79,15 @@ function options(jobId: string) {
 try {
   assert.ok(existsSync(runner), "Build codebuddy ACP runner before this contract test.");
   mkdirSync(root, { recursive: true });
+  const inside = path.join(root, "material", "inside.txt");
+  mkdirSync(path.dirname(inside), { recursive: true });
+  writeFileSync(inside, "before", "utf8");
   writeFileSync(fakeAgent, source, "utf8");
   const outside = path.join(os.tmpdir(), `codex-praetor-outside-${process.pid}.txt`);
   writeFileSync(outside, "outside", "utf8");
 
   const complete = options("complete");
-  const completeProcess = spawn(process.execPath, [runner, "--options-file", complete.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "complete", CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
+  const completeProcess = spawn(process.execPath, [runner, "--options-file", complete.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "complete", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
   let completeOut = "";
   completeProcess.stdout.setEncoding("utf8");
   completeProcess.stdout.on("data", (chunk) => { completeOut += String(chunk); });
@@ -86,10 +97,11 @@ try {
   assert.equal(completeState.state, "completed");
   assert.ok(completeState.structured_events >= 1, "session/update must become compact structured progress evidence.");
   assert.ok(completeState.boundary_denials >= 1, "outside-worktree filesystem read must be denied by the client proxy.");
+  assert.equal(readFileSync(inside, "utf8"), "changed", "a literal directory contract must allow its descendant file through the ACP proxy.");
   assert.match(completeOut, /ACP fixture complete/);
 
   const highVolume = options("high-volume");
-  const highVolumeProcess = spawn(process.execPath, [runner, "--options-file", highVolume.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "high_volume", CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
+  const highVolumeProcess = spawn(process.execPath, [runner, "--options-file", highVolume.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "high_volume", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
   const highVolumeExit = await new Promise<number | null>((resolve) => highVolumeProcess.on("exit", resolve));
   assert.equal(highVolumeExit, 0);
   const highVolumeState = JSON.parse(readFileSync(highVolume.statePath, "utf8"));
@@ -99,7 +111,7 @@ try {
   assert.ok(highVolumeTrace.length < 32, "stream chunks must not create one durable trace record per chunk.");
 
   const unexpected = options("unexpected-cancel");
-  const unexpectedProcess = spawn(process.execPath, [runner, "--options-file", unexpected.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "unexpected_cancel", CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
+  const unexpectedProcess = spawn(process.execPath, [runner, "--options-file", unexpected.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "unexpected_cancel", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
   const unexpectedExit = await new Promise<number | null>((resolve) => unexpectedProcess.on("exit", resolve));
   assert.equal(unexpectedExit, 1, "Provider-side cancellation without a Codex request must not be accepted as success.");
   const unexpectedState = JSON.parse(readFileSync(unexpected.statePath, "utf8"));
@@ -107,7 +119,7 @@ try {
   assert.equal(unexpectedState.terminal_stop_reason, "cancelled");
 
   const cancelled = options("cancelled");
-  const cancelProcess = spawn(process.execPath, [runner, "--options-file", cancelled.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "cancel", CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
+  const cancelProcess = spawn(process.execPath, [runner, "--options-file", cancelled.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "cancel", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
   await waitFor(() => existsSync(cancelled.statePath) && JSON.parse(readFileSync(cancelled.statePath, "utf8")).state === "running", "ACP running state");
   writeFileSync(path.join(cancelled.job, "cancel-request.json"), JSON.stringify({ schema: "codex-praetor-cancel-request/v1" }), "utf8");
   const cancelExit = await new Promise<number | null>((resolve) => cancelProcess.on("exit", resolve));
