@@ -1253,9 +1253,12 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
         $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
     }
     if (Test-Path -LiteralPath $healthScript -PathType Leaf) {
-        $healthArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $healthScript, "-Repo", $Repo, "-Channel", $RuntimeChannel, "-Json")
+        $healthArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $healthScript, "-Repo", $Repo, "-Channel", $RuntimeChannel, "-SkipRuntimeInventory", "-Json")
         if (-not [string]::IsNullOrWhiteSpace($UserProfileRoot)) {
             $healthArgs += @("-UserProfileRoot", [System.IO.Path]::GetFullPath($UserProfileRoot))
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ReadinessPath)) {
+            $healthArgs += @("-ReadinessPath", [System.IO.Path]::GetFullPath($ReadinessPath))
         }
         $null = & powershell @healthArgs 2>$null
         if ($LASTEXITCODE -eq 2) {

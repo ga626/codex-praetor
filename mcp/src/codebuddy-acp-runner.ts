@@ -38,6 +38,14 @@ type State = {
 };
 
 type JsonRpcMessage = { jsonrpc?: string; id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: unknown };
+type TerminalExitStatus = { exitCode: number | null; signal: string | null };
+type TerminalRecord = {
+  process: ChildProcess;
+  output: string;
+  truncated: boolean;
+  exitStatus?: TerminalExitStatus;
+  exited: Promise<TerminalExitStatus>;
+};
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === "string");
@@ -103,7 +111,8 @@ function pathScope(options: RunnerOptions, candidate: unknown, write = false) {
   return allowlist.some((entry) => globMatches(entry, relative)) ? "allowed_path" : "not_allowlisted";
 }
 function requestedPath(params: Record<string, unknown> = {}) {
-  const raw = params.path ?? params.filePath ?? (params.toolCall as { rawInput?: Record<string, unknown> } | undefined)?.rawInput?.file_path;
+  const rawInput = (params.toolCall as { rawInput?: Record<string, unknown> } | undefined)?.rawInput;
+  const raw = params.path ?? params.filePath ?? params.file_path ?? rawInput?.path ?? rawInput?.filePath ?? rawInput?.file_path;
   return typeof raw === "string" ? raw : "";
 }
 function requestedCommand(params: Record<string, unknown> = {}) {
@@ -116,7 +125,7 @@ function requestedCommand(params: Record<string, unknown> = {}) {
 
 class AcpClient {
   private readonly pending = new Map<number, { resolve(value: unknown): void; reject(reason: Error): void }>();
-  private readonly terminalProcesses = new Map<string, ChildProcess>();
+  private readonly terminals = new Map<string, TerminalRecord>();
   private child: ChildProcess;
   private nextId = 1;
   private buffer = "";
@@ -144,6 +153,12 @@ class AcpClient {
     stdout.on("data", (chunk: string) => this.consume(String(chunk)));
     stderr.on("data", (chunk: string) => trace(this.options, "provider_stderr", { bytes: Buffer.byteLength(String(chunk), "utf8") }));
     this.child.on("error", (error) => trace(this.options, "spawn_error", { message: error.message }));
+    this.child.on("close", (code, signal) => {
+      if (this.pending.size === 0) return;
+      const error = new Error(`CodeBuddy ACP server closed before replying (exit=${code ?? "null"}, signal=${signal ?? "null"}).`);
+      for (const pending of this.pending.values()) pending.reject(error);
+      this.pending.clear();
+    });
   }
 
   private currentState(state: State["state"], error?: string) {
@@ -166,6 +181,52 @@ class AcpClient {
   private allowPermission(id: number, allowed: boolean) {
     if (!allowed) this.boundaryDenials += 1;
     this.send({ id, result: { outcome: { outcome: "selected", optionId: allowed ? "allow" : "reject" } } });
+  }
+  private terminalId(params: Record<string, unknown>) {
+    const value = params.terminalId ?? params.terminal_id;
+    return typeof value === "string" ? value : "";
+  }
+  private terminalRecord(params: Record<string, unknown>) {
+    return this.terminals.get(this.terminalId(params));
+  }
+  private startTerminal(command: string) {
+    const terminalId = `codex-praetor-${this.terminals.size + 1}`;
+    // The command was matched exactly against required_checks before this point.
+    // Let the platform parse quoted executable paths instead of corrupting a
+    // legitimate Windows path such as C:\\Program Files\\... by splitting on space.
+    const process = spawn(command, { shell: true, cwd: this.options.cwd, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let resolveExit: (status: TerminalExitStatus) => void = () => undefined;
+    const record: TerminalRecord = {
+      process,
+      output: "",
+      truncated: false,
+      exited: new Promise<TerminalExitStatus>((resolve) => { resolveExit = resolve; })
+    };
+    const appendOutput = (data: unknown) => {
+      record.output += String(data);
+      const limit = 1_048_576;
+      if (Buffer.byteLength(record.output, "utf8") > limit) {
+        record.output = Buffer.from(record.output, "utf8").subarray(-limit).toString("utf8");
+        record.truncated = true;
+      }
+    };
+    process.stdout?.on("data", appendOutput);
+    process.stderr?.on("data", appendOutput);
+    process.on("error", (error) => {
+      appendOutput(error instanceof Error ? error.message : String(error));
+      if (!record.exitStatus) {
+        record.exitStatus = { exitCode: null, signal: null };
+        resolveExit(record.exitStatus);
+      }
+    });
+    process.on("exit", (exitCode, signal) => {
+      if (!record.exitStatus) {
+        record.exitStatus = { exitCode, signal };
+        resolveExit(record.exitStatus);
+      }
+    });
+    this.terminals.set(terminalId, record);
+    return { terminalId, record };
   }
   private async handleRequest(message: JsonRpcMessage) {
     const params = message.params ?? {};
@@ -198,21 +259,39 @@ class AcpClient {
     if (message.method === "terminal/create") {
       const command = requestedCommand(params);
       if (!this.options.required_checks.includes(command)) { this.deny(requestId, "Terminal command is not an exact declared deterministic check."); this.currentState("running"); return; }
-      const terminalId = `codex-praetor-${this.terminalProcesses.size + 1}`;
-      const [executable, ...args] = command.split(/\s+/);
-      const process = spawn(executable, args, { cwd: this.options.cwd, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
-      this.terminalProcesses.set(terminalId, process);
-      process.stdout?.on("data", (data) => this.send({ method: "terminal/output", params: { terminalId, data: String(data) } }));
-      process.stderr?.on("data", (data) => this.send({ method: "terminal/output", params: { terminalId, data: String(data) } }));
-      process.on("exit", (exitCode) => this.send({ method: "terminal/exit", params: { terminalId, exitCode: exitCode ?? -1 } }));
+      const { terminalId } = this.startTerminal(command);
       this.send({ id: requestId, result: { terminalId } });
       trace(this.options, "terminal_started", { command });
       return;
     }
+    if (message.method === "terminal/output") {
+      const record = this.terminalRecord(params);
+      if (!record) { this.deny(requestId, "Unknown ACP terminal."); return; }
+      const result: Record<string, unknown> = { output: record.output, truncated: record.truncated };
+      if (record.exitStatus) result.exitStatus = record.exitStatus;
+      this.send({ id: requestId, result });
+      return;
+    }
+    if (message.method === "terminal/wait_for_exit") {
+      const record = this.terminalRecord(params);
+      if (!record) { this.deny(requestId, "Unknown ACP terminal."); return; }
+      const exitStatus = await record.exited;
+      this.send({ id: requestId, result: exitStatus });
+      return;
+    }
     if (message.method === "terminal/kill") {
-      const terminalId = typeof params.terminalId === "string" ? params.terminalId : "";
-      const process = this.terminalProcesses.get(terminalId);
-      if (process) process.kill();
+      const record = this.terminalRecord(params);
+      if (!record) { this.deny(requestId, "Unknown ACP terminal."); return; }
+      if (!record.exitStatus) record.process.kill();
+      this.send({ id: requestId, result: null });
+      return;
+    }
+    if (message.method === "terminal/release") {
+      const terminalId = this.terminalId(params);
+      const record = this.terminals.get(terminalId);
+      if (!record) { this.deny(requestId, "Unknown ACP terminal."); return; }
+      if (!record.exitStatus) record.process.kill();
+      this.terminals.delete(terminalId);
       this.send({ id: requestId, result: null });
       return;
     }
@@ -316,7 +395,7 @@ class AcpClient {
     } finally {
       cancelWatcher.close();
       if (this.stallTimer) clearTimeout(this.stallTimer);
-      for (const terminal of this.terminalProcesses.values()) terminal.kill();
+      for (const terminal of this.terminals.values()) if (!terminal.exitStatus) terminal.process.kill();
       this.child.stdin?.end();
       // ACP servers are long-lived by design. Once session/prompt returned a
       // terminal result, this disposable worker connection has no reusable
