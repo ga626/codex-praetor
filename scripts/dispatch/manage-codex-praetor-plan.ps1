@@ -456,9 +456,13 @@ function Set-TaskVerification {
     Set-DynamicProperty -Target $target -Name "updated_at" -Value (Get-Date).ToString("o")
     $attempts = @($target.attempts)
     if ($attempts.Count -gt 0) {
-        Set-DynamicProperty -Target $attempts[$attempts.Count - 1] -Name "supervisor_verdict" -Value $Verdict
-        Set-DynamicProperty -Target $attempts[$attempts.Count - 1] -Name "accepted_at" -Value (Get-Date).ToUniversalTime().ToString("o")
-        $timeline = $attempts[$attempts.Count - 1].timeline
+        $verifiedAttempt = @($attempts | Where-Object { [string]$_.attempt_id -eq [string]$target.job_id })
+        if ($verifiedAttempt.Count -ne 1) {
+            throw "Supervisor verification requires exactly one immutable attempt for job $([string]$target.job_id)."
+        }
+        Set-DynamicProperty -Target $verifiedAttempt[0] -Name "supervisor_verdict" -Value $Verdict
+        Set-DynamicProperty -Target $verifiedAttempt[0] -Name "accepted_at" -Value (Get-Date).ToUniversalTime().ToString("o")
+        $timeline = $verifiedAttempt[0].timeline
         if ($null -ne $timeline) {
             Set-DynamicProperty -Target $timeline -Name "verified_at" -Value (Get-Date).ToUniversalTime().ToString("o")
             $elapsed = Get-ElapsedMilliseconds -StartedAt ([string]$timeline.submitted_at) -FinishedAt ([string]$timeline.verified_at)
@@ -566,10 +570,15 @@ if ($Action -eq "Init") {
     $completion = Get-Content -LiteralPath $completionFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $recordTaskId = if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $TaskId } else { [string]$completion.task_id }
     $recordStatus = if ($completion.status -eq "process_exited" -and [string]::IsNullOrWhiteSpace([string]$completion.failure_class) -and $null -ne $completion.exit_code -and [int]$completion.exit_code -eq 0) { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } else { "failed" }
-    $summaryText = "process_state=$($completion.process_state); failure_class=$($completion.failure_class); exit_code=$($completion.exit_code)"
-    Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
-    $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
-    if ($recordTask.Count -eq 1) {
+    $existingAttempts = @($plan.tasks | ForEach-Object { @($_.attempts) } | Where-Object { [string]$_.attempt_id -eq [string]$completion.job_id })
+    if ($existingAttempts.Count -gt 1) {
+        throw "Ledger integrity failure: job $([string]$completion.job_id) has multiple immutable attempts."
+    }
+    if ($existingAttempts.Count -eq 0) {
+        $summaryText = "process_state=$($completion.process_state); failure_class=$($completion.failure_class); exit_code=$($completion.exit_code)"
+        Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
+        $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
+        if ($recordTask.Count -ne 1) { throw "Task missing after recording job: $recordTaskId" }
         $jobPath = Join-Path $JobDir "job.json"
         $job = if (Test-Path -LiteralPath $jobPath -PathType Leaf) { Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
         $submittedAt = if ($null -ne $job) { [string]$job.created_at } else { "" }
@@ -580,8 +589,8 @@ if ($Action -eq "Init") {
         $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = Get-CompletionContractSha256 -Completion $completion; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = $attemptWriteSet; execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
         $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }
+        Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }
     }
-    Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "VerifyTask") {
     Set-TaskVerification -Plan $plan -Id $TaskId -Verdict $VerificationVerdict -SummaryValue $VerificationSummary -NextActionValue $NextAction
