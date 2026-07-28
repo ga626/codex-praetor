@@ -54,6 +54,16 @@ function Assert-Contains {
     }
 }
 
+function Assert-JavaScriptVersionField {
+    param([string]$Text, [string]$ExpectedVersion, [string]$Label)
+    $escapedVersion = [regex]::Escape($ExpectedVersion)
+    if ($Text -match ('version\s*:\s*["' + "'" + ']'+ $escapedVersion + '["' + "'" + ']')) {
+        Add-Pass "$Label exposes version $ExpectedVersion"
+    } else {
+        Add-Fail "$Label is missing a version field for $ExpectedVersion"
+    }
+}
+
 function Assert-NotContains {
     param([string]$Text, [string]$Needle, [string]$Label)
     if ($Text.Contains($Needle)) {
@@ -139,7 +149,7 @@ Assert-JsonVersion -RelativePath "mcp\package.json" -Label "mcp/package.json"
 Assert-Contains -Text $mcpServer -Needle ('version: "' + $Version + '"') -Label "mcp/src/server.ts"
 Assert-JsonVersion -RelativePath "plugin\.codex-plugin\plugin.json" -Label "plugin/.codex-plugin/plugin.json"
 Assert-JsonVersion -RelativePath "plugin\mcp\package.json" -Label "plugin/mcp/package.json"
-Assert-Contains -Text $pluginMcpRuntime -Needle ('version: "' + $Version + '"') -Label "plugin/mcp/dist/server.js"
+Assert-JavaScriptVersionField -Text $pluginMcpRuntime -ExpectedVersion $Version -Label "plugin/mcp/dist/server.js"
 Assert-Contains -Text $releaseBuilder -Needle ('[string]$Version = "' + $Version + '"') -Label "release package builder"
 Assert-Contains -Text $releasePublisher -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release publisher"
 Assert-Contains -Text $releaseVerifier -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release verifier"
