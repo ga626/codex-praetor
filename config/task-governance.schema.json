@@ -99,7 +99,7 @@
     "budget": {
       "type": "object",
       "properties": {
-        "max_attempts": { "type": "integer", "minimum": 1 }, "max_turns": { "type": "integer", "minimum": 1 },
+        "max_attempts": { "type": "integer", "minimum": 1 }, "max_turns": { "type": "integer", "minimum": 1 }, "max_stall_seconds": { "type": "integer", "minimum": 30 },
         "max_wall_seconds": { "type": "integer", "minimum": 1 }, "max_cost": { "type": "number", "minimum": 0 }
       }
     },

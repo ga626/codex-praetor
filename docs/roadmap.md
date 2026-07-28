@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-21
 
-`v0.16.2-alpha` 是当前已公开交付的基线。候选 `v0.16.4-alpha` 只修复 Windows PowerShell UTF-8 BOM 使有效 ledger 被能力画像误判为损坏的解析断点；它不改写历史记录、不提升旧尝试、不读取认证材料，也不自动扩大路由或 provider 能力承诺。合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
+`v0.16.2-alpha` 是当前已公开交付的基线。候选 `v0.16.5-alpha` 只修复 Windows PowerShell UTF-8 BOM 使有效 ledger 被能力画像误判为损坏的解析断点；它不改写历史记录、不提升旧尝试、不读取认证材料，也不自动扩大路由或 provider 能力承诺。合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
 
 已经完成：
 

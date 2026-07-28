@@ -27,7 +27,12 @@ param(
 
     [switch]$PreferQoder,
 
-    [int]$MaxTurns = 8,
+    # Retained only so legacy callers do not break. The selected Qoder SDK and
+    # CodeBuddy ACP adapters do not use a turn count as a normal stop condition.
+    [Nullable[int]]$MaxTurns = $null,
+
+    [ValidateRange(30, 86400)]
+    [int]$MaxStallSeconds = 300,
 
     [ValidateRange(30, 86400)]
     [int]$TimeoutSeconds = 1200,
@@ -1450,6 +1455,10 @@ try {
         research_contract = $researchContract
         acceptance = $Acceptance
         timeout_seconds = $TimeoutSeconds
+        supervision = [ordered]@{
+            max_stall_seconds = $MaxStallSeconds
+            legacy_max_turns = $MaxTurns
+        }
         dependency_bootstrap = $dependencyBootstrap
         created_at = (Get-Date).ToString("o")
     }
@@ -1516,6 +1525,7 @@ $networkRule
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the project artifact root unless Codex explicitly allowed another path. Do not leave scratch or generated files in the Git worktree.
 - Do not pause for progress reports. Work autonomously until this task is complete, blocked, or unsafe.
+- Codex stops this task only for a terminal result, a safety timeout, a declared risk event, or sustained absence of structured progress. There is no fixed turn-count completion limit.
 - Keep output concise and include: what you did, files read/changed, checks run, and risks/unknowns.
 "@
 
@@ -1561,6 +1571,7 @@ $networkRule
             allowed_paths = @($AllowedPath)
             forbidden_paths = @($ForbiddenPath)
             required_checks = @($RequiredCheck)
+            max_stall_seconds = $MaxStallSeconds
             sdk_environment = if ($null -ne $config.providers.qoder.sdkEnvironment) { $config.providers.qoder.sdkEnvironment } else { [ordered]@{} }
         }
         $cmdArgs = @($sdkRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_SDK_OPTIONS__")
@@ -1600,6 +1611,7 @@ $networkRule
             forbidden_paths = @($ForbiddenPath)
             writable_paths = if ($Mode -eq "edit") { @($AllowedPath) } else { @() }
             required_checks = @($RequiredCheck)
+            max_stall_seconds = $MaxStallSeconds
         }
         $cmdArgs = @([string]$acpRunner[0], "--options-file", "__CODEX_PRAETOR_CODEBUDDY_ACP_OPTIONS__")
         Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "acp_ndjson" -StructuredOutput "session_update" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "codebuddy_acp" -AcpRunnerOptions $acpRunnerOptions -ProviderCliPath $codebuddy

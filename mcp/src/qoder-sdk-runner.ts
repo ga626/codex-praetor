@@ -14,6 +14,7 @@ type RunnerOptions = {
   allowed_paths: string[];
   forbidden_paths: string[];
   required_checks: string[];
+  max_stall_seconds: number;
   sdk_environment?: Record<string, string>;
   state_path: string;
 };
@@ -22,7 +23,7 @@ type State = {
   schema: "codex-praetor-qoder-sdk-session/v1";
   job_id: string;
   connection_mode: "qoder_agent_sdk";
-  state: "starting" | "running" | "completed" | "cancelled_session_terminated" | "failed";
+  state: "starting" | "running" | "completed" | "cancelled_session_terminated" | "progress_saturated" | "failed";
   abort_requested: boolean;
   iteration_ended: boolean;
   result_observed: boolean;
@@ -31,6 +32,9 @@ type State = {
   provider_result_error?: boolean;
   provider_result_message?: string;
   denied_tool_requests?: number;
+  progress_events?: number;
+  last_progress_at?: string;
+  stop_reason?: "operator_cancel" | "progress_saturated";
   updated_at: string;
   error?: string;
 };
@@ -53,10 +57,16 @@ function readOptions(): RunnerOptions {
   value.allowed_paths = normalizeStringArray(value.allowed_paths);
   value.forbidden_paths = normalizeStringArray(value.forbidden_paths);
   value.required_checks = normalizeStringArray(value.required_checks);
+  // A declared deterministic check is part of the task contract.  The SDK
+  // must expose Bash for that check to reach canUseTool(), which still admits
+  // only an exact command match.
+  if (value.required_checks.length > 0 && !value.allowed_tools.includes("Bash")) {
+    value.allowed_tools.push("Bash");
+  }
   if (value.schema !== "codex-praetor-qoder-sdk-runner/v1") {
     throw new Error("Unsupported Qoder SDK runner options schema.");
   }
-  if (!value.cwd || !value.prompt || !value.cli_path || !value.state_path) {
+  if (!value.cwd || !value.prompt || !value.cli_path || !value.state_path || !Number.isFinite(value.max_stall_seconds) || value.max_stall_seconds < 30) {
     throw new Error("Qoder SDK runner options are incomplete.");
   }
   return value;
@@ -146,22 +156,43 @@ async function main() {
   let providerResultError = false;
   let providerResultMessage = "";
   let deniedToolRequests = 0;
+  let progressEvents = 0;
+  let lastProgressAt = new Date().toISOString();
+  let stopReason: "operator_cancel" | "progress_saturated" | undefined;
   let watcher: ReturnType<typeof watch> | undefined;
+  let stallTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const abortSession = () => {
+  const abortSession = (reason: "operator_cancel" | "progress_saturated") => {
     if (!abortRequested) {
       abortRequested = true;
+      stopReason = reason;
       controller.abort();
     }
   };
-  if (existsSync(cancelPath)) abortSession();
+  const writeRunningState = () => writeState(options, { state: "running", abort_requested: abortRequested, iteration_ended: false, result_observed: resultObserved, tool_events: toolEvents, result_subtype: resultSubtype, provider_result_error: providerResultError, provider_result_message: providerResultMessage, denied_tool_requests: deniedToolRequests, progress_events: progressEvents, last_progress_at: lastProgressAt, stop_reason: stopReason });
+  const armStallTimer = () => {
+    if (stallTimer) clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => {
+      if (!abortRequested) {
+        abortSession("progress_saturated");
+        writeRunningState();
+      }
+    }, options.max_stall_seconds * 1000);
+  };
+  const markProgress = () => {
+    progressEvents += 1;
+    lastProgressAt = new Date().toISOString();
+    armStallTimer();
+  };
+  if (existsSync(cancelPath)) abortSession("operator_cancel");
   watcher = watch(path.dirname(cancelPath), (_event, filename) => {
-    if (filename?.toString() === path.basename(cancelPath) && existsSync(cancelPath)) abortSession();
+    if (filename?.toString() === path.basename(cancelPath) && existsSync(cancelPath)) abortSession("operator_cancel");
   });
 
-  writeState(options, { state: "starting", abort_requested: abortRequested, iteration_ended: false, result_observed: false, tool_events: 0 });
+    writeState(options, { state: "starting", abort_requested: abortRequested, iteration_ended: false, result_observed: false, tool_events: 0, progress_events: 0, last_progress_at: lastProgressAt, stop_reason: stopReason });
   try {
-    writeState(options, { state: "running", abort_requested: abortRequested, iteration_ended: false, result_observed: false, tool_events: 0 });
+    armStallTimer();
+    writeRunningState();
     let resultText = "";
     for await (const message of query({
       prompt: options.prompt,
@@ -178,7 +209,10 @@ async function main() {
         env: { ...process.env, ...(options.sdk_environment ?? {}), QODERCLI_PATH: options.cli_path }
       }
     })) {
-      if (message.type === "assistant" || message.type === "user") toolEvents += 1;
+      if (message.type === "assistant" || message.type === "user") {
+        toolEvents += 1;
+        markProgress();
+      }
       if (message.type === "result") {
         resultObserved = true;
         resultSubtype = typeof (message as { subtype?: unknown }).subtype === "string" ? (message as { subtype: string }).subtype : "";
@@ -186,18 +220,20 @@ async function main() {
         const candidate = (message as { result?: unknown }).result;
         if (typeof candidate === "string") resultText = candidate;
         providerResultMessage = resultText.slice(0, 500);
+        markProgress();
       }
-      writeState(options, { state: "running", abort_requested: abortRequested, iteration_ended: false, result_observed: resultObserved, tool_events: toolEvents, result_subtype: resultSubtype, provider_result_error: providerResultError, provider_result_message: providerResultMessage, denied_tool_requests: deniedToolRequests });
+      writeRunningState();
     }
-    const state = abortRequested ? "cancelled_session_terminated" : "completed";
-    writeState(options, { state, abort_requested: abortRequested, iteration_ended: true, result_observed: resultObserved, tool_events: toolEvents, result_subtype: resultSubtype, provider_result_error: providerResultError, provider_result_message: providerResultMessage, denied_tool_requests: deniedToolRequests });
+    const state = !abortRequested ? "completed" : stopReason === "progress_saturated" ? "progress_saturated" : "cancelled_session_terminated";
+    writeState(options, { state, abort_requested: abortRequested, iteration_ended: true, result_observed: resultObserved, tool_events: toolEvents, result_subtype: resultSubtype, provider_result_error: providerResultError, provider_result_message: providerResultMessage, denied_tool_requests: deniedToolRequests, progress_events: progressEvents, last_progress_at: lastProgressAt, stop_reason: stopReason });
     if (!abortRequested && resultText) process.stdout.write(`${resultText}\n`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    writeState(options, { state: abortRequested ? "cancelled_session_terminated" : "failed", abort_requested: abortRequested, iteration_ended: abortRequested, result_observed: resultObserved, tool_events: toolEvents, result_subtype: resultSubtype, provider_result_error: providerResultError, provider_result_message: providerResultMessage, denied_tool_requests: deniedToolRequests, error: message });
+    writeState(options, { state: abortRequested ? (stopReason === "progress_saturated" ? "progress_saturated" : "cancelled_session_terminated") : "failed", abort_requested: abortRequested, iteration_ended: abortRequested, result_observed: resultObserved, tool_events: toolEvents, result_subtype: resultSubtype, provider_result_error: providerResultError, provider_result_message: providerResultMessage, denied_tool_requests: deniedToolRequests, progress_events: progressEvents, last_progress_at: lastProgressAt, stop_reason: stopReason, error: message });
     if (!abortRequested) throw error;
   } finally {
     watcher?.close();
+    if (stallTimer) clearTimeout(stallTimer);
   }
 }
 

@@ -291,6 +291,12 @@ try {
         } else {
             $semanticFailure = "cancelled_by_operator"
         }
+    } elseif ([string]$latestMeta.connection_mode -eq "qoder_agent_sdk" -and $null -ne $sdkSession -and [string]$sdkSession.state -eq "progress_saturated" -and [string]$sdkSession.stop_reason -eq "progress_saturated") {
+        $status = "process_exited"
+        $semanticFailure = "progress_saturated"
+    } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.state -eq "progress_saturated" -and [string]$acpSession.stop_reason -eq "progress_saturated") {
+        $status = "process_exited"
+        $semanticFailure = "progress_saturated"
     } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.terminal_stop_reason -eq "cancelled") {
         $status = "process_exited"
         $semanticFailure = "provider_cancelled_unexpected"

@@ -209,7 +209,7 @@ function Read-Plan {
                 if (-not ($task.PSObject.Properties.Name -contains "allowed_paths")) { $task | Add-Member -NotePropertyName allowed_paths -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "forbidden_paths")) { $task | Add-Member -NotePropertyName forbidden_paths -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "completion_definition")) { $task | Add-Member -NotePropertyName completion_definition -NotePropertyValue ([pscustomobject]@{ required_evidence = @(); required_checks = @(); success_predicate = "" }) }
-                if (-not ($task.PSObject.Properties.Name -contains "budget")) { $task | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ max_attempts = 1; max_turns = 8; max_wall_seconds = 1200 }) }
+                if (-not ($task.PSObject.Properties.Name -contains "budget")) { $task | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ max_attempts = 1; max_stall_seconds = 300; max_wall_seconds = 1200 }) }
                 if (-not ($task.PSObject.Properties.Name -contains "stop_loss")) { $task | Add-Member -NotePropertyName stop_loss -NotePropertyValue ([pscustomobject]@{ on_tool_denied = "needs_decision"; on_write_set_overlap = "needs_decision"; on_missing_evidence = "needs_decision" }) }
                 if (-not ($task.PSObject.Properties.Name -contains "outcome_ids")) { $task | Add-Member -NotePropertyName outcome_ids -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "progress")) { $task | Add-Member -NotePropertyName progress -NotePropertyValue ([pscustomobject]@{ completed = 0; total = 1; summary = "" }) }
@@ -305,7 +305,7 @@ function Upsert-Task {
             next_action = ""
             governance_state = "awaiting_supervisor"
             completion_definition = [pscustomobject]@{ required_evidence = @(); required_checks = @(); success_predicate = "" }
-            budget = [pscustomobject]@{ max_attempts = 1; max_turns = 8; max_wall_seconds = 1200 }
+            budget = [pscustomobject]@{ max_attempts = 1; max_stall_seconds = 300; max_wall_seconds = 1200 }
             stop_loss = [pscustomobject]@{ on_tool_denied = "needs_decision"; on_write_set_overlap = "needs_decision"; on_missing_evidence = "needs_decision" }
             selection_id = ""
             outcome_ids = @()

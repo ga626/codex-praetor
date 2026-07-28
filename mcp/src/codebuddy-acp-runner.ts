@@ -14,6 +14,7 @@ type RunnerOptions = {
   forbidden_paths: string[];
   writable_paths: string[];
   required_checks: string[];
+  max_stall_seconds: number;
   state_path: string;
   trace_path: string;
 };
@@ -22,7 +23,7 @@ type State = {
   schema: "codex-praetor-codebuddy-acp-session/v1";
   job_id: string;
   connection_mode: "codebuddy_acp";
-  state: "starting" | "running" | "completed" | "cancelled_session_terminated" | "failed";
+  state: "starting" | "running" | "completed" | "cancelled_session_terminated" | "progress_saturated" | "failed";
   session_id?: string;
   structured_events: number;
   boundary_denials: number;
@@ -30,6 +31,8 @@ type State = {
   cancel_acknowledged: boolean;
   terminal_stop_reason?: string;
   last_event_type?: string;
+  last_progress_at?: string;
+  stop_reason?: "operator_cancel" | "progress_saturated";
   updated_at: string;
   error?: string;
 };
@@ -53,7 +56,7 @@ function readOptions(): RunnerOptions {
   options.writable_paths = normalizeStringArray(options.writable_paths);
   options.required_checks = normalizeStringArray(options.required_checks);
   if (options.schema !== "codex-praetor-codebuddy-acp-runner/v1") throw new Error("Unsupported CodeBuddy ACP runner options schema.");
-  if (![options.job_id, options.cwd, options.prompt, options.launcher_path, options.cli_path, options.model, options.state_path, options.trace_path].every(Boolean)) {
+  if (![options.job_id, options.cwd, options.prompt, options.launcher_path, options.cli_path, options.model, options.state_path, options.trace_path].every(Boolean) || !Number.isFinite(options.max_stall_seconds) || options.max_stall_seconds < 30) {
     throw new Error("CodeBuddy ACP runner options are incomplete.");
   }
   return options;
@@ -127,6 +130,9 @@ class AcpClient {
   private readonly agentMessages = new Map<string, string>();
   private lastAgentMessageId = "";
   private lastEventType = "";
+  private lastProgressAt = new Date().toISOString();
+  private stopReason: "operator_cancel" | "progress_saturated" | undefined;
+  private stallTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: RunnerOptions) {
     this.child = spawn(options.launcher_path, [options.cli_path, "--acp", "-y", "--setting-sources", "project", "--model", options.model], { cwd: options.cwd, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
@@ -141,7 +147,7 @@ class AcpClient {
   }
 
   private currentState(state: State["state"], error?: string) {
-    writeState(this.options, { state, session_id: this.sessionId || undefined, structured_events: this.structuredEvents, boundary_denials: this.boundaryDenials, cancel_requested: this.cancelRequested, cancel_acknowledged: this.cancelAcknowledged, terminal_stop_reason: this.terminalStopReason || undefined, last_event_type: this.lastEventType || undefined, error });
+    writeState(this.options, { state, session_id: this.sessionId || undefined, structured_events: this.structuredEvents, boundary_denials: this.boundaryDenials, cancel_requested: this.cancelRequested, cancel_acknowledged: this.cancelAcknowledged, terminal_stop_reason: this.terminalStopReason || undefined, last_event_type: this.lastEventType || undefined, last_progress_at: this.lastProgressAt, stop_reason: this.stopReason, error });
   }
   private send(message: JsonRpcMessage) {
     trace(this.options, "client_message", { method: message.method ?? "response", id: message.id ?? null });
@@ -222,6 +228,8 @@ class AcpClient {
     if (typeof message.id === "number" && message.method) { void this.handleRequest(message); return; }
     if (message.method === "session/update") {
       this.structuredEvents += 1;
+      this.lastProgressAt = new Date().toISOString();
+      this.armStallTimer();
       const update = message.params?.update as { sessionUpdate?: unknown; content?: { type?: unknown; text?: unknown }; messageId?: unknown; _meta?: Record<string, unknown> } | undefined;
       const updateKind = typeof update?.sessionUpdate === "string" ? update.sessionUpdate : "structured";
       const previousKind = this.lastEventType;
@@ -260,17 +268,22 @@ class AcpClient {
       catch { trace(this.options, "unparseable_stdout", { bytes: Buffer.byteLength(line, "utf8") }); }
     }
   }
-  private async cancelWhenRequested(cancelPath: string) {
-    const requestCancel = async () => {
+  private armStallTimer() {
+    if (this.stallTimer) clearTimeout(this.stallTimer);
+    this.stallTimer = setTimeout(() => { void this.requestCancel("progress_saturated"); }, this.options.max_stall_seconds * 1000);
+  }
+  private async requestCancel(reason: "operator_cancel" | "progress_saturated") {
       if (this.cancelRequested || !this.sessionId) return;
       this.cancelRequested = true;
+      this.stopReason = reason;
       this.currentState("running");
-      trace(this.options, "cancel_requested", { session_id: this.sessionId });
+      trace(this.options, "cancel_requested", { session_id: this.sessionId, reason });
       try { this.send({ method: "session/cancel", params: { sessionId: this.sessionId } }); this.cancelAcknowledged = true; this.currentState("running"); }
       catch (error) { trace(this.options, "cancel_request_error", { message: error instanceof Error ? error.message : String(error) }); }
-    };
-    if (existsSync(cancelPath)) await requestCancel();
-    return watch(path.dirname(cancelPath), (_event, filename) => { if (filename?.toString() === path.basename(cancelPath) && existsSync(cancelPath)) void requestCancel(); });
+  }
+  private async cancelWhenRequested(cancelPath: string) {
+    if (existsSync(cancelPath)) await this.requestCancel("operator_cancel");
+    return watch(path.dirname(cancelPath), (_event, filename) => { if (filename?.toString() === path.basename(cancelPath) && existsSync(cancelPath)) void this.requestCancel("operator_cancel"); });
   }
   fail(message: string) {
     this.currentState("failed", message);
@@ -283,6 +296,7 @@ class AcpClient {
     if (typeof opened.sessionId !== "string" || !opened.sessionId) throw new Error("ACP session/new returned no sessionId.");
     this.sessionId = opened.sessionId;
     this.currentState("running");
+    this.armStallTimer();
     const cancelWatcher = await this.cancelWhenRequested(path.join(path.dirname(this.options.state_path), "cancel-request.json"));
     try {
       const terminal = await this.request("session/prompt", { sessionId: this.sessionId, prompt: [{ type: "text", text: this.options.prompt }] }) as { stopReason?: unknown; result?: unknown };
@@ -296,18 +310,23 @@ class AcpClient {
         trace(this.options, "terminal", { stop_reason: this.terminalStopReason, cancelled: false, unexpected_cancel: true });
         throw new Error(message);
       }
-      this.currentState(cancelled ? "cancelled_session_terminated" : "completed");
-      trace(this.options, "terminal", { stop_reason: this.terminalStopReason || null, cancelled });
+      this.currentState(cancelled ? (this.stopReason === "progress_saturated" ? "progress_saturated" : "cancelled_session_terminated") : "completed");
+      trace(this.options, "terminal", { stop_reason: this.terminalStopReason || null, cancelled, cancellation_reason: this.stopReason ?? null });
       if (!cancelled && this.terminalText) process.stdout.write(`${this.terminalText}\n`);
     } finally {
       cancelWatcher.close();
+      if (this.stallTimer) clearTimeout(this.stallTimer);
       for (const terminal of this.terminalProcesses.values()) terminal.kill();
       this.child.stdin?.end();
       // ACP servers are long-lived by design. Once session/prompt returned a
       // terminal result, this disposable worker connection has no reusable
       // session contract; close it so a completed job cannot keep the watcher
       // alive. This is deliberately after, never instead of, terminal proof.
-      this.child.kill();
+      if (!this.child.killed) {
+        const closed = new Promise<void>((resolve) => this.child.once("close", () => resolve()));
+        this.child.kill();
+        await Promise.race([closed, new Promise<void>((resolve) => setTimeout(resolve, 2_000))]);
+      }
     }
   }
 }

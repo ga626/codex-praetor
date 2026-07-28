@@ -57,6 +57,7 @@ function options(jobId: string) {
     forbidden_paths: [],
     writable_paths: [],
     required_checks: [],
+    max_stall_seconds: 30,
     state_path: path.join(job, "session.json"),
     trace_path: path.join(job, "trace.ndjson")
   };

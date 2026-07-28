@@ -1,7 +1,7 @@
 import { capabilityProfilesTool } from "./capability-profiles.js";
 
 type TaskFamily = "read_only_diagnosis" | "bounded_code_change" | "fixed_test_execution" | "failure_recovery";
-type FailureClass = "provider_risk_control" | "provider_auth_required" | "provider_cli_missing" | "provider_rejected" | "provider_output_unparseable" | "worker_process_failed" | "worker_exit_code_unavailable" | "permission_denied" | "worker_timed_out" | "network_timeout" | "rate_limited" | "provider_unavailable" | "max_turns_exceeded" | "test_failed" | "scope_violation" | "unknown";
+type FailureClass = "provider_risk_control" | "provider_auth_required" | "provider_cli_missing" | "provider_rejected" | "provider_output_unparseable" | "worker_process_failed" | "worker_exit_code_unavailable" | "permission_denied" | "worker_timed_out" | "network_timeout" | "rate_limited" | "provider_unavailable" | "max_turns_exceeded" | "progress_saturated" | "test_failed" | "scope_violation" | "unknown";
 
 export type ExplainableRouteCandidate = {
   provider: string;
