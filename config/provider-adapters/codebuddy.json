@@ -13,17 +13,17 @@
   },
   "permissions": {
     "mappings": [
-      { "profile": "local-audit-v1", "provider_semantics": "Use the verified -y plus Read, Grep and Glob allowlist for a bounded audit." },
-      { "profile": "test-execution-v1", "provider_semantics": "Use the verified -y plus Read, Grep, Glob and Bash allowlist only for declared deterministic checks; Edit and Write remain unavailable." },
-      { "profile": "edit-worktree-v1", "provider_semantics": "Use the verified -y plus edit-tool allowlist only in the disposable worker worktree." }
+      { "profile": "local-audit-v1", "provider_semantics": "Use the verified ACP filesystem client proxy for a bounded audit inside the declared worktree." },
+      { "profile": "test-execution-v1", "provider_semantics": "Use ACP filesystem plus the exact declared terminal-check proxy; Edit and Write remain unavailable." },
+      { "profile": "edit-worktree-v1", "provider_semantics": "Use ACP filesystem proxy writes only inside the declared disposable worker worktree." }
     ],
     "minimum_canaries": ["local_audit", "test_execution", "code_change"]
   },
   "lifecycle": {
-    "launch": "invoke-codex-praetor.ps1 creates the command from the approved fixed model and permission tuple.",
-    "parse_terminal_state": "watch-codex-praetor-job.ps1 separates a clean process exit from a usable worker result.",
-    "cleanup": "The job record persists for Codex review; controlled retention later reclaims disposable worktrees.",
-    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable"]
+    "launch": "invoke-codex-praetor.ps1 starts the Node ACP runner with a fixed model; the runner speaks JSON-RPC NDJSON to CodeBuddy and owns filesystem and bounded terminal client proxies.",
+    "parse_terminal_state": "watch-codex-praetor-job.ps1 requires CodeBuddy ACP terminal evidence, separates a clean process exit from a usable worker result, and records structured session updates without retaining chain-of-thought text.",
+    "cleanup": "session/cancel is sent through ACP; Codex cold recovery creates a new ACP session from durable ledger state. Controlled retention later reclaims disposable worktrees.",
+    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "provider_cancelled_unexpected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable", "cancelled_session_terminated"]
   },
   "evidence": {
     "fixture": "scripts/verify/test-provider-canary-evidence.ps1",

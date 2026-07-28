@@ -82,6 +82,30 @@ Set-JsonProperty -Object $meta -Name "cancel_requested_at" -Value (Get-Date).ToS
 Set-JsonProperty -Object $meta -Name "status_note" -Value "Cancellation was requested; the watcher is the only terminal-state writer."
 Write-JsonFile -Path $metaPath -Value $meta
 
+if ([string]$meta.connection_mode -eq "qoder_agent_sdk") {
+    # The official SDK abort path ends the active session itself.  Do not kill
+    # the Node runner: it must observe this durable request, call
+    # AbortController.abort(), and write its terminal session evidence.
+    Set-JsonProperty -Object $meta -Name "status_note" -Value "Cancellation request persisted for the Qoder SDK runner; waiting for official AbortController terminal projection."
+    Write-JsonFile -Path $metaPath -Value $meta
+    Write-Output "job_id=$($meta.job_id)"
+    Write-Output "status=cancel_requested"
+    Write-Output "cancellation_transport=qoder_sdk_abort"
+    exit 0
+}
+
+if ([string]$meta.connection_mode -eq "codebuddy_acp") {
+    # The ACP runner owns the protocol session. Do not kill it: it must send
+    # session/cancel and wait for the prompt terminal response to prove that
+    # the provider accepted cancellation.
+    Set-JsonProperty -Object $meta -Name "status_note" -Value "Cancellation request persisted for the CodeBuddy ACP runner; waiting for session/cancel terminal projection."
+    Write-JsonFile -Path $metaPath -Value $meta
+    Write-Output "job_id=$($meta.job_id)"
+    Write-Output "status=cancel_requested"
+    Write-Output "cancellation_transport=codebuddy_acp_session_cancel"
+    exit 0
+}
+
 if ($workerProcessId -gt 0) {
     try {
         $proc = [System.Diagnostics.Process]::GetProcessById($workerProcessId)

@@ -79,7 +79,7 @@
       "properties": {
         "source_category": { "enum": ["contract_regression", "real_historical_issue", "real_user_request", "untrusted_or_unknown"] },
         "source_ref": { "type": "string", "minLength": 1 }, "source_commit": { "type": "string", "minLength": 1 }, "input_sha256": { "type": "string", "minLength": 1 },
-        "connection_mode": { "enum": ["supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "codebuddy_daemon"] },
+        "connection_mode": { "enum": ["supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "qoder_agent_sdk", "codebuddy_acp", "codebuddy_daemon"] },
         "verifier_id": { "type": "string", "minLength": 1 }, "verifier_version": { "type": "string", "minLength": 1 }, "verifier_sha256": { "type": "string", "minLength": 1 }
       }
     },

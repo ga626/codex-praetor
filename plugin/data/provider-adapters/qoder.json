@@ -20,10 +20,10 @@
     "minimum_canaries": ["local_audit", "test_execution", "code_change"]
   },
   "lifecycle": {
-    "launch": "invoke-codex-praetor.ps1 builds the supervised CLI command and writes immutable job metadata before launch.",
-    "parse_terminal_state": "watch-codex-praetor-job.ps1 records process state, normalized failure class and evidence state.",
-    "cleanup": "The watcher closes the job lifecycle; retained worktrees are reclaimed only by the controlled cleanup path.",
-    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable"]
+    "launch": "invoke-codex-praetor.ps1 starts the bundled Node runner, which uses the Qoder Agent SDK with qodercliAuth() and a fixed tool/path contract.",
+    "parse_terminal_state": "watch-codex-praetor-job.ps1 records process state, normalized failure class and evidence state; a Qoder cancellation is accepted only after the SDK runner records AbortController session termination.",
+    "cleanup": "The watcher closes the job lifecycle; Qoder cancellation ends its SDK session and cold recovery starts a new session from Codex ledger state. Retained worktrees are reclaimed only by the controlled cleanup path.",
+    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable", "cancelled_session_terminated"]
   },
   "evidence": {
     "fixture": "scripts/verify/test-provider-canary-evidence.ps1",

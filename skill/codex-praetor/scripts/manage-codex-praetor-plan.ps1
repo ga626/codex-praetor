@@ -492,7 +492,7 @@ function Set-TaskEvidenceContext {
     $required = @("source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256")
     if (@($required | Where-Object { [string]::IsNullOrWhiteSpace([string]$context.$_) }).Count -gt 0) { throw "EvidenceContextJson lacks a required field." }
     if ([string]$context.source_category -notin @("contract_regression", "real_historical_issue", "real_user_request", "untrusted_or_unknown")) { throw "EvidenceContextJson source_category is not recognized." }
-    if ([string]$context.connection_mode -notin @("supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "codebuddy_daemon")) { throw "EvidenceContextJson connection_mode is not recognized." }
+    if ([string]$context.connection_mode -notin @("supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "qoder_agent_sdk", "codebuddy_acp", "codebuddy_daemon")) { throw "EvidenceContextJson connection_mode is not recognized." }
     $target = @($Plan.tasks | Where-Object { $_.task_id -eq $Id } | Select-Object -First 1)
     if ($target.Count -ne 1) { throw "Task not found for evidence context: $Id" }
     Set-DynamicProperty -Target $target[0] -Name "evidence_context" -Value $context

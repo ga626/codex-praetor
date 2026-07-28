@@ -152,10 +152,19 @@ export function jobTimelineTool(input: { repo: string; job_id: string }) {
   }
   const meta = readJsonFile(metaPath);
   const completion = existsSync(completionPath) ? readJsonFile(completionPath) : null;
+  const connectionMode = String(meta.connection_mode ?? "");
+  const sessionPath =
+    connectionMode === "qoder_agent_sdk"
+      ? String(meta.qoder_sdk_session ?? "")
+      : connectionMode === "codebuddy_acp"
+        ? String(meta.codebuddy_acp_session ?? "")
+        : "";
+  const connectionState = sessionPath && existsSync(sessionPath) ? readJsonFile(sessionPath) : null;
+  const connectionStage = String(connectionState?.state ?? meta.status ?? "unknown");
   return {
     found: true,
     display: {
-      阶段: String(meta.status ?? "unknown"),
+      阶段: connectionStage,
       执行者: String(meta.provider ?? ""),
       任务类别: String(meta.task_kind ?? ""),
       下一步: completion ? "由 Codex 读取结果并记录验收结论。" : "等待 worker 到达终态。"
@@ -163,6 +172,7 @@ export function jobTimelineTool(input: { repo: string; job_id: string }) {
     job_id: input.job_id,
     contract_hash: String(meta.contract_hash ?? ""),
     events: Array.isArray(meta.events) ? meta.events : [],
+    connection_state: connectionState,
     meta,
     completion
   };

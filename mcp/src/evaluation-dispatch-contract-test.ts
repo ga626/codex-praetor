@@ -66,7 +66,7 @@ try {
   const dispatchedRecord = dispatched as Record<string, unknown>;
   assert.equal(dispatched.ok, true, String(dispatchedRecord.stderr ?? dispatchedRecord.message ?? ""));
   assert.equal(dispatchedRecord.task_kind, "test_execution");
-  assert.match(String(dispatchedRecord.command ?? ""), /--tools Read Grep Glob Bash/);
+  assert.match(String(dispatchedRecord.command ?? ""), /qoder-sdk-runner\.js --options-file/);
 
   const planPath = path.join(planRoot, planId, "plan.json");
   assert.ok(existsSync(planPath));

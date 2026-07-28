@@ -31,7 +31,12 @@
       "contextWindowFlag": "--context-window",
       "defaultOutputFormat": "text",
       "supportsJsonSchema": false,
-      "notes": "Install Qoder or QoderWork CLI and set this path in config/codex-praetor.local.json or CODEX_PRAETOR_CONFIG. Confirm login and credits in Qoder before real dispatch."
+      "sdkEnvironment": {
+        "QODER_CLI_SITE": "cn",
+        "QODER_CLI_MIRROR": "https://static.qoder.com.cn/qoder-cli-cn/releases",
+        "QODER_CLI_VERSION": "1.1.6"
+      },
+      "notes": "Install Qoder or QoderWork CLI and set this path in config/codex-praetor.local.json or CODEX_PRAETOR_CONFIG. The bundled SDK runner reuses normal qodercli login state and needs only non-secret SDK environment settings; remove the CN sample values for a global Qoder account. Confirm login and credits in Qoder before real dispatch."
     },
     "codebuddy": {
       "nodePath": "node",

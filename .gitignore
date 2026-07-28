@@ -30,6 +30,10 @@ build/
 coverage/
 !plugin/mcp/dist/
 !plugin/mcp/dist/server.js
+!plugin/mcp/dist/qoder-sdk-runner.js
+# Downloaded by the verified Qoder SDK packaging step. It is deliberately not
+# versioned, but is included in the immutable release artifact built from it.
+plugin/mcp/dist/qodercli.exe
 
 # Python helper environments and caches
 .venv/
