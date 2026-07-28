@@ -1368,6 +1368,25 @@ if ([string]::IsNullOrWhiteSpace($effectiveOutputFormat)) {
 $providerCliPath = ""
 if ($resolvedProvider -eq "qoder") {
     $providerCliPath = [string]$config.providers.qoder.cliPath
+    $sdkRunnerCandidates = @(
+        (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
+        (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
+    )
+    $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+    if (@($sdkRunner).Count -ne 1) {
+        throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
+    }
+    $sdkCliCandidates = @(
+        (Join-Path (Split-Path -Parent ([string]$sdkRunner[0])) "qodercli.exe"),
+        (Join-Path (Split-Path -Parent (Split-Path -Parent ([string]$sdkRunner[0]))) "node_modules\@qoder-ai\qoder-agent-sdk\dist\_bundled\qodercli.exe")
+    )
+    $sdkCliPath = @($sdkCliCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+    if (@($sdkCliPath).Count -ne 1) {
+        throw "Bundled Qoder SDK CLI is missing from this runtime. Reinstall the package or rebuild the Codex Praetor MCP bundle before dispatch."
+    }
+    # Readiness must identify the binary the SDK runner will really execute,
+    # not the legacy CLI path retained only for normal-login discovery.
+    $providerCliPath = [string]$sdkCliPath[0]
 } elseif ($resolvedProvider -eq "codebuddy") {
     $providerCliPath = [string]$config.providers.codebuddy.cliPath
 }
