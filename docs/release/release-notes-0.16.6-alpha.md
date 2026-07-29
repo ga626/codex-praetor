@@ -6,6 +6,7 @@
 - Fixed durable plan creation so every declared allowed path, forbidden path, required check, and immutable path is preserved exactly in the PowerShell ledger.
 - Fixed the plan response so `task_ids` returns the actual durable task identifiers that `codex_praetor_dispatch_plan_task` accepts.
 - Added a multi-path round-trip regression covering the returned task ID and every persisted scope field.
+- Fixed Windows-safe durable completion writes for cancellation, watcher, and plan-ledger records so an existing target file cannot break the lifecycle check on a hosted Windows runner.
 
 ## Validation Scope
 
