@@ -29,8 +29,10 @@ try {
 
     $packagePath = Join-Path $scratch "mcp\package.json"
     $packageText = Get-Content -LiteralPath $packagePath -Raw -Encoding UTF8
-    $updated = $packageText -replace '"typescript"\s*:\s*"\^5\.9\.3"', '"typescript": "^5.9.4"'
-    Assert-True ($updated -ne $packageText) "Fixture no longer contains the expected development dependency."
+    $typescriptVersion = [regex]::Match($packageText, '"typescript"\s*:\s*"(?<version>[^"]+)"')
+    Assert-True $typescriptVersion.Success "Fixture no longer contains the typescript development dependency."
+    $replacementVersion = $typescriptVersion.Groups["version"].Value + "-fixture.0"
+    $updated = $packageText.Substring(0, $typescriptVersion.Groups["version"].Index) + $replacementVersion + $packageText.Substring($typescriptVersion.Groups["version"].Index + $typescriptVersion.Groups["version"].Length)
     Set-Content -LiteralPath $packagePath -Value $updated -Encoding UTF8
     & git -C $scratch add mcp/package.json
     & git -C $scratch commit -qm "update dev dependency"
