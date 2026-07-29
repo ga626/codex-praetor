@@ -269,3 +269,6 @@ Public GitHub prerelease: `v0.1.0-alpha`.
 - Published release asset `codex-praetor-0.1.0-alpha.zip`.
 
 Known alpha boundary: an already-open Codex thread can keep stale MCP tool handles after plugin changes. Normal use should rely on refreshed tool context after install/update, and troubleshooting should use the lightweight reload/probe path before asking the user to open a new task.
+# 0.16.8-alpha
+
+- 修复非发布 main 合并误触发已有版本 Release 的发布控制面问题，并更新固定的 `actions/checkout` 依赖。

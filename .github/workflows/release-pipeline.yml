@@ -39,8 +39,18 @@ jobs:
           & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\invoke-release-candidate-preflight.ps1 @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Publish immutable Release from this exact main commit
+      - name: Classify mainline publication
+        id: release_impact
         if: ${{ inputs.publish }}
+        shell: pwsh
+        run: |
+          $classification = & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent.ps1 -BaseRef '${{ inputs.base_ref }}'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $shouldPublish = (($classification | Out-String) -match 'Pipeline classification: release_impact')
+          "publish=$($shouldPublish.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+      - name: Publish immutable Release from this exact main commit
+        if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
