@@ -1393,6 +1393,9 @@ if ($resolvedProvider -eq "qoder") {
     }
     $sdkRunnerCandidates = @(
         (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
+        # Release bundles retain the executable runner with the plugin MCP,
+        # rather than the checkout-only source MCP directory.
+        (Join-Path $scriptGrandparent "plugin\mcp\dist\qoder-sdk-runner.js"),
         (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
     )
     $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
