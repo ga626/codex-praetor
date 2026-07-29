@@ -151,6 +151,8 @@ if ($installedPluginDigest) {
 $cachePath = if ($null -ne $contract) { Join-Path $cacheRoot ([string]$contract.version) } else { "" }
 if (Test-Path -LiteralPath $cachePath -PathType Container) {
     Add-HealthCheck -Name "plugin_cache_generation" -Status "ready" -Message "Codex-managed cache contains the running plugin version." -Details $cachePath
+} elseif ($isIsolatedProfile) {
+    Add-HealthCheck -Name "plugin_cache_generation" -Status "ready" -Message "隔离候选 profile 不复用 Codex-managed cache；已安装插件身份是此处的运行时边界。" -Details "not_applicable_for_isolated_candidate"
 } else {
     $versions = if (Test-Path -LiteralPath $cacheRoot -PathType Container) { @(Get-ChildItem -LiteralPath $cacheRoot -Directory -Force | Where-Object { -not $_.Name.StartsWith(".") } | ForEach-Object Name) } else { @() }
     Add-HealthCheck -Name "plugin_cache_generation" -Status "blocked" -Message "Codex-managed cache is missing the runtime contract version." -Details $versions
