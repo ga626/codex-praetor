@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.4-alpha",
-    "previous_version":  "0.16.3-alpha",
-    "tag":  "v0.16.4-alpha",
+    "version":  "0.16.5-alpha",
+    "previous_version":  "0.16.4-alpha",
+    "tag":  "v0.16.5-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.4-alpha.zip",
-    "reason":  "修复 Windows PowerShell UTF-8 BOM 使有效 plan ledger 被能力画像误判为 malformed 的共同静态证据断点；只纠正只读解析，不重写历史账本、不提升旧尝试、不扩大 provider、任务族或自动路由承诺。"
+    "artifact":  "codex-praetor-setup-0.16.5-alpha.zip",
+    "reason":  "交付 Qoder Agent SDK 与 CodeBuddy ACP 的受控真实派工连接层：结构化进展、进展熔断、正式取消、冷恢复和精确 tuple 证据门禁进入同一安装包；同时修复 Windows PowerShell UTF-8 BOM 对有效 plan ledger 的只读解析。未新增 provider、认证资料访问、自动合并或生产侧不可逆动作。"
 }

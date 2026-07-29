@@ -4,6 +4,8 @@ Codex Praetor can dispatch CodeBuddy only when the user has installed and signed
 
 Codex Praetor does not silently install CodeBuddy, sign in for the user, read provider account databases, or promise that a model is free. It can guide the user to the official install/auth flow, wait for the user to finish, re-check the CLI, and then call the configured CLI path with explicit model and tool allowlists.
 
+In 0.16.5-alpha, Codex Praetor uses the CodeBuddy ACP connection for structured progress and formal cancellation. Its filesystem proxy enforces the declared worktree scope, and its terminal proxy admits only the task's exact declared deterministic checks.
+
 普通用户只需要记住一句：Codex Praetor 可以检查本机有没有 CodeBuddy 命令，但不能替你选择中国站、国际站、企业域或 iOA，也不能替你完成浏览器登录。
 
 ## Install

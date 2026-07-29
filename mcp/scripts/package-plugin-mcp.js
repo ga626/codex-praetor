@@ -15,15 +15,30 @@ const packageMetadata = JSON.parse(await readFile(path.join(mcpRoot, "package.js
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
 
-await build({
-  entryPoints: [path.join(mcpRoot, "src", "server.ts")],
-  outfile,
-  bundle: true,
-  platform: "node",
-  format: "esm",
-  target: "node20",
-  sourcemap: false
-});
+for (const [entry, destination] of [
+  ["server.ts", outfile],
+  ["qoder-sdk-runner.ts", path.join(outdir, "qoder-sdk-runner.js")],
+  ["codebuddy-acp-runner.ts", path.join(outdir, "codebuddy-acp-runner.js")]
+]) {
+  await build({
+    entryPoints: [path.join(mcpRoot, "src", entry)],
+    outfile: destination,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node20",
+    // The Qoder SDK bundle preserves whitespace from its dependencies. Minify
+    // whitespace so generated runtime files remain deterministic and pass the
+    // repository's whitespace gate without changing runtime semantics.
+    minifyWhitespace: true,
+    sourcemap: false
+  });
+  // Some third-party SDK templates preserve indentation on otherwise blank
+  // lines. It has no runtime meaning in the generated JavaScript but makes
+  // `git diff --check` reject the immutable plugin artifact.
+  const generated = await readFile(destination, "utf8");
+  await writeFile(destination, generated.replace(/[\t ]+$/gm, ""), "utf8");
+}
 
 await writeFile(
   path.join(pluginMcpRoot, "package.json"),

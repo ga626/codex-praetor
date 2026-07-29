@@ -4,6 +4,8 @@ Codex Praetor can dispatch Qoder only when the user has installed and signed in 
 
 Codex Praetor does not silently install Qoder, sign in for the user, read Qoder account files, or promise that a model is free. It can guide the user to the official install/auth flow, wait for the user to finish, re-check the CLI, and then call the configured CLI path with the model allowlist from the local config.
 
+In 0.16.5-alpha, Codex Praetor uses the Qoder Agent SDK for structured supervision but passes `providers.qoder.cliPath` as the SDK process path. Your installed CLI and its normal login state remain authoritative; the package never copies or reads that login state.
+
 普通用户只需要记住一句：Codex Praetor 可以发现并调用 Qoder，但 Qoder 账号登录、浏览器授权、Personal Access Token 和额度状态都属于 Qoder 自己的流程。
 
 ## Install
@@ -61,6 +63,8 @@ Then edit only your local config:
 ```
 
 If `qodercli` is on `PATH`, you may use `qodercli` as the path.
+
+Codex Praetor passes this configured CLI path to the Qoder Agent SDK. The package does not ship a second Qoder CLI, choose a region for you, or replace the CLI edition and login state you installed.
 
 ## Verify
 

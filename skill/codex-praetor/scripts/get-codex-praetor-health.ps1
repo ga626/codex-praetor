@@ -3,6 +3,8 @@
     [ValidateSet("stable", "dev")]
     [string]$Channel = "stable",
     [string]$UserProfileRoot = $env:USERPROFILE,
+    [string]$ReadinessPath = "",
+    [switch]$SkipRuntimeInventory,
     [switch]$Json
 )
 
@@ -174,7 +176,7 @@ if ($null -ne $receipt -and [string]$receipt.fresh_context.schema -eq "codex-pra
     Add-HealthCheck -Name "fresh_context" -Status "degraded" -Message "No running-generation proof is stored in the legacy receipt. Native runtime_info remains the authoritative host observation." -Details $activeReceiptPath
 }
 
-$readinessPath = Join-Path $profileRoot ".codex\codex-praetor-readiness.json"
+$readinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) { Join-Path $profileRoot ".codex\codex-praetor-readiness.json" } else { [System.IO.Path]::GetFullPath($ReadinessPath) }
 $readinessResult = $null
 if ($null -ne $runningGeneration -and (Get-Command Get-CodexPraetorCurrentReadinessEntries -ErrorAction SilentlyContinue)) {
     $readinessResult = Get-CodexPraetorCurrentReadinessEntries -Path $readinessPath -ExpectedGeneration ([string]$runningGeneration.generation_id) -ExpectedRuntimeContract $runtimeContractHash -ExpectedTaskContract ([string]$contract.taskContractSchema)
@@ -213,7 +215,9 @@ if (Test-Path -LiteralPath $retirementManifestPath -PathType Leaf) {
     Add-HealthCheck -Name "generation_retirement" -Status "ready" -Message "当前没有退休清单；没有待回收代际。" -Details $retirementSummary
 }
 
-if (@($inventoryScriptPath).Count -eq 1) {
+if ($SkipRuntimeInventory) {
+    Add-HealthCheck -Name "runtime_inventory" -Status "ready" -Message "Dispatch preflight skipped the full runtime inventory; run health without SkipRuntimeInventory for the read-only audit." -Details "skipped_for_dispatch_preflight"
+} elseif (@($inventoryScriptPath).Count -eq 1) {
     try {
         $inventory = (& powershell -NoProfile -ExecutionPolicy Bypass -File ([string]$inventoryScriptPath[0]) -Repo $Repo -UserProfileRoot $profileRoot -Channel $Channel -Json | Out-String) | ConvertFrom-Json
         $inventoryStatus = if (@($inventory.items | Where-Object { $_.category -eq "dirty/unmerged" }).Count -gt 0) { "degraded" } else { "ready" }

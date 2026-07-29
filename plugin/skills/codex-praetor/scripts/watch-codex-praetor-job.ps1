@@ -200,6 +200,8 @@ try {
             $startInfo.CreateNoWindow = $true
             $startInfo.RedirectStandardOutput = $true
             $startInfo.RedirectStandardError = $true
+            $startInfo.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
+            $startInfo.StandardErrorEncoding = New-Object System.Text.UTF8Encoding($false)
             $proc = New-Object System.Diagnostics.Process
             $proc.StartInfo = $startInfo
             if (-not $proc.Start()) { throw "Worker process did not start." }
@@ -249,6 +251,16 @@ try {
     $latestCompletion = $null
     try { $latestCompletion = Read-JsonWithRetry -Path $completionPath } catch { $waitError = "Could not read existing completion after retries: $($_.Exception.Message)" }
     $cancelledExternally = (Test-CancellationRequested -Metadata $latestMeta -RequestPath $cancelRequestPath) -or ($null -ne $latestCompletion -and [string]$latestCompletion.status -eq "cancelled")
+    $sdkSession = $null
+    $sdkSessionPath = if ($null -ne $latestMeta) { [string]$latestMeta.qoder_sdk_session } else { "" }
+    if (-not [string]::IsNullOrWhiteSpace($sdkSessionPath)) {
+        try { $sdkSession = Read-JsonWithRetry -Path $sdkSessionPath } catch { $sdkSession = $null }
+    }
+    $acpSession = $null
+    $acpSessionPath = if ($null -ne $latestMeta) { [string]$latestMeta.codebuddy_acp_session } else { "" }
+    if (-not [string]::IsNullOrWhiteSpace($acpSessionPath)) {
+        try { $acpSession = Read-JsonWithRetry -Path $acpSessionPath } catch { $acpSession = $null }
+    }
     # A worker exit is execution evidence, not a logical-task acceptance.
     $status = "process_exited"
     $semanticFailure = ""
@@ -272,7 +284,22 @@ try {
     }
     if ($cancelledExternally) {
         $status = "cancelled"
-        $semanticFailure = "cancelled_by_operator"
+        if ([string]$latestMeta.connection_mode -eq "qoder_agent_sdk" -and $null -ne $sdkSession -and [string]$sdkSession.state -eq "cancelled_session_terminated" -and [bool]$sdkSession.abort_requested -and [bool]$sdkSession.iteration_ended) {
+            $semanticFailure = "cancelled_session_terminated"
+        } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.state -eq "cancelled_session_terminated" -and [bool]$acpSession.cancel_requested -and [bool]$acpSession.cancel_acknowledged -and [string]$acpSession.terminal_stop_reason -eq "cancelled") {
+            $semanticFailure = "cancelled_session_terminated"
+        } else {
+            $semanticFailure = "cancelled_by_operator"
+        }
+    } elseif ([string]$latestMeta.connection_mode -eq "qoder_agent_sdk" -and $null -ne $sdkSession -and [string]$sdkSession.state -eq "progress_saturated" -and [string]$sdkSession.stop_reason -eq "progress_saturated") {
+        $status = "process_exited"
+        $semanticFailure = "progress_saturated"
+    } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.state -eq "progress_saturated" -and [string]$acpSession.stop_reason -eq "progress_saturated") {
+        $status = "process_exited"
+        $semanticFailure = "progress_saturated"
+    } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.terminal_stop_reason -eq "cancelled") {
+        $status = "process_exited"
+        $semanticFailure = "provider_cancelled_unexpected"
     } elseif ($timedOut) {
         $status = "timed_out"
     } elseif (-not [string]::IsNullOrWhiteSpace($semanticFailure)) {
@@ -360,6 +387,10 @@ try {
         runtime_contract_sha256 = $meta.runtime_contract_sha256
         wrapper_protocol = $meta.wrapper_protocol
         provider_tuple = $meta.provider_tuple
+        connection_mode = $meta.connection_mode
+        qoder_sdk_session = $sdkSession
+        codebuddy_acp_session = $acpSession
+        recovery_mode = if ([string]$meta.connection_mode -in @("qoder_agent_sdk", "codebuddy_acp") -and $semanticFailure -eq "cancelled_session_terminated") { "cold_resume_from_codex_ledger" } else { "" }
         terminal_state = $status
         process_state = $status
         evidence_state = $evidenceState

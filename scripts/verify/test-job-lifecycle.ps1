@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = ""
 )
 
@@ -66,6 +66,9 @@ try {
     Assert-True ([string]$semantic.governance_state -eq "rejected") "Semantic worker failure must be recorded as rejected, not awaiting supervisor acceptance."
     $report = Invoke-WatchedCase -Name "report-evidence" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'worker report'; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$report.evidence_state -eq "report_valid") "A successful worker report must be recorded as report evidence while awaiting supervisor verification."
+    $unicodeReport = Invoke-WatchedCase -Name "utf8-report-evidence" -WorkerArguments @("-NoProfile", "-Command", "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding(`$false); Write-Output '中文验收报告'; exit 0") -TimeoutSeconds 30
+    $unicodeText = Get-Content -LiteralPath (Join-Path $testRoot "utf8-report-evidence\stdout.log") -Raw -Encoding UTF8
+    Assert-True ($unicodeText -match "中文验收报告") "Watcher must preserve UTF-8 worker reports for Codex acceptance."
     $descriptiveReport = Invoke-WatchedCase -Name "descriptive-failure-word" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'The report documents provider_rejected as a profile example; required check exit code: 0.'; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$descriptiveReport.failure_class -eq "") "A success report that merely names a failure class must not be reclassified as a provider failure."
     Assert-True ([string]$descriptiveReport.evidence_state -eq "report_valid") "A descriptive success report must remain available for Codex verification."

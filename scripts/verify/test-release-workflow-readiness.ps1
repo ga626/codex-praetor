@@ -68,6 +68,8 @@ Assert-True ($releaseText -match 'publish:\s*true') "Release On Main must run th
 Assert-True ($releaseText -match '(?ms)permissions:\s*\r?\n\s+contents:\s*write') "Release On Main must explicitly request contents: write."
 Assert-True ($releaseText -notmatch '(?m)^\s*workflow_dispatch:') "Release recovery must re-run the original SHA, not manually dispatch the latest branch head."
 Assert-True ($releaseText -match 'release-pipeline\.yml') "Changes to the shared pipeline must trigger Release On Main on main."
+Assert-True ($releaseText -match '"mcp/\*\*"') "Release On Main must include MCP dependency manifest changes."
+Assert-True ($releaseText -notmatch '!mcp/package\.json' -and $releaseText -notmatch '!mcp/package-lock\.json') "Release On Main must not exclude MCP dependency manifests."
 Assert-True ($pipelineText -match '(?ms)on:\s*\r?\n\s+workflow_call:') "Shared release pipeline must be reusable through workflow_call."
 Assert-True ($pipelineText -match 'invoke-release-candidate-preflight\.ps1\s+@arguments') "Shared pipeline must use the one candidate preflight entry."
 Assert-True ($intentGateText -match 'Pipeline classification: non_release') "Release intent gate must expose the non-release classification."

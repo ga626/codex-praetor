@@ -10,7 +10,7 @@
 | 插件能看到，但 MCP 工具不可见 | Desktop host 的插件发现未刷新，或 Node 不可用 | 先确认 Node.js；用独立 host 诊断区分磁盘安装与常驻 Desktop host |
 | MCP 工具报 `Transport closed` | 当前回合的工具句柄旧，或常驻 host 未刷新 | 单独 probe 只能诊断，不能刷新 Desktop；先确认 runtime identity，再按支持的 Desktop 刷新动作恢复 |
 | 没有 Qoder、CodeBuddy | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
-| provider 已安装但真实派工失败 | provider 未登录、权限不够、CLI 路径不对、任务超轮数或 worker 无有效产出 | 先读取 worker result 摘要和失败分类；需要账号动作时重新运行向导，任务太大时缩小后重派 |
+| provider 已安装但真实派工失败 | provider 未登录、权限不够、CLI 路径不对、worker 无有效产出或持续没有结构化进展 | 先读取 worker result 摘要和失败分类；需要账号动作时重新运行向导，任务太大时缩小后重派 |
 | 更新后 health 提示当前 generation 没有 readiness | 新插件已加载，但还没有为这一个运行版本完成真实只读 canary | 对已登录的 provider 真实运行一次 capability canary；不要编辑 `active.json` 或 readiness 文件 |
 | canary 提示仓库有变动 | 开始前已有未提交改动，或运行中有其他流程改动仓库 | 开始前变脏时清理、提交或改用隔离 checkout；运行中变动会被记录，先审查后再编辑，不要伪造 readiness |
 | 执行 provider 官方安装时提示网络不可用或超时 | 官方安装源、DNS、代理或系统网络还没准备好 | 检查网络/代理后重试；也可以先跳过 provider，先完成本体安装 |
@@ -18,7 +18,7 @@
 
 ## 看不到 Codex Praetor 插件
 
-先确认你已经运行过安装向导。如果你使用的是 `0.16.4-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
+先确认你已经运行过安装向导。如果你使用的是 `0.16.5-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
@@ -125,11 +125,11 @@ Codex Praetor 现在把“worker 进程完成”和“任务验收通过”分�
 
 - 采信：结果可用，后续依赖任务可以继续。
 - 拒绝：结果不可用，不推进后续任务。
-- 重试：任务需要缩小、换 provider 或提高轮数后重派。
+- 重试：由 Codex 根据终态证据决定缩小任务、补充上下文、冷恢复、换已合格 provider 或接管；不盲目反复增加固定轮数。
 - 需要人工处理：登录、授权、发布、合并或产品判断需要用户参与。
 - 跳过：这项任务被明确取消或不再需要。
 
-如果 worker 输出里出现 `Max turns exceeded` 或类似超轮数提示，不要把它当作有效完成。正确做法是缩小任务、提高轮数、换 provider，或者让 Codex 接管并说明原因。
+如果 worker 输出里出现 `Max turns exceeded` 或类似历史兼容提示，不要把它当作有效完成，也不要盲目提高固定轮数。保留 worktree 和终态证据，由 Codex 判断是缩小任务、补充上下文、走冷恢复、换已合格 provider，还是接管剩余工作。对于 0.16.5 的 Qoder SDK 与 CodeBuddy ACP 路径，持续没有结构化进展会优先归类为 `progress_saturated` 并正式收束。
 
 provider 说明：
 

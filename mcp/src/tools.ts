@@ -152,10 +152,19 @@ export function jobTimelineTool(input: { repo: string; job_id: string }) {
   }
   const meta = readJsonFile(metaPath);
   const completion = existsSync(completionPath) ? readJsonFile(completionPath) : null;
+  const connectionMode = String(meta.connection_mode ?? "");
+  const sessionPath =
+    connectionMode === "qoder_agent_sdk"
+      ? String(meta.qoder_sdk_session ?? "")
+      : connectionMode === "codebuddy_acp"
+        ? String(meta.codebuddy_acp_session ?? "")
+        : "";
+  const connectionState = sessionPath && existsSync(sessionPath) ? readJsonFile(sessionPath) : null;
+  const connectionStage = String(connectionState?.state ?? meta.status ?? "unknown");
   return {
     found: true,
     display: {
-      阶段: String(meta.status ?? "unknown"),
+      阶段: connectionStage,
       执行者: String(meta.provider ?? ""),
       任务类别: String(meta.task_kind ?? ""),
       下一步: completion ? "由 Codex 读取结果并记录验收结论。" : "等待 worker 到达终态。"
@@ -163,6 +172,7 @@ export function jobTimelineTool(input: { repo: string; job_id: string }) {
     job_id: input.job_id,
     contract_hash: String(meta.contract_hash ?? ""),
     events: Array.isArray(meta.events) ? meta.events : [],
+    connection_state: connectionState,
     meta,
     completion
   };
@@ -288,6 +298,7 @@ function buildDispatchArgs(input: {
   acceptance?: string;
   worktree_name?: string;
   max_turns?: number;
+  max_stall_seconds?: number;
   timeout_seconds?: number;
   allowed_paths?: string[];
   forbidden_paths?: string[];
@@ -336,6 +347,7 @@ function buildDispatchArgs(input: {
   appendOptionalStringArg(args, "-Acceptance", input.acceptance);
   appendOptionalStringArg(args, "-WorktreeName", input.worktree_name);
   appendOptionalNumberArg(args, "-MaxTurns", input.max_turns);
+  appendOptionalNumberArg(args, "-MaxStallSeconds", input.max_stall_seconds);
   appendOptionalNumberArg(args, "-TimeoutSeconds", input.timeout_seconds);
   if ((input.allowed_paths?.length ?? 0) > 0) args.push("-AllowedPathsJson", JSON.stringify(input.allowed_paths));
   if ((input.forbidden_paths?.length ?? 0) > 0) args.push("-ForbiddenPathsJson", JSON.stringify(input.forbidden_paths));
@@ -433,14 +445,21 @@ export function classifyWorkerOutcome(input: {
     return {
       class: "worker_max_turns_exceeded",
       explanation: artifactState === "partial_worktree_diff" ? "worker 超轮数且留下了半成品改动，不能直接验收或合并。" : "worker 超轮数且没有完成任务，不能把进程退出当作有效结果。",
-      next_action: "保留 worktree 供 Codex 检查；缩小任务、提高 MaxTurns、换 provider，或由 Codex 接管并记录原因。"
+      next_action: "保留 worktree 供 Codex 检查；缩小任务、补充上下文、走冷恢复、换已合格 provider，或由 Codex 接管。不要把普通派工变成盲目提高固定轮数。"
+    };
+  }
+  if (failureClass === "progress_saturated") {
+    return {
+      class: "progress_saturated",
+      explanation: "worker 已在持续缺少结构化进展后被正式收束；这不是可验收结果。",
+      next_action: "保留 worktree 与事件证据，由 Codex 判断是否补充任务上下文、冷恢复，或接管剩余工作。"
     };
   }
   if (combined.includes("max turns") || combined.includes("maximum turns") || combined.includes("turns exceeded")) {
     return {
       class: "worker_max_turns_exceeded",
       explanation: "worker 在轮数上限内没有完成任务，不能把它当作有效结果。",
-      next_action: "缩小任务、提高 MaxTurns、换 provider，或由 Codex 接管并记录原因。"
+      next_action: "缩小任务、补充上下文、走冷恢复、换已合格 provider，或由 Codex 接管。不要把普通派工变成盲目提高固定轮数。"
     };
   }
   if (combined.includes("cli not found") || combined.includes("not recognized") || combined.includes("cannot find path")) {
@@ -533,6 +552,7 @@ export async function dispatchTool(input: {
   acceptance?: string;
   worktree_name?: string;
   max_turns?: number;
+  max_stall_seconds?: number;
   timeout_seconds?: number;
   allowed_paths?: string[];
   forbidden_paths?: string[];
@@ -1257,6 +1277,7 @@ export async function dispatchPlanTaskTool(input: {
   tier?: string;
   run_mode?: "blocking" | "background";
   max_turns?: number;
+  max_stall_seconds?: number;
   no_notify?: boolean;
   dry_run?: boolean;
 }) {
@@ -1303,7 +1324,7 @@ export async function dispatchPlanTaskTool(input: {
   const evidenceBootstrap = !!evidenceContext
     && !requiredEvidenceContext.some((field) => !String(evidenceContext[field] ?? "").trim())
     && ["real_historical_issue", "real_user_request"].includes(String(evidenceContext.source_category))
-    && String(evidenceContext.connection_mode) === "supervised_cli_text";
+    && ["supervised_cli_text", "qoder_agent_sdk", "codebuddy_acp"].includes(String(evidenceContext.connection_mode));
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
   }
@@ -1321,6 +1342,7 @@ export async function dispatchPlanTaskTool(input: {
     depends_on: dependsOn,
     acceptance,
     max_turns: input.max_turns ?? (Number(budget.max_turns ?? 0) || undefined),
+    max_stall_seconds: input.max_stall_seconds ?? (Number(budget.max_stall_seconds ?? 0) || undefined),
     timeout_seconds: Number(budget.max_wall_seconds ?? 0) || undefined,
     allowed_paths: allowedPaths,
     forbidden_paths: forbiddenPaths,

@@ -31,7 +31,7 @@
       "contextWindowFlag": "--context-window",
       "defaultOutputFormat": "text",
       "supportsJsonSchema": false,
-      "notes": "Install Qoder or QoderWork CLI and set this path in config/codex-praetor.local.json or CODEX_PRAETOR_CONFIG. Confirm login and credits in Qoder before real dispatch."
+      "notes": "Install Qoder or QoderWork CLI and set this path in config/codex-praetor.local.json or CODEX_PRAETOR_CONFIG. The SDK runner invokes this configured CLI and reuses only its normal login state; it does not ship, replace, or copy a Qoder CLI. Confirm login and credits in Qoder before real dispatch."
     },
     "codebuddy": {
       "nodePath": "node",

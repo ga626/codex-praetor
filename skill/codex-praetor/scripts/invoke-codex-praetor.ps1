@@ -1,4 +1,4 @@
-﻿param(
+param(
     [ValidateSet("auto", "qoder", "codebuddy")]
     [string]$Provider = "auto",
 
@@ -27,7 +27,12 @@
 
     [switch]$PreferQoder,
 
-    [int]$MaxTurns = 8,
+    # Retained only so legacy callers do not break. The selected Qoder SDK and
+    # CodeBuddy ACP adapters do not use a turn count as a normal stop condition.
+    [Nullable[int]]$MaxTurns = $null,
+
+    [ValidateRange(30, 86400)]
+    [int]$MaxStallSeconds = 300,
 
     [ValidateRange(30, 86400)]
     [int]$TimeoutSeconds = 1200,
@@ -142,10 +147,10 @@ if (-not [string]::IsNullOrWhiteSpace($TaskMaterialPath)) {
 if (-not [string]::IsNullOrWhiteSpace($TaskMaterialBase64)) {
     try { $TaskMaterialJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($TaskMaterialBase64)) } catch { throw "TaskMaterialBase64 is not valid UTF-8 Base64." }
 }
-if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { $AllowedPath = @($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
-if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { $ForbiddenPath = @($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
-if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { $RequiredCheck = @($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
-if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { $ImmutablePath = @($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { $AllowedPath = [string[]]($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { $ForbiddenPath = [string[]]($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { $RequiredCheck = [string[]]($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { $ImmutablePath = [string[]]($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [Console]::InputEncoding = $utf8NoBom
 [Console]::OutputEncoding = $utf8NoBom
@@ -413,8 +418,8 @@ function Assert-RealTaskEvidenceBootstrap {
     if ([string]$context.source_category -notin @("real_historical_issue", "real_user_request")) {
         throw "Evidence bootstrap is limited to real historical issues or real user requests."
     }
-    if ([string]$context.connection_mode -ne "supervised_cli_text") {
-        throw "Evidence bootstrap is limited to the current supervised CLI text control path."
+    if ([string]$context.connection_mode -notin @("supervised_cli_text", "qoder_agent_sdk", "codebuddy_acp")) {
+        throw "Evidence bootstrap requires a recognized tested connection mode."
     }
     if (@($planTask.allowed_paths).Count -eq 0 -or @($planTask.forbidden_paths).Count -eq 0 -or @($planTask.completion_definition.required_checks).Count -eq 0) {
         throw "Evidence bootstrap requires a complete plan scope and independent checks."
@@ -495,7 +500,15 @@ function Get-ChangedWorktreePaths {
 function Test-PathMatchesContractPatterns {
     param([Parameter(Mandatory = $true)][string]$PathValue, [string[]]$Patterns)
     $normal = $PathValue.Replace('\\', '/')
-    foreach ($pattern in @($Patterns)) { if ($normal -like ([string]$pattern).Replace('\\', '/')) { return $true } }
+    foreach ($pattern in @($Patterns)) {
+        $normalizedPattern = ([string]$pattern).Replace('\\', '/').TrimEnd('/')
+        if ([string]::IsNullOrWhiteSpace($normalizedPattern)) { continue }
+        if ($normalizedPattern -notmatch '[*?]') {
+            if ($normal -eq $normalizedPattern -or $normal.StartsWith($normalizedPattern + '/', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+        } elseif ($normal -like $normalizedPattern) {
+            return $true
+        }
+    }
     return $false
 }
 
@@ -934,7 +947,11 @@ function Invoke-Or-StartWorker {
         [string]$ContractHash = "",
         [string]$RequestedJobId = "",
         [int]$WorkerTimeoutSeconds = 1200,
-        [string]$DependencyBootstrap = "not_required"
+        [string]$DependencyBootstrap = "not_required",
+        [string]$ConnectionMode = "supervised_cli_text",
+        [object]$SdkRunnerOptions = $null,
+        [object]$AcpRunnerOptions = $null,
+        [string]$ProviderCliPath = ""
     )
 
     $commandLine = Join-CommandLine $Exe $ArgumentList
@@ -983,6 +1000,31 @@ function Invoke-Or-StartWorker {
     $watcherStderrPath = Join-Path $jobDir "watcher.err.log"
     $completionPath = Join-Path $jobDir "completion.json"
     $argumentListPath = Join-Path $jobDir "worker-args.json"
+    $sdkSessionStatePath = ""
+    $acpSessionStatePath = ""
+    if ($null -ne $SdkRunnerOptions) {
+        $sdkOptionsPath = Join-Path $jobDir "qoder-sdk-options.json"
+        $sdkSessionStatePath = Join-Path $jobDir "qoder-sdk-session.json"
+        $SdkRunnerOptions["job_id"] = $jobId
+        $SdkRunnerOptions["state_path"] = $sdkSessionStatePath
+        [IO.File]::WriteAllText($sdkOptionsPath, (($SdkRunnerOptions | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
+        $ArgumentList = @($ArgumentList | ForEach-Object {
+            if ([string]$_ -eq "__CODEX_PRAETOR_QODER_SDK_OPTIONS__") { $sdkOptionsPath } else { $_ }
+        })
+        $commandLine = Join-CommandLine $Exe $ArgumentList
+    }
+    if ($null -ne $AcpRunnerOptions) {
+        $acpOptionsPath = Join-Path $jobDir "codebuddy-acp-options.json"
+        $acpSessionStatePath = Join-Path $jobDir "codebuddy-acp-session.json"
+        $AcpRunnerOptions["job_id"] = $jobId
+        $AcpRunnerOptions["state_path"] = $acpSessionStatePath
+        $AcpRunnerOptions["trace_path"] = (Join-Path $jobDir "codebuddy-acp.trace.ndjson")
+        [IO.File]::WriteAllText($acpOptionsPath, (($AcpRunnerOptions | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
+        $ArgumentList = @($ArgumentList | ForEach-Object {
+            if ([string]$_ -eq "__CODEX_PRAETOR_CODEBUDDY_ACP_OPTIONS__") { $acpOptionsPath } else { $_ }
+        })
+        $commandLine = Join-CommandLine $Exe $ArgumentList
+    }
     $storedContractPath = Join-Path $jobDir "task-contract.json"
     if (-not [string]::IsNullOrWhiteSpace($ContractPath) -and (Test-Path -LiteralPath $ContractPath -PathType Leaf)) {
         Copy-Item -LiteralPath $ContractPath -Destination $storedContractPath -Force
@@ -1017,12 +1059,15 @@ function Invoke-Or-StartWorker {
         mode = $Mode
         task_kind = $TaskKindName
         dependency_bootstrap = $DependencyBootstrap
+        connection_mode = $ConnectionMode
+        qoder_sdk_session = $sdkSessionStatePath
+        codebuddy_acp_session = $acpSessionStatePath
         task_contract = $ContractPath
         task_contract_schema = [string]$runtimeContract.taskContractSchema
         generation_id = [string]$generation.generation_id
         runtime_contract_sha256 = $runtimeContractHash
         wrapper_protocol = [string]$runtimeContract.wrapperProtocol
-        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $Exe; cli_hash = (Get-FileSha256OrEmpty -Path $Exe); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
+        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath }); cli_hash = (Get-FileSha256OrEmpty -Path $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath })); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; connection_mode = $ConnectionMode; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
         contract_hash = $ContractHash
         run_mode = $RunMode
         status = "starting"
@@ -1216,9 +1261,12 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
         $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
     }
     if (Test-Path -LiteralPath $healthScript -PathType Leaf) {
-        $healthArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $healthScript, "-Repo", $Repo, "-Channel", $RuntimeChannel, "-Json")
+        $healthArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $healthScript, "-Repo", $Repo, "-Channel", $RuntimeChannel, "-SkipRuntimeInventory", "-Json")
         if (-not [string]::IsNullOrWhiteSpace($UserProfileRoot)) {
             $healthArgs += @("-UserProfileRoot", [System.IO.Path]::GetFullPath($UserProfileRoot))
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ReadinessPath)) {
+            $healthArgs += @("-ReadinessPath", [System.IO.Path]::GetFullPath($ReadinessPath))
         }
         $null = & powershell @healthArgs 2>$null
         if ($LASTEXITCODE -eq 2) {
@@ -1328,6 +1376,21 @@ if ([string]::IsNullOrWhiteSpace($effectiveOutputFormat)) {
 $providerCliPath = ""
 if ($resolvedProvider -eq "qoder") {
     $providerCliPath = [string]$config.providers.qoder.cliPath
+    if (-not $DryRun -and -not $PreflightOnly -and -not (Test-Path -LiteralPath $providerCliPath -PathType Leaf)) {
+        $qoderCommand = Get-Command $providerCliPath -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -eq $qoderCommand) {
+            throw "Qoder CLI not found: $providerCliPath"
+        }
+        $providerCliPath = [string]$qoderCommand.Source
+    }
+    $sdkRunnerCandidates = @(
+        (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
+        (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
+    )
+    $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+    if (@($sdkRunner).Count -ne 1) {
+        throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
+    }
 } elseif ($resolvedProvider -eq "codebuddy") {
     $providerCliPath = [string]$config.providers.codebuddy.cliPath
 }
@@ -1418,6 +1481,10 @@ try {
         research_contract = $researchContract
         acceptance = $Acceptance
         timeout_seconds = $TimeoutSeconds
+        supervision = [ordered]@{
+            max_stall_seconds = $MaxStallSeconds
+            legacy_max_turns = $MaxTurns
+        }
         dependency_bootstrap = $dependencyBootstrap
         created_at = (Get-Date).ToString("o")
     }
@@ -1484,39 +1551,53 @@ $networkRule
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the project artifact root unless Codex explicitly allowed another path. Do not leave scratch or generated files in the Git worktree.
 - Do not pause for progress reports. Work autonomously until this task is complete, blocked, or unsafe.
+- Codex stops this task only for a terminal result, a safety timeout, a declared risk event, or sustained absence of structured progress. There is no fixed turn-count completion limit.
 - Keep output concise and include: what you did, files read/changed, checks run, and risks/unknowns.
 "@
 
     if ($resolvedProvider -eq "qoder") {
         $qoder = $config.providers.qoder.cliPath
-        if (-not $DryRun -and -not (Test-Path -LiteralPath $qoder)) {
-            throw "Qoder CLI not found: $qoder"
+        $resolvedQoder = $qoder
+        if (-not $DryRun -and -not $PreflightOnly -and -not (Test-Path -LiteralPath $qoder -PathType Leaf)) {
+            $qoderCommand = Get-Command $qoder -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -eq $qoderCommand) {
+                throw "Qoder CLI not found: $qoder"
+            }
+            $resolvedQoder = [string]$qoderCommand.Source
         }
-
-        $cmdArgs = @("-w", $executionRepo, "--model", $model, "--max-output-tokens", "4000", "--output-format", $effectiveOutputFormat)
-        if (-not [string]::IsNullOrWhiteSpace($effectiveReasoningEffort)) {
-            $cmdArgs += @("--reasoning-effort", $effectiveReasoningEffort)
+        $sdkRunnerCandidates = @(
+            (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
+            (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
+        )
+        $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+        if (@($sdkRunner).Count -ne 1) {
+            throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
         }
-        if ($effectiveContextWindow -gt 0) {
-            $cmdArgs += @("--context-window", "$effectiveContextWindow")
-        }
-        if (-not [string]::IsNullOrWhiteSpace($effectiveAgent)) {
-            $cmdArgs += @("--agent", $effectiveAgent)
-        }
-        $cmdArgs += "--permission-mode"
-        if ($TaskKind -eq "test_execution") {
-            # Qoder's dont_ask profile denies Bash even when Bash is explicitly
-            # allowlisted.  Test execution needs shell access but never write
-            # tools, so bypass_permissions remains bounded by this allowlist.
-            $cmdArgs += @("bypass_permissions", "--tools", "Read", "Grep", "Glob", "Bash")
+        $sdkRunnerPath = [string]$sdkRunner[0]
+        $nodeCommand = "node"
+        $allowedTools = if ($TaskKind -eq "test_execution") {
+            @("Read", "Grep", "Glob", "Bash")
         } elseif ($Mode -eq "readonly") {
-            $cmdArgs += @("dont_ask", "--tools", "Read", "Grep", "Glob")
+            @("Read", "Grep", "Glob")
         } else {
-            $cmdArgs += @("bypass_permissions", "--tools", "Read", "Grep", "Glob", "Edit", "Write", "Bash")
+            @("Read", "Grep", "Glob", "Edit", "Write", "Bash")
         }
-        $cmdArgs += @("-p", $supervisedTask)
-
-        Invoke-Or-StartWorker -Exe $qoder -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap
+        $sdkRunnerOptions = [ordered]@{
+            schema = "codex-praetor-qoder-sdk-runner/v1"
+            cwd = $executionRepo
+            prompt = $supervisedTask
+            cli_path = $resolvedQoder
+            model = $model
+            permission_mode = if ($TaskKind -eq "test_execution" -or $Mode -eq "edit") { "bypassPermissions" } else { "dontAsk" }
+            allowed_tools = $allowedTools
+            allowed_paths = @($AllowedPath)
+            forbidden_paths = @($ForbiddenPath)
+            required_checks = @($RequiredCheck)
+            max_stall_seconds = $MaxStallSeconds
+            sdk_environment = if ($null -ne $config.providers.qoder.sdkEnvironment) { $config.providers.qoder.sdkEnvironment } else { [ordered]@{} }
+        }
+        $cmdArgs = @($sdkRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_SDK_OPTIONS__")
+        Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $resolvedQoder
     }
 
     if ($resolvedProvider -eq "codebuddy") {
@@ -1533,31 +1614,29 @@ $networkRule
             throw "CodeBuddy CLI not found: $codebuddy"
         }
 
-        $cmdArgs = @($codebuddy, "--model", $model, "--max-turns", "$MaxTurns", "--output-format", $effectiveOutputFormat)
-        if (-not [string]::IsNullOrWhiteSpace($effectiveReasoningEffort)) {
-            $cmdArgs += @("--effort", $effectiveReasoningEffort)
+        $acpRunnerCandidates = @(
+            (Join-Path $scriptGrandparent "mcp\dist\codebuddy-acp-runner.js"),
+            (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\codebuddy-acp-runner.js")
+        )
+        $acpRunner = @($acpRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+        if (@($acpRunner).Count -ne 1) {
+            throw "CodeBuddy ACP runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
         }
-        if (-not [string]::IsNullOrWhiteSpace($effectiveAgent)) {
-            $cmdArgs += @("--agent", $effectiveAgent)
+        $acpRunnerOptions = [ordered]@{
+            schema = "codex-praetor-codebuddy-acp-runner/v1"
+            cwd = $executionRepo
+            prompt = $supervisedTask
+            launcher_path = $node
+            cli_path = $codebuddy
+            model = $model
+            allowed_paths = @($AllowedPath)
+            forbidden_paths = @($ForbiddenPath)
+            writable_paths = if ($Mode -eq "edit") { @($AllowedPath) } else { @() }
+            required_checks = @($RequiredCheck)
+            max_stall_seconds = $MaxStallSeconds
         }
-        if (-not [string]::IsNullOrWhiteSpace($JsonSchema)) {
-            $cmdArgs += @("--json-schema", $JsonSchema)
-        }
-        if ($TaskKind -eq "test_execution") {
-            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep,Bash")
-        } elseif ($Mode -eq "readonly") {
-            # CodeBuddy's current CLI does not accept the historical dontAsk
-            # mode. In headless runs, -y supplies the non-interactive approval
-            # and --tools is the complete built-in-tool allowlist.
-            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep")
-        } else {
-            $cmdArgs += @("-y", "--tools", "Read,Glob,Grep,Edit,Write,Bash")
-        }
-        $cmdArgs += @("-p", $supervisedTask)
-
-        $structured = ""
-        if (-not [string]::IsNullOrWhiteSpace($JsonSchema)) { $structured = "json_schema" }
-        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -StructuredOutput $structured -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap
+        $cmdArgs = @([string]$acpRunner[0], "--options-file", "__CODEX_PRAETOR_CODEBUDDY_ACP_OPTIONS__")
+        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "acp_ndjson" -StructuredOutput "session_update" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "codebuddy_acp" -AcpRunnerOptions $acpRunnerOptions -ProviderCliPath $codebuddy
     }
 
 } finally {

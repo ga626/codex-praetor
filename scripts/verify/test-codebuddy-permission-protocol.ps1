@@ -49,9 +49,11 @@ function Invoke-ProtocolFixture {
     $commandLine = @($output | Where-Object { [string]$_ -like "command=*" } | Select-Object -Last 1)
     Assert-True ($commandLine.Count -eq 1) "CodeBuddy $Mode fixture did not emit its command contract."
     $command = [string]$commandLine[0]
-    Assert-True ($command -match "(?:^|\s)-y(?:\s|$)") "CodeBuddy $Mode command is missing the supported headless approval flag."
-    Assert-True ($command -match [regex]::Escape("--tools $ExpectedTools")) "CodeBuddy $Mode command did not receive the expected tool allowlist."
-    Assert-True ($command -notmatch "--permission-mode|--allowedTools|--disallowedTools|dontAsk") "CodeBuddy $Mode command regressed to the historical unsupported permission protocol."
+    Assert-True ($command -match "codebuddy-acp-runner\.js --options-file") "CodeBuddy $Mode dispatch did not select the ACP runner."
+    Assert-True ($command -notmatch "--tools|--permission-mode|--allowedTools|--disallowedTools|dontAsk") "CodeBuddy $Mode ACP dispatch leaked the historical CLI permission protocol."
+    $acpSource = Get-Content -LiteralPath (Join-Path $root "mcp\src\codebuddy-acp-runner.ts") -Raw -Encoding UTF8
+    Assert-True ($acpSource -match '"--acp", "-y", "--setting-sources", "project"') "CodeBuddy ACP runner is missing its supported non-interactive launch contract."
+    Assert-True ($acpSource -match 'session/request_permission' -and $acpSource -match 'pathAllowed') "CodeBuddy ACP runner no longer enforces its client-side path and permission proxy."
     if ($AllowNetwork) {
         $allOutput = $output | Out-String
         $source = Get-Content -LiteralPath $wrapper -Raw -Encoding UTF8

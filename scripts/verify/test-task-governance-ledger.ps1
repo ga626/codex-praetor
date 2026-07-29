@@ -45,6 +45,10 @@ try {
     [ordered]@{ job_id = "accepted-attempt"; created_at = "2026-07-25T00:00:00Z" } | ConvertTo-Json | Set-Content -LiteralPath $successJob -Encoding UTF8
     [ordered]@{ job_id = "accepted-attempt"; status = "process_exited"; process_state = "process_exited"; failure_class = ""; evidence_state = "tests_passed"; provider = "codebuddy"; tier = "codebuddy-free"; model = "hy3"; mode = "edit"; acceptance = "fixture"; exit_code = 0 } | ConvertTo-Json | Set-Content -LiteralPath $successCompletion -Encoding UTF8
     & $planScript -Action RecordJob -PlanId ledger -PlanRoot $root -TaskId producer -JobDir $successJobDir -CompletionPath $successCompletion | Out-Null
+    & $planScript -Action RecordJob -PlanId ledger -PlanRoot $root -TaskId producer -JobDir $successJobDir -CompletionPath $successCompletion | Out-Null
+    $plan = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $producer = @($plan.tasks | Where-Object { $_.task_id -eq "producer" } | Select-Object -First 1)
+    Assert-True (@($producer[0].attempts | Where-Object { [string]$_.attempt_id -eq "accepted-attempt" }).Count -eq 1) "Recording the same completion twice must not create a second immutable attempt."
     $ready = & $planScript -Action NextReady -PlanId ledger -PlanRoot $root -OutputJson
     Assert-True ([string]$ready -notmatch 'consumer') "Process completion without a supervisor verdict unlocked a dependency."
 

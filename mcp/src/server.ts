@@ -15,7 +15,10 @@ const researchContractSchema = z.object({
 });
 
 const boundedTaskBudgetSchema = z.object({
-  max_turns: z.number().int().positive().max(80),
+  // Turn limits are accepted for historical task contracts only. Current
+  // adapters supervise structured progress and a stall timeout instead.
+  max_turns: z.number().int().positive().max(80).optional(),
+  max_stall_seconds: z.number().int().min(30).max(86400).optional(),
   max_wall_seconds: z.number().int().positive().max(3600),
   max_attempts: z.number().int().positive().max(10).optional()
 });
@@ -93,7 +96,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.4-alpha"
+    version: "0.16.5-alpha"
   });
 
   server.registerTool(
@@ -144,7 +147,7 @@ export function createServer(): McpServer {
       inputSchema: {
         repo: z.string().min(1),
         task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
-        failure_class: z.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "test_failed", "scope_violation", "unknown"]).optional(),
+        failure_class: z.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "progress_saturated", "test_failed", "scope_violation", "unknown"]).optional(),
         candidates: z.array(z.object({
           provider: z.enum(["qoder", "codebuddy"]),
           model: z.string().min(1),
@@ -274,6 +277,7 @@ export function createServer(): McpServer {
         budget: boundedTaskBudgetSchema.optional(),
         failure_injection: z.string().optional(),
         max_turns: z.number().int().positive().max(80).optional(),
+        max_stall_seconds: z.number().int().min(30).max(86400).optional(),
         no_notify: z.boolean().optional()
       }
     },
@@ -458,6 +462,7 @@ export function createServer(): McpServer {
         tier: z.string().optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
         max_turns: z.number().int().positive().max(80).optional(),
+        max_stall_seconds: z.number().int().min(30).max(86400).optional(),
         no_notify: z.boolean().optional(),
         dry_run: z.boolean().optional()
       }

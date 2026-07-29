@@ -1,7 +1,7 @@
 import { capabilityProfilesTool } from "./capability-profiles.js";
 
 type TaskFamily = "read_only_diagnosis" | "bounded_code_change" | "fixed_test_execution" | "failure_recovery";
-type FailureClass = "provider_risk_control" | "provider_auth_required" | "provider_cli_missing" | "provider_rejected" | "provider_output_unparseable" | "worker_process_failed" | "worker_exit_code_unavailable" | "permission_denied" | "worker_timed_out" | "network_timeout" | "rate_limited" | "provider_unavailable" | "max_turns_exceeded" | "test_failed" | "scope_violation" | "unknown";
+type FailureClass = "provider_risk_control" | "provider_auth_required" | "provider_cli_missing" | "provider_rejected" | "provider_output_unparseable" | "worker_process_failed" | "worker_exit_code_unavailable" | "permission_denied" | "worker_timed_out" | "network_timeout" | "rate_limited" | "provider_unavailable" | "max_turns_exceeded" | "progress_saturated" | "test_failed" | "scope_violation" | "unknown";
 
 export type ExplainableRouteCandidate = {
   provider: string;
@@ -45,7 +45,7 @@ function recoveryFor(failureClass: FailureClass) {
     return { state: "needs_smaller_packet", automatic_retry: false, action: "缩小工作包或修正最小权限后重新 canary；不得一键放宽权限。", preserve_worktree: false };
   }
   if (failureClass === "max_turns_exceeded") {
-    return { state: "needs_codex_decision", automatic_retry: false, action: "保留 worktree；由 Codex 决定缩小任务、合理加预算、换合格候选或接管。", preserve_worktree: true };
+    return { state: "needs_codex_decision", automatic_retry: false, action: "保留 worktree；由 Codex 决定缩小任务、补充上下文、冷恢复、换合格候选或接管，不把普通派工变成盲目提高固定轮数。", preserve_worktree: true };
   }
   if (["test_failed", "scope_violation"].includes(failureClass)) {
     return { state: "rejected", automatic_retry: false, action: "测试或范围检查失败，拒绝该结果并计入任务族质量证据；不得用 worker 解释覆盖检查。", preserve_worktree: true };

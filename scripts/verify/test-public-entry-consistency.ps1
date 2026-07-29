@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.16.4-alpha",
+    [string]$Version = "0.16.5-alpha",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ProjectRoot = "",
     [switch]$SkipRemoteRelease
@@ -51,6 +51,16 @@ function Assert-Contains {
         Add-Pass "$Label contains $Needle"
     } else {
         Add-Fail "$Label is missing $Needle"
+    }
+}
+
+function Assert-JavaScriptVersionField {
+    param([string]$Text, [string]$ExpectedVersion, [string]$Label)
+    $escapedVersion = [regex]::Escape($ExpectedVersion)
+    if ($Text -match ('version\s*:\s*["' + "'" + ']'+ $escapedVersion + '["' + "'" + ']')) {
+        Add-Pass "$Label exposes version $ExpectedVersion"
+    } else {
+        Add-Fail "$Label is missing a version field for $ExpectedVersion"
     }
 }
 
@@ -113,6 +123,9 @@ $installZh = Read-Text "docs\user\installation.zh.md"
 $roadmap = Read-Text "docs\roadmap.md"
 $releaseNotesPath = "docs\release\release-notes-$Version.md"
 $releaseNotes = Read-Text $releaseNotesPath
+$changelog = Read-Text "CHANGELOG.md"
+$releaseIntent = Read-Text "config\release-intent.json"
+$troubleshooting = Read-Text "docs\user\troubleshooting.zh.md"
 $security = Read-Text "SECURITY.md"
 $setup = Read-Text "setup.ps1"
 $mcpPackage = Read-Text "mcp\package.json"
@@ -139,7 +152,7 @@ Assert-JsonVersion -RelativePath "mcp\package.json" -Label "mcp/package.json"
 Assert-Contains -Text $mcpServer -Needle ('version: "' + $Version + '"') -Label "mcp/src/server.ts"
 Assert-JsonVersion -RelativePath "plugin\.codex-plugin\plugin.json" -Label "plugin/.codex-plugin/plugin.json"
 Assert-JsonVersion -RelativePath "plugin\mcp\package.json" -Label "plugin/mcp/package.json"
-Assert-Contains -Text $pluginMcpRuntime -Needle ('version: "' + $Version + '"') -Label "plugin/mcp/dist/server.js"
+Assert-JavaScriptVersionField -Text $pluginMcpRuntime -ExpectedVersion $Version -Label "plugin/mcp/dist/server.js"
 Assert-Contains -Text $releaseBuilder -Needle ('[string]$Version = "' + $Version + '"') -Label "release package builder"
 Assert-Contains -Text $releasePublisher -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release publisher"
 Assert-Contains -Text $releaseVerifier -Needle ('[string]$Version = "' + $Version + '"') -Label "GitHub Release verifier"
@@ -151,6 +164,24 @@ Assert-Contains -Text $setup -Needle "-ExpectedGenerationPath" -Label "setup exp
 Assert-NotContains -Text $setup -Needle "Invoke-CanaryStep -Statuses" -Label "setup must not run canary before host identity"
 Assert-Contains -Text $installZh -Needle "release-generation.json" -Label "installation identity boundary"
 Assert-NotContains -Text $installZh -Needle "安装后重启 Codex，或者打开一个新任务" -Label "obsolete installation refresh wording"
+
+# This is a release-impacting transport change. Keep public entrypoints from
+# silently downgrading it to the earlier parser-only fix, or promising that an
+# arbitrary installed provider can edit code without the task contract.
+Assert-Contains -Text $readme -Needle "Qoder Agent SDK" -Label "README.md"
+Assert-Contains -Text $readme -Needle "CodeBuddy ACP" -Label "README.md"
+Assert-Contains -Text $readmeEn -Needle "Qoder Agent SDK" -Label "README.en.md"
+Assert-Contains -Text $readmeEn -Needle "CodeBuddy ACP" -Label "README.en.md"
+Assert-Contains -Text $releaseNotes -Needle "structured progress" -Label $releaseNotesPath
+Assert-Contains -Text $releaseNotes -Needle "formal cancellation" -Label $releaseNotesPath
+Assert-Contains -Text $releaseIntent -Needle "Qoder Agent SDK" -Label "config/release-intent.json"
+Assert-Contains -Text $releaseIntent -Needle "CodeBuddy ACP" -Label "config/release-intent.json"
+Assert-Contains -Text $changelog -Needle "0.16.5-alpha" -Label "CHANGELOG.md"
+Assert-Contains -Text $troubleshooting -Needle "进展" -Label "docs/user/troubleshooting.zh.md"
+foreach ($entry in @{ "README.md" = $readme; "README.en.md" = $readmeEn; $releaseNotesPath = $releaseNotes; "config/release-intent.json" = $releaseIntent }.GetEnumerator()) {
+    Assert-NotContains -Text $entry.Value -Needle "只修正只读解析" -Label $entry.Key
+    Assert-NotContains -Text $entry.Value -Needle "does not add any publicly routable provider code-editing capability" -Label $entry.Key
+}
 
 $staleMarkers = @(
     'releases/tag/v0.1.1-alpha',

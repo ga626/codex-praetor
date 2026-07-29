@@ -89,7 +89,15 @@ function Get-ChangedWorktreePaths {
 function Test-PathMatchesContractPatterns {
     param([Parameter(Mandatory = $true)][string]$PathValue, [string[]]$Patterns)
     $normal = $PathValue.Replace('\\', '/')
-    foreach ($pattern in @($Patterns)) { if ($normal -like ([string]$pattern).Replace('\\', '/')) { return $true } }
+    foreach ($pattern in @($Patterns)) {
+        $normalizedPattern = ([string]$pattern).Replace('\\', '/').TrimEnd('/')
+        if ([string]::IsNullOrWhiteSpace($normalizedPattern)) { continue }
+        if ($normalizedPattern -notmatch '[*?]') {
+            if ($normal -eq $normalizedPattern -or $normal.StartsWith($normalizedPattern + '/', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+        } elseif ($normal -like $normalizedPattern) {
+            return $true
+        }
+    }
     return $false
 }
 function Assert-RealWorktreeAcceptance {
@@ -209,7 +217,7 @@ function Read-Plan {
                 if (-not ($task.PSObject.Properties.Name -contains "allowed_paths")) { $task | Add-Member -NotePropertyName allowed_paths -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "forbidden_paths")) { $task | Add-Member -NotePropertyName forbidden_paths -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "completion_definition")) { $task | Add-Member -NotePropertyName completion_definition -NotePropertyValue ([pscustomobject]@{ required_evidence = @(); required_checks = @(); success_predicate = "" }) }
-                if (-not ($task.PSObject.Properties.Name -contains "budget")) { $task | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ max_attempts = 1; max_turns = 8; max_wall_seconds = 1200 }) }
+                if (-not ($task.PSObject.Properties.Name -contains "budget")) { $task | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ max_attempts = 1; max_stall_seconds = 300; max_wall_seconds = 1200 }) }
                 if (-not ($task.PSObject.Properties.Name -contains "stop_loss")) { $task | Add-Member -NotePropertyName stop_loss -NotePropertyValue ([pscustomobject]@{ on_tool_denied = "needs_decision"; on_write_set_overlap = "needs_decision"; on_missing_evidence = "needs_decision" }) }
                 if (-not ($task.PSObject.Properties.Name -contains "outcome_ids")) { $task | Add-Member -NotePropertyName outcome_ids -NotePropertyValue @() }
                 if (-not ($task.PSObject.Properties.Name -contains "progress")) { $task | Add-Member -NotePropertyName progress -NotePropertyValue ([pscustomobject]@{ completed = 0; total = 1; summary = "" }) }
@@ -305,7 +313,7 @@ function Upsert-Task {
             next_action = ""
             governance_state = "awaiting_supervisor"
             completion_definition = [pscustomobject]@{ required_evidence = @(); required_checks = @(); success_predicate = "" }
-            budget = [pscustomobject]@{ max_attempts = 1; max_turns = 8; max_wall_seconds = 1200 }
+            budget = [pscustomobject]@{ max_attempts = 1; max_stall_seconds = 300; max_wall_seconds = 1200 }
             stop_loss = [pscustomobject]@{ on_tool_denied = "needs_decision"; on_write_set_overlap = "needs_decision"; on_missing_evidence = "needs_decision" }
             selection_id = ""
             outcome_ids = @()
@@ -456,9 +464,13 @@ function Set-TaskVerification {
     Set-DynamicProperty -Target $target -Name "updated_at" -Value (Get-Date).ToString("o")
     $attempts = @($target.attempts)
     if ($attempts.Count -gt 0) {
-        Set-DynamicProperty -Target $attempts[$attempts.Count - 1] -Name "supervisor_verdict" -Value $Verdict
-        Set-DynamicProperty -Target $attempts[$attempts.Count - 1] -Name "accepted_at" -Value (Get-Date).ToUniversalTime().ToString("o")
-        $timeline = $attempts[$attempts.Count - 1].timeline
+        $verifiedAttempt = @($attempts | Where-Object { [string]$_.attempt_id -eq [string]$target.job_id })
+        if ($verifiedAttempt.Count -ne 1) {
+            throw "Supervisor verification requires exactly one immutable attempt for job $([string]$target.job_id)."
+        }
+        Set-DynamicProperty -Target $verifiedAttempt[0] -Name "supervisor_verdict" -Value $Verdict
+        Set-DynamicProperty -Target $verifiedAttempt[0] -Name "accepted_at" -Value (Get-Date).ToUniversalTime().ToString("o")
+        $timeline = $verifiedAttempt[0].timeline
         if ($null -ne $timeline) {
             Set-DynamicProperty -Target $timeline -Name "verified_at" -Value (Get-Date).ToUniversalTime().ToString("o")
             $elapsed = Get-ElapsedMilliseconds -StartedAt ([string]$timeline.submitted_at) -FinishedAt ([string]$timeline.verified_at)
@@ -492,7 +504,7 @@ function Set-TaskEvidenceContext {
     $required = @("source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256")
     if (@($required | Where-Object { [string]::IsNullOrWhiteSpace([string]$context.$_) }).Count -gt 0) { throw "EvidenceContextJson lacks a required field." }
     if ([string]$context.source_category -notin @("contract_regression", "real_historical_issue", "real_user_request", "untrusted_or_unknown")) { throw "EvidenceContextJson source_category is not recognized." }
-    if ([string]$context.connection_mode -notin @("supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "codebuddy_daemon")) { throw "EvidenceContextJson connection_mode is not recognized." }
+    if ([string]$context.connection_mode -notin @("supervised_cli_text", "supervised_cli_json", "supervised_cli_stream_json", "qoder_acp", "qoder_sdk", "qoder_agent_sdk", "codebuddy_acp", "codebuddy_daemon")) { throw "EvidenceContextJson connection_mode is not recognized." }
     $target = @($Plan.tasks | Where-Object { $_.task_id -eq $Id } | Select-Object -First 1)
     if ($target.Count -ne 1) { throw "Task not found for evidence context: $Id" }
     Set-DynamicProperty -Target $target[0] -Name "evidence_context" -Value $context
@@ -566,10 +578,15 @@ if ($Action -eq "Init") {
     $completion = Get-Content -LiteralPath $completionFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $recordTaskId = if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $TaskId } else { [string]$completion.task_id }
     $recordStatus = if ($completion.status -eq "process_exited" -and [string]::IsNullOrWhiteSpace([string]$completion.failure_class) -and $null -ne $completion.exit_code -and [int]$completion.exit_code -eq 0) { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } else { "failed" }
-    $summaryText = "process_state=$($completion.process_state); failure_class=$($completion.failure_class); exit_code=$($completion.exit_code)"
-    Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
-    $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
-    if ($recordTask.Count -eq 1) {
+    $existingAttempts = @($plan.tasks | ForEach-Object { @($_.attempts) } | Where-Object { [string]$_.attempt_id -eq [string]$completion.job_id })
+    if ($existingAttempts.Count -gt 1) {
+        throw "Ledger integrity failure: job $([string]$completion.job_id) has multiple immutable attempts."
+    }
+    if ($existingAttempts.Count -eq 0) {
+        $summaryText = "process_state=$($completion.process_state); failure_class=$($completion.failure_class); exit_code=$($completion.exit_code)"
+        Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
+        $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
+        if ($recordTask.Count -ne 1) { throw "Task missing after recording job: $recordTaskId" }
         $jobPath = Join-Path $JobDir "job.json"
         $job = if (Test-Path -LiteralPath $jobPath -PathType Leaf) { Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
         $submittedAt = if ($null -ne $job) { [string]$job.created_at } else { "" }
@@ -580,8 +597,8 @@ if ($Action -eq "Init") {
         $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = Get-CompletionContractSha256 -Completion $completion; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = $attemptWriteSet; execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
         $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }
+        Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }
     }
-    Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "VerifyTask") {
     Set-TaskVerification -Plan $plan -Id $TaskId -Verdict $VerificationVerdict -SummaryValue $VerificationSummary -NextActionValue $NextAction

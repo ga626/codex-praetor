@@ -9,6 +9,7 @@ $verifier = Join-Path $ProjectRoot 'scripts\evaluation\verify-codex-praetor-task
 $evidenceRoot = Join-Path ([IO.Path]::GetTempPath()) ('cp-eval-' + [Guid]::NewGuid().ToString('N').Substring(0, 12))
 $gitEnvironmentNames = @('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_PREFIX', 'GIT_COMMON_DIR')
 $gitEnvironmentBackup = @{}
+$configEnvironmentBackup = [Environment]::GetEnvironmentVariable('CODEX_PRAETOR_CONFIG', 'Process')
 foreach ($name in $gitEnvironmentNames) {
     $gitEnvironmentBackup[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
     Remove-Item -LiteralPath ("Env:" + $name) -ErrorAction SilentlyContinue
@@ -57,6 +58,10 @@ function Verify-Task {
 function Repair-Fixture { param([string]$Worktree) $path = Join-Path $Worktree '.codex-praetor\evaluation\bounded-test-fix\compute.ps1'; (Get-Content -LiteralPath $path -Raw -Encoding UTF8).Replace('$Left - $Right', '$Left + $Right') | Set-Content -LiteralPath $path -Encoding UTF8 }
 
 New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
+$templateConfig = Join-Path $ProjectRoot 'config\codex-praetor-tiers.example.json'
+$isolatedConfig = Join-Path $evidenceRoot 'codex-praetor-template.json'
+Copy-Item -LiteralPath $templateConfig -Destination $isolatedConfig
+[Environment]::SetEnvironmentVariable('CODEX_PRAETOR_CONFIG', $isolatedConfig, 'Process')
 $repo = New-FixtureRepo -Name 'baseline-and-verifier'
 $task = Prepare-Task -Repo $repo -PlanId 'material-contract'
 Assert-True (@($task.task_material.files).Count -eq 3) 'Prepared code-change task must preserve every supplied material file.'
@@ -86,6 +91,8 @@ Assert-True ($scopeResult.verdict -eq 'rejected' -and (@($scopeResult.violations
 try {
     Write-Host "[PASS] Evaluation task material requires a known failing baseline and independently rejects immutable-file and write-set faults. Evidence retained at $evidenceRoot"
 } finally {
+    if ($null -eq $configEnvironmentBackup) { Remove-Item Env:CODEX_PRAETOR_CONFIG -ErrorAction SilentlyContinue }
+    else { [Environment]::SetEnvironmentVariable('CODEX_PRAETOR_CONFIG', $configEnvironmentBackup, 'Process') }
     foreach ($name in $gitEnvironmentNames) {
         $value = $gitEnvironmentBackup[$name]
         if ($null -eq $value) { Remove-Item -LiteralPath ("Env:" + $name) -ErrorAction SilentlyContinue }

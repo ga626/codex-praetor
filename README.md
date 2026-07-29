@@ -6,13 +6,13 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy。Codex 仍然负责规划、风险判断、整合结果和最终验收。
 
-当前产品化目标版本是 **0.16.4-alpha**。这一版修复 Windows PowerShell 写出的 UTF-8 BOM 让有效任务 ledger 被能力画像误判为损坏的问题；它只修正只读解析，不改写历史账本，也不把旧记录提升为 provider 能力。
+当前产品化目标版本是 **0.16.5-alpha**。这一版把 Qoder Agent SDK 与 CodeBuddy ACP 接入同一条受控真实派工链路：worker 的结构化进展、停滞、正式取消和终态证据都由 Codex 读取、分类和验收。Windows PowerShell UTF-8 BOM 的 ledger 解析也一并修正。
 
-本版还新增只读能力画像：它按具体 provider、模型、权限和任务类型汇总真实尝试与 Codex 验收结论，帮助你看清证据；它不会在未经后续验证前擅自改变默认派工。
+这不是“安装后随便一句话就让任何 provider 改代码”。首次真实任务必须是 Codex 创建的、来源可追溯且范围、禁止路径、检查和验收都齐全的计划任务；后续普通派工只使用当前 readiness 与精确 provider tuple 的合格证据。复制材料、canary 和 marker 仍只算回归证据，不能冒充真实改码能力。
 
-复制材料、canary 和 marker 仍可作回归证据，但不代表 provider 已具备真实改码能力；本版没有新增公开可路由的 provider 改码承诺。
+本版不新增 provider，不读取账号数据库、token 或 cookie，不自动合并，也不执行生产侧不可逆动作。
 
-[下载 0.16.4-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.16.4-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
+[下载 0.16.5-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.16.5-alpha) · [安装指南](docs/user/installation.zh.md) · [排错指南](docs/user/troubleshooting.zh.md) · [路线图](docs/roadmap.md)
 
 ## 适合你吗
 
@@ -33,14 +33,14 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 普通 Windows 用户不需要打开 PowerShell。下载并解压 Release 包后，直接双击根目录里的 `setup.cmd`，按中文向导操作即可。
 
-1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.16.4-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.16.4-alpha.zip`。
+1. 打开 [Release 页面](https://github.com/ga626/codex-praetor/releases/tag/v0.16.5-alpha)，下载 Windows 安装 zip：`codex-praetor-setup-0.16.5-alpha.zip`。
 
    如果你更习惯 PowerShell，也可以运行：
 
    ```powershell
-   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.4-alpha/codex-praetor-setup-0.16.4-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.4-alpha.zip"
-   Expand-Archive .\codex-praetor-setup-0.16.4-alpha.zip .\codex-praetor-setup-0.16.4-alpha
-   cd .\codex-praetor-setup-0.16.4-alpha
+   Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.5-alpha/codex-praetor-setup-0.16.5-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.5-alpha.zip"
+   Expand-Archive .\codex-praetor-setup-0.16.5-alpha.zip .\codex-praetor-setup-0.16.5-alpha
+   cd .\codex-praetor-setup-0.16.5-alpha
    ```
 
 2. 双击 `setup.cmd`。
