@@ -43,6 +43,17 @@ try {
     $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $gate -ProjectRoot $scratch -BaseRef HEAD~1 -RequireReleaseImpact -CheckRemote 2>&1
     Assert-True ($LASTEXITCODE -eq 0) "Dependency-only candidate was incorrectly sent to a remote immutable-tag gate: $($output -join "`n")"
     Assert-True (($output -join "`n") -match "Pipeline classification: non_release") "Dependency-only candidate did not emit the shared non-release classification."
+
+    $verifyDirectory = Join-Path $scratch "scripts\verify"
+    New-Item -ItemType Directory -Path $verifyDirectory -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $verifyDirectory "internal-fixture.ps1") -Value "# internal verification fixture" -Encoding utf8
+    & git -C $scratch add scripts/verify/internal-fixture.ps1
+    & git -C $scratch commit -qm "update internal verification fixture"
+    if ($LASTEXITCODE -ne 0) { throw "Unable to commit the verification-only fixture change." }
+
+    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $gate -ProjectRoot $scratch -BaseRef HEAD~1 -RequireReleaseImpact -CheckRemote 2>&1
+    Assert-True ($LASTEXITCODE -eq 0) "Verification-only candidate was incorrectly treated as release-impacting: $($output -join "`n")"
+    Assert-True (($output -join "`n") -match "Pipeline classification: non_release") "Verification-only candidate did not emit the shared non-release classification."
     Write-Host "[PASS] Dependency-only candidate bypasses remote immutable-tag checks while retaining release-intent validation."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
