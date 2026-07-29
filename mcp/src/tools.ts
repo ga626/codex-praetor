@@ -701,14 +701,14 @@ export async function planTool(input: {
       "-Action", "UpsertTask", "-PlanId", planId, "-PlanRoot", planRoot,
       "-TaskId", taskId, "-TaskTitle", task.title, "-TaskFamily", task.task_family,
       "-TaskKind", task.task_kind, "-Status", "pending", "-Mode", task.mode,
-      "-Acceptance", task.acceptance, "-DependsOn", (task.depends_on ?? []).join(","),
+      "-Acceptance", task.acceptance, "-DependsOnJson", JSON.stringify(task.depends_on ?? []),
       "-BudgetJson", JSON.stringify(task.budget), "-FailureInjection", task.failure_injection ?? "",
       "-Sensitivity", task.sensitivity ?? "", "-BaseCommit", task.base_commit ?? "",
       "-ImmutablePathsJson", JSON.stringify(task.immutable_paths ?? []), "-OutputJson"
     ];
-    upsertArgs.push("-AllowedPath", ...task.allowed_paths);
-    upsertArgs.push("-ForbiddenPath", ...task.forbidden_paths);
-    upsertArgs.push("-RequiredCheck", ...task.required_checks);
+    upsertArgs.push("-AllowedPathsJson", JSON.stringify(task.allowed_paths));
+    upsertArgs.push("-ForbiddenPathsJson", JSON.stringify(task.forbidden_paths));
+    upsertArgs.push("-RequiredChecksJson", JSON.stringify(task.required_checks));
     const upsertResult = await runPowerShell(
       upsertArgs,
       { timeoutMs: 30_000 }
@@ -758,7 +758,7 @@ export async function planTool(input: {
     plan_id: planId,
     plan_root: planRoot,
     plan_path: planPath,
-    task_ids: input.tasks.map((_, index) => `task-${String(index + 1).padStart(2, "0")}`),
+    task_ids: taskIds,
     // A durable ledger may contain extensive history. Return its compact
     // projection here so the transport limit cannot turn a successful plan
     // creation into an unparseable truncated JSON response.

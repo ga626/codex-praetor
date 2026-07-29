@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.6-alpha
+
+- Fixed durable plan scope serialization: multiple allowed paths, forbidden paths, required checks, and immutable paths now round-trip exactly instead of being truncated or shifted into unrelated ledger fields.
+- Fixed `codex_praetor_plan` to return the actual durable task IDs accepted by later plan dispatch, with a multi-path persistence regression.
+
 ## 0.16.5-alpha
 
 - Delivered the Qoder Agent SDK and CodeBuddy ACP supervised dispatch paths with structured progress, progress-stall classification, formal cancellation, durable terminal evidence, and cold recovery guidance.

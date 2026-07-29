@@ -17,6 +17,7 @@ param(
     [ValidateSet("", "local_audit", "test_execution", "code_change", "external_research")]
     [string]$TaskKind = "",
     [string]$DependsOn = "",
+    [string]$DependsOnJson = "",
     [ValidateSet("pending", "running", "awaiting_verification", "completed", "failed", "blocked", "new_problem", "skipped", "retryable", "needs_decision")]
     [string]$Status = "pending",
     [string]$Acceptance = "",
@@ -31,6 +32,9 @@ param(
     [string[]]$AllowedPath = @(),
     [string[]]$ForbiddenPath = @(),
     [string[]]$RequiredCheck = @(),
+    [string]$AllowedPathsJson = "",
+    [string]$ForbiddenPathsJson = "",
+    [string]$RequiredChecksJson = "",
     [string]$BudgetJson = "",
     [string]$FailureInjection = "",
     [string]$Sensitivity = "",
@@ -55,7 +59,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { $ImmutablePath = @($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { [string[]]$ImmutablePath = ($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { [string[]]$AllowedPath = ($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { [string[]]$ForbiddenPath = ($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
+if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { [string[]]$RequiredCheck = ($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
+$hasDependsOnJson = -not [string]::IsNullOrWhiteSpace($DependsOnJson)
+if ($hasDependsOnJson) { try { [string[]]$DependsOnValues = ($DependsOnJson | ConvertFrom-Json) } catch { throw "DependsOnJson is not valid JSON." } }
 
 function Get-SafeName {
     param([string]$Value)
@@ -558,6 +567,10 @@ if ($Action -eq "Init") {
     Save-Plan -Plan $plan
 } elseif ($Action -eq "UpsertTask") {
     Upsert-Task -Plan $plan -Id $TaskId -TitleValue $TaskTitle -DependsValue $DependsOn -StatusValue $Status -AcceptanceValue $Acceptance -JobIdValue $JobId -JobDirValue $JobDir -ProviderValue $Provider -TierValue $Tier -ModelValue $Model -ModeValue $Mode -CompletionValue $CompletionPath -SummaryValue $Summary
+    if ($hasDependsOnJson) {
+        $target = @($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1)
+        if ($target.Count -eq 1) { Set-DynamicProperty -Target $target[0] -Name "depends_on" -Value ([string[]]$DependsOnValues) }
+    }
     if (-not [string]::IsNullOrWhiteSpace($TaskFamily)) {
         $target = @($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1)
         if ($target.Count -eq 1) { Set-DynamicProperty -Target $target[0] -Name "task_family" -Value $TaskFamily }
