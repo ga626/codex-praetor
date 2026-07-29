@@ -5,6 +5,7 @@
 - Fixed durable plan scope serialization: multiple allowed paths, forbidden paths, required checks, and immutable paths now round-trip exactly instead of being truncated or shifted into unrelated ledger fields.
 - Fixed `codex_praetor_plan` to return the actual durable task IDs accepted by later plan dispatch, with a multi-path persistence regression.
 - Fixed durable cancellation, watcher, and plan-ledger completion writes on Windows when the destination record already exists.
+- Fixed the CodeBuddy ACP cancellation race: a formal Codex cancellation now takes priority over a simultaneous no-progress safety cancellation, while the terminal receipt keeps both cancellation and provider acknowledgement evidence.
 
 ## 0.16.5-alpha
 

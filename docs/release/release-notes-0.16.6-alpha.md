@@ -7,6 +7,7 @@
 - Fixed the plan response so `task_ids` returns the actual durable task identifiers that `codex_praetor_dispatch_plan_task` accepts.
 - Added a multi-path round-trip regression covering the returned task ID and every persisted scope field.
 - Fixed Windows-safe durable completion writes for cancellation, watcher, and plan-ledger records so an existing target file cannot break the lifecycle check on a hosted Windows runner.
+- Fixed a CodeBuddy ACP cancellation race: when a formal Codex cancellation and the progress-stall safety timer overlap, the final receipt now records the formal cancellation rather than misclassifying it as a stall.
 
 ## Validation Scope
 

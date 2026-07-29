@@ -129,6 +129,7 @@ try {
   assert.equal(cancelState.cancel_requested, true);
   assert.equal(cancelState.cancel_acknowledged, true);
   assert.equal(cancelState.terminal_stop_reason, "cancelled");
+  assert.equal(cancelState.stop_reason, "operator_cancel", "a formal cancellation must retain priority even if the progress-saturation timer won the notification race.");
   const cancelTrace = readFileSync(cancelled.tracePath, "utf8");
   assert.match(cancelTrace, /cancel_requested/);
   console.log("CodeBuddy ACP runner contract regression ok");
