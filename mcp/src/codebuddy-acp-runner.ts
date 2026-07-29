@@ -150,6 +150,7 @@ class AcpClient {
   private lastProgressAt = new Date().toISOString();
   private stopReason: "operator_cancel" | "progress_saturated" | undefined;
   private stallTimer: ReturnType<typeof setTimeout> | undefined;
+  private cancelPath = "";
 
   constructor(private readonly options: RunnerOptions) {
     this.child = spawn(options.launcher_path, [options.cli_path, "--acp", "-y", "--setting-sources", "project", "--model", options.model], { cwd: options.cwd, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
@@ -360,7 +361,19 @@ class AcpClient {
     this.stallTimer = setTimeout(() => { void this.requestCancel("progress_saturated"); }, this.options.max_stall_seconds * 1000);
   }
   private async requestCancel(reason: "operator_cancel" | "progress_saturated") {
-      if (this.cancelRequested || !this.sessionId) return;
+      if (!this.sessionId) return;
+      // A formally requested cancellation is the supervisor's authoritative
+      // intent. It can arrive while the no-progress safety timer has already
+      // sent its own cancellation notification; keep the single provider
+      // request, but promote the durable reason before terminal classification.
+      if (this.cancelRequested) {
+        if (reason === "operator_cancel" && this.stopReason === "progress_saturated") {
+          this.stopReason = "operator_cancel";
+          this.currentState("running");
+          trace(this.options, "cancel_reason_promoted", { session_id: this.sessionId, from: "progress_saturated", to: "operator_cancel" });
+        }
+        return;
+      }
       this.cancelRequested = true;
       this.stopReason = reason;
       this.currentState("running");
@@ -390,12 +403,20 @@ class AcpClient {
     this.sessionId = opened.sessionId;
     this.currentState("running");
     this.armStallTimer();
-    const cancelWatcher = await this.cancelWhenRequested(path.join(path.dirname(this.options.state_path), "cancel-request.json"));
+    this.cancelPath = path.join(path.dirname(this.options.state_path), "cancel-request.json");
+    const cancelWatcher = await this.cancelWhenRequested(this.cancelPath);
     try {
       const terminal = await this.request("session/prompt", { sessionId: this.sessionId, prompt: [{ type: "text", text: this.options.prompt }] }) as { stopReason?: unknown; result?: unknown };
       this.terminalStopReason = typeof terminal.stopReason === "string" ? terminal.stopReason : "";
       if (typeof terminal.result === "string") this.terminalText = terminal.result;
       if (!this.terminalText && this.lastAgentMessageId) this.terminalText = this.agentMessages.get(this.lastAgentMessageId) ?? "";
+      // Windows file-watch delivery may trail the provider's terminal reply.
+      // The cancellation file itself is the durable source of truth, so do a
+      // final synchronous observation before committing the terminal reason.
+      if (this.stopReason === "progress_saturated" && this.cancelPath && existsSync(this.cancelPath)) {
+        this.stopReason = "operator_cancel";
+        trace(this.options, "cancel_reason_promoted", { session_id: this.sessionId, from: "progress_saturated", to: "operator_cancel" });
+      }
       const cancelled = this.cancelRequested && this.terminalStopReason === "cancelled";
       this.cancelAcknowledged = cancelled;
       if (this.terminalStopReason === "cancelled" && !this.cancelRequested) {

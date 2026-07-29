@@ -21,7 +21,10 @@ export function runPowerShell(args: string[], options: PowerShellOptions = {}): 
   const maxOutputBytes = options.maxOutputBytes ?? 256_000;
 
   return new Promise((resolve, reject) => {
-    const child = spawn("powershell", args, {
+    // Use the executable name, not the shell alias.  The packaged MCP process
+    // can run with a reduced command-resolution environment where the alias is
+    // unavailable even though Windows PowerShell itself is installed.
+    const child = spawn("powershell.exe", args, {
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"]
     });

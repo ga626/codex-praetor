@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.5-alpha",
+    [string]$Version = "0.16.6-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ReleaseZip = "",

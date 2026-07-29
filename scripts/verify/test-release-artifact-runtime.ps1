@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.5-alpha",
+    [string]$Version = "0.16.6-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [string]$ArtifactManifestPath = "",
     [string]$ObservedToolsPath = "",
@@ -37,12 +37,21 @@ try {
     $generation = Join-Path $tmp "codex-praetor-release-generation.json"
     $contract = Join-Path $tmp "config\runtime-contract.json"
     if (-not (Test-Path -LiteralPath $runtime -PathType Leaf)) { throw "Artifact does not contain plugin/mcp/dist/server.js." }
+    $qoderRunner = Join-Path $tmp "plugin\mcp\dist\qoder-sdk-runner.js"
+    if (-not (Test-Path -LiteralPath $qoderRunner -PathType Leaf)) { throw "Artifact does not contain plugin/mcp/dist/qoder-sdk-runner.js." }
     if (-not (Test-Path -LiteralPath $generation -PathType Leaf)) { throw "Artifact does not contain release generation manifest." }
     if (-not (Test-Path -LiteralPath $contract -PathType Leaf)) { throw "Artifact does not contain canonical runtime contract." }
     $observedArgument = @()
     if (-not [string]::IsNullOrWhiteSpace($ObservedToolsPath)) { $observedArgument = @("--observed-tools-output", [IO.Path]::GetFullPath($ObservedToolsPath)) }
     & node $smoke $runtime $tmp --skip-dry-run --expected-version $Version --expected-contract $contract --expected-generation $generation @observedArgument
     if ($LASTEXITCODE -ne 0) { throw "Final release zip MCP runtime/contract acceptance failed." }
+
+    $packagedDispatch = Join-Path $tmp "scripts\dispatch\invoke-codex-praetor.ps1"
+    $packagedDispatchSource = Get-Content -LiteralPath $packagedDispatch -Raw -Encoding UTF8
+    if ([regex]::Matches($packagedDispatchSource, [regex]::Escape('plugin\mcp\dist\qoder-sdk-runner.js')).Count -lt 2) {
+        throw "Final release zip Qoder dispatcher cannot locate its bundled SDK runner."
+    }
+    Write-Host "[PASS] Final release zip Qoder dispatcher resolves its bundled SDK runner."
 
     # The release bundle deliberately excludes the source-only compatibility
     # Skill. Its own generation helper must therefore validate the bundled

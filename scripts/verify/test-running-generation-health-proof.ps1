@@ -47,7 +47,10 @@ try {
         runtime_contract_sha256 = $contractHash; task_contract_schema = [string]$contract.taskContractSchema; entries = @($entry)
     } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $profile ".codex\codex-praetor-readiness.json") -Encoding UTF8
 
-    $payload = ((& powershell -NoProfile -ExecutionPolicy Bypass -File $healthScript -Repo $ProjectRoot -UserProfileRoot $profile -Json | Out-String) | ConvertFrom-Json)
+    # This regression proves dispatch authority (running generation and
+    # readiness), not the separate read-only inventory audit.  Inventory walks
+    # every local worktree and made a commit hook wait on unrelated worktrees.
+    $payload = ((& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $healthScript -Repo $ProjectRoot -UserProfileRoot $profile -SkipRuntimeInventory -Json | Out-String) | ConvertFrom-Json)
     $legacy = Find-Check -Payload $payload -Name "legacy_active_receipt"
     $running = Find-Check -Payload $payload -Name "running_generation"
     $readiness = Find-Check -Payload $payload -Name "provider_readiness"
@@ -66,7 +69,7 @@ try {
     $previousErrorAction = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        $wrongPayload = ((& powershell -NoProfile -ExecutionPolicy Bypass -File $healthScript -Repo $ProjectRoot -UserProfileRoot $profile -Json | Out-String) | ConvertFrom-Json)
+        $wrongPayload = ((& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $healthScript -Repo $ProjectRoot -UserProfileRoot $profile -SkipRuntimeInventory -Json | Out-String) | ConvertFrom-Json)
         $wrongExitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previousErrorAction

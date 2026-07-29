@@ -15,6 +15,8 @@ const wrapperSource = readFileSync(path.join(projectRoot, "scripts", "dispatch",
 const toolsSource = readFileSync(path.join(projectRoot, "mcp", "src", "tools.ts"), "utf8");
 
 assert.doesNotMatch(wrapperSource, /\bGet-FileHash\b/, "dispatch must use the cross-version .NET SHA-256 helper rather than a runner-specific cmdlet");
+assert.match(wrapperSource, /powershell\.exe/, "dispatch must use the canonical PowerShell executable in packaged child processes");
+assert.match(wrapperSource, /git\.exe -C \$repoForGit rev-parse --show-toplevel/, "Qoder worktree preflight must capture Git output deterministically");
 assert.match(toolsSource, /-TaskMaterialPath/);
 assert.doesNotMatch(toolsSource, /args\.push\("-TaskMaterialBase64"/);
 

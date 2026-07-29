@@ -31,7 +31,7 @@ function Write-JsonFile {
     $tmp = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
     try {
         [IO.File]::WriteAllText($tmp, ($Value | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
-        Move-Item -LiteralPath $tmp -Destination $Path -Force
+        [IO.File]::Copy($tmp, $Path, $true)
     } finally {
         if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
     }

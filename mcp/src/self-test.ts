@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getInvokeScriptPath } from "./paths.js";
 import { decodeUtf8Chunks } from "./powershell.js";
@@ -140,23 +140,59 @@ const plan = await planTool({
   repo,
   title: "MCP self-test plan",
   tasks: [{
+    task_id: "contract-scope-round-trip",
     title: "Dry-run route and status verification only.",
     task_family: "read_only_diagnosis",
     task_kind: "local_audit",
     mode: "readonly",
     acceptance: "The worker reports the requested route evidence and leaves no diff.",
-    allowed_paths: ["README.md"],
-    forbidden_paths: [".git", "**/*auth*"],
-    required_checks: ["git diff --exit-code"],
+    allowed_paths: ["README.md", "mcp/src"],
+    forbidden_paths: [".git", "**/*auth*", "plugin"],
+    required_checks: ["git diff --exit-code", "git status --short"],
+    immutable_paths: ["README.md", "mcp/src"],
     budget: { max_turns: 4, max_wall_seconds: 300 }
+  }, {
+    task_id: "contract-dependent-task",
+    title: "Contract dependency projection verification.",
+    task_family: "read_only_diagnosis",
+    task_kind: "local_audit",
+    mode: "readonly",
+    acceptance: "The task remains pending until the prerequisite is accepted.",
+    depends_on: ["contract-scope-round-trip"],
+    allowed_paths: ["README.md"],
+    forbidden_paths: [".git"],
+    required_checks: ["git status --short"],
+    immutable_paths: [],
+    budget: { max_wall_seconds: 300 }
   }],
   plan_id: planId
 });
 assert.equal(plan.ok, true);
 assert.equal(plan.plan_id, planId);
-assert.equal(plan.task_ids?.length, 1);
+assert.deepEqual(plan.task_ids, ["contract-scope-round-trip", "contract-dependent-task"]);
+const persistedPlan = parseJsonDocument(readFileSync(String(plan.plan_path), "utf8"), "Persisted plan round-trip fixture") as {
+  tasks: Array<{
+    task_id: string;
+    depends_on: string[];
+    allowed_paths: string[];
+    forbidden_paths: string[];
+    immutable_paths: string[];
+    completion_definition: { required_checks: string[] };
+  }>;
+};
+const persistedTask = persistedPlan.tasks.find((task) => task.task_id === "contract-scope-round-trip");
+assert.ok(persistedTask);
+const dependentTask = persistedPlan.tasks.find((task) => task.task_id === "contract-dependent-task");
+assert.ok(dependentTask);
+assert.deepEqual(persistedTask.allowed_paths, ["README.md", "mcp/src"]);
+assert.deepEqual(persistedTask.forbidden_paths, [".git", "**/*auth*", "plugin"]);
+assert.deepEqual(persistedTask.immutable_paths, ["README.md", "mcp/src"]);
+assert.deepEqual(persistedTask.completion_definition.required_checks, ["git diff --exit-code", "git status --short"]);
+assert.deepEqual(persistedTask.depends_on, []);
+assert.deepEqual(dependentTask.depends_on, ["contract-scope-round-trip"]);
+assert.deepEqual(dependentTask.immutable_paths, []);
 
-const planDispatchPreview = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "task-01", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
+const planDispatchPreview = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "contract-scope-round-trip", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
 assert.equal(planDispatchPreview.ok, true, String((planDispatchPreview as Record<string, unknown>).stderr ?? (planDispatchPreview as Record<string, unknown>).message ?? ""));
 
 const planStatus = statusTool({ repo, plan_id: planId });
@@ -164,13 +200,13 @@ assert.equal(planStatus.found, true);
 
 const readyBeforeVerification = await nextReadyTool({ repo, plan_id: planId });
 assert.equal(readyBeforeVerification.ok, true);
-assert.ok(readyBeforeVerification.ready_tasks.length >= 1);
+assert.deepEqual(readyBeforeVerification.ready_tasks.map((task) => String((task as { task_id?: unknown }).task_id ?? "")), ["contract-scope-round-trip"]);
 
 const lanes = listLanesTool({ repo, status: "all", limit: 20 });
 assert.equal(Array.isArray(lanes.lanes), true);
-assert.ok(lanes.lanes.some((lane) => lane.lane_id === `plan:${planId}:task-01`));
+assert.ok(lanes.lanes.some((lane) => lane.lane_id === `plan:${planId}:contract-scope-round-trip`));
 
-const laneStatus = getLaneTool({ repo, lane_id: `plan:${planId}:task-01` });
+const laneStatus = getLaneTool({ repo, lane_id: `plan:${planId}:contract-scope-round-trip` });
 assert.equal(laneStatus.found, true);
 
 const readonlyConflict = detectConflictsTool({ repo, mode: "readonly" });
@@ -182,7 +218,7 @@ assert.equal(Array.isArray(editConflict.conflicts), true);
 const forgedAcceptance = await verifyTaskTool({
   repo,
   plan_id: planId,
-  task_id: "task-01",
+  task_id: "contract-scope-round-trip",
   verdict: "accepted",
   summary: "Self-test attempts acceptance without dispatching a real worker.",
   next_action: "No next action."
@@ -192,7 +228,28 @@ assert.match(forgedAcceptance.stderr, /Accepted verification requires a recorded
 
 const readyAfterRejectedAcceptance = await nextReadyTool({ repo, plan_id: planId });
 assert.equal(readyAfterRejectedAcceptance.ok, true);
-assert.ok(readyAfterRejectedAcceptance.ready_tasks.length >= 1);
+assert.deepEqual(readyAfterRejectedAcceptance.ready_tasks.map((task) => String((task as { task_id?: unknown }).task_id ?? "")), ["contract-scope-round-trip"]);
+
+const invalidPlanId = `mcp-invalid-plan-${process.pid}-${Date.now()}`;
+const invalidPlan = await planTool({
+  repo,
+  title: "Invalid plan contract",
+  plan_id: invalidPlanId,
+  tasks: [{
+    task_id: "invalid task id",
+    title: "Invalid task identifier",
+    task_family: "read_only_diagnosis",
+    task_kind: "local_audit",
+    mode: "readonly",
+    acceptance: "Must be rejected before durable state is written.",
+    allowed_paths: ["README.md"],
+    forbidden_paths: [".git"],
+    required_checks: ["git status --short"],
+    budget: { max_wall_seconds: 300 }
+  }]
+});
+assert.equal(invalidPlan.ok, false);
+assert.equal(existsSync(resolve(repo, ".codex-praetor", "plans", invalidPlanId, "plan.json")), false);
 
 if (process.env.CODEX_PRAETOR_SELF_TEST_DRY_RUN === "1") {
   const dryRun = await dispatchDryRunTool({
