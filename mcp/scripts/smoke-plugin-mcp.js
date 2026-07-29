@@ -251,16 +251,22 @@ try {
     throw new Error(`Packaged evaluation suite data is missing or invalid: ${JSON.stringify(evaluationSuitePayload)}`);
   }
 
-  const evaluationPrepareResult = await client.callTool({
-    name: "codex_praetor_prepare_evaluation",
-    arguments: {
-      repo,
-      // Evaluation preparation writes immutable task material. A PID is not a
-      // durable unique identifier: Windows can reuse it between sequential
-      // bundled-runtime smokes in the same candidate closeout.
-      plan_id: `capability-smoke-${process.pid}-${randomUUID().replaceAll("-", "").slice(0, 12)}`
-    }
-  });
+  const evaluationPrepareResult = await client.callTool(
+    {
+      name: "codex_praetor_prepare_evaluation",
+      arguments: {
+        repo,
+        // Evaluation preparation writes immutable task material. A PID is not a
+        // durable unique identifier: Windows can reuse it between sequential
+        // bundled-runtime smokes in the same candidate closeout.
+        plan_id: `capability-smoke-${process.pid}-${randomUUID().replaceAll("-", "").slice(0, 12)}`
+      }
+    },
+    undefined,
+    // This invokes several bounded PowerShell plan writes. Cold Windows CI can
+    // exceed the SDK's generic 60-second RPC default without a product timeout.
+    { timeout: 180_000 }
+  );
   const evaluationPreparePayload = parseJsonDocument(evaluationPrepareResult.content?.[0]?.text ?? "{}", "evaluation preparation tool response");
   if (evaluationPreparePayload.ok !== true || !Array.isArray(evaluationPreparePayload.task_ids) || evaluationPreparePayload.task_ids.length !== evaluationSuitePayload.tasks.length || !evaluationPreparePayload.plan_path) {
     throw new Error(`Packaged evaluation preparation failed: ${JSON.stringify(evaluationPreparePayload)}`);

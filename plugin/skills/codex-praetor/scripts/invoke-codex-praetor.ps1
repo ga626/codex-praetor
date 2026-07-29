@@ -1376,7 +1376,7 @@ if ([string]::IsNullOrWhiteSpace($effectiveOutputFormat)) {
 $providerCliPath = ""
 if ($resolvedProvider -eq "qoder") {
     $providerCliPath = [string]$config.providers.qoder.cliPath
-    if (-not $DryRun -and -not (Test-Path -LiteralPath $providerCliPath -PathType Leaf)) {
+    if (-not $DryRun -and -not $PreflightOnly -and -not (Test-Path -LiteralPath $providerCliPath -PathType Leaf)) {
         $qoderCommand = Get-Command $providerCliPath -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($null -eq $qoderCommand) {
             throw "Qoder CLI not found: $providerCliPath"
@@ -1558,7 +1558,7 @@ $networkRule
     if ($resolvedProvider -eq "qoder") {
         $qoder = $config.providers.qoder.cliPath
         $resolvedQoder = $qoder
-        if (-not $DryRun -and -not (Test-Path -LiteralPath $qoder -PathType Leaf)) {
+        if (-not $DryRun -and -not $PreflightOnly -and -not (Test-Path -LiteralPath $qoder -PathType Leaf)) {
             $qoderCommand = Get-Command $qoder -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($null -eq $qoderCommand) {
                 throw "Qoder CLI not found: $qoder"
