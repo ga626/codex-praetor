@@ -9,6 +9,7 @@
 - [ ] 能看到安装、排错、隐私和路线图入口。
 - [ ] 能看懂没有 Qoder、CodeBuddy 时仍然可以 dry-run。
 - [ ] 能看懂真实派工前需要自己安装并登录至少一个 provider。
+- [ ] 能看懂 Qoder Agent SDK 与 CodeBuddy ACP 都由 Codex 监督，且首次真实任务与后续普通派工的证据门槛不同。
 
 ## 2. Release 包
 
@@ -96,6 +97,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 - [ ] 输出包含 `CODEX_PRAETOR_CANARY_OK` 或等价成功标记。
 - [ ] 开始 canary 前主仓库是干净的；若运行中出现仓库变动，输出会明确记录 `external_repo_drift_observed`，不会把它误报成 provider 失败。
 - [ ] 更新插件后，health 的 `running_generation` 与当前 `runtime_info` 对应；旧 `active.json` 不会阻断当前版本的 canary 或真实派工。
+- [ ] 首次真实任务由 Codex 创建带来源、范围、检查和验收的计划；不会把 canary、marker 或复制材料误报为真实改码证据。
+- [ ] worker 持续没有结构化进展时，会进入 `progress_saturated` 并保留终态证据，而不是靠固定轮数无限重跑。
 
 ## 8. 故障恢复
 

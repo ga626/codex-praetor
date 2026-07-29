@@ -445,7 +445,7 @@ export function classifyWorkerOutcome(input: {
     return {
       class: "worker_max_turns_exceeded",
       explanation: artifactState === "partial_worktree_diff" ? "worker 超轮数且留下了半成品改动，不能直接验收或合并。" : "worker 超轮数且没有完成任务，不能把进程退出当作有效结果。",
-      next_action: "保留 worktree 供 Codex 检查；缩小任务、提高 MaxTurns、换 provider，或由 Codex 接管并记录原因。"
+      next_action: "保留 worktree 供 Codex 检查；缩小任务、补充上下文、走冷恢复、换已合格 provider，或由 Codex 接管。不要把普通派工变成盲目提高固定轮数。"
     };
   }
   if (failureClass === "progress_saturated") {
@@ -459,7 +459,7 @@ export function classifyWorkerOutcome(input: {
     return {
       class: "worker_max_turns_exceeded",
       explanation: "worker 在轮数上限内没有完成任务，不能把它当作有效结果。",
-      next_action: "缩小任务、提高 MaxTurns、换 provider，或由 Codex 接管并记录原因。"
+      next_action: "缩小任务、补充上下文、走冷恢复、换已合格 provider，或由 Codex 接管。不要把普通派工变成盲目提高固定轮数。"
     };
   }
   if (combined.includes("cli not found") || combined.includes("not recognized") || combined.includes("cannot find path")) {

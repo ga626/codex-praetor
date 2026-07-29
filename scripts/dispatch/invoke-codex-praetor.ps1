@@ -1376,6 +1376,13 @@ if ([string]::IsNullOrWhiteSpace($effectiveOutputFormat)) {
 $providerCliPath = ""
 if ($resolvedProvider -eq "qoder") {
     $providerCliPath = [string]$config.providers.qoder.cliPath
+    if (-not $DryRun -and -not (Test-Path -LiteralPath $providerCliPath -PathType Leaf)) {
+        $qoderCommand = Get-Command $providerCliPath -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -eq $qoderCommand) {
+            throw "Qoder CLI not found: $providerCliPath"
+        }
+        $providerCliPath = [string]$qoderCommand.Source
+    }
     $sdkRunnerCandidates = @(
         (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
         (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
@@ -1384,17 +1391,6 @@ if ($resolvedProvider -eq "qoder") {
     if (@($sdkRunner).Count -ne 1) {
         throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
     }
-    $sdkCliCandidates = @(
-        (Join-Path (Split-Path -Parent ([string]$sdkRunner[0])) "qodercli.exe"),
-        (Join-Path (Split-Path -Parent (Split-Path -Parent ([string]$sdkRunner[0]))) "node_modules\@qoder-ai\qoder-agent-sdk\dist\_bundled\qodercli.exe")
-    )
-    $sdkCliPath = @($sdkCliCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
-    if (@($sdkCliPath).Count -ne 1) {
-        throw "Bundled Qoder SDK CLI is missing from this runtime. Reinstall the package or rebuild the Codex Praetor MCP bundle before dispatch."
-    }
-    # Readiness must identify the binary the SDK runner will really execute,
-    # not the legacy CLI path retained only for normal-login discovery.
-    $providerCliPath = [string]$sdkCliPath[0]
 } elseif ($resolvedProvider -eq "codebuddy") {
     $providerCliPath = [string]$config.providers.codebuddy.cliPath
 }
@@ -1561,8 +1557,13 @@ $networkRule
 
     if ($resolvedProvider -eq "qoder") {
         $qoder = $config.providers.qoder.cliPath
-        if (-not $DryRun -and -not (Test-Path -LiteralPath $qoder)) {
-            throw "Qoder CLI not found: $qoder"
+        $resolvedQoder = $qoder
+        if (-not $DryRun -and -not (Test-Path -LiteralPath $qoder -PathType Leaf)) {
+            $qoderCommand = Get-Command $qoder -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -eq $qoderCommand) {
+                throw "Qoder CLI not found: $qoder"
+            }
+            $resolvedQoder = [string]$qoderCommand.Source
         }
         $sdkRunnerCandidates = @(
             (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
@@ -1573,15 +1574,6 @@ $networkRule
             throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
         }
         $sdkRunnerPath = [string]$sdkRunner[0]
-        $sdkCliCandidates = @(
-            (Join-Path (Split-Path -Parent $sdkRunnerPath) "qodercli.exe"),
-            (Join-Path (Split-Path -Parent (Split-Path -Parent $sdkRunnerPath)) "node_modules\@qoder-ai\qoder-agent-sdk\dist\_bundled\qodercli.exe")
-        )
-        $sdkCliPath = @($sdkCliCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
-        if (@($sdkCliPath).Count -ne 1) {
-            throw "Bundled Qoder SDK CLI is missing from this runtime. Reinstall the package or rebuild the Codex Praetor MCP bundle before dispatch."
-        }
-        $sdkCliPath = [string]$sdkCliPath[0]
         $nodeCommand = "node"
         $allowedTools = if ($TaskKind -eq "test_execution") {
             @("Read", "Grep", "Glob", "Bash")
@@ -1594,7 +1586,7 @@ $networkRule
             schema = "codex-praetor-qoder-sdk-runner/v1"
             cwd = $executionRepo
             prompt = $supervisedTask
-            cli_path = $sdkCliPath
+            cli_path = $resolvedQoder
             model = $model
             permission_mode = if ($TaskKind -eq "test_execution" -or $Mode -eq "edit") { "bypassPermissions" } else { "dontAsk" }
             allowed_tools = $allowedTools
@@ -1605,7 +1597,7 @@ $networkRule
             sdk_environment = if ($null -ne $config.providers.qoder.sdkEnvironment) { $config.providers.qoder.sdkEnvironment } else { [ordered]@{} }
         }
         $cmdArgs = @($sdkRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_SDK_OPTIONS__")
-        Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $sdkCliPath
+        Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $resolvedQoder
     }
 
     if ($resolvedProvider -eq "codebuddy") {

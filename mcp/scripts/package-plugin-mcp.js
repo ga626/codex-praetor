@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { build } from "esbuild";
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,10 +11,6 @@ const pluginMcpRoot = path.join(projectRoot, "plugin", "mcp");
 const outdir = path.join(pluginMcpRoot, "dist");
 const outfile = path.join(outdir, "server.js");
 const packageMetadata = JSON.parse(await readFile(path.join(mcpRoot, "package.json"), "utf8"));
-
-const prepare = await import("node:child_process");
-const prepared = prepare.spawnSync(process.execPath, [path.join(mcpRoot, "scripts", "ensure-qoder-sdk-cli.js")], { cwd: mcpRoot, stdio: "inherit" });
-if (prepared.status !== 0) throw new Error(`Could not prepare Qoder SDK runtime (exit ${prepared.status ?? "unknown"}).`);
 
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
@@ -43,9 +39,6 @@ for (const [entry, destination] of [
   const generated = await readFile(destination, "utf8");
   await writeFile(destination, generated.replace(/[\t ]+$/gm, ""), "utf8");
 }
-
-const bundledCli = path.join(mcpRoot, "node_modules", "@qoder-ai", "qoder-agent-sdk", "dist", "_bundled", process.platform === "win32" ? "qodercli.exe" : "qodercli");
-await copyFile(bundledCli, path.join(outdir, process.platform === "win32" ? "qodercli.exe" : "qodercli"));
 
 await writeFile(
   path.join(pluginMcpRoot, "package.json"),

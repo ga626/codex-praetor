@@ -123,6 +123,9 @@ $installZh = Read-Text "docs\user\installation.zh.md"
 $roadmap = Read-Text "docs\roadmap.md"
 $releaseNotesPath = "docs\release\release-notes-$Version.md"
 $releaseNotes = Read-Text $releaseNotesPath
+$changelog = Read-Text "CHANGELOG.md"
+$releaseIntent = Read-Text "config\release-intent.json"
+$troubleshooting = Read-Text "docs\user\troubleshooting.zh.md"
 $security = Read-Text "SECURITY.md"
 $setup = Read-Text "setup.ps1"
 $mcpPackage = Read-Text "mcp\package.json"
@@ -161,6 +164,24 @@ Assert-Contains -Text $setup -Needle "-ExpectedGenerationPath" -Label "setup exp
 Assert-NotContains -Text $setup -Needle "Invoke-CanaryStep -Statuses" -Label "setup must not run canary before host identity"
 Assert-Contains -Text $installZh -Needle "release-generation.json" -Label "installation identity boundary"
 Assert-NotContains -Text $installZh -Needle "安装后重启 Codex，或者打开一个新任务" -Label "obsolete installation refresh wording"
+
+# This is a release-impacting transport change. Keep public entrypoints from
+# silently downgrading it to the earlier parser-only fix, or promising that an
+# arbitrary installed provider can edit code without the task contract.
+Assert-Contains -Text $readme -Needle "Qoder Agent SDK" -Label "README.md"
+Assert-Contains -Text $readme -Needle "CodeBuddy ACP" -Label "README.md"
+Assert-Contains -Text $readmeEn -Needle "Qoder Agent SDK" -Label "README.en.md"
+Assert-Contains -Text $readmeEn -Needle "CodeBuddy ACP" -Label "README.en.md"
+Assert-Contains -Text $releaseNotes -Needle "structured progress" -Label $releaseNotesPath
+Assert-Contains -Text $releaseNotes -Needle "formal cancellation" -Label $releaseNotesPath
+Assert-Contains -Text $releaseIntent -Needle "Qoder Agent SDK" -Label "config/release-intent.json"
+Assert-Contains -Text $releaseIntent -Needle "CodeBuddy ACP" -Label "config/release-intent.json"
+Assert-Contains -Text $changelog -Needle "0.16.5-alpha" -Label "CHANGELOG.md"
+Assert-Contains -Text $troubleshooting -Needle "进展" -Label "docs/user/troubleshooting.zh.md"
+foreach ($entry in @{ "README.md" = $readme; "README.en.md" = $readmeEn; $releaseNotesPath = $releaseNotes; "config/release-intent.json" = $releaseIntent }.GetEnumerator()) {
+    Assert-NotContains -Text $entry.Value -Needle "只修正只读解析" -Label $entry.Key
+    Assert-NotContains -Text $entry.Value -Needle "does not add any publicly routable provider code-editing capability" -Label $entry.Key
+}
 
 $staleMarkers = @(
     'releases/tag/v0.1.1-alpha',

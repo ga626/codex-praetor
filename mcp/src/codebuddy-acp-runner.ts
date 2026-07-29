@@ -365,7 +365,13 @@ class AcpClient {
       this.stopReason = reason;
       this.currentState("running");
       trace(this.options, "cancel_requested", { session_id: this.sessionId, reason });
-      try { this.send({ method: "session/cancel", params: { sessionId: this.sessionId } }); this.cancelAcknowledged = true; this.currentState("running"); }
+      try {
+        this.send({ method: "session/cancel", params: { sessionId: this.sessionId } });
+        // session/cancel is a notification. It is not acknowledged merely
+        // because its bytes reached stdin; only session/prompt returning a
+        // cancelled terminal state proves provider-side cancellation.
+        this.currentState("running");
+      }
       catch (error) { trace(this.options, "cancel_request_error", { message: error instanceof Error ? error.message : String(error) }); }
   }
   private async cancelWhenRequested(cancelPath: string) {
@@ -391,6 +397,7 @@ class AcpClient {
       if (typeof terminal.result === "string") this.terminalText = terminal.result;
       if (!this.terminalText && this.lastAgentMessageId) this.terminalText = this.agentMessages.get(this.lastAgentMessageId) ?? "";
       const cancelled = this.cancelRequested && this.terminalStopReason === "cancelled";
+      this.cancelAcknowledged = cancelled;
       if (this.terminalStopReason === "cancelled" && !this.cancelRequested) {
         const message = "CodeBuddy ACP session ended as cancelled without a Codex cancellation request.";
         this.fail(message);

@@ -1,8 +1,8 @@
 # Codex Praetor 路线图
 
-## 当前状态：2026-07-21
+## 当前状态：2026-07-29
 
-`v0.16.2-alpha` 是当前已公开交付的基线。候选 `v0.16.5-alpha` 只修复 Windows PowerShell UTF-8 BOM 使有效 ledger 被能力画像误判为损坏的解析断点；它不改写历史记录、不提升旧尝试、不读取认证材料，也不自动扩大路由或 provider 能力承诺。合并后仍只由 Release On Main 创建、发布和复验不可变 Release。
+`v0.16.4-alpha` 是当前已公开交付的基线。候选 `v0.16.5-alpha` 交付 Qoder Agent SDK 与 CodeBuddy ACP 的受控真实派工连接层：Codex 根据结构化进展监督 worker，停滞时正式取消并保留终态证据，必要时从 ledger 冷恢复。真实改码仍只在隔离 worktree、明确合同和当前精确 tuple 证据下运行；不读取认证资料、不自动合并，也不自动扩大到未经证实的模型或 provider。合并后仍只由 Release On Main 从合并 SHA 创建、发布和复验不可变 Release。
 
 已经完成：
 

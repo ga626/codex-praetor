@@ -196,7 +196,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 ## 配置真实派工
 
-真实派工前，你需要至少一个外部 CLI 已安装、已授权，并通过只读 canary。
+真实派工前，你需要至少一个外部 CLI 已安装、已授权，并通过只读 canary。`0.16.5-alpha` 使用 Qoder Agent SDK 或 CodeBuddy ACP 获取结构化进展；你不需要手工选择连接协议。
+
+第一次真实任务也不是直接跳过保护。Codex 会先把你的真实请求写成可追溯计划，明确允许路径、禁止路径、检查和验收；只有这些信息齐全，才会创建受控的首次证据。之后的普通派工会继续核对当前 provider readiness 和同一 provider、模型、权限、任务类型的已采信证据。
 
 Codex Praetor 不会在未经你确认时安装 provider，也不会读取账号数据库、token、cookie。Qoder 和 CodeBuddy 通常需要官方登录或授权。
 

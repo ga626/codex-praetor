@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.5-alpha
+
+- Delivered the Qoder Agent SDK and CodeBuddy ACP supervised dispatch paths with structured progress, progress-stall classification, formal cancellation, durable terminal evidence, and cold recovery guidance.
+- Kept real code changes inside an isolated worktree and required Codex-owned task contracts, verification, and exact-tuple readiness/evidence gates; no credentials, provider databases, automatic merges, or production-side actions are added.
+- Corrected Windows PowerShell UTF-8 BOM ledger parsing and added release-publication regressions so the public description cannot downgrade this delivery to a parser-only fix.
+
+## 0.16.4-alpha
+
+- Fixed nested immutable-path revision handling for real isolated Git worktrees without changing provider, connection-layer, routing, or public capability promises.
+
 ## 0.16.3-alpha
 
 - Capability-profile projection now accepts the UTF-8 BOM emitted by Windows PowerShell ledgers, so valid durable task evidence is not misclassified as malformed.

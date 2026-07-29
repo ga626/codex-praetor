@@ -38,7 +38,8 @@ try {
     Invoke-Check "version surface updater" (Join-Path $verify "test-version-surface-updater.ps1")
 
     Write-Host "[RUN] MCP dependencies and tests"
-    & npm --prefix (Join-Path $root "mcp") ci
+    Invoke-Check "Qoder SDK install bootstrap" (Join-Path $verify "test-qoder-sdk-install-bootstrap.ps1")
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "mcp\scripts\install-mcp-dependencies.ps1")
     if ($LASTEXITCODE -ne 0) { throw "Candidate preflight failed: MCP dependency installation." }
     & npm --prefix (Join-Path $root "mcp") test
     if ($LASTEXITCODE -ne 0) { throw "Candidate preflight failed: MCP tests." }

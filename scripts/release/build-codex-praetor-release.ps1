@@ -272,6 +272,14 @@ function Build-PackagedMcpRuntime {
     if (-not (Test-Path -LiteralPath $packageJson -PathType Leaf)) {
         throw "MCP package metadata is missing: $packageJson"
     }
+    $dependencyInstaller = Join-Path $mcpRoot "scripts\install-mcp-dependencies.ps1"
+    if (-not (Test-Path -LiteralPath $dependencyInstaller -PathType Leaf)) {
+        throw "MCP dependency installer is missing: $dependencyInstaller"
+    }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $dependencyInstaller
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bundled MCP dependency installation failed."
+    }
     Write-Host "Building bundled MCP runtime from mcp/src..."
     & npm run build:plugin --prefix $mcpRoot
     if ($LASTEXITCODE -ne 0) {

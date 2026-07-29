@@ -4,11 +4,11 @@
 
 Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching bounded work to external CLI worker agents while Codex remains the planner, supervisor, integrator, and final verifier.
 
-Current productization target: **0.16.5-alpha**. This release accepts the UTF-8 BOM that Windows PowerShell writes in valid task ledgers, so read-only capability projection does not misclassify them as malformed. It neither rewrites historical ledgers nor promotes prior attempts into provider capability.
+Current productization target: **0.16.5-alpha**. This release connects Qoder Agent SDK and CodeBuddy ACP to one supervised real-dispatch path. Codex observes structured progress, stall, formal cancellation, and terminal evidence before it evaluates a worker result. It also fixes UTF-8 BOM handling for valid Windows PowerShell ledgers.
 
-This release also adds read-only capability profiles: they summarize real attempts and Codex verdicts by provider, model, permission, and task family without changing default routing.
+This is not unrestricted provider code editing after installation. A first real task must be a Codex-created, traceable plan with explicit scope, forbidden paths, checks, and acceptance. Later normal dispatch uses only current readiness and qualified evidence for the exact provider tuple. Copied task material, canaries, and markers remain regression evidence only.
 
-Copied task material, canaries, and markers remain regression evidence only; this release does not add any publicly routable provider code-editing capability.
+This release adds no provider, credential or provider-database access, automatic merge, or irreversible production-side action.
 
 [Download 0.16.5-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.16.5-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
 

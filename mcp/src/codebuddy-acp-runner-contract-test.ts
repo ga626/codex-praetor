@@ -129,6 +129,8 @@ try {
   assert.equal(cancelState.cancel_requested, true);
   assert.equal(cancelState.cancel_acknowledged, true);
   assert.equal(cancelState.terminal_stop_reason, "cancelled");
+  const cancelTrace = readFileSync(cancelled.tracePath, "utf8");
+  assert.match(cancelTrace, /cancel_requested/);
   console.log("CodeBuddy ACP runner contract regression ok");
 } finally {
   rmSync(root, { recursive: true, force: true });
