@@ -67,7 +67,7 @@ if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') 
         }
     }
     $impactPatterns = @(
-        '^plugin/', '^skill/', '^mcp/', '^scripts/(dispatch|install|maintenance|release|verify)/',
+        '^plugin/', '^skill/', '^mcp/', '^scripts/(dispatch|install|maintenance|release)/',
         '^setup\.(ps1|cmd)$', '^config/runtime-contract\.json$', '^README(\.en)?\.md$',
         '^docs/user/', '^docs/release/', '^docs/roadmap\.md$', '^SECURITY\.md$', '^CHANGELOG\.md$'
     )
