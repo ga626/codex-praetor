@@ -23,6 +23,7 @@ lines.on("line", (line) => {
     send({ method: "session/update", params: { sessionId: "fixture-session", update: { sessionUpdate: "tool_call_update" } } });
     const chunkCount = mode === "high_volume" ? 512 : 1;
     for (let index = 0; index < chunkCount; index += 1) send({ method: "session/update", params: { sessionId: "fixture-session", update: { sessionUpdate: "agent_message_chunk", messageId: "fixture-final", content: { type: "text", text: chunkCount === 1 ? "ACP fixture complete" : "x" } } } });
+    if (mode === "cancel") return;
     send({ id: 50, method: "fs/read_text_file", params: { path: process.env.CP_FAKE_INSIDE } });
     return;
   }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.7-alpha
+
+- Fixed the Windows MCP timeout path so it terminates the PowerShell process tree before reporting timeout, preventing child processes from continuing after the controller believes cleanup is complete.
+- Made durable plan updates serializable across controller, watcher, cancellation and verification writers, eliminating partial JSON reads and lost concurrent events.
+- Added permanent process-tree and concurrent-plan regressions to the standard product suite and release-candidate preflight.
+
 ## 0.16.6-alpha
 
 - Fixed durable plan scope serialization: multiple allowed paths, forbidden paths, required checks, and immutable paths now round-trip exactly instead of being truncated or shifted into unrelated ledger fields.

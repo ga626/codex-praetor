@@ -7,6 +7,21 @@ export interface PowerShellOptions {
   maxOutputBytes?: number;
 }
 
+function terminateProcessTree(pid: number): Promise<void> {
+  if (process.platform !== "win32" || pid <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const killer = spawn("taskkill.exe", ["/pid", String(pid), "/T", "/F"], {
+      windowsHide: true,
+      stdio: "ignore"
+    });
+    killer.once("error", () => resolve());
+    killer.once("close", () => resolve());
+  });
+}
+
 export function decodeUtf8Chunks(chunks: readonly Buffer[]): string {
   const decoder = new StringDecoder("utf8");
   let text = "";
@@ -37,13 +52,14 @@ export function runPowerShell(args: string[], options: PowerShellOptions = {}): 
     const stderrDecoder = new StringDecoder("utf8");
     let settled = false;
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       if (settled) {
         return;
       }
       settled = true;
+      await terminateProcessTree(child.pid ?? 0);
       child.kill();
-      reject(new Error(`PowerShell command timed out after ${timeoutMs} ms.`));
+      reject(new Error(`PowerShell command timed out after ${timeoutMs} ms; its process tree was terminated.`));
     }, timeoutMs);
 
     child.stdout.on("data", (chunk: Buffer) => {
