@@ -48,7 +48,7 @@ try {
 
     $packagedDispatch = Join-Path $tmp "scripts\dispatch\invoke-codex-praetor.ps1"
     $packagedDispatchSource = Get-Content -LiteralPath $packagedDispatch -Raw -Encoding UTF8
-    if ($packagedDispatchSource -notmatch [regex]::Escape('plugin\mcp\dist\qoder-sdk-runner.js')) {
+    if ([regex]::Matches($packagedDispatchSource, [regex]::Escape('plugin\mcp\dist\qoder-sdk-runner.js')).Count -lt 2) {
         throw "Final release zip Qoder dispatcher cannot locate its bundled SDK runner."
     }
     Write-Host "[PASS] Final release zip Qoder dispatcher resolves its bundled SDK runner."

@@ -1578,6 +1578,7 @@ $networkRule
         }
         $sdkRunnerCandidates = @(
             (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
+            (Join-Path $scriptGrandparent "plugin\mcp\dist\qoder-sdk-runner.js"),
             (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
         )
         $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
