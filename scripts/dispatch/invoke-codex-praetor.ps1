@@ -1124,7 +1124,7 @@ function Invoke-Or-StartWorker {
         $watcherArgs += "-NoNotify"
     }
     $watcherArgumentLine = ($watcherArgs | ForEach-Object { Quote-Arg ([string]$_) }) -join " "
-    $watcher = Start-Process -FilePath "powershell" -ArgumentList $watcherArgumentLine -WindowStyle Hidden -RedirectStandardOutput $watcherStdoutPath -RedirectStandardError $watcherStderrPath -PassThru
+    $watcher = Start-Process -FilePath "powershell.exe" -ArgumentList $watcherArgumentLine -WindowStyle Hidden -RedirectStandardOutput $watcherStdoutPath -RedirectStandardError $watcherStderrPath -PassThru
     Update-RepoEditLockHolder -LockPath $repoEditLockPath -JobId $jobId -HolderPid $watcher.Id -HolderKind "watcher"
     $meta["watcher_pid"] = $watcher.Id
     $meta | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metaPath -Encoding UTF8
@@ -1155,7 +1155,7 @@ function Invoke-Or-StartWorker {
             if (-not [string]::IsNullOrWhiteSpace($Acceptance)) {
                 $planArgs += @("-Acceptance", $Acceptance)
             }
-            & powershell @planArgs | Out-Null
+            & powershell.exe @planArgs | Out-Null
         }
     }
 
@@ -1268,7 +1268,7 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
         if (-not [string]::IsNullOrWhiteSpace($ReadinessPath)) {
             $healthArgs += @("-ReadinessPath", [System.IO.Path]::GetFullPath($ReadinessPath))
         }
-        $null = & powershell @healthArgs 2>$null
+        $null = & powershell.exe @healthArgs 2>$null
         if ($LASTEXITCODE -eq 2) {
             throw "Runtime generation health is blocked. Repair the installed plugin/Skill/cache generation in the selected profile before real dispatch."
         }
@@ -1299,13 +1299,21 @@ if ($Provider -ne "auto" -and $Provider -ne $resolvedProvider) {
 }
 
 if ($resolvedProvider -eq "qoder") {
-    $gitRoot = $null
+    # Capture the native output explicitly.  In a packaged MCP child process a
+    # bare native-command assignment can be shaped differently from an
+    # interactive PowerShell session, which falsely treated a valid worktree
+    # as missing.  Keep the Git preflight; only make its input/output boundary
+    # deterministic.
+    $gitRoot = ""
+    $gitExitCode = -1
     try {
-        $gitRoot = & git -C $Repo rev-parse --show-toplevel 2>$null
+        $repoForGit = [System.IO.Path]::GetFullPath($Repo)
+        $gitRoot = (& git.exe -C $repoForGit rev-parse --show-toplevel 2>$null | Out-String).Trim()
+        $gitExitCode = $LASTEXITCODE
     } catch {
-        $gitRoot = $null
+        $gitRoot = ""
     }
-    if ([string]::IsNullOrWhiteSpace($gitRoot)) {
+    if ($gitExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($gitRoot)) {
         $message = "Qoder CLI failed in prior probes outside a git worktree. Use a git repo path or choose CodeBuddy/Codex for this folder: $Repo"
         if ($DryRun) {
             Write-Warning $message
@@ -1409,7 +1417,7 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
         if ([string]::IsNullOrWhiteSpace($TaskFamily)) { throw "Normal dispatch requires an explicit task family. Use an approved plan task or run a bounded CapabilityCanary; do not infer a family from free-form task text." }
         $capabilityGateScript = Join-Path $scriptDir "test-codex-praetor-capability-evidence.ps1"
         if (-not (Test-Path -LiteralPath $capabilityGateScript -PathType Leaf)) { throw "Capability evidence gate is missing: $capabilityGateScript" }
-        $capabilityGateRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $capabilityGateScript -TaskFamily $TaskFamily -Provider $resolvedProvider -CliPath $providerCliPath -CliHash (Get-FileSha256OrEmpty -Path $providerCliPath) -Model $model -PermissionProfile $effectivePermissionProfile -TaskKind $TaskKind -GenerationId ([string]$generation.generation_id) -RuntimeContractSha256 $runtimeContractHash -TaskContractSchema ([string]$runtimeContract.taskContractSchema) -EvidenceRoot $CapabilityEvidenceRoot
+        $capabilityGateRaw = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $capabilityGateScript -TaskFamily $TaskFamily -Provider $resolvedProvider -CliPath $providerCliPath -CliHash (Get-FileSha256OrEmpty -Path $providerCliPath) -Model $model -PermissionProfile $effectivePermissionProfile -TaskKind $TaskKind -GenerationId ([string]$generation.generation_id) -RuntimeContractSha256 $runtimeContractHash -TaskContractSchema ([string]$runtimeContract.taskContractSchema) -EvidenceRoot $CapabilityEvidenceRoot
         if ($LASTEXITCODE -ne 0) { throw "Capability evidence gate failed to execute: $($capabilityGateRaw -join ' ')" }
         try { $capabilityGate = ($capabilityGateRaw -join "`n") | ConvertFrom-Json } catch { throw "Capability evidence gate returned invalid JSON: $($capabilityGateRaw -join ' ')" }
         if (-not [bool]$capabilityGate.allowed) { throw "Capability evidence gate blocked '$resolvedProvider' for '$TaskFamily': $([string]$capabilityGate.reason) Use a frozen real-task evidence bootstrap plan or an explicit bounded CapabilityCanary; do not disguise either as normal dispatch." }
