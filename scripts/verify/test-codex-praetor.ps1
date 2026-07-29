@@ -571,6 +571,14 @@ if (Test-Path -LiteralPath $planAcceptanceTest -PathType Leaf) {
     } catch { Add-Fail "Supervisor acceptance gate regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Supervisor acceptance gate script missing: $planAcceptanceTest" }
 
+$planConcurrencyTest = Join-Path $projectRoot "scripts\verify\test-plan-concurrency.ps1"
+if (Test-Path -LiteralPath $planConcurrencyTest -PathType Leaf) {
+    try {
+        $planConcurrencyOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $planConcurrencyTest -ProjectRoot $projectRoot
+        if ($LASTEXITCODE -eq 0 -and (($planConcurrencyOutput | Out-String) -match "Concurrent plan writers")) { Add-Pass "Concurrent plan writer regression passes" } else { Add-Fail "Concurrent plan writer regression failed: $($planConcurrencyOutput | Out-String)" }
+    } catch { Add-Fail "Concurrent plan writer regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Concurrent plan writer regression script missing: $planConcurrencyTest" }
+
 $realWorktreeTest = Join-Path $projectRoot "scripts\verify\test-real-worktree-code-change-contract.ps1"
 if (Test-Path -LiteralPath $realWorktreeTest -PathType Leaf) {
     try {

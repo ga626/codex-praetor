@@ -76,14 +76,32 @@ function Write-JsonFile {
         [Parameter(Mandatory = $true)]
         [string]$Path,
         [Parameter(Mandatory = $true)]
-        [object]$Value
+    [object]$Value
     )
     $tmp = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
+    $backup = "$Path.$([Guid]::NewGuid().ToString('N')).bak"
     try {
         $Value | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $tmp -Encoding UTF8
-        [IO.File]::Copy($tmp, $Path, $true)
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            [IO.File]::Replace($tmp, $Path, $backup, $true)
+        } else {
+            [IO.File]::Move($tmp, $Path)
+        }
     } finally {
         if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+function Get-PlanMutexName {
+    param([Parameter(Mandatory = $true)][string]$Id)
+    $identity = ([IO.Path]::GetFullPath((Get-PlanPath -Id $Id))).ToLowerInvariant()
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($identity))
+        return 'Local\CodexPraetorPlan_' + (($hash | ForEach-Object { $_.ToString('x2') }) -join '')
+    } finally {
+        $sha.Dispose()
     }
 }
 
@@ -558,7 +576,17 @@ function Get-ReadyTasks {
     return $ready
 }
 
-$plan = Read-Plan -Id $PlanId
+$planMutex = New-Object Threading.Mutex($false, (Get-PlanMutexName -Id $PlanId))
+$planLockTaken = $false
+try {
+    try {
+        $planLockTaken = $planMutex.WaitOne([TimeSpan]::FromSeconds(30))
+    } catch [Threading.AbandonedMutexException] {
+        $planLockTaken = $true
+    }
+    if (-not $planLockTaken) { throw "Timed out waiting for exclusive plan lock: $PlanId" }
+
+    $plan = Read-Plan -Id $PlanId
 
 if ($Action -eq "Init") {
     if (-not [string]::IsNullOrWhiteSpace($Title)) { $plan.title = $Title }
@@ -695,4 +723,8 @@ if ($OutputJson) {
     $plan | ConvertTo-Json -Depth 30
 } else {
     Write-Output (Get-PlanPath -Id $PlanId)
+}
+} finally {
+    if ($planLockTaken) { $planMutex.ReleaseMutex() }
+    $planMutex.Dispose()
 }

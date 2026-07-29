@@ -52,6 +52,7 @@ try {
         "test-codex-praetor-native.ps1",
         "test-provider-canary-evidence.ps1",
         "test-job-lifecycle.ps1",
+        "test-plan-concurrency.ps1",
         "test-capability-profile-contract.ps1",
         "test-evaluation-suite-contract.ps1",
         "test-public-capability-contract.ps1"
