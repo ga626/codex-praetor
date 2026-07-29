@@ -76,6 +76,8 @@ Assert-True ($intentGateText -match 'Pipeline classification: non_release') "Rel
 Assert-True ($intentGateText -match 'if \(\$CheckRemote -and \$releaseImpact\)') "Remote immutable-tag checks must run only for release-impact candidates."
 Assert-True ($preflightText -match 'test-release-workflow-readiness\.ps1') "Candidate preflight must validate workflow readiness."
 Assert-True ($preflightText -match 'test-release-intent-classification\.ps1') "Candidate preflight must regress dependency-only classification."
+Assert-True ($pipelineText -match 'id:\s*release_impact') "Shared pipeline must classify mainline changes before publication."
+Assert-True ($pipelineText -match "steps\.release_impact\.outputs\.publish\s*==\s*'true'") "Mainline publication must run only for release-impact changes."
 Assert-True ($pipelineText -match 'publish-github-release-asset\.ps1') "Shared pipeline must own the only publication command."
 Assert-True ($pipelineText -match 'ResumeExistingRelease') "A retry at the original SHA must verify an existing immutable Release instead of overwriting it."
 Assert-True ($preflightText -match 'test-release-artifact-runtime\.ps1') "Candidate preflight must execute final zip runtime acceptance."
