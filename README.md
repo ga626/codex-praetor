@@ -6,7 +6,7 @@ Codex Praetor，中文名 **Codex 执政官**，是给 Codex 使用的外部 Age
 
 它解决的是一个很具体的问题：当你说“拆分一下任务”“分配给其他 agent 做一部分”时，Codex 不应该默认再开自己的 Codex subagent，而应该优先把边界清楚的小任务派给本机已有的外部 CLI 工具，比如 Qoder、CodeBuddy。Codex 仍然负责规划、风险判断、整合结果和最终验收。
 
-当前产品化目标版本是 **0.16.6-alpha**。这一版把 Qoder Agent SDK 与 CodeBuddy ACP 接入同一条受控真实派工链路：worker 的结构化进展、停滞、正式取消和终态证据都由 Codex 读取、分类和验收。Windows PowerShell UTF-8 BOM 的 ledger 解析也一并修正。
+当前产品化目标版本是 **0.16.6-alpha**。这一版把 Qoder Agent SDK 与 CodeBuddy ACP 接入同一条受控真实派工链路：worker 的结构化进展、停滞、正式取消和终态证据都由 Codex 读取、分类和验收。计划台账会稳定保留允许/禁止路径、必要检查、不可变路径及真实任务 ID，Windows PowerShell UTF-8 BOM 的 ledger 解析也一并修正。
 
 这不是“安装后随便一句话就让任何 provider 改代码”。首次真实任务必须是 Codex 创建的、来源可追溯且范围、禁止路径、检查和验收都齐全的计划任务；后续普通派工只使用当前 readiness 与精确 provider tuple 的合格证据。复制材料、canary 和 marker 仍只算回归证据，不能冒充真实改码能力。
 
