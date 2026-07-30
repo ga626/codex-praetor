@@ -110,7 +110,11 @@ function readAcceptedEvidence(root: string): JsonRecord[] {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
     try {
-      const receipt = asRecord(JSON.parse(readFileSync(path.join(root, entry.name), "utf8")));
+      // PowerShell 5 writes UTF-8 with a BOM for the durable receipt path.
+      // Treat that valid encoding exactly like durable plans: accept it
+      // read-only instead of silently discarding an otherwise complete
+      // Codex-accepted capability receipt.
+      const receipt = asRecord(JSON.parse(readFileSync(path.join(root, entry.name), "utf8").replace(/^\uFEFF/u, "")));
       const tuple = asRecord(receipt.provider_tuple);
       if (asString(receipt.schema) !== "codex-praetor-capability-evidence/v1" || asString(receipt.supervisor_verdict) !== "accepted" || !asString(receipt.evidence_id) || !asString(receipt.task_family) || requiredTupleFields.some((field) => !asString(tuple[field]))) continue;
       receipts.push(receipt);

@@ -46,7 +46,7 @@ function profileFor(result: ReturnType<typeof capabilityProfilesTool>, model: st
   return profile;
 }
 
-function writeAcceptedReceipts(model: string, count: number, acceptedAt = now) {
+function writeAcceptedReceipts(model: string, count: number, acceptedAt = now, withBom = false) {
   mkdirSync(evidenceRoot, { recursive: true });
   for (let index = 1; index <= count; index += 1) {
     const tuple = attempt({ id: `${model}-${index}`, model, family: "bounded_code_change" }).provider_tuple;
@@ -62,7 +62,7 @@ function writeAcceptedReceipts(model: string, count: number, acceptedAt = now) {
       completion_sha256: "d".repeat(64),
       required_checks: ["fixture"]
     };
-    writeFileSync(path.join(evidenceRoot, `${model}-${index}.json`), JSON.stringify(receipt), "utf8");
+    writeFileSync(path.join(evidenceRoot, `${model}-${index}.json`), `${withBom ? "\uFEFF" : ""}${JSON.stringify(receipt)}`, "utf8");
   }
 }
 
@@ -89,6 +89,7 @@ try {
   writeAcceptedReceipts("provisional", 2);
   writeAcceptedReceipts("qualified", 3);
   writeAcceptedReceipts("stale", 1, "2025-01-01T00:00:00.000Z");
+  writeAcceptedReceipts("bom", 3, now, true);
 
   const withoutUnclassified = capabilityProfilesTool({ repo: root, evidence_root: evidenceRoot });
   assert.equal(withoutUnclassified.schema, "codex-praetor-capability-profile-set/v1");
@@ -96,6 +97,7 @@ try {
   assert.equal(profileFor(withoutUnclassified, "observed").status, "observed");
   assert.equal(profileFor(withoutUnclassified, "provisional").status, "provisional");
   assert.equal(profileFor(withoutUnclassified, "qualified").status, "qualified");
+  assert.equal(profileFor(withoutUnclassified, "bom").status, "qualified", "a PowerShell UTF-8 BOM must not hide durable capability evidence");
   assert.equal(profileFor(withoutUnclassified, "blocked").status, "blocked");
   assert.equal(profileFor(withoutUnclassified, "cooldown").status, "cooling_down");
   assert.equal(profileFor(withoutUnclassified, "stale").status, "stale");
@@ -105,7 +107,7 @@ try {
 
   const withUnclassified = capabilityProfilesTool({ repo: root, include_unclassified: true, evidence_root: evidenceRoot });
   assert.equal(profileFor(withUnclassified, "unclassified").status, "unknown", "legacy plan history must not authorize a new task family");
-  assert.equal(withUnclassified.profiles.length, 7);
+  assert.equal(withUnclassified.profiles.length, 8);
 
   const candidateFor = (model: string) => ({
     provider: "fixture",
