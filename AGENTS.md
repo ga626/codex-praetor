@@ -4,6 +4,7 @@
 
 - Codex Praetor 只让 Codex 派发边界清楚的外部 CLI 工作；Codex 规划、监督、整合和验收，不扩展成通用多代理平台。活动名称固定为 `Codex Praetor`、`codex-praetor`、`codex_praetor_`；旧名仅限历史材料。
 - `plugin/` 是稳定产品，`mcp/` 是源码，`scripts/` 按职责分组，`skill/` 只是兼容镜像；仓库检出和 zip 根目录不是安装入口。稳定入口是 personal marketplace 的 `%USERPROFILE%\plugins\codex-praetor`；开发用隔离 worktree + `UserProfileRoot`。不得手改 plugin cache、认证或 provider 数据库。
+- Codex 创建的开发候选只能位于本项目已忽略的 `.codex-praetor/supervisor-worktrees/<name>`；阶段夹具只能位于 `.codex-praetor/fixtures/<name>`。不得在项目父目录创建同级 `CodexPraetor-*` 目录，不得移动、清理或接管 Codex Desktop 默认 worktree 或用户显式创建的 Git worktree。
 - 公开能力以 `config/public-capabilities.json` 为准：每项声明受众、入口、包内依赖、场景和故障注入。`installed_plugin` 必须从插件 MCP/Skill 完成，`release_bundle` 必须从下载包完成，`developer_only` 不得写成普通用户承诺。
 
 ## 发布与验收

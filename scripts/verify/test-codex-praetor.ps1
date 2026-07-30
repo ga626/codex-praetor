@@ -454,7 +454,7 @@ import('node:url').then(({pathToFileURL})=>import(pathToFileURL(process.argv[1])
         try {
             Push-Location -LiteralPath (Join-Path $projectRoot "mcp")
             try {
-                $smokeArgs = @($pluginMcpRuntime, $Repo)
+                $smokeArgs = @($pluginMcpRuntime, $projectRoot)
                 if ($SkipDryRun) {
                     $smokeArgs += "--skip-dry-run"
                 }
@@ -487,6 +487,48 @@ if (Test-Path -LiteralPath $dynamicFactsTest -PathType Leaf) {
     } catch { Add-Fail "Dynamic readiness/maintenance regression failed: $($_.Exception.Message)" }
 } else {
     Add-Fail "Dynamic readiness regression script missing: $dynamicFactsTest"
+}
+
+$fastHealthTest = Join-Path $projectRoot "scripts\verify\test-fast-health-inventory-boundary.ps1"
+if (Test-Path -LiteralPath $fastHealthTest -PathType Leaf) {
+    try {
+        $fastHealthOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $fastHealthTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($fastHealthOutput | Out-String) -match "Default health skipped historical inventory")) {
+            Add-Pass "Fast health and explicit inventory boundary regression passes"
+        } else {
+            Add-Fail "Fast health/inventory boundary regression failed: $($fastHealthOutput | Out-String)"
+        }
+    } catch { Add-Fail "Fast health/inventory boundary regression failed: $($_.Exception.Message)" }
+} else {
+    Add-Fail "Fast health/inventory boundary regression script missing: $fastHealthTest"
+}
+
+$linkedWorktreeTest = Join-Path $projectRoot "scripts\verify\test-linked-worktree-canonical-root.ps1"
+if (Test-Path -LiteralPath $linkedWorktreeTest -PathType Leaf) {
+    try {
+        $linkedWorktreeOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $linkedWorktreeTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($linkedWorktreeOutput | Out-String) -match "Linked source worktree dispatch")) {
+            Add-Pass "Canonical worker-root regression passes"
+        } else {
+            Add-Fail "Canonical worker-root regression failed: $($linkedWorktreeOutput | Out-String)"
+        }
+    } catch { Add-Fail "Canonical worker-root regression failed: $($_.Exception.Message)" }
+} else {
+    Add-Fail "Canonical worker-root regression script missing: $linkedWorktreeTest"
+}
+
+$cleanupOwnershipTest = Join-Path $projectRoot "scripts\verify\test-runtime-cleanup-ownership.ps1"
+if (Test-Path -LiteralPath $cleanupOwnershipTest -PathType Leaf) {
+    try {
+        $cleanupOwnershipOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $cleanupOwnershipTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($cleanupOwnershipOutput | Out-String) -match "Cleanup emits an ownership-aware candidate manifest")) {
+            Add-Pass "Ownership-aware cleanup regression passes"
+        } else {
+            Add-Fail "Ownership-aware cleanup regression failed: $($cleanupOwnershipOutput | Out-String)"
+        }
+    } catch { Add-Fail "Ownership-aware cleanup regression failed: $($_.Exception.Message)" }
+} else {
+    Add-Fail "Ownership-aware cleanup regression script missing: $cleanupOwnershipTest"
 }
 
 $runningGenerationHealthTest = Join-Path $projectRoot "scripts\verify\test-running-generation-health-proof.ps1"

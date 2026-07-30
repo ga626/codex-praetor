@@ -1,6 +1,7 @@
 param(
     [string]$Repo = (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))),
     [int]$RetentionDays = 14,
+    [string]$CandidateManifestPath = "",
     [switch]$Apply,
     [switch]$DeleteMergedBranches
 )
@@ -15,7 +16,7 @@ function Resolve-GitRoot {
     $resolved = (Resolve-Path -LiteralPath $Path).Path
     $gitRoot = & git -C $resolved rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($gitRoot)) {
-        return $gitRoot.Trim()
+        return [System.IO.Path]::GetFullPath($gitRoot.Trim())
     }
     throw "Not a git repository: $Path"
 }
@@ -45,6 +46,43 @@ function Invoke-MaintenanceAction {
     } else {
         Write-Host "DRY-RUN: $Message"
     }
+}
+
+function Add-CleanupCandidate {
+    param(
+        [System.Collections.Generic.List[object]]$List,
+        [string]$Kind,
+        [string]$Path,
+        [string]$Branch,
+        [string]$Disposition,
+        [string]$Reason,
+        [bool]$Owned
+    )
+    $List.Add([pscustomobject]@{
+        kind = $Kind
+        path = $Path
+        branch = $Branch
+        disposition = $Disposition
+        reason = $Reason
+        praetor_owned = $Owned
+    })
+}
+
+function Get-WorkerOwnershipRecord {
+    param(
+        [string]$OwnershipRoot,
+        [string]$ProjectRoot,
+        [object]$WorktreeRecord
+    )
+    $name = Split-Path -Leaf ([string]$WorktreeRecord.Worktree)
+    $path = Join-Path $OwnershipRoot ($name + ".json")
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try { $record = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json } catch { return $null }
+    if ([string]$record.schema -ne "codex-praetor-worker-worktree-owner/v1") { return $null }
+    if (-not [string]::Equals([string]$record.canonical_project_root, $ProjectRoot, [System.StringComparison]::OrdinalIgnoreCase)) { return $null }
+    if (-not [string]::Equals([System.IO.Path]::GetFullPath([string]$record.worktree_path), [System.IO.Path]::GetFullPath([string]$WorktreeRecord.Worktree), [System.StringComparison]::OrdinalIgnoreCase)) { return $null }
+    if (-not [string]::Equals([string]$record.branch, [string]$WorktreeRecord.Branch, [System.StringComparison]::OrdinalIgnoreCase)) { return $null }
+    return $record
 }
 
 function Get-WorktreeRecords {
@@ -123,6 +161,8 @@ $jobsRoot = Join-Path $runtimeRoot "jobs"
 $scratchRoot = Join-Path $runtimeRoot "scratch"
 $archiveRoot = Join-Path $runtimeRoot "archive"
 $archiveJobsRoot = Join-Path $archiveRoot "jobs"
+$runtimeOwnerPath = Join-Path $runtimeRoot "runtime-owner.json"
+$ownershipRoot = Join-Path $runtimeRoot "worktree-ownership"
 $cutoff = (Get-Date).AddDays(-1 * $RetentionDays)
 
 Assert-UnderPath -Path $runtimeRoot -Root $projectRoot -Label "Runtime root"
@@ -143,6 +183,15 @@ if (-not (Test-Path -LiteralPath $runtimeRoot -PathType Container)) {
     exit 0
 }
 
+$runtimeOwner = $null
+if (Test-Path -LiteralPath $runtimeOwnerPath -PathType Leaf) {
+    try { $runtimeOwner = Get-Content -LiteralPath $runtimeOwnerPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $runtimeOwner = $null }
+}
+if ($null -eq $runtimeOwner -or [string]$runtimeOwner.schema -ne "codex-praetor-runtime-owner/v1" -or -not [string]::Equals([string]$runtimeOwner.canonical_project_root, $projectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-Host "[PROTECTED] Runtime root has no matching Codex Praetor ownership record; no cleanup candidate can be acted on."
+    exit 0
+}
+
 $mergedBranches = Get-MergedBranches -ProjectRoot $projectRoot
 $worktreeRecords = @(Get-WorktreeRecords -ProjectRoot $projectRoot)
 $runtimeWorktrees = @($worktreeRecords | Where-Object {
@@ -151,27 +200,34 @@ $runtimeWorktrees = @($worktreeRecords | Where-Object {
     $full.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
 })
 
+$candidates = New-Object 'System.Collections.Generic.List[object]'
+
 $removedWorktrees = 0
 foreach ($record in $runtimeWorktrees) {
     $branch = [string]$record.Branch
-    $isWorkerBranch = $branch -like "cw-*"
+    $ownership = Get-WorkerOwnershipRecord -OwnershipRoot $ownershipRoot -ProjectRoot $projectRoot -WorktreeRecord $record
+    $isWorkerBranch = $null -ne $ownership
     $isMerged = $mergedBranches -contains $branch
     $isClean = Test-WorktreeClean -Path $record.Worktree
 
     if (-not $isWorkerBranch) {
-        Write-Host "[SKIP] Non-worker worktree: $($record.Worktree) branch=$branch"
+        Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $record.Worktree -Branch $branch -Disposition "protected" -Reason "No matching Codex Praetor ownership record." -Owned $false
+        Write-Host "[PROTECTED] Worktree has no matching Codex Praetor ownership record: $($record.Worktree) branch=$branch"
         continue
     }
     if (-not $isMerged) {
+        Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $record.Worktree -Branch $branch -Disposition "review" -Reason "Praetor-owned worker branch is not merged." -Owned $true
         Write-Host "[SKIP] Worker branch is not merged: $branch"
         continue
     }
     if (-not $isClean) {
+        Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $record.Worktree -Branch $branch -Disposition "protected" -Reason "Praetor-owned worker worktree is not clean." -Owned $true
         Write-Host "[SKIP] Worker worktree is not clean: $($record.Worktree)"
         continue
     }
 
     $worktreePath = [string]$record.Worktree
+    Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $worktreePath -Branch $branch -Disposition "eligible" -Reason "Praetor-owned, clean, and merged." -Owned $true
     Invoke-MaintenanceAction "Remove clean merged worker worktree $worktreePath" {
         & git -C $projectRoot worktree remove $worktreePath
         if ($LASTEXITCODE -ne 0) {
@@ -197,22 +253,9 @@ if (Test-Path -LiteralPath $jobsRoot -PathType Container) {
         $jobName = $_.Name
         $jobLastWriteTime = $_.LastWriteTime
         $completion = Join-Path $jobPath "completion.json"
-        if (-not (Test-Path -LiteralPath $completion -PathType Leaf)) {
-            Write-Host "[SKIP] Job has no completion.json: $jobName"
-        } elseif ($jobLastWriteTime -gt $cutoff) {
-            Write-Host "[SKIP] Job is newer than retention window: $jobName"
-        } else {
-            $day = $jobLastWriteTime.ToString("yyyyMMdd")
-            $destination = Join-Path (Join-Path $archiveJobsRoot $day) $jobName
-            if (Test-Path -LiteralPath $destination) {
-                $destination = "$destination.$([Guid]::NewGuid().ToString("N").Substring(0, 8))"
-            }
-            Invoke-MaintenanceAction "Archive completed job $jobPath -> $destination" {
-                New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
-                Move-Item -LiteralPath $jobPath -Destination $destination
-            }
-            $archivedJobs += 1
-        }
+        $reason = if (-not (Test-Path -LiteralPath $completion -PathType Leaf)) { "Job has no completion receipt." } elseif ($jobLastWriteTime -gt $cutoff) { "Job is newer than retention window." } else { "Job archival requires a future job ownership record; retained by this version." }
+        Add-CleanupCandidate -List $candidates -Kind "job" -Path $jobPath -Branch "" -Disposition "protected" -Reason $reason -Owned $false
+        Write-Host "[PROTECTED] Job retained: $jobName ($reason)"
     }
 }
 
@@ -220,11 +263,25 @@ $removedScratch = 0
 if (Test-Path -LiteralPath $scratchRoot -PathType Container) {
     Get-ChildItem -LiteralPath $scratchRoot -Force | Where-Object { $_.LastWriteTime -le $cutoff } | Sort-Object LastWriteTimeUtc | ForEach-Object {
         $scratchPath = $_.FullName
-        Invoke-MaintenanceAction "Remove old scratch artifact $scratchPath" {
-            Remove-Item -LiteralPath $scratchPath -Recurse -Force
-        }
-        $removedScratch += 1
+        Add-CleanupCandidate -List $candidates -Kind "scratch" -Path $scratchPath -Branch "" -Disposition "protected" -Reason "Scratch ownership is not recorded; retained by this version." -Owned $false
+        Write-Host "[PROTECTED] Scratch artifact retained without ownership record: $scratchPath"
     }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($CandidateManifestPath)) {
+    $resolvedManifestPath = [System.IO.Path]::GetFullPath($CandidateManifestPath)
+    $candidatePayload = [ordered]@{
+        schema = "codex-praetor-runtime-cleanup-candidates/v1"
+        generated_at = (Get-Date).ToString("o")
+        project_root = $projectRoot
+        runtime_owner = $runtimeOwnerPath
+        mode = if ($Apply) { "apply" } else { "dry_run" }
+        policy = "Only a matching Praetor ownership record can make a clean merged worker worktree eligible. Jobs and scratch remain protected until ownership records exist."
+        candidates = $candidates.ToArray()
+    }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $resolvedManifestPath) -Force | Out-Null
+    $candidatePayload | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $resolvedManifestPath -Encoding UTF8
+    Write-Host "Candidate manifest: $resolvedManifestPath"
 }
 
 Write-Host ""

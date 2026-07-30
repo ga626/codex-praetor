@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.10-alpha
+
+- Anchored Praetor-created worker worktrees to the canonical Git project root, preventing nested runtime roots when a dispatch begins from a Codex Desktop linked worktree.
+- Made ordinary health checks use a fast current-runtime path; the slow read-only inventory is now an explicit maintenance operation.
+- Added minimal Praetor ownership records and an ownership-aware cleanup candidate manifest. Only clean, merged Praetor-owned worktrees can become eligible; unowned worktrees, jobs, and scratch remain protected.
+- Added deterministic regressions for the canonical root, fast-health boundary, cleanup ownership, mirror consistency, and bundled plugin protocol smoke.
+
 ## 0.16.9-alpha
 
 - Fixed capability-profile parsing of UTF-8 BOM durable evidence produced by Windows PowerShell, so real Codex-accepted worker receipts are counted instead of being silently ignored.
