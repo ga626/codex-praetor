@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.9-alpha
+
+- Fixed capability-profile parsing of UTF-8 BOM durable evidence produced by Windows PowerShell, so real Codex-accepted worker receipts are counted instead of being silently ignored.
+- Added a regression proving BOM-prefixed accepted receipts preserve the existing exact-tuple, task-family qualification threshold.
+
 ## 0.16.7-alpha
 
 - Fixed the Windows MCP timeout path so it terminates the PowerShell process tree before reporting timeout, preventing child processes from continuing after the controller believes cleanup is complete.

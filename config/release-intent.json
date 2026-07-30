@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.8-alpha",
-    "previous_version":  "0.16.7-alpha",
-    "tag":  "v0.16.8-alpha",
+    "version":  "0.16.9-alpha",
+    "previous_version":  "0.16.8-alpha",
+    "tag":  "v0.16.9-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.8-alpha.zip",
-    "reason":  "Qoder Agent SDK 与 CodeBuddy ACP 通过同一条受控真实派工链路提供结构化进展、正式取消和终态证据；本次同时修复 durable plan 的多路径合同序列化与 task ID 回执一致性：允许路径、禁止路径、必需检查和不可变路径必须逐项写入 ledger，后续派工必须接受 plan 回执返回的同一 task ID。未新增认证资料访问、自动合并或生产侧不可逆动作。"
+    "artifact":  "codex-praetor-setup-0.16.9-alpha.zip",
+    "reason":  "发布事故修复：既有 Qoder Agent SDK 和 CodeBuddy ACP 的 Windows PowerShell 正式 capability evidence 若以 UTF-8 BOM 写入，曾被运行时能力画像忽略，使已被 Codex accepted 的真实 worker 任务不能计入同一精确 provider tuple 与任务族的资格证据。本次仅修复只读兼容解析并加入回归；不放宽三条独立 accepted 记录的派工门槛，未新增认证资料访问、自动合并或生产侧不可逆动作。"
 }
