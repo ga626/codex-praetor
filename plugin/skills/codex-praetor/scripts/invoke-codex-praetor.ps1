@@ -71,6 +71,8 @@ param(
 
     [string]$NotifyWorkspace = (Get-Location).Path,
 
+    [string]$ModeSessionId = "",
+
     [string]$PlanId = "",
 
     [string]$TaskId = "",
@@ -1049,6 +1051,7 @@ function Invoke-Or-StartWorker {
     Write-Output "price_note=$PriceNote"
     Write-Output "run_mode=$RunMode"
     Write-Output "task_kind=$TaskKindName"
+    Write-Output "connection_mode=$ConnectionMode"
     Write-Output "dependency_bootstrap=$DependencyBootstrap"
     Write-Output ("worker_network=" + $(if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }))
     if (-not [string]::IsNullOrWhiteSpace($ContractHash)) { Write-Output "contract_hash=$ContractHash" }
@@ -1154,6 +1157,7 @@ function Invoke-Or-StartWorker {
         lock_path = $repoEditLockPath
         notify_thread_id = $NotifyThreadId
         notify_workspace = $NotifyWorkspace
+        mode_session_id = $ModeSessionId
         notify_enabled = (-not $NoNotify -and -not [string]::IsNullOrWhiteSpace($NotifyThreadId))
         argument_list = $argumentListPath
         command = $commandLine

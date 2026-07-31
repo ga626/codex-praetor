@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.12-alpha
+
+- Added Codex Executive mode for one Codex conversation and one canonical repository. It persists only a hashed thread binding and a mode session ID under the existing project-local runtime root.
+- Added mode enable, status, and disable MCP tools. Disable formally cancels only active jobs that match the same host thread, repository, and mode session, and refuses to claim success without terminal receipts.
+- Added Chinese-first MCP summaries with structured detail, translated visible tool metadata, and the user-facing name `Codex 执行官`; `Codex`, `Qoder`, and `CodeBuddy` retain their original technical names.
+- Kept the established Qoder Agent SDK and CodeBuddy ACP routes, exact-tuple evidence gate, Codex acceptance, isolated worktree, and authentication boundaries unchanged.
+
 ## 0.16.11-alpha
 
 - Fixed the shared Git common-root ledger path used by linked-worktree dispatch, candidate canary isolation roots, and CodeBuddy ACP's Windows case-insensitive allowed-path check.

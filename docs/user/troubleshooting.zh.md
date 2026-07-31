@@ -10,6 +10,7 @@
 | 插件能看到，但 MCP 工具不可见 | Desktop host 的插件发现未刷新，或 Node 不可用 | 先确认 Node.js；用独立 host 诊断区分磁盘安装与常驻 Desktop host |
 | MCP 工具报 `Transport closed` | 当前回合的工具句柄旧，或常驻 host 未刷新 | 单独 probe 只能诊断，不能刷新 Desktop；先确认 runtime identity，再按支持的 Desktop 刷新动作恢复 |
 | 没有 Qoder、CodeBuddy | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
+| 无法开启 Codex 执行官模式 | 当前 Desktop host 未向 MCP 提供对话绑定，或仍加载旧插件 | 刷新 host 后在新对话先运行 `runtime_info`；没有 `CODEX_THREAD_ID` 时产品会拒绝退化成跨对话全局模式 |
 | provider 已安装但真实派工失败 | provider 未登录、权限不够、CLI 路径不对、worker 无有效产出或持续没有结构化进展 | 先读取 worker result 摘要和失败分类；需要账号动作时重新运行向导，任务太大时缩小后重派 |
 | 更新后 health 提示当前 generation 没有 readiness | 新插件已加载，但还没有为这一个运行版本完成真实只读 canary | 对已登录的 provider 真实运行一次 capability canary；不要编辑 `active.json` 或 readiness 文件 |
 | canary 提示仓库有变动 | 开始前已有未提交改动，或运行中有其他流程改动仓库 | 开始前变脏时清理、提交或改用隔离 checkout；运行中变动会被记录，先审查后再编辑，不要伪造 readiness |
@@ -18,7 +19,7 @@
 
 ## 看不到 Codex Praetor 插件
 
-先确认你已经运行过安装向导。如果你使用的是 `0.16.11-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
+先确认你已经运行过安装向导。如果你使用的是 `0.16.12-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply

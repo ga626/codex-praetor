@@ -1,4 +1,5 @@
 import type { RouteDecision } from "./types.js";
+import type { SessionModeContext } from "./session-mode.js";
 
 const codexSubagentTerms = [
   "codex subagent",
@@ -14,14 +15,24 @@ const codexSubagentTerms = [
 const codexPraetorTerms = [
   "codex praetor",
   "codex 执政官",
+  "codex 执行官",
   "codex-praetor",
   "external worker",
   "external workers",
   "qoder",
   "codebuddy",
   "workbuddy",
-  "腾讯",
-  "阿里",
+];
+
+const codexRetainTerms = [
+  "不要外派",
+  "不外派",
+  "不要派工",
+  "不派工",
+  "自己做",
+  "codex 自己做",
+  "do not delegate",
+  "keep this in codex"
 ];
 
 const delegationTerms = [
@@ -86,7 +97,8 @@ function rejectsNativeCodexSubagents(value: string): boolean {
 
 export function routeIntent(
   request: string,
-  allowNativeCodexSubagents = false
+  allowNativeCodexSubagents = false,
+  modeContext: SessionModeContext = "inactive"
 ): RouteDecision {
   const trimmed = request.trim();
   if (!trimmed) {
@@ -96,7 +108,8 @@ export function routeIntent(
       reason: "The request is empty, so no delegation intent can be classified.",
       suggested_next_action: "Ask for the task and delegation goal.",
       matched_terms: [],
-      native_codex_subagents_allowed: allowNativeCodexSubagents
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext
     };
   }
 
@@ -104,6 +117,7 @@ export function routeIntent(
   const praetorMatches = collectMatches(trimmed, codexPraetorTerms);
   const delegationMatches = collectMatches(trimmed, delegationTerms);
   const researchMatches = collectMatches(trimmed, externalResearchTerms);
+  const retainMatches = collectMatches(trimmed, codexRetainTerms);
   const allMatches = [...new Set([...subagentMatches, ...praetorMatches, ...delegationMatches, ...researchMatches])];
   const rejectsNative = subagentMatches.length > 0 && rejectsNativeCodexSubagents(trimmed);
 
@@ -119,9 +133,22 @@ export function routeIntent(
         : "Use KnowledgeRadar from Codex to establish the primary evidence route before considering any worker support.",
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext,
       research_authority: "codex_kr_primary",
       worker_research_eligible: workerEligible,
       suggested_worker_research_mode: workerEligible ? "candidate_discovery" : "none"
+    };
+  }
+
+  if (modeContext === "active" && retainMatches.length > 0) {
+    return {
+      route: "codex_retains_ineligible_work",
+      confidence: "high",
+      reason: "Codex Executive mode is active, but the request explicitly keeps this work with Codex.",
+      suggested_next_action: "Codex should complete this task directly and keep the mode active for later eligible work.",
+      matched_terms: [...new Set([...allMatches, ...retainMatches])],
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext
     };
   }
 
@@ -133,7 +160,8 @@ export function routeIntent(
         "The request asks for delegation while explicitly rejecting native Codex subagents, so Codex Praetor external workers are the intended route.",
       suggested_next_action: "Run codex_praetor_dispatch_dry_run before any real worker dispatch.",
       matched_terms: allMatches,
-      native_codex_subagents_allowed: allowNativeCodexSubagents
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext
     };
   }
 
@@ -144,7 +172,8 @@ export function routeIntent(
       reason: "The user explicitly mentioned native Codex subagents and allowed that route.",
       suggested_next_action: "Use native Codex subagents only if the task benefits from Codex-token parallelism.",
       matched_terms: allMatches,
-      native_codex_subagents_allowed: allowNativeCodexSubagents
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext
     };
   }
 
@@ -155,7 +184,8 @@ export function routeIntent(
       reason: "The request mentions Codex subagents, but this tool does not dispatch native Codex subagents.",
       suggested_next_action: "Ask whether the user wants native Codex subagents or Codex Praetor external CLI workers.",
       matched_terms: allMatches,
-      native_codex_subagents_allowed: allowNativeCodexSubagents
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext
     };
   }
 
@@ -170,7 +200,20 @@ export function routeIntent(
           : "The request asks for delegation to other agents; without explicit native Codex subagent wording, Codex Praetor is the safer cost-control route.",
       suggested_next_action: "Run codex_praetor_dispatch_dry_run before any real worker dispatch.",
       matched_terms: allMatches,
-      native_codex_subagents_allowed: allowNativeCodexSubagents
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext
+    };
+  }
+
+  if (modeContext === "active") {
+    return {
+      route: "codex_praetor_external_worker",
+      confidence: "medium",
+      reason: "Codex Executive mode is active for this conversation and repository. Assess this task for a bounded external-worker stage before Codex retains the ineligible remainder.",
+      suggested_next_action: "Define one inspectable worker outcome, run codex_praetor_dispatch_dry_run, then let Codex retain any stage that is not suitable for external execution.",
+      matched_terms: allMatches,
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext
     };
   }
 
@@ -180,6 +223,17 @@ export function routeIntent(
     reason: "No cost-saving, external-worker, or delegation terms were detected.",
     suggested_next_action: "Handle the task directly, or ask whether the user wants Codex Praetor delegation.",
     matched_terms: allMatches,
-    native_codex_subagents_allowed: allowNativeCodexSubagents
+    native_codex_subagents_allowed: allowNativeCodexSubagents,
+    mode_context: modeContext
   };
+}
+
+export function classifySessionModeCommand(request: string): "enable" | "disable" | undefined {
+  const normalized = request.trim().toLowerCase();
+  if (!normalized || /[?？]|什么是|如何|为什么|讨论|设计|介绍/.test(normalized)) return undefined;
+  const modeMentioned = /codex\s*执行官模式|执行官模式/.test(normalized);
+  if (!modeMentioned) return undefined;
+  if (/^(请\s*)?(开启|打开|进入|启用)|接下来.*(使用|用).*执行官模式/.test(normalized)) return "enable";
+  if (/^(请\s*)?(关闭|退出|停止|禁用)|不用.*执行官模式/.test(normalized)) return "disable";
+  return undefined;
 }

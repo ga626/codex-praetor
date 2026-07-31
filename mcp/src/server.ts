@@ -62,6 +62,9 @@ import {
   listLanesTool,
   planTool,
   routeIntentTool,
+  enableSessionModeTool,
+  sessionModeStatusTool,
+  disableSessionModeTool,
   runtimeInfoTool,
   statusTool,
   verifyTaskTool,
@@ -82,29 +85,83 @@ const additiveProjectLocalWrite = {
   openWorldHint: false
 };
 
+const structuredToolOutputSchema = z.object({}).passthrough();
+
 function asJsonContent(value: unknown) {
+  const structuredContent = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : { result: value };
+  const display = structuredContent.display && typeof structuredContent.display === "object" && !Array.isArray(structuredContent.display)
+    ? structuredContent.display as Record<string, unknown>
+    : {};
+  const stage = String(display.阶段 ?? display.当前动作 ?? "操作结果");
+  const state = String(display.状态 ?? structuredContent.ok ?? "已返回");
+  const lines = [`【Codex 执行官｜${stage}】`, `状态：${state}`];
+  for (const field of ["执行者", "模型", "连接", "原因", "下一步"]) {
+    const value = display[field];
+    if (typeof value === "string" && value.trim()) lines.push(`${field}：${value.trim()}`);
+  }
   return {
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify(value, null, 2)
+        text: lines.join("\n")
       }
-    ]
+    ],
+    structuredContent
   };
 }
 
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.11-alpha"
+    version: "0.16.12-alpha",
+    description: "Codex 执行官模式为当前对话、当前项目提供受控的外部 worker 持续外派状态；Codex 始终负责拆分、验收与整合。"
   });
+
+  server.registerTool(
+    "codex_praetor_mode_enable",
+    {
+      title: "开启 Codex 执行官模式",
+      description: "仅为当前 Codex 对话与当前项目开启持续外派偏好；宿主未提供对话绑定时会拒绝开启。",
+      annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: { repo: z.string().min(1) }
+    },
+    async (input) => asJsonContent(enableSessionModeTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_mode_status",
+    {
+      title: "查看 Codex 执行官模式",
+      description: "读取当前对话与当前项目的执行官模式范围、状态和关联活跃 worker 数量。",
+      annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: { repo: z.string().min(1) }
+    },
+    async (input) => asJsonContent(sessionModeStatusTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_mode_disable",
+    {
+      title: "关闭 Codex 执行官模式",
+      description: "正式取消当前对话、当前项目、当前模式会话下的活跃 worker，并在取得终态后关闭模式。",
+      annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: { repo: z.string().min(1) }
+    },
+    async (input) => asJsonContent(await disableSessionModeTool(input))
+  );
 
   server.registerTool(
     "codex_praetor_capability_profiles",
     {
-      title: "Read Codex Praetor Capability Profiles",
-      description: "Derive conservative provider-tuple and task-family capability profiles from immutable local attempts and Codex verdicts. This does not change routing.",
+      title: "读取 Codex Praetor 能力档案",
+      description: "根据不可变的本地记录和 Codex 验收结论，读取保守的 provider tuple 与任务族能力档案；不会改变路由。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         include_unclassified: z.boolean().optional()
@@ -116,9 +173,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_evaluation_suite",
     {
-      title: "Read Codex Praetor Real Task Evaluation Suite",
-      description: "Read the bounded real-task contracts used to prepare disposable evaluation worktrees. This does not dispatch a worker or change routing.",
+      title: "读取 Codex Praetor 真实任务评测集",
+      description: "读取用于准备一次性评测 worktree 的真实任务合同；不会派工或改变路由。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {}
     },
     async () => asJsonContent(evaluationSuiteTool())
@@ -127,9 +185,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_prepare_evaluation",
     {
-      title: "Prepare Codex Praetor Real Task Evaluation",
-      description: "Create a classified, project-local evaluation plan from the bundled suite. This does not dispatch a worker or change routing.",
+      title: "准备 Codex Praetor 真实任务评测",
+      description: "从内置评测集创建分类的项目内评测计划；不会派工或改变路由。",
       annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         plan_id: z.string().min(1).optional()
@@ -141,9 +200,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_explainable_route",
     {
-      title: "Explain Codex Praetor Route Recommendation",
-      description: "Explain a conservative external-worker recommendation from current hard gates and exact capability evidence. This is dry-run advice only and never dispatches, merges, or publishes.",
+      title: "解释 Codex Praetor 路由建议",
+      description: "依据当前硬门与精确能力证据解释外部 worker 建议；仅提供 dry-run 建议，不会派工、合并或发布。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
@@ -177,9 +237,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_provider_operations",
     {
-      title: "Read Codex Praetor Provider Operations",
-      description: "Show user-readable Qoder and CodeBuddy availability, evidence freshness, next recovery action and the provider onboarding checklist. This never reads authentication material or dispatches a worker.",
+      title: "读取 Codex Praetor provider 状态",
+      description: "显示 Qoder 与 CodeBuddy 的可用性、证据新鲜度、恢复动作和接入清单；不会读取认证资料或派工。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]).optional()
@@ -191,9 +252,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_route_intent",
     {
-      title: "Route Codex Praetor Intent",
-      description: "Classify whether a delegation request should use Codex Praetor external workers or native Codex subagents.",
+      title: "路由 Codex Praetor 任务意图",
+      description: "判断任务应先评估 Codex Praetor 外部 worker，还是由 Codex 保留处理；会读取当前执行官模式。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         request: z.string().min(1),
         repo: z.string().optional(),
@@ -206,9 +268,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_runtime_info",
     {
-      title: "Read Codex Praetor Runtime Contract",
-      description: "Show the installed runtime contract version and expected MCP surface before dispatch.",
+      title: "读取 Codex Praetor 运行时合同",
+      description: "显示已安装的运行时合同版本和预期 MCP 工具面。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {}
     },
     async () => asJsonContent(runtimeInfoTool())
@@ -217,9 +280,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_health",
     {
-      title: "Check Codex Praetor Health",
-      description: "Check install generation, plugin cache, provider readiness, and runtime contract without dispatching a worker.",
+      title: "检查 Codex Praetor 健康状态",
+      description: "检查安装代际、插件缓存、provider readiness 与运行时合同；不会派工。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1)
       }
@@ -230,9 +294,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_dispatch_dry_run",
     {
-      title: "Dry-Run Codex Praetor Dispatch",
-      description: "Call the existing PowerShell wrapper in dry-run mode and return the selected worker command and artifact paths.",
+      title: "预演 Codex Praetor 派工",
+      description: "以 dry-run 调用现有 PowerShell wrapper，返回选定 worker 命令与运行态路径。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         task: z.string().min(1),
@@ -250,9 +315,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_dispatch",
     {
-      title: "Dispatch Codex Praetor Worker",
-      description: "Start a real Codex Praetor worker job only after the exact task family has qualified capability evidence; return job metadata for later Codex verification.",
+      title: "派发 Codex Praetor worker",
+      description: "仅在精确任务族已有合格能力证据时启动真实 worker，并返回供 Codex 后续验收的任务元数据。",
       annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         task: z.string().min(1),
@@ -287,9 +353,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_plan",
     {
-      title: "Create Codex Praetor Plan",
-      description: "Create a durable, dispatchable Codex Praetor plan whose tasks carry explicit scope, checks, budget, and acceptance contracts.",
+      title: "创建 Codex Praetor 计划",
+      description: "创建可持久化、可派发的 Codex Praetor 计划；每项任务都带明确范围、检查、预算和验收合同。",
       annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         title: z.string().min(1),
@@ -303,9 +370,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_list_jobs",
     {
-      title: "List Codex Praetor Jobs",
-      description: "List compact job metadata from the project-local Codex Praetor job root.",
+      title: "列出 Codex Praetor 任务",
+      description: "从项目内 Codex Praetor 任务根目录读取精简任务元数据。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         status: z.enum(["active", "completed", "failed", "all"]).optional(),
@@ -318,9 +386,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_list_lanes",
     {
-      title: "List Codex Praetor Lanes",
-      description: "List compact derived lane state from project-local jobs, plans, and repo edit locks.",
+      title: "列出 Codex Praetor 执行通道",
+      description: "读取项目内任务、计划和仓库编辑锁推导出的精简通道状态。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         status: z.enum(["active", "completed", "failed", "blocked", "all"]).optional(),
@@ -333,9 +402,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_result",
     {
-      title: "Read Codex Praetor Worker Result",
-      description: "Read one worker job's compact result, log tails, and failure classification without dumping full logs.",
+      title: "读取 Codex Praetor worker 结果",
+      description: "读取一个 worker 任务的精简结果、日志尾部和失败分类，不倾倒完整日志。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         job_id: z.string().min(1),
@@ -349,9 +419,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_job_timeline",
     {
-      title: "Read Codex Praetor Job Timeline",
-      description: "Show the worker, task contract, durable lifecycle state, and next Codex action for one job.",
+      title: "读取 Codex Praetor 任务时间线",
+      description: "显示一个任务的 worker、任务合同、持久生命周期状态和 Codex 下一步。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         job_id: z.string().min(1)
@@ -363,9 +434,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_cancel_job",
     {
-      title: "Cancel Codex Praetor Job",
-      description: "Cancel one durable worker job by its job identity and terminate its worker process tree.",
+      title: "取消 Codex Praetor 任务",
+      description: "按任务标识正式取消一个持久 worker 任务，并终止其进程树。",
       annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         job_id: z.string().min(1)
@@ -377,9 +449,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_get_lane",
     {
-      title: "Read Codex Praetor Lane",
-      description: "Read one compact Codex Praetor lane by lane id.",
+      title: "读取 Codex Praetor 执行通道",
+      description: "按通道标识读取一条精简 Codex Praetor 执行通道。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         lane_id: z.string().min(1)
@@ -391,9 +464,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_detect_conflicts",
     {
-      title: "Detect Codex Praetor Conflicts",
-      description: "Check whether a proposed readonly or edit lane conflicts with active project-local lanes or edit locks.",
+      title: "检测 Codex Praetor 冲突",
+      description: "检查拟议的只读或编辑通道是否与项目内活跃通道或编辑锁冲突。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         mode: z.enum(["readonly", "edit"]).optional(),
@@ -407,9 +481,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_status",
     {
-      title: "Read Codex Praetor Status",
-      description: "Read compact status for a Codex Praetor job or plan without dumping full logs.",
+      title: "读取 Codex Praetor 状态",
+      description: "读取一个 Codex Praetor 任务或计划的精简状态，不倾倒完整日志。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         job_id: z.string().optional(),
@@ -422,9 +497,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_governance_summary",
     {
-      title: "Read Governance Summary",
-      description: "Read a compact task, outcome, progress, release-state, and needs-decision summary without dumping the ledger or logs.",
+      title: "读取治理摘要",
+      description: "读取任务、结果、进展、发布状态和待决事项的精简摘要，不倾倒 ledger 或日志。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         plan_id: z.string().min(1)
@@ -436,9 +512,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_next_ready",
     {
-      title: "List Codex Praetor Ready Plan Tasks",
-      description: "Read pending plan tasks whose dependencies have passed Codex verification.",
+      title: "列出 Codex Praetor 就绪计划任务",
+      description: "读取依赖已通过 Codex 验收、可以派发的待执行计划任务。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         plan_id: z.string().min(1),
@@ -451,9 +528,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_dispatch_plan_task",
     {
-      title: "Dispatch Codex Praetor Plan Task",
-      description: "Start a real worker for one pending plan task and connect the resulting job back to the durable plan.",
+      title: "派发 Codex Praetor 计划任务",
+      description: "为一个待执行计划任务启动真实 worker，并把结果任务关联回持久计划。",
       annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         plan_id: z.string().min(1),
@@ -473,9 +551,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_verify_evaluation_task",
     {
-      title: "Independently Verify Codex Praetor Evaluation Task",
-      description: "Verify supplied task material, immutable files, write-set boundaries, and required checks in a worker worktree. This returns evidence only and never records Codex acceptance.",
+      title: "独立验证 Codex Praetor 评测任务",
+      description: "在 worker worktree 中验证任务材料、不可变文件、写入范围和必需检查；只返回证据，不记录 Codex 验收。",
       annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         plan_id: z.string().min(1),
@@ -489,9 +568,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_verify_task",
     {
-      title: "Record Codex Praetor Task Verification",
-      description: "Record Codex's verification verdict for a worker-completed plan task; dependencies advance only after accepted.",
+      title: "记录 Codex Praetor 任务验收",
+      description: "记录 Codex 对 worker 完成计划任务的验收结论；只有 accepted 才会推进依赖。",
       annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
       inputSchema: {
         repo: z.string().min(1),
         plan_id: z.string().min(1),
