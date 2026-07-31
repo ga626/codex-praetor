@@ -15,6 +15,22 @@
 
     [string]$ReadinessPath = "",
 
+    # Candidate canaries must exercise the same runtime identity and durable
+    # state roots that later dispatch will use.  Otherwise readiness can be
+    # written successfully but remain invisible to the candidate health gate.
+    [string]$UserProfileRoot = "",
+
+    [ValidateSet("stable", "dev")]
+    [string]$RuntimeChannel = "stable",
+
+    [string]$JobRoot = "",
+
+    [string]$PlanRoot = "",
+
+    [string]$LockRoot = "",
+
+    [string]$ScratchRoot = "",
+
     # Test-only override. The production path always resolves the bundled
     # dispatcher from the installed/source generation.
     [string]$WrapperPath = "",
@@ -52,8 +68,13 @@ $runningGenerationHelperCandidates = @(
     (Join-Path $scriptDir "resolve-codex-praetor-running-generation.ps1")
 )
 $nativeHelper = @($nativeHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+$profileRoot = if ([string]::IsNullOrWhiteSpace($UserProfileRoot)) {
+    $env:USERPROFILE
+} else {
+    [System.IO.Path]::GetFullPath($UserProfileRoot)
+}
 $statePath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
-    Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
+    Join-Path $profileRoot ".codex\codex-praetor-readiness.json"
 } else {
     [System.IO.Path]::GetFullPath($ReadinessPath)
 }
@@ -224,9 +245,23 @@ $argsList = @(
     "-TimeoutSeconds", "300",
     "-ConfigPath", $ConfigPath,
     "-ReadinessPath", $statePath,
+    "-RuntimeChannel", $RuntimeChannel,
     "-CapabilityCanary",
     "-NoNotify"
 )
+if (-not [string]::IsNullOrWhiteSpace($UserProfileRoot)) {
+    $argsList += @("-UserProfileRoot", $profileRoot)
+}
+foreach ($stateRoot in @(
+    [pscustomobject]@{ name = "JobRoot"; value = $JobRoot },
+    [pscustomobject]@{ name = "PlanRoot"; value = $PlanRoot },
+    [pscustomobject]@{ name = "LockRoot"; value = $LockRoot },
+    [pscustomobject]@{ name = "ScratchRoot"; value = $ScratchRoot }
+)) {
+    if (-not [string]::IsNullOrWhiteSpace([string]$stateRoot.value)) {
+        $argsList += @("-$($stateRoot.name)", [System.IO.Path]::GetFullPath([string]$stateRoot.value))
+    }
+}
 if ($TaskKind -eq "test_execution") {
     $argsList += @("-RequiredCheck", "Test-Path README.md")
 }
