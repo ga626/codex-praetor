@@ -105,3 +105,7 @@ Credits, discounts, daily check-in rewards, expiration, and account balance are 
 ## If Qoder is missing
 
 Nothing is broken. Qoder real dispatch is disabled, but Codex Praetor can still use local planning, route-intent, dry-run for configured providers, status, and MCP visibility tools.
+
+## Evidence and acceptance
+
+The Qoder SDK runner records its session and completion as evidence. Codex still independently validates the isolated diff and the required check before accepting a task — Qoder-side evidence does not replace Codex-side acceptance.

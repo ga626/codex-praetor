@@ -30,7 +30,9 @@ function Invoke-WatchedCase {
         [int]$TimeoutSeconds,
         [string]$Provider = "test",
         [string]$TaskKind = "local_audit",
-        [string]$ExecutionRepo = ""
+        [string]$ExecutionRepo = "",
+        [string]$ConnectionMode = "",
+        [object]$AcpSession = $null
     )
     if ([string]::IsNullOrWhiteSpace($ExecutionRepo)) { $ExecutionRepo = $projectPath }
     $jobDir = Join-Path $testRoot $Name
@@ -43,7 +45,14 @@ function Invoke-WatchedCase {
     $metaPath = Join-Path $jobDir "job.json"
     $completionPath = Join-Path $jobDir "completion.json"
     $WorkerArguments | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $argumentPath -Encoding UTF8
-    [ordered]@{ schema = "codex-praetor-job/v2"; job_id = "lifecycle-$Name"; repo = $projectPath; execution_repo = $ExecutionRepo; provider = $Provider; tier = "test"; model = "test"; task_kind = $TaskKind; mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }; pid = 0; stdout = $stdoutPath; stderr = $stderrPath; completion = $completionPath; status = "starting" } | ConvertTo-Json | Set-Content -LiteralPath $metaPath -Encoding UTF8
+    $metadata = [ordered]@{ schema = "codex-praetor-job/v2"; job_id = "lifecycle-$Name"; repo = $projectPath; execution_repo = $ExecutionRepo; provider = $Provider; tier = "test"; model = "test"; task_kind = $TaskKind; mode = if ($TaskKind -eq "code_change") { "edit" } else { "readonly" }; pid = 0; stdout = $stdoutPath; stderr = $stderrPath; completion = $completionPath; status = "starting" }
+    if (-not [string]::IsNullOrWhiteSpace($ConnectionMode)) { $metadata.connection_mode = $ConnectionMode }
+    if ($null -ne $AcpSession) {
+        $acpSessionPath = Join-Path $jobDir "codebuddy-acp-session.json"
+        $AcpSession | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $acpSessionPath -Encoding UTF8
+        $metadata.codebuddy_acp_session = $acpSessionPath
+    }
+    $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $metaPath -Encoding UTF8
     $watcherArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $watcherScript, "-JobDir", $jobDir, "-WorkerPid", "0", "-StartWorker", "-Exe", "powershell.exe", "-ArgumentListPath", $argumentPath, "-WorkingDirectory", $ExecutionRepo, "-StdoutPath", $stdoutPath, "-StderrPath", $stderrPath, "-TimeoutSeconds", "$TimeoutSeconds", "-NoNotify")
     $watcher = Start-Process -FilePath "powershell.exe" -ArgumentList (($watcherArgs | ForEach-Object { Quote-Arg ([string]$_) }) -join " ") -WindowStyle Hidden -RedirectStandardOutput $watcherStdoutPath -RedirectStandardError $watcherStderrPath -PassThru
     # The watcher is allowed to spend up to 15 seconds terminating a process
@@ -64,6 +73,10 @@ try {
     Assert-True ([string]$semantic.status -eq "process_exited") "A worker exit must be recorded as process_exited, not a logical outcome."
     Assert-True ([string]$semantic.failure_class -eq "permission_denied") "Semantic permission failure was not classified."
     Assert-True ([string]$semantic.governance_state -eq "rejected") "Semantic worker failure must be recorded as rejected, not awaiting supervisor acceptance."
+    $boundedAcp = Invoke-WatchedCase -Name "completed-acp-boundary-denial" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'worker report'; Write-Error 'permission denied by declared boundary'; exit 0") -TimeoutSeconds 30 -Provider "codebuddy" -ConnectionMode "codebuddy_acp" -AcpSession ([ordered]@{ state = "completed"; boundary_denials = 2; structured_events = 4 })
+    Assert-True ([string]$boundedAcp.failure_class -eq "") "A completed ACP session with recorded boundary denials must not be misclassified as a provider permission failure."
+    Assert-True ([string]$boundedAcp.governance_state -eq "awaiting_supervisor") "A completed ACP session still requires Codex verification, rather than an automatic reject."
+    Assert-True ([int]$boundedAcp.evidence_observation.boundary_denials_observed -eq 2) "Boundary denials must remain visible in the durable completion evidence."
     $report = Invoke-WatchedCase -Name "report-evidence" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'worker report'; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$report.evidence_state -eq "report_valid") "A successful worker report must be recorded as report evidence while awaiting supervisor verification."
     $unicodeReport = Invoke-WatchedCase -Name "utf8-report-evidence" -WorkerArguments @("-NoProfile", "-Command", "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding(`$false); Write-Output '中文验收报告'; exit 0") -TimeoutSeconds 30

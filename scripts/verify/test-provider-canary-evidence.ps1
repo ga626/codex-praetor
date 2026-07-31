@@ -62,6 +62,9 @@ for ($index = 0; $index -lt $args.Count; $index++) {
 }
 $workerRepo = $env:CODEX_PRAETOR_CANARY_WORKER_REPO
 $jobDir = $env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR
+if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRAETOR_CANARY_ARGUMENTS_PATH)) {
+    $argumentValues | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $env:CODEX_PRAETOR_CANARY_ARGUMENTS_PATH -Encoding UTF8
+}
 New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
 $stdoutPath = Join-Path $jobDir "stdout.log"
 $completionPath = Join-Path $jobDir "completion.json"
@@ -122,6 +125,14 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     $env:CODEX_PRAETOR_CANARY_DRIFT_PATH = $driftPath
     $env:CODEX_PRAETOR_CANARY_WORKER_REPO = $workerRepo
     $env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR = $workerJobDir
+    $forwardedArgumentsPath = Join-Path $scratch "forwarded-arguments.json"
+    $candidateProfile = Join-Path $scratch "candidate-profile"
+    $candidateStateRoot = Join-Path $scratch "candidate-state"
+    $candidateJobRoot = Join-Path $candidateStateRoot "jobs"
+    $candidatePlanRoot = Join-Path $candidateStateRoot "plans"
+    $candidateLockRoot = Join-Path $candidateStateRoot "locks"
+    $candidateScratchRoot = Join-Path $candidateStateRoot "scratch"
+    $env:CODEX_PRAETOR_CANARY_ARGUMENTS_PATH = $forwardedArgumentsPath
 
     # The production plugin runs this script from plugin/skills rather than
     # scripts/verify. Exercise that copied location so a source-only helper
@@ -134,8 +145,15 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     Assert-True ([string]$packagedState.entries[0].evidence.schema -eq "codex-praetor-canary-evidence/v1") "Packaged capability canary did not retain worker evidence."
     Remove-Item -LiteralPath $driftPath -Force
 
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -Apply
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -UserProfileRoot $candidateProfile -RuntimeChannel dev -JobRoot $candidateJobRoot -PlanRoot $candidatePlanRoot -LockRoot $candidateLockRoot -ScratchRoot $candidateScratchRoot -WrapperPath $wrapperPath -Apply
     if ($LASTEXITCODE -ne 0) { throw "A successful worker plus concurrent checkout drift must retain readiness proof." }
+    $forwardedArguments = Get-Content -LiteralPath $forwardedArgumentsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$forwardedArguments."-RuntimeChannel" -eq "dev") "Canary did not forward the candidate runtime channel."
+    Assert-True ([string]$forwardedArguments."-UserProfileRoot" -eq [System.IO.Path]::GetFullPath($candidateProfile)) "Canary did not forward the isolated profile root."
+    Assert-True ([string]$forwardedArguments."-JobRoot" -eq [System.IO.Path]::GetFullPath($candidateJobRoot)) "Canary did not forward the isolated job root."
+    Assert-True ([string]$forwardedArguments."-PlanRoot" -eq [System.IO.Path]::GetFullPath($candidatePlanRoot)) "Canary did not forward the isolated plan root."
+    Assert-True ([string]$forwardedArguments."-LockRoot" -eq [System.IO.Path]::GetFullPath($candidateLockRoot)) "Canary did not forward the isolated lock root."
+    Assert-True ([string]$forwardedArguments."-ScratchRoot" -eq [System.IO.Path]::GetFullPath($candidateScratchRoot)) "Canary did not forward the isolated scratch root."
     $state = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ([string]$state.repo_observation.status -eq "external_repo_drift_observed") "Canary did not retain the concurrent repository-drift observation."
     Assert-True (@($state.entries).Count -eq 1) "Canary did not write exactly one readiness tuple."
@@ -203,6 +221,7 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     Remove-Item Env:CODEX_PRAETOR_CANARY_DRIFT_PATH -ErrorAction SilentlyContinue
     Remove-Item Env:CODEX_PRAETOR_CANARY_WORKER_REPO -ErrorAction SilentlyContinue
     Remove-Item Env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR -ErrorAction SilentlyContinue
+    Remove-Item Env:CODEX_PRAETOR_CANARY_ARGUMENTS_PATH -ErrorAction SilentlyContinue
     Remove-Item Env:CODEX_PRAETOR_CANARY_FAKE_FAILURE -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
 }

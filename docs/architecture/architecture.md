@@ -123,3 +123,9 @@ There are three copies with different jobs:
 - `%USERPROFILE%\plugins\codex-praetor`: local installed plugin package that Codex discovers through the personal marketplace entry.
 
 The installed plugin must be updated by real file copy, not by path redirection. This keeps local Codex behavior independent from half-finished development work.
+
+## Worker State Is Not Integration
+
+An external worker's terminal state is a process-level observation, not a project-level result. A dispatched worker may finish, fail, time out, or be cancelled. None of those states changes the main project by itself: the worker operates only inside its isolated worktree, and its exit code, timeout, or cancellation leaves the main repository untouched.
+
+Codex alone decides whether the isolated worktree becomes part of the main project. Before any integration, Codex reviews the isolated worktree's diff, the worker report, and the smallest meaningful verification result, then records a single verdict of accept or reject. The worker's own completion is therefore never the acceptance event — integration happens only after Codex has inspected and recorded the verdict.

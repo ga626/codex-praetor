@@ -106,8 +106,40 @@ export function resolveGitRoot(repo: string): string {
   return repo;
 }
 
+/**
+ * Resolve the checkout that owns Git's common directory. A linked worktree is
+ * a valid execution checkout, but it must not create a second Praetor ledger:
+ * the wrapper, watcher and MCP must all address the same durable state root.
+ */
+export function resolveCanonicalGitRoot(repo: string): string {
+  const sourceRoot = resolveGitRoot(repo);
+  const common = spawnSync("git", ["-C", sourceRoot, "rev-parse", "--git-common-dir"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  if (common.status !== 0 || !common.stdout.trim()) return sourceRoot;
+
+  const rawCommonDirectory = common.stdout.trim();
+  const commonDirectory = path.resolve(
+    path.isAbsolute(rawCommonDirectory) ? rawCommonDirectory : path.join(sourceRoot, rawCommonDirectory)
+  );
+  if (path.basename(commonDirectory).toLowerCase() !== ".git") return sourceRoot;
+
+  const canonicalRoot = path.dirname(commonDirectory);
+  const verified = spawnSync("git", ["-C", canonicalRoot, "rev-parse", "--git-common-dir"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  if (verified.status !== 0 || !verified.stdout.trim()) return sourceRoot;
+  const verifiedRaw = verified.stdout.trim();
+  const verifiedDirectory = path.resolve(
+    path.isAbsolute(verifiedRaw) ? verifiedRaw : path.join(canonicalRoot, verifiedRaw)
+  );
+  return path.normalize(verifiedDirectory) === path.normalize(commonDirectory) ? canonicalRoot : sourceRoot;
+}
+
 export function getProjectArtifactRoot(repo: string): string {
-  const projectRoot = resolveGitRoot(resolveExistingRepo(repo));
+  const projectRoot = resolveCanonicalGitRoot(resolveExistingRepo(repo));
   return path.join(projectRoot, ".codex-praetor");
 }
 
