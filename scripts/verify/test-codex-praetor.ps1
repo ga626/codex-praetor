@@ -402,11 +402,35 @@ if (-not $SkipMcpTest) {
         try {
             Push-Location -LiteralPath $mcpRoot
             try {
-                $mcpOutput = & npm test 2>&1
-                if ($LASTEXITCODE -eq 0 -and (($mcpOutput | Out-String) -match "codex-praetor-mcp self-test ok")) {
+                # Keep native stderr separate. On Windows, Git can emit a
+                # harmless line-ending warning during a passing npm test;
+                # `2>&1` turns that warning into a PowerShell error record
+                # under Stop preference and incorrectly fails this gate.
+                $mcpCapture = Join-Path ([IO.Path]::GetTempPath()) ("codex-praetor-mcp-test-" + [Guid]::NewGuid().ToString("N"))
+                $mcpStdout = "$mcpCapture.stdout.log"
+                $mcpStderr = "$mcpCapture.stderr.log"
+                try {
+                    $priorErrorAction = $ErrorActionPreference
+                    try {
+                        # Native Git warnings on npm's stderr are diagnostics,
+                        # not PowerShell exceptions. The exit code remains the
+                        # authoritative process result and stdout/stderr remain
+                        # separate for a failed-test diagnosis.
+                        $ErrorActionPreference = "Continue"
+                        & npm test 1> $mcpStdout 2> $mcpStderr
+                        $mcpExitCode = $LASTEXITCODE
+                    } finally {
+                        $ErrorActionPreference = $priorErrorAction
+                    }
+                    $mcpOutput = if (Test-Path -LiteralPath $mcpStdout) { Get-Content -LiteralPath $mcpStdout -Raw -Encoding UTF8 } else { "" }
+                    $mcpErrors = if (Test-Path -LiteralPath $mcpStderr) { Get-Content -LiteralPath $mcpStderr -Raw -Encoding UTF8 } else { "" }
+                } finally {
+                    Remove-Item -LiteralPath $mcpStdout, $mcpStderr -Force -ErrorAction SilentlyContinue
+                }
+                if ($mcpExitCode -eq 0 -and ($mcpOutput -match "codex-praetor-mcp self-test ok")) {
                     Add-Pass "MCP package builds and self-test passes"
                 } else {
-                    Add-Fail "MCP package self-test returned unexpected output: $($mcpOutput | Out-String)"
+                    Add-Fail "MCP package self-test returned unexpected output (exit=$mcpExitCode): $mcpOutput $mcpErrors"
                 }
             } finally {
                 Pop-Location
