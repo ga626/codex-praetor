@@ -6,6 +6,8 @@ Codex Praetor does not silently install CodeBuddy, sign in for the user, read pr
 
 In 0.16.5-alpha, Codex Praetor uses the CodeBuddy ACP connection for structured progress and formal cancellation. Its filesystem proxy enforces the declared worktree scope, and its terminal proxy admits only the task's exact declared deterministic checks.
 
+Structured session updates and boundary denials from CodeBuddy ACP remain visible evidence, but Codex accepts a task only after the isolated diff and the required check pass.
+
 普通用户只需要记住一句：Codex Praetor 可以检查本机有没有 CodeBuddy 命令，但不能替你选择中国站、国际站、企业域或 iOA，也不能替你完成浏览器登录。
 
 ## Install

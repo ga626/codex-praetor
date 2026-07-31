@@ -47,6 +47,8 @@ Route a readonly release canary for the current repository. Do not dispatch a re
 
 The dry-run call must not create a real worker job, mutate repository files, or require provider credentials.
 
+**Why both host and worker evidence matter.** `runtime_info` is a host observation taken after a refresh — it proves the running Desktop host resolved the correct plugin generation. A worker completion is separate task evidence — it proves a dispatched job actually ran and finished. Both are needed because they answer different questions: host readiness (can this host serve the right tools?) versus task outcome (did a concrete job succeed?).
+
 ## Pass Criteria
 
 - Tools are visible by their native MCP names in the fresh context.

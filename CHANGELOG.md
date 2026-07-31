@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.11-alpha
+
+- Fixed the shared Git common-root ledger path used by linked-worktree dispatch, candidate canary isolation roots, and CodeBuddy ACP's Windows case-insensitive allowed-path check.
+- Confirmed Qoder Agent SDK and CodeBuddy ACP with three independent Codex-accepted real bounded code-change records per provider; the records remain distinct from canaries and fixtures.
+- Confirmed provider-side formal cancellation and fresh-task cold recovery for both selected adapters in a clean isolated worktree.
+- Kept the existing safety boundary: a provider exit or session completion is evidence only; Codex still verifies scope, immutable paths, required checks, and the final result before acceptance or integration.
+
 ## 0.16.10-alpha
 
 - Anchored Praetor-created worker worktrees to the canonical Git project root, preventing nested runtime roots when a dispatch begins from a Codex Desktop linked worktree.

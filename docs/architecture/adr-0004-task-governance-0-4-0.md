@@ -14,7 +14,7 @@ The local control plane adopts A2A-inspired task, context, artifact, and lifecyc
 goal context -> logical task -> immutable attempt -> artifacts -> supervisor verdict -> outcome
 ```
 
-`completed` means an accepted logical-task outcome only. A worker process exit is recorded separately and never unblocks a dependent task. Attempts are immutable after a terminal execution state; a retry or refinement creates a new attempt linked to the same logical task.
+`completed` means an accepted logical-task outcome only. A logical task is accepted only after Codex records a supervisor verdict; a successful worker process exit or a completed ACP session is supporting evidence, not an automatic merge. A worker process exit is recorded separately and never unblocks a dependent task. Attempts are immutable after a terminal execution state; a retry or refinement creates a new attempt linked to the same logical task.
 
 ## State Model
 

@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.10-alpha",
-    "previous_version":  "0.16.9-alpha",
-    "tag":  "v0.16.10-alpha",
+    "version":  "0.16.11-alpha",
+    "previous_version":  "0.16.10-alpha",
+    "tag":  "v0.16.11-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.10-alpha.zip",
-    "reason":  "发布影响改进：Praetor worker worktree 现在从 Git common directory 推导规范项目根，避免 Codex Desktop 链接 worktree 在 C 盘嵌套运行目录；默认 health 不再扫描历史工作树，完整 inventory 改为显式维护入口；清理器新增所有权记录和候选清单，只允许 clean+merged 的 Praetor-owned worktree 成为候选。既有 Qoder Agent SDK、CodeBuddy ACP、structured progress 和 formal cancellation 合同保持不变；不改变 provider 资格、认证资料边界、自动合并或生产侧不可逆动作。"
+    "artifact":  "codex-praetor-setup-0.16.11-alpha.zip",
+    "reason":  "发布影响交付：修复 linked worktree 共用台账根、候选 canary 隔离根传递以及 CodeBuddy ACP 的 Windows 路径大小写边界误拒绝；Qoder Agent SDK 与 CodeBuddy ACP 均已有三条独立、Codex 验收的真实 bounded_code_change 记录，并在干净隔离 worktree 中分别完成 provider 侧正式取消与新任务冷恢复验证。保持现有 provider、模型、认证资料边界、Codex 最终验收和禁止自动合并/生产侧不可逆动作不变。"
 }
