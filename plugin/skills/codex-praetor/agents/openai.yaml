@@ -1,4 +1,4 @@
 ﻿interface:
-  display_name: "Codex Praetor"
-  short_description: "Codex dispatch to Qoder and CodeBuddy workers"
-  default_prompt: "Use $codex-praetor to dispatch a small coding task to the cheapest safe worker and verify the result."
+  display_name: "Codex 执行官"
+  short_description: "Codex 监督 Qoder 和 CodeBuddy worker 完成边界清楚的任务"
+  default_prompt: "使用 $codex-praetor 开启 Codex 执行官模式；先评估可外派阶段、执行 dry-run，再由 Codex 验收结果。"

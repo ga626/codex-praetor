@@ -1,5 +1,6 @@
 export type RouteKind =
   | "codex_praetor_external_worker"
+  | "codex_retains_ineligible_work"
   | "codex_kr_primary_research"
   | "native_codex_subagent"
   | "no_delegation"
@@ -12,6 +13,7 @@ export interface RouteDecision {
   suggested_next_action: string;
   matched_terms: string[];
   native_codex_subagents_allowed: boolean;
+  mode_context?: "inactive" | "active" | "unavailable";
   research_authority?: "codex_kr_primary";
   worker_research_eligible?: boolean;
   suggested_worker_research_mode?: "none" | "candidate_discovery" | "independent_replication";

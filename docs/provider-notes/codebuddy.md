@@ -1,6 +1,6 @@
 # CodeBuddy provider setup
 
-Codex Praetor can dispatch CodeBuddy only when the user has installed and signed in to Tencent CodeBuddy or WorkBuddy CLI on the same Windows machine.
+Codex Praetor can dispatch CodeBuddy only when the user has installed and signed in to CodeBuddy or WorkBuddy CLI on the same Windows machine.
 
 Codex Praetor does not silently install CodeBuddy, sign in for the user, read provider account databases, or promise that a model is free. It can guide the user to the official install/auth flow, wait for the user to finish, re-check the CLI, and then call the configured CLI path with explicit model and tool allowlists.
 

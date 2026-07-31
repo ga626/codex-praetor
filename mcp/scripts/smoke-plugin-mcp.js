@@ -56,6 +56,14 @@ function parseJsonDocument(text, source) {
   }
 }
 
+function payloadFromToolResult(result, source) {
+  const structuredContent = result?.structuredContent;
+  if (structuredContent && typeof structuredContent === "object" && !Array.isArray(structuredContent)) {
+    return structuredContent;
+  }
+  return parseJsonDocument(result?.content?.[0]?.text ?? "{}", source);
+}
+
 function readExpectedContract() {
   if (!expectedContractPath) return null;
   const bytes = readFileSync(expectedContractPath);
@@ -168,7 +176,7 @@ try {
       repo
     }
   });
-  const routePayload = parseJsonDocument(routeResult.content?.[0]?.text ?? "{}", "route intent tool response");
+  const routePayload = payloadFromToolResult(routeResult, "route intent tool response");
   if (routePayload.route !== "codex_praetor_external_worker") {
     throw new Error(`Unexpected route intent: ${routePayload.route}`);
   }
@@ -177,7 +185,7 @@ try {
     name: "codex_praetor_runtime_info",
     arguments: {}
   });
-  const runtimeInfoPayload = parseJsonDocument(runtimeInfoResult.content?.[0]?.text ?? "{}", "runtime info tool response");
+  const runtimeInfoPayload = payloadFromToolResult(runtimeInfoResult, "runtime info tool response");
   if (
     !runtimeInfoPayload.runtime_contract ||
     !/^[0-9a-f]{64}$/.test(runtimeInfoPayload.runtime_identity?.runtime_contract_sha256 ?? "") ||
@@ -224,7 +232,7 @@ try {
       task_family: "bounded_code_change"
     }
   });
-  const providerOperationsPayload = parseJsonDocument(providerOperationsResult.content?.[0]?.text ?? "{}", "provider operations tool response");
+  const providerOperationsPayload = payloadFromToolResult(providerOperationsResult, "provider operations tool response");
   const expectedProviders = ["qoder", "codebuddy"];
   if (
     providerOperationsPayload.schema !== "codex-praetor-provider-operations/v1" ||
@@ -241,7 +249,7 @@ try {
     name: "codex_praetor_evaluation_suite",
     arguments: {}
   });
-  const evaluationSuitePayload = parseJsonDocument(evaluationSuiteResult.content?.[0]?.text ?? "{}", "evaluation suite tool response");
+  const evaluationSuitePayload = payloadFromToolResult(evaluationSuiteResult, "evaluation suite tool response");
   if (
     evaluationSuitePayload.schema !== "codex-praetor-evaluation-suite-view/v1" ||
     !Array.isArray(evaluationSuitePayload.tasks) ||
@@ -267,7 +275,7 @@ try {
     // exceed the SDK's generic 60-second RPC default without a product timeout.
     { timeout: 180_000 }
   );
-  const evaluationPreparePayload = parseJsonDocument(evaluationPrepareResult.content?.[0]?.text ?? "{}", "evaluation preparation tool response");
+  const evaluationPreparePayload = payloadFromToolResult(evaluationPrepareResult, "evaluation preparation tool response");
   if (evaluationPreparePayload.ok !== true || !Array.isArray(evaluationPreparePayload.task_ids) || evaluationPreparePayload.task_ids.length !== evaluationSuitePayload.tasks.length || !evaluationPreparePayload.plan_path) {
     throw new Error(`Packaged evaluation preparation failed: ${JSON.stringify(evaluationPreparePayload)}`);
   }
@@ -299,7 +307,7 @@ try {
         run_mode: "blocking"
       }
     });
-    const dryRunPayload = parseJsonDocument(dryRunResult.content?.[0]?.text ?? "{}", "dispatch dry-run tool response");
+    const dryRunPayload = payloadFromToolResult(dryRunResult, "dispatch dry-run tool response");
     if (dryRunPayload.ok !== true || dryRunPayload.provider !== "qoder") {
       throw new Error(`Unexpected dispatch dry-run result: ${JSON.stringify(dryRunPayload)}`);
     }
@@ -313,7 +321,7 @@ try {
       limit: 10
     }
   });
-  const lanesPayload = parseJsonDocument(lanesResult.content?.[0]?.text ?? "{}", "lane list tool response");
+  const lanesPayload = payloadFromToolResult(lanesResult, "lane list tool response");
   if (!Array.isArray(lanesPayload.lanes)) {
     throw new Error(`Unexpected list lanes result: ${JSON.stringify(lanesPayload)}`);
   }
@@ -325,7 +333,7 @@ try {
       mode: "readonly"
     }
   });
-  const readonlyConflictPayload = parseJsonDocument(readonlyConflictResult.content?.[0]?.text ?? "{}", "read-only conflict tool response");
+  const readonlyConflictPayload = payloadFromToolResult(readonlyConflictResult, "read-only conflict tool response");
   if (readonlyConflictPayload.ok !== true || readonlyConflictPayload.conflict_count !== 0) {
     throw new Error(`Unexpected readonly conflict result: ${JSON.stringify(readonlyConflictPayload)}`);
   }
@@ -338,7 +346,7 @@ try {
       file_scope: ["mcp/src/tools.ts"]
     }
   });
-  const editConflictPayload = parseJsonDocument(editConflictResult.content?.[0]?.text ?? "{}", "edit conflict tool response");
+  const editConflictPayload = payloadFromToolResult(editConflictResult, "edit conflict tool response");
   if (typeof editConflictPayload.conflict_count !== "number" || !Array.isArray(editConflictPayload.conflicts)) {
     throw new Error(`Unexpected edit conflict result: ${JSON.stringify(editConflictPayload)}`);
   }

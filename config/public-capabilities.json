@@ -3,6 +3,14 @@
   "product": "codex-praetor",
   "capabilities": [
     {
+      "id": "execution-mode.session",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_mode_enable" },
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/SKILL.md"],
+      "scenario": "mcp_contract",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
       "id": "mcp.runtime-contract",
       "audience": "installed_plugin",
       "entry": { "kind": "mcp_contract" },
