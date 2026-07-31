@@ -460,9 +460,12 @@ if (-not $SkipPluginMcpPackageCheck) {
     if (Test-Path -LiteralPath $pluginMcpRuntime -PathType Leaf) {
         try {
             $nodeProbe = @'
-import('node:url').then(({pathToFileURL})=>import(pathToFileURL(process.argv[1]).href)).then(m=>{if(typeof m.createServer!=='function'){console.error('missing createServer');process.exit(2)}console.log('plugin mcp import ok')})
+import('node:url').then(({pathToFileURL})=>import(pathToFileURL(process.argv[2]).href)).then(m=>{if(typeof m.createServer!=='function'){console.error('missing createServer');process.exit(2)}console.log('plugin mcp import ok')})
 '@
-            $importOutput = & node -e $nodeProbe $pluginMcpRuntime 2>&1
+            # Keep argv[1] as a probe sentinel. If the bundle sees its own
+            # path there, it interprets this import probe as `node server.js`
+            # and starts a long-lived MCP server instead of merely importing.
+            $importOutput = & node -e $nodeProbe -- codex-praetor-import-probe $pluginMcpRuntime 2>&1
             if ($LASTEXITCODE -eq 0 -and (($importOutput | Out-String) -match "plugin mcp import ok")) {
                 Add-Pass "Plugin MCP bundled runtime imports successfully"
             } else {

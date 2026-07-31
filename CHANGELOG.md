@@ -7,6 +7,7 @@
 - Confirmed provider-side formal cancellation and fresh-task cold recovery for both selected adapters in a clean isolated worktree.
 - Kept the existing safety boundary: a provider exit or session completion is evidence only; Codex still verifies scope, immutable paths, required checks, and the final result before acceptance or integration.
 - Made the product validation gate keep native npm stderr separate from its success marker, so a harmless Windows Git line-ending warning cannot turn a passing MCP suite into a false release failure.
+- Fixed the bundled-MCP import probe so it uses a sentinel argv entry and cannot accidentally start a long-lived MCP server during release validation.
 
 ## 0.16.10-alpha
 

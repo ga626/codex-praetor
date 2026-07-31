@@ -6,6 +6,7 @@
 - 修复候选 canary 的隔离运行态传递：候选 `UserProfileRoot`、readiness、job、plan、lock 与 scratch 根不再串到其他运行代际。
 - 修复 Windows 下 CodeBuddy ACP 对盘符大小写不同的允许路径误拒绝；仍拒绝真正越出声明范围的请求。
 - 修复 Windows Git 的行尾提示被发布前 MCP 验收误当作失败的问题；实际失败仍按退出码和明确成功标记判定。
+- 修复 bundled MCP 的只导入检查误启动长期 server 的问题，避免发布验证被自身探针挂住。
 - 用真实 Qoder SDK 与 CodeBuddy ACP worker 分别完成三条独立、受限的隔离 worktree 改动并由 Codex 验收；两条连接保留可观察的 structured progress，formal cancellation 和新任务冷恢复也分别在干净 worktree 中验证。
 
 ## 用户影响
