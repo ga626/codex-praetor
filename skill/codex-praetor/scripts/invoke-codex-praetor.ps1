@@ -536,6 +536,22 @@ function Get-WorkerWorktreePath {
     return (Join-Path (Join-Path $artifactRoot "worktrees") $Name)
 }
 
+function Get-CanonicalProjectRootPath {
+    param([string]$RepoPath)
+    $sourceRoot = Get-ProjectRootPath -RepoPath $RepoPath
+    $commonRaw = (& git -C $sourceRoot rev-parse --git-common-dir 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($commonRaw)) { throw "Cannot resolve Git common directory for worker dispatch: $sourceRoot" }
+    $commonCandidate = $commonRaw.Replace('/', '\\')
+    $commonPath = if ($commonCandidate -match '^[A-Za-z]:\\') { [System.IO.Path]::GetFullPath($commonCandidate) } else { [System.IO.Path]::GetFullPath((Join-Path $sourceRoot $commonCandidate)) }
+    if ((Split-Path -Leaf $commonPath) -ne '.git') { throw "Cannot derive a canonical project checkout from non-standard Git common directory: $commonPath. This version does not manage worker worktrees for that repository layout." }
+    $canonicalRoot = Split-Path -Parent $commonPath
+    $verifiedCommon = (& git -C $canonicalRoot rev-parse --git-common-dir 2>$null | Out-String).Trim().Replace('/', '\\')
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($verifiedCommon)) { throw "Derived canonical project root is not a usable Git checkout: $canonicalRoot" }
+    $verifiedPath = if ($verifiedCommon -match '^[A-Za-z]:\\') { [System.IO.Path]::GetFullPath($verifiedCommon) } else { [System.IO.Path]::GetFullPath((Join-Path $canonicalRoot $verifiedCommon)) }
+    if (-not [string]::Equals($commonPath, $verifiedPath, [System.StringComparison]::OrdinalIgnoreCase)) { throw "Derived canonical project root does not share the source Git common directory: $canonicalRoot" }
+    return $canonicalRoot
+}
+
 function Get-ProjectRootPath {
     param([string]$RepoPath)
     $resolved = (Resolve-Path -LiteralPath $RepoPath).Path
@@ -552,8 +568,64 @@ function Get-ProjectRootPath {
 
 function Get-ProjectArtifactRoot {
     param([string]$RepoPath)
-    $projectRoot = Get-ProjectRootPath -RepoPath $RepoPath
+    $projectRoot = Get-CanonicalProjectRootPath -RepoPath $RepoPath
     return (Join-Path $projectRoot ".codex-praetor")
+}
+
+function Initialize-ProjectArtifactOwnership {
+    param([string]$RepoPath)
+
+    $projectRoot = Get-CanonicalProjectRootPath -RepoPath $RepoPath
+    $artifactRoot = Join-Path $projectRoot ".codex-praetor"
+    $commonDirectory = (& git -C $projectRoot rev-parse --git-common-dir 2>$null | Out-String).Trim().Replace('/', '\\')
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($commonDirectory)) {
+        throw "Cannot create Codex Praetor runtime ownership record because the canonical Git common directory is unavailable: $projectRoot"
+    }
+    $manifestPath = Join-Path $artifactRoot "runtime-owner.json"
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        try { $existing = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { throw "Codex Praetor runtime ownership record is invalid: $manifestPath" }
+        if ([string]$existing.schema -ne "codex-praetor-runtime-owner/v1" -or -not [string]::Equals([string]$existing.canonical_project_root, $projectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Codex Praetor runtime ownership record does not match this canonical project root: $manifestPath"
+        }
+        return $manifestPath
+    }
+    New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+    $record = [ordered]@{
+        schema = "codex-praetor-runtime-owner/v1"
+        canonical_project_root = $projectRoot
+        git_common_directory = $commonDirectory
+        managed_worktree_root = (Join-Path $artifactRoot "worktrees")
+        created_at = (Get-Date).ToString("o")
+    }
+    $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+    return $manifestPath
+}
+
+function Write-WorkerWorktreeOwnership {
+    param(
+        [string]$RepoPath,
+        [string]$Name,
+        [string]$WorktreePath,
+        [string]$BranchName
+    )
+
+    $projectRoot = Get-CanonicalProjectRootPath -RepoPath $RepoPath
+    $artifactRoot = Join-Path $projectRoot ".codex-praetor"
+    $runtimeOwnerPath = Initialize-ProjectArtifactOwnership -RepoPath $RepoPath
+    $ownershipRoot = Join-Path $artifactRoot "worktree-ownership"
+    New-Item -ItemType Directory -Path $ownershipRoot -Force | Out-Null
+    $ownershipPath = Join-Path $ownershipRoot ($Name + ".json")
+    $record = [ordered]@{
+        schema = "codex-praetor-worker-worktree-owner/v1"
+        runtime_owner = $runtimeOwnerPath
+        canonical_project_root = $projectRoot
+        worktree_name = $Name
+        worktree_path = [System.IO.Path]::GetFullPath($WorktreePath)
+        branch = $BranchName
+        created_at = (Get-Date).ToString("o")
+    }
+    $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ownershipPath -Encoding UTF8
+    return $ownershipPath
 }
 
 function Ensure-WorkerWorktree {
@@ -563,7 +635,8 @@ function Ensure-WorkerWorktree {
         [string]$BaseCommit = ""
     )
 
-    if (-not (Test-GitHeadExists -Path $RepoPath)) {
+    $projectRoot = Get-CanonicalProjectRootPath -RepoPath $RepoPath
+    if (-not (Test-GitHeadExists -Path $projectRoot)) {
         throw "Cannot create worker worktree because this repository has no commits yet: $RepoPath. Create a clean initial commit first; otherwise external workers cannot inspect the current project through a Git worktree."
     }
 
@@ -585,16 +658,16 @@ function Ensure-WorkerWorktree {
     }
 
     $branchName = "cw-$Name"
-    $existingBranch = & git -C $RepoPath branch --list $branchName 2>$null
+    $existingBranch = & git -C $projectRoot branch --list $branchName 2>$null
     New-Item -ItemType Directory -Path (Split-Path -Parent $worktreePath) -Force | Out-Null
 
     $previousErrorAction = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
         if ([string]::IsNullOrWhiteSpace($existingBranch)) {
-            $worktreeOutput = (& git -C $RepoPath worktree add -b $branchName $worktreePath $baseRef 2>&1 | Out-String).Trim()
+            $worktreeOutput = (& git -C $projectRoot worktree add -b $branchName $worktreePath $baseRef 2>&1 | Out-String).Trim()
         } else {
-            $worktreeOutput = (& git -C $RepoPath worktree add $worktreePath $branchName 2>&1 | Out-String).Trim()
+            $worktreeOutput = (& git -C $projectRoot worktree add $worktreePath $branchName 2>&1 | Out-String).Trim()
         }
         $worktreeExitCode = $LASTEXITCODE
     } finally {
@@ -604,6 +677,7 @@ function Ensure-WorkerWorktree {
         throw "git worktree add failed for $worktreePath. $worktreeOutput"
     }
 
+    Write-WorkerWorktreeOwnership -RepoPath $RepoPath -Name $Name -WorktreePath $worktreePath -BranchName $branchName | Out-Null
     return $worktreePath
 }
 
@@ -1238,6 +1312,9 @@ if ($TaskKind -eq "test_execution" -and -not $CapabilityCanary -and @($RequiredC
 }
 
 $ProjectArtifactRoot = Get-ProjectArtifactRoot -RepoPath $Repo
+if (-not $DryRun) {
+    Initialize-ProjectArtifactOwnership -RepoPath $Repo | Out-Null
+}
 if ([string]::IsNullOrWhiteSpace($JobRoot)) {
     $JobRoot = Join-Path $ProjectArtifactRoot "jobs"
 }

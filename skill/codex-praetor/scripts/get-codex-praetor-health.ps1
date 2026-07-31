@@ -4,6 +4,7 @@
     [string]$Channel = "stable",
     [string]$UserProfileRoot = $env:USERPROFILE,
     [string]$ReadinessPath = "",
+    [switch]$IncludeRuntimeInventory,
     [switch]$SkipRuntimeInventory,
     [switch]$Json
 )
@@ -217,16 +218,26 @@ if (Test-Path -LiteralPath $retirementManifestPath -PathType Leaf) {
     Add-HealthCheck -Name "generation_retirement" -Status "ready" -Message "当前没有退休清单；没有待回收代际。" -Details $retirementSummary
 }
 
-if ($SkipRuntimeInventory) {
-    Add-HealthCheck -Name "runtime_inventory" -Status "ready" -Message "Dispatch preflight skipped the full runtime inventory; run health without SkipRuntimeInventory for the read-only audit." -Details "skipped_for_dispatch_preflight"
-} elseif (@($inventoryScriptPath).Count -eq 1) {
+$maintenanceStatus = [pscustomobject]@{
+    runtime_inventory = "not_run"
+    action = "Run health with -IncludeRuntimeInventory for the read-only maintenance audit."
+}
+if ($IncludeRuntimeInventory -and $SkipRuntimeInventory) {
+    throw "IncludeRuntimeInventory and SkipRuntimeInventory cannot be used together."
+} elseif ($IncludeRuntimeInventory -and @($inventoryScriptPath).Count -eq 1) {
     try {
         $inventory = (& powershell -NoProfile -ExecutionPolicy Bypass -File ([string]$inventoryScriptPath[0]) -Repo $Repo -UserProfileRoot $profileRoot -Channel $Channel -Json | Out-String) | ConvertFrom-Json
         $inventoryStatus = if (@($inventory.items | Where-Object { $_.category -eq "dirty/unmerged" }).Count -gt 0) { "degraded" } else { "ready" }
-        Add-HealthCheck -Name "runtime_inventory" -Status $inventoryStatus -Message "runtime inventory 已生成；当前默认只读且保留 active/dirty/audit 项。" -Details $inventory
+        $maintenanceStatus = [pscustomobject]@{ runtime_inventory = "completed"; action = "Review protected or dirty entries before a separate cleanup dry run."; counts = $inventory.counts }
+        Add-HealthCheck -Name "runtime_inventory" -Status $inventoryStatus -Message "已按显式请求生成 runtime inventory；它只读，不会执行清理。" -Details $inventory
     } catch { Add-HealthCheck -Name "runtime_inventory" -Status "degraded" -Message "runtime inventory 生成失败；不得据此删除任何代际。" -Details $_.Exception.Message }
-} else {
+} elseif ($IncludeRuntimeInventory) {
     Add-HealthCheck -Name "runtime_inventory" -Status "degraded" -Message "runtime inventory adapter 缺失。" -Details $projectRoot
+} elseif ($SkipRuntimeInventory) {
+    $maintenanceStatus = [pscustomobject]@{ runtime_inventory = "skipped_for_legacy_caller"; action = "Use default health for the fast path; use -IncludeRuntimeInventory only for maintenance." }
+    Add-HealthCheck -Name "runtime_inventory" -Status "ready" -Message "兼容调用跳过了完整 inventory；默认 health 现在同样不会扫描历史目录。" -Details "skipped_for_legacy_caller"
+} else {
+    Add-HealthCheck -Name "runtime_inventory" -Status "ready" -Message "默认 health 不扫描历史工作树；完整 inventory 是显式维护入口。" -Details "not_run"
 }
 
 $maintenanceTaskName = "CodexPraetor-GenerationReconcile"
@@ -257,6 +268,7 @@ $payload = [pscustomobject]@{
     runtime_contract = if ($null -eq $contract) { "" } else { [string]$contract.version }
     active_receipt = $activeReceiptPath
     generation_retirement = $retirementSummary
+    maintenance_status = $maintenanceStatus
     checks = $checks
 }
 if ($Json) { $payload | ConvertTo-Json -Depth 12 } else { Write-Host "Codex Praetor dispatch health: $dispatchStatus; diagnostic health: $diagnosticStatus"; $checks | ForEach-Object { Write-Host "[$($_.status)] $($_.name): $($_.message)" } }
