@@ -109,6 +109,15 @@ assert.equal(
 );
 assert.equal(
   classifyWorkerOutcome({
+    meta: { status: "process_exited" },
+    completion: { status: "process_exited", exit_code: 0 },
+    stdout_tail: "worker report completed after an out-of-contract request was permission denied.",
+    stderr_tail: "permission denied by declared ACP boundary"
+  }).class,
+  "awaiting_codex_verification"
+);
+assert.equal(
+  classifyWorkerOutcome({
     meta: { status: "timed_out" },
     completion: { status: "timed_out", exit_code: 124 },
     stdout_tail: "",

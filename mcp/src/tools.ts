@@ -486,7 +486,13 @@ export function classifyWorkerOutcome(input: {
       next_action: "让用户按 provider 官方流程完成账号动作，再重跑 canary 或重派任务。"
     };
   }
-  if (combined.includes("permission") || combined.includes("denied") || combined.includes("sandbox")) {
+  // An ACP client can correctly deny an out-of-contract request and still
+  // complete the bounded task through an allowed path. The watcher records
+  // those denials as evidence; a successful process must remain available for
+  // Codex's independent verification rather than being downgraded by a word
+  // that happens to occur in its diagnostics.
+  const completedWithoutSemanticFailure = status === "process_exited" && exitCode === 0 && !failureClass;
+  if (!completedWithoutSemanticFailure && (combined.includes("permission") || combined.includes("denied") || combined.includes("sandbox"))) {
     return {
       class: "permission_denied",
       explanation: "worker 被权限、沙箱或工具白名单拦住。",

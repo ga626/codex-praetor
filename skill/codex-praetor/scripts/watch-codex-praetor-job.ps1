@@ -261,6 +261,7 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($acpSessionPath)) {
         try { $acpSession = Read-JsonWithRetry -Path $acpSessionPath } catch { $acpSession = $null }
     }
+    $completedAcpBoundaryObservation = [string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.state -eq "completed" -and [int]$acpSession.boundary_denials -gt 0 -and $null -ne $exitCode -and $exitCode -eq 0
     # A worker exit is execution evidence, not a logical-task acceptance.
     $status = "process_exited"
     $semanticFailure = ""
@@ -279,7 +280,7 @@ try {
         $semanticFailure = "max_turns_exceeded"
     } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $providerDiagnostics -match "(?is)tool.+not found.+agent|not found in agent|tool_contract_mismatch") {
         $semanticFailure = "tool_contract_mismatch"
-    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and $providerDiagnostics -match "(?is)permission denied|permission_denied") {
+    } elseif ([string]::IsNullOrWhiteSpace($semanticFailure) -and -not $completedAcpBoundaryObservation -and $providerDiagnostics -match "(?is)permission denied|permission_denied") {
         $semanticFailure = "permission_denied"
     }
     if ($cancelledExternally) {
@@ -342,6 +343,7 @@ try {
         stdout_nonempty = $stdoutHasText
         worktree_changed = $worktreeChanged
         worktree_status = $worktreeStatus
+        boundary_denials_observed = if ($null -ne $acpSession) { [int]$acpSession.boundary_denials } else { 0 }
         observed_at = (Get-Date).ToString("o")
     }
 
