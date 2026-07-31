@@ -98,8 +98,13 @@ function relativeInside(root: string, candidate: unknown) {
   if (typeof candidate !== "string" || candidate.trim() === "") return "";
   const resolvedRoot = path.resolve(root);
   const resolved = path.resolve(root, candidate);
-  if (resolved !== resolvedRoot && !resolved.startsWith(`${resolvedRoot}${path.sep}`)) return undefined;
-  const relative = normalizeRelative(path.relative(resolvedRoot, resolved));
+  // Do not compare resolved Windows paths as case-sensitive strings. ACP
+  // clients may emit a lowercase drive/path while the worktree was created
+  // with its original casing; both designate the same filesystem location.
+  // `path.relative` also gives the portable traversal test directly.
+  const relativePath = path.relative(resolvedRoot, resolved);
+  if (relativePath === ".." || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) return undefined;
+  const relative = normalizeRelative(relativePath);
   return relative || ".";
 }
 function pathAllowed(options: RunnerOptions, candidate: unknown, write = false) {

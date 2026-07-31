@@ -88,7 +88,11 @@ try {
   writeFileSync(outside, "outside", "utf8");
 
   const complete = options("complete");
-  const completeProcess = spawn(process.execPath, [runner, "--options-file", complete.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "complete", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
+  // CodeBuddy ACP may normalize a Windows worktree path to lowercase. The
+  // client proxy must still treat it as the same path rather than denying a
+  // legitimate in-scope read/write request.
+  const insideRequestedByAcp = process.platform === "win32" ? inside.toLowerCase() : inside;
+  const completeProcess = spawn(process.execPath, [runner, "--options-file", complete.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "complete", CP_FAKE_INSIDE: insideRequestedByAcp, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
   let completeOut = "";
   completeProcess.stdout.setEncoding("utf8");
   completeProcess.stdout.on("data", (chunk) => { completeOut += String(chunk); });
