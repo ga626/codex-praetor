@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { getJobRoot, getPlanRoot, resolveCanonicalGitRoot } from "./paths.js";
@@ -23,8 +23,14 @@ try {
   git(["commit", "-qm", "fixture"], canonicalRepo);
   git(["worktree", "add", "-q", "-b", "linked-plan-root", linkedRepo, "HEAD"], canonicalRepo);
 
-  const artifactRoot = path.join(canonicalRepo, ".codex-praetor");
-  assert.equal(resolveCanonicalGitRoot(linkedRepo), canonicalRepo);
+  // Git and Windows can report the same existing directory through different
+  // spellings (notably 8.3 profile paths on hosted runners). The production
+  // resolver deliberately canonicalizes existing roots, so the contract must
+  // compare against the filesystem's canonical spelling rather than the
+  // lexical temporary-directory input.
+  const canonicalRoot = realpathSync(canonicalRepo);
+  const artifactRoot = path.join(canonicalRoot, ".codex-praetor");
+  assert.equal(resolveCanonicalGitRoot(linkedRepo), canonicalRoot);
   assert.equal(getPlanRoot(linkedRepo), path.join(artifactRoot, "plans"));
   assert.equal(getJobRoot(linkedRepo), path.join(artifactRoot, "jobs"));
   assert.notEqual(getPlanRoot(linkedRepo), path.join(linkedRepo, ".codex-praetor", "plans"));
