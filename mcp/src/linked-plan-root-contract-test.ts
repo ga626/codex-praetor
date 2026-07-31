@@ -13,6 +13,19 @@ function git(args: string[], cwd: string) {
   return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", windowsHide: true });
 }
 
+function sameExistingDirectory(left: string, right: string): boolean {
+  // On Windows, Git may emit an 8.3 spelling while Node's resolver emits the
+  // long spelling for the very same directory. realpathSync.native delegates
+  // to the platform filesystem, which gives this fixture one identity check
+  // instead of a lexical path-spelling check.
+  const normalized = (value: string) => path.normalize(realpathSync.native(value));
+  const leftPath = normalized(left);
+  const rightPath = normalized(right);
+  return process.platform === "win32"
+    ? leftPath.toLowerCase() === rightPath.toLowerCase()
+    : leftPath === rightPath;
+}
+
 try {
   mkdirSync(canonicalRepo, { recursive: true });
   writeFileSync(path.join(canonicalRepo, "README.md"), "fixture\n", "utf8");
@@ -24,13 +37,12 @@ try {
   git(["worktree", "add", "-q", "-b", "linked-plan-root", linkedRepo, "HEAD"], canonicalRepo);
 
   // Git and Windows can report the same existing directory through different
-  // spellings (notably 8.3 profile paths on hosted runners). The production
-  // resolver deliberately canonicalizes existing roots, so the contract must
-  // compare against the filesystem's canonical spelling rather than the
-  // lexical temporary-directory input.
-  const canonicalRoot = realpathSync(canonicalRepo);
+  // spellings (notably 8.3 profile paths on hosted runners). Compare the two
+  // existing roots by filesystem identity, then keep the child-root checks
+  // bound to the resolved root that production will actually use.
+  const canonicalRoot = resolveCanonicalGitRoot(linkedRepo);
   const artifactRoot = path.join(canonicalRoot, ".codex-praetor");
-  assert.equal(resolveCanonicalGitRoot(linkedRepo), canonicalRoot);
+  assert.ok(sameExistingDirectory(canonicalRoot, canonicalRepo));
   assert.equal(getPlanRoot(linkedRepo), path.join(artifactRoot, "plans"));
   assert.equal(getJobRoot(linkedRepo), path.join(artifactRoot, "jobs"));
   assert.notEqual(getPlanRoot(linkedRepo), path.join(linkedRepo, ".codex-praetor", "plans"));
