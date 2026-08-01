@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.15-alpha",
-    "previous_version":  "0.16.14-alpha",
-    "tag":  "v0.16.15-alpha",
+    "version":  "0.16.16-alpha",
+    "previous_version":  "0.16.15-alpha",
+    "tag":  "v0.16.16-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.15-alpha.zip",
-    "reason":  "发布事故恢复：0.16.14-alpha 的 Release On Main 在创建 tag 前因 gh 缺少 GH_TOKEN 而停止；0.16.15-alpha 为新不可变恢复版本。主分支 release-control 核验显式传递 GitHub Actions 短期令牌，并由合同回归固定。既定 Qoder Agent SDK 与 CodeBuddy ACP 连接路线、结构化进展和 formal cancellation 合同不变。候选仍构建、验收并证明唯一 ZIP；main 只提升同一 ZIP，校验候选收据、内容树、SHA256、provenance 与远端下载。不新增 provider、模型、认证资料访问、自动合并、原生 Codex subagent 冒充或生产侧不可逆动作。"
+    "artifact":  "codex-praetor-setup-0.16.16-alpha.zip",
+    "reason":  "发布事故恢复：0.16.15-alpha 的 Release On Main 在创建 tag 前因 PR CI 上传的候选 artifact 名称与 main 提升查找名称不一致而停止；0.16.16-alpha 为新不可变恢复版本。PR CI 上传与 main 提升现在共用唯一的 artifact 命名 helper，并由固定输入回归和消费者合同回归锁定。既定 Qoder Agent SDK 与 CodeBuddy ACP 连接路线、结构化进展和 formal cancellation 合同不变。候选仍构建、验收并证明唯一 ZIP；main 只提升同一 ZIP，校验候选收据、内容树、SHA256、provenance 与远端下载。不新增 provider、模型、认证资料访问、自动合并、原生 Codex subagent 冒充或生产侧不可逆动作。"
 }

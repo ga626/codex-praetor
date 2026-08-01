@@ -1,6 +1,6 @@
 {
   "name": "codex-praetor-plugin-mcp",
-  "version": "0.16.15-alpha",
+  "version": "0.16.16-alpha",
   "private": true,
   "type": "module",
   "main": "dist/server.js",

@@ -18,7 +18,8 @@ $pr = @($pulls)[0]
 $headSha = [string]$pr.head.sha
 if ($headSha -notmatch "^[0-9a-f]{40}$") { throw "Merged PR does not expose a full head SHA." }
 $releaseName = "codex-praetor-setup-$Version"
-$artifactName = "codex-praetor-candidate-$Version-pr$($pr.number)-$headSha"
+$artifactName = (& (Join-Path $ProjectRoot "scripts\release\get-release-candidate-artifact-name.ps1") -Version $Version -PullRequestNumber ([int]$pr.number) -HeadSha $headSha | Out-String).Trim()
+if ([string]::IsNullOrWhiteSpace($artifactName)) { throw "Candidate artifact name helper returned no name." }
 $artifactPage = & gh api "repos/$Repository/actions/artifacts?name=$artifactName&per_page=100" | ConvertFrom-Json
 $artifact = @($artifactPage.artifacts | Where-Object { -not $_.expired }) | Sort-Object created_at -Descending | Select-Object -First 1
 if ($null -eq $artifact) { throw "No retained candidate artifact named $artifactName exists for merged PR #$($pr.number)." }
