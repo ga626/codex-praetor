@@ -16,6 +16,7 @@
 - 对话只在阶段 1/2 事实报告、公开边界变化、PR D host 刷新或不可恢复 release incident 停下。
 - main 合并后仅由受保护的 `Release On Main` 从合并 SHA 自动构建、发布和远端下载复验；同一带 SHA manifest 的 zip 贯穿运行时验收、上传、下载和 attestation。tag/draft 后失败只重跑原 run；创建 tag 前发现 workflow 缺陷才可用递增版本恢复 PR。
 - PR 候选 artifact 的命名只能由 `scripts/release/get-release-candidate-artifact-name.ps1` 生成；上传、main 提升和回归检查必须共用该唯一合同，禁止在 YAML 或其他脚本手写第二套命名规则。
+- main 提升同一候选 ZIP 后，若最终运行时验收依赖仓库 MCP 测试工具，发布作业必须先调用受控的 `mcp/scripts/install-mcp-dependencies.ps1`；不得假定 PR CI 的依赖目录会跨作业存在。
 - release incident 的修复必须把故障纳入能力场景或故障注入；模拟 proof 不替代最终包证据。不得同版本补发、手工上传替代包或把收口缺口留给下一 PR。
 
 ## 本机与运行边界

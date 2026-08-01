@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.17-alpha
+
+- Recovered the Release On Main path after `0.16.16-alpha` promoted the verified candidate ZIP but stopped before tag creation because final artifact runtime validation lacked its MCP test dependencies.
+- Made main install the controlled MCP dependencies before promoted-artifact verification, with the Qoder SDK implicit CLI download still disabled and a workflow-readiness regression.
+- This is a new immutable recovery version; it does not overwrite or republish `0.16.16-alpha`.
+
 ## 0.16.16-alpha
 
 - Recovered the Release On Main path after `0.16.15-alpha` stopped before tag creation because PR CI and main promotion used different candidate artifact names.
