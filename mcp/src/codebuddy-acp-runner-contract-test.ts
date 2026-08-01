@@ -7,6 +7,7 @@ import path from "node:path";
 const root = path.join(os.tmpdir(), `codex-praetor-codebuddy-acp-${process.pid}-${Date.now()}`);
 const runner = path.join(process.cwd(), "dist", "codebuddy-acp-runner.js");
 const fakeAgent = path.join(root, "fake-acp-agent.mjs");
+const outside = path.join(os.tmpdir(), `codex-praetor-outside-${process.pid}.txt`);
 
 const source = String.raw`
 import readline from "node:readline";
@@ -51,6 +52,10 @@ function waitFor(predicate: () => boolean, label: string) {
   });
 }
 
+function waitForChildClose(child: ReturnType<typeof spawn>) {
+  return new Promise<number | null>((resolve) => child.on("close", resolve));
+}
+
 function options(jobId: string) {
   const job = path.join(root, jobId);
   mkdirSync(job, { recursive: true });
@@ -84,7 +89,6 @@ try {
   mkdirSync(path.dirname(inside), { recursive: true });
   writeFileSync(inside, "before", "utf8");
   writeFileSync(fakeAgent, source, "utf8");
-  const outside = path.join(os.tmpdir(), `codex-praetor-outside-${process.pid}.txt`);
   writeFileSync(outside, "outside", "utf8");
 
   const complete = options("complete");
@@ -96,7 +100,7 @@ try {
   let completeOut = "";
   completeProcess.stdout.setEncoding("utf8");
   completeProcess.stdout.on("data", (chunk) => { completeOut += String(chunk); });
-  const completeExit = await new Promise<number | null>((resolve) => completeProcess.on("exit", resolve));
+  const completeExit = await waitForChildClose(completeProcess);
   assert.equal(completeExit, 0);
   const completeState = JSON.parse(readFileSync(complete.statePath, "utf8"));
   assert.equal(completeState.state, "completed");
@@ -107,7 +111,7 @@ try {
 
   const highVolume = options("high-volume");
   const highVolumeProcess = spawn(process.execPath, [runner, "--options-file", highVolume.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "high_volume", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
-  const highVolumeExit = await new Promise<number | null>((resolve) => highVolumeProcess.on("exit", resolve));
+  const highVolumeExit = await waitForChildClose(highVolumeProcess);
   assert.equal(highVolumeExit, 0);
   const highVolumeState = JSON.parse(readFileSync(highVolume.statePath, "utf8"));
   assert.equal(highVolumeState.structured_events, 513, "all structured stream events must still count as live progress.");
@@ -117,7 +121,7 @@ try {
 
   const unexpected = options("unexpected-cancel");
   const unexpectedProcess = spawn(process.execPath, [runner, "--options-file", unexpected.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "unexpected_cancel", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
-  const unexpectedExit = await new Promise<number | null>((resolve) => unexpectedProcess.on("exit", resolve));
+  const unexpectedExit = await waitForChildClose(unexpectedProcess);
   assert.equal(unexpectedExit, 1, "Provider-side cancellation without a Codex request must not be accepted as success.");
   const unexpectedState = JSON.parse(readFileSync(unexpected.statePath, "utf8"));
   assert.equal(unexpectedState.state, "failed");
@@ -127,7 +131,7 @@ try {
   const cancelProcess = spawn(process.execPath, [runner, "--options-file", cancelled.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "cancel", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
   await waitFor(() => existsSync(cancelled.statePath) && JSON.parse(readFileSync(cancelled.statePath, "utf8")).state === "running", "ACP running state");
   writeFileSync(path.join(cancelled.job, "cancel-request.json"), JSON.stringify({ schema: "codex-praetor-cancel-request/v1" }), "utf8");
-  const cancelExit = await new Promise<number | null>((resolve) => cancelProcess.on("exit", resolve));
+  const cancelExit = await waitForChildClose(cancelProcess);
   assert.equal(cancelExit, 0);
   const cancelState = JSON.parse(readFileSync(cancelled.statePath, "utf8"));
   assert.equal(cancelState.state, "cancelled_session_terminated");
@@ -139,5 +143,9 @@ try {
   assert.match(cancelTrace, /cancel_requested/);
   console.log("CodeBuddy ACP runner contract regression ok");
 } finally {
-  rmSync(root, { recursive: true, force: true });
+  // On Windows, a child can signal exit before its inherited streams release
+  // their final handles. Node's bounded retry is for transient EPERM/EBUSY;
+  // it remains a test failure for a persistent lock.
+  rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  rmSync(outside, { force: true, maxRetries: 5, retryDelay: 100 });
 }

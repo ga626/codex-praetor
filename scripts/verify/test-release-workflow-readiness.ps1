@@ -79,6 +79,7 @@ Assert-True ($pipelineText -match 'write-release-candidate-receipt\.ps1') "PR CI
 Assert-True ($pipelineText -match 'actions/upload-artifact@[0-9a-f]{40}') "PR CI must upload the verified candidate artifact with a pinned action."
 Assert-True ($pipelineText -match 'actions/attest-build-provenance@[0-9a-f]{40}') "PR CI must attest the verified candidate ZIP with a pinned action."
 Assert-True ($pipelineText -match 'resolve-release-promotion-artifact\.ps1') "Main publication must resolve the previously verified candidate artifact."
+Assert-True ($pipelineText -match '(?ms)- name: Validate release control plane on main\s*\r?\n\s*if:.*\r?\n\s*shell: pwsh\s*\r?\n\s*env:\s*\r?\n\s*GH_TOKEN:\s*\$\{\{ github\.token \}\}') "Main release-control validation must pass GitHub Actions token to gh."
 Assert-True ($intentGateText -match 'Pipeline classification: non_release') "Release intent gate must expose the non-release classification."
 Assert-True ($intentGateText -match 'if \(\$CheckRemote -and \$releaseImpact\)') "Remote immutable-tag checks must run only for release-impact candidates."
 Assert-True ($preflightText -match 'test-release-workflow-readiness\.ps1') "Candidate preflight must validate workflow readiness."

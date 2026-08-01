@@ -25,7 +25,10 @@ function New-FixtureRepo {
     & git -C $repo config user.name 'Codex Praetor evaluation'
     Set-Content -LiteralPath (Join-Path $repo 'README.md') -Value 'fixture' -Encoding ascii
     & git -C $repo add README.md
-    & git -C $repo commit -qm fixture
+    # Fixture commits are test setup, not product changes.  They must never
+    # invoke the repository's pre-commit suite recursively when a developer
+    # runs this test from a checkout with hooks enabled.
+    & git -C $repo commit --no-verify -qm fixture
     return $repo
 }
 function Prepare-Task {

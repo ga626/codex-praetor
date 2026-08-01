@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.15-alpha
+
+- Recovered the Release On Main control-plane path after `0.16.14-alpha` stopped before tag creation because the `gh` action-pin check did not receive GitHub Actions' short-lived token.
+- Added a workflow-readiness regression requiring `GH_TOKEN: ${{ github.token }}` for that main-branch release check. This is a new immutable recovery version; it does not overwrite or republish `0.16.14-alpha`.
+- Kept the verified-candidate promotion contract: `main` publishes only the already accepted ZIP after receipt, content-tree, SHA256, manifest, provenance, and remote-download verification.
+
 ## 0.16.14-alpha
 
 - Repaired the release artifact promotion path: the PR candidate builds, verifies, attests, and retains one ZIP; `main` now locates, verifies, and publishes that same ZIP rather than rebuilding another archive.

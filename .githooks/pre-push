@@ -1,4 +1,9 @@
 #!/bin/sh
+if [ "${CODEX_PRAETOR_HOOK_GUARD:-}" = "1" ]; then
+  exit 0
+fi
+export CODEX_PRAETOR_HOOK_GUARD=1
+
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify/doctor-codex-praetor.ps1 -RequireHead -PublicRelease -StagedOnly -AllowDraftMetadataPlaceholders
 if [ $? -ne 0 ]; then
   exit 1
