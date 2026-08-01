@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.16-alpha
+
+- Recovered the Release On Main path after `0.16.15-alpha` stopped before tag creation because PR CI and main promotion used different candidate artifact names.
+- Centralized candidate artifact naming in one helper used by both PR CI upload and main promotion, with fixed-input and consumer-contract regressions.
+- This is a new immutable recovery version; it does not overwrite or republish `0.16.15-alpha`.
+
 ## 0.16.15-alpha
 
 - Recovered the Release On Main control-plane path after `0.16.14-alpha` stopped before tag creation because the `gh` action-pin check did not receive GitHub Actions' short-lived token.

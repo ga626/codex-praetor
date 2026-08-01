@@ -15,6 +15,7 @@
 - 共同根因 PR 的开发期只跑受影响组。版本面、候选 artifact 和全量确定性矩阵只能在范围冻结后各运行一次；候选冻结后发现的独立问题记入下一证据门，不回填当前 PR。host 刷新只属于 PR D 的用户交付链，不得作为 PR B 或阶段 1 的诊断工具。
 - 对话只在阶段 1/2 事实报告、公开边界变化、PR D host 刷新或不可恢复 release incident 停下。
 - main 合并后仅由受保护的 `Release On Main` 从合并 SHA 自动构建、发布和远端下载复验；同一带 SHA manifest 的 zip 贯穿运行时验收、上传、下载和 attestation。tag/draft 后失败只重跑原 run；创建 tag 前发现 workflow 缺陷才可用递增版本恢复 PR。
+- PR 候选 artifact 的命名只能由 `scripts/release/get-release-candidate-artifact-name.ps1` 生成；上传、main 提升和回归检查必须共用该唯一合同，禁止在 YAML 或其他脚本手写第二套命名规则。
 - release incident 的修复必须把故障纳入能力场景或故障注入；模拟 proof 不替代最终包证据。不得同版本补发、手工上传替代包或把收口缺口留给下一 PR。
 
 ## 本机与运行边界

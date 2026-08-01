@@ -16,6 +16,8 @@ $ciPath = Join-Path $workflowRoot "ci.yml"
 $releasePath = Join-Path $workflowRoot "release-on-main.yml"
 $pipelinePath = Join-Path $workflowRoot "release-pipeline.yml"
 $publisherPath = Join-Path $root "scripts\release\publish-github-release-asset.ps1"
+$candidateArtifactNamePath = Join-Path $root "scripts\release\get-release-candidate-artifact-name.ps1"
+$resolverPath = Join-Path $root "scripts\release\resolve-release-promotion-artifact.ps1"
 $intentGatePath = Join-Path $root "scripts\verify\test-release-intent.ps1"
 $preflightPath = Join-Path $root "scripts\verify\invoke-release-candidate-preflight.ps1"
 
@@ -48,6 +50,8 @@ foreach ($path in @($ciPath, $releasePath, $pipelinePath)) {
     Assert-True (Test-Path -LiteralPath $path -PathType Leaf) "Required workflow is missing: $path"
 }
 Assert-True (Test-Path -LiteralPath $publisherPath -PathType Leaf) "Release publisher is missing: $publisherPath"
+Assert-True (Test-Path -LiteralPath $candidateArtifactNamePath -PathType Leaf) "Candidate artifact naming helper is missing: $candidateArtifactNamePath"
+Assert-True (Test-Path -LiteralPath $resolverPath -PathType Leaf) "Release promotion resolver is missing: $resolverPath"
 Assert-True (Test-Path -LiteralPath $intentGatePath -PathType Leaf) "Release intent gate is missing: $intentGatePath"
 Assert-True (Test-Path -LiteralPath $preflightPath -PathType Leaf) "Candidate preflight is missing: $preflightPath"
 
@@ -55,8 +59,12 @@ $ciText = Get-Content -LiteralPath $ciPath -Raw -Encoding UTF8
 $releaseText = Get-Content -LiteralPath $releasePath -Raw -Encoding UTF8
 $pipelineText = Get-Content -LiteralPath $pipelinePath -Raw -Encoding UTF8
 $publisherText = Get-Content -LiteralPath $publisherPath -Raw -Encoding UTF8
+$resolverText = Get-Content -LiteralPath $resolverPath -Raw -Encoding UTF8
 $intentGateText = Get-Content -LiteralPath $intentGatePath -Raw -Encoding UTF8
 $preflightText = Get-Content -LiteralPath $preflightPath -Raw -Encoding UTF8
+
+$candidateArtifactName = (& $candidateArtifactNamePath -Version "0.16.16-alpha" -PullRequestNumber 74 -HeadSha "0123456789abcdef0123456789abcdef01234567" | Out-String).Trim()
+Assert-True ($candidateArtifactName -eq "codex-praetor-candidate-0.16.16-alpha-pr74-0123456789abcdef0123456789abcdef01234567") "Candidate artifact naming helper must produce the canonical version, PR, and full-SHA name."
 
 Assert-True ($ciText -match 'uses:\s*\./\.github/workflows/release-pipeline\.yml') "PR CI must call the shared release pipeline."
 Assert-True ($ciText -match 'publish:\s*false') "PR CI must run the shared pipeline in candidate-only mode."
@@ -77,8 +85,12 @@ Assert-True ($pipelineText -match '(?ms)on:\s*\r?\n\s+workflow_call:') "Shared r
 Assert-True ($pipelineText -match 'invoke-release-candidate-preflight\.ps1\s+@arguments') "Shared pipeline must use the one candidate preflight entry."
 Assert-True ($pipelineText -match 'write-release-candidate-receipt\.ps1') "PR CI must bind its artifact to the PR candidate receipt."
 Assert-True ($pipelineText -match 'actions/upload-artifact@[0-9a-f]{40}') "PR CI must upload the verified candidate artifact with a pinned action."
+Assert-True ($pipelineText -match 'get-release-candidate-artifact-name\.ps1') "PR CI must derive its retained candidate artifact name from the shared helper."
+Assert-True ($pipelineText -match 'steps\.candidate_artifact\.outputs\.name') "PR CI upload must use the shared candidate artifact name output."
 Assert-True ($pipelineText -match 'actions/attest-build-provenance@[0-9a-f]{40}') "PR CI must attest the verified candidate ZIP with a pinned action."
 Assert-True ($pipelineText -match 'resolve-release-promotion-artifact\.ps1') "Main publication must resolve the previously verified candidate artifact."
+Assert-True ($resolverText -match 'get-release-candidate-artifact-name\.ps1') "Main publication must resolve the same candidate artifact name through the shared helper."
+Assert-True ($pipelineText -notmatch 'name:\s*codex-praetor-candidate-\$\{\{ github\.event\.pull_request\.number \}\}') "PR CI must not keep an independent legacy candidate artifact naming rule."
 Assert-True ($pipelineText -match '(?ms)- name: Validate release control plane on main\s*\r?\n\s*if:.*\r?\n\s*shell: pwsh\s*\r?\n\s*env:\s*\r?\n\s*GH_TOKEN:\s*\$\{\{ github\.token \}\}') "Main release-control validation must pass GitHub Actions token to gh."
 Assert-True ($intentGateText -match 'Pipeline classification: non_release') "Release intent gate must expose the non-release classification."
 Assert-True ($intentGateText -match 'if \(\$CheckRemote -and \$releaseImpact\)') "Remote immutable-tag checks must run only for release-impact candidates."

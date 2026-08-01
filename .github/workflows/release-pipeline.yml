@@ -54,9 +54,22 @@ jobs:
 
       - name: Upload verified candidate artifact
         if: ${{ !inputs.publish }}
+        id: candidate_artifact
+        shell: pwsh
+        run: |
+          $intent = Get-Content .\config\release-intent.json -Raw | ConvertFrom-Json
+          $name = & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\get-release-candidate-artifact-name.ps1 `
+            -Version "$($intent.version)" `
+            -PullRequestNumber ${{ github.event.pull_request.number }} `
+            -HeadSha "${{ github.event.pull_request.head.sha }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "name=$name" >> $env:GITHUB_OUTPUT
+
+      - name: Upload verified candidate artifact files
+        if: ${{ !inputs.publish }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: codex-praetor-candidate-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          name: ${{ steps.candidate_artifact.outputs.name }}
           if-no-files-found: error
           retention-days: 30
           path: |
