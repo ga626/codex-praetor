@@ -1,5 +1,4 @@
 import type { RouteDecision } from "./types.js";
-import type { SessionModeContext } from "./session-mode.js";
 
 const codexSubagentTerms = [
   "codex subagent",
@@ -97,9 +96,12 @@ function rejectsNativeCodexSubagents(value: string): boolean {
 
 export function routeIntent(
   request: string,
-  allowNativeCodexSubagents = false,
-  modeContext: SessionModeContext = "inactive"
+  allowNativeCodexSubagents = false
 ): RouteDecision {
+  // The active-mode decision belongs to the Skill and the conversation
+  // context. The MCP has no host-thread state, so it always reports the
+  // neutral classifier context.
+  const modeContext: "inactive" = "inactive";
   const trimmed = request.trim();
   if (!trimmed) {
     return {
@@ -137,18 +139,6 @@ export function routeIntent(
       research_authority: "codex_kr_primary",
       worker_research_eligible: workerEligible,
       suggested_worker_research_mode: workerEligible ? "candidate_discovery" : "none"
-    };
-  }
-
-  if (modeContext === "active" && retainMatches.length > 0) {
-    return {
-      route: "codex_retains_ineligible_work",
-      confidence: "high",
-      reason: "Codex Executive mode is active, but the request explicitly keeps this work with Codex.",
-      suggested_next_action: "Codex should complete this task directly and keep the mode active for later eligible work.",
-      matched_terms: [...new Set([...allMatches, ...retainMatches])],
-      native_codex_subagents_allowed: allowNativeCodexSubagents,
-      mode_context: modeContext
     };
   }
 
@@ -199,18 +189,6 @@ export function routeIntent(
           ? "The request contains Codex Praetor, cost-saving, provider, or external-worker terms."
           : "The request asks for delegation to other agents; without explicit native Codex subagent wording, Codex Praetor is the safer cost-control route.",
       suggested_next_action: "Run codex_praetor_dispatch_dry_run before any real worker dispatch.",
-      matched_terms: allMatches,
-      native_codex_subagents_allowed: allowNativeCodexSubagents,
-      mode_context: modeContext
-    };
-  }
-
-  if (modeContext === "active") {
-    return {
-      route: "codex_praetor_external_worker",
-      confidence: "medium",
-      reason: "Codex Executive mode is active for this conversation and repository. Assess this task for a bounded external-worker stage before Codex retains the ineligible remainder.",
-      suggested_next_action: "Define one inspectable worker outcome, run codex_praetor_dispatch_dry_run, then let Codex retain any stage that is not suitable for external execution.",
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext

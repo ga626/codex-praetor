@@ -13,7 +13,7 @@
 
 ## 2. Release 包
 
-- [ ] 从 `v0.16.12-alpha` Release 下载 `codex-praetor-setup-0.16.12-alpha.zip`。
+- [ ] 从 `v0.16.13-alpha` Release 下载 `codex-praetor-setup-0.16.13-alpha.zip`。
 - [ ] 校验 SHA256 文件和 zip 匹配。
 - [ ] 解压后根目录能看到 `setup.cmd` 和 `setup.ps1`。
 - [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/user/installation.zh.md`、`docs/user/troubleshooting.zh.md`。
@@ -54,10 +54,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 - [ ] 使用 Codex 支持的刷新动作或完全重启 Codex；仅打开新任务不能刷新 host。
 - [ ] 刷新后新开任务，`codex_praetor_runtime_info` 的版本和 runtime contract SHA 等于安装身份。
 - [ ] 能看到 `Codex Praetor` 插件和 `codex_praetor_*` MCP 工具。
-- [ ] 在新 Codex 对话输入“开启 Codex 执行官模式”后，`codex_praetor_mode_status` 显示范围为当前对话 + 当前项目；讨论“执行官模式是什么”不会误开启。
-- [ ] 同一对话的后续普通实质任务先走 `codex_praetor_route_intent` 评估；新对话或其他项目不继承该模式。
+- [ ] 在新 Codex 对话输入“开启 Codex 执行官模式”后，后续实质任务会先按插件 Skill 评估是否适合外派；讨论“执行官模式是什么”不会误开启，也不会调用模式状态工具。
+- [ ] 同一对话的后续普通实质任务先按 Skill 评估，再在适合时调用 `codex_praetor_route_intent`；新对话或其他项目不继承该模式。
 - [ ] 工具结果默认可读到中文短摘要；若外层工具卡仍由 Desktop 显示英文机器名，以摘要和结构化详情为准。
-- [ ] 关闭模式时，只取消同一模式会话的活跃 worker，并读取终态后才显示已关闭。
+- [ ] 关闭模式后不再为后续任务主动外派；需要停止已启动 worker 时，明确指定 `job_id` 并读取取消终态。
 
 ## 5. dry-run
 

@@ -13,7 +13,7 @@ Assert-True ([string]$manifest.schema -eq "codex-praetor-public-capabilities/v1"
 $capabilities = @($manifest.capabilities)
 Assert-True ($capabilities.Count -gt 0) "Public capability manifest is empty."
 Assert-True (@($capabilities.id | Select-Object -Unique).Count -eq $capabilities.Count) "Public capability ids must be unique."
-$scenarios = @("mcp_contract", "route_intent", "provider_operations", "evaluation_suite", "evaluation_prepare", "evaluation_verify", "provider_contract", "release_activation_contract")
+$scenarios = @("skill_workflow", "mcp_contract", "route_intent", "provider_operations", "evaluation_suite", "evaluation_prepare", "evaluation_verify", "provider_contract", "release_activation_contract")
 foreach ($capability in $capabilities) {
     foreach ($name in @("id", "audience", "entry", "package_requirements", "scenario", "risk_tier")) {
         Assert-True ($capability.PSObject.Properties.Name -contains $name) "Public capability is missing $name."
@@ -25,6 +25,10 @@ foreach ($capability in $capabilities) {
     }
     if ([string]$capability.entry.kind -eq "mcp_tool") {
         Assert-True ([string]$capability.entry.name -in @($contract.requiredMcpTools)) "Public capability $($capability.id) points to a tool missing from the runtime contract."
+    }
+    if ([string]$capability.entry.kind -eq "skill") {
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$capability.entry.path)) "Public capability $($capability.id) has no Skill path."
+        Assert-True (Test-Path -LiteralPath (Join-Path $root ([string]$capability.entry.path)) -PathType Leaf) "Public capability $($capability.id) points to a missing Skill."
     }
 }
 Assert-True (@($capabilities | Where-Object { $_.id -eq "evaluation.prepare" -and $_.entry.name -eq "codex_praetor_prepare_evaluation" }).Count -eq 1) "The installed evaluation preparation capability is missing."

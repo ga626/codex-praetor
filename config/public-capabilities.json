@@ -3,11 +3,11 @@
   "product": "codex-praetor",
   "capabilities": [
     {
-      "id": "execution-mode.session",
+      "id": "execution-mode.skill-workflow",
       "audience": "installed_plugin",
-      "entry": { "kind": "mcp_tool", "name": "codex_praetor_mode_enable" },
+      "entry": { "kind": "skill", "path": "plugin/skills/codex-praetor/SKILL.md" },
       "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/SKILL.md"],
-      "scenario": "mcp_contract",
+      "scenario": "skill_workflow",
       "risk_tier": "deterministic_artifact"
     },
     {
