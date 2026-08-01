@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.13-alpha",
+    [string]$Version = "0.16.14-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ReleaseZip = "",
@@ -24,7 +24,7 @@ function Get-Sha256([string]$Path) {
 function Read-ReleaseGeneration([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Release generation is missing: $Path" }
     $generation = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
-    foreach ($name in @("product", "version", "generation_id", "commit", "runtime_contract_sha256")) {
+    foreach ($name in @("product", "version", "generation_id", "commit", "source_tree", "runtime_contract_sha256")) {
         if ([string]::IsNullOrWhiteSpace([string]$generation.$name)) { throw "Release generation lacks ${name}: $Path" }
     }
     if ([string]$generation.product -ne "codex-praetor") { throw "Unexpected release product: $($generation.product)" }
@@ -73,6 +73,12 @@ function Resolve-GitHubTagCommit([string]$Repo, [string]$ReleaseTag) {
     return ([string]$ref.sha).ToLowerInvariant()
 }
 
+function Resolve-GitHubCommitTree([string]$Repo, [string]$Commit) {
+    $tree = ((& gh api "repos/$Repo/git/commits/$Commit" | ConvertFrom-Json).tree.sha).ToLowerInvariant()
+    if ($tree -notmatch '^[0-9a-f]{40}$') { throw "GitHub commit $Commit does not expose a content tree." }
+    return $tree
+}
+
 try {
     New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
     $zipPath = ""
@@ -107,7 +113,8 @@ try {
     $generation = Read-ReleaseGeneration -Path $generationPath
     if ($sourceKind -eq "published_release") {
         $tagCommit = Resolve-GitHubTagCommit -Repo $Repository -ReleaseTag $Tag
-        if ([string]$generation.commit -ne $tagCommit) { throw "Downloaded Release generation does not match the immutable GitHub tag commit." }
+        $tagTree = Resolve-GitHubCommitTree -Repo $Repository -Commit $tagCommit
+        if ([string]$generation.source_tree -ne $tagTree) { throw "Downloaded Release generation does not match the immutable GitHub tag content tree." }
     }
 
     $installScript = Join-Path $stage "scripts\install\install-user.ps1"

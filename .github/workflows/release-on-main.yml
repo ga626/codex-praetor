@@ -34,6 +34,7 @@ jobs:
   release:
     permissions:
       contents: write
+      actions: read
     uses: ./.github/workflows/release-pipeline.yml
     with:
       publish: true

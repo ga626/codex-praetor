@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.13-alpha",
+    [string]$Version = "0.16.14-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
@@ -246,7 +246,8 @@ function Write-ReleaseGenerationManifest {
         throw "Release generation script is missing: $generationScript"
     }
     $commit = ((& git -C $projectRoot rev-parse HEAD 2>$null) | Out-String).Trim()
-    $generationOutput = & $generationScript -ProjectRoot $projectRoot -ContentRoot $StageRoot -Commit $commit -Json
+    $sourceTree = ((& git -C $projectRoot rev-parse "$commit^{tree}" 2>$null) | Out-String).Trim()
+    $generationOutput = & $generationScript -ProjectRoot $projectRoot -ContentRoot $StageRoot -Commit $commit -SourceTree $sourceTree -Json
     if ($LASTEXITCODE -ne 0) {
         throw "Release generation script failed."
     }
@@ -315,6 +316,7 @@ function Write-ArtifactManifest {
         generation = [ordered]@{
             id = [string]$generation.generation_id
             commit = [string]$generation.commit
+            source_tree = [string]$generation.source_tree
             runtime_contract_sha256 = [string]$generation.runtime_contract_sha256
             required_mcp_tools = @($generation.required_mcp_tools)
         }

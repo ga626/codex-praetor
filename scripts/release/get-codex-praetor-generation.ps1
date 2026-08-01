@@ -2,6 +2,7 @@ param(
     [string]$ProjectRoot = "",
     [string]$ContentRoot = "",
     [string]$Commit = "",
+    [string]$SourceTree = "",
     [switch]$Json
 )
 
@@ -111,6 +112,35 @@ if ($commit -notmatch "^[0-9a-f]{40}$") {
     throw "Generation requires a git commit SHA from the project root."
 }
 
+$sourceTree = $SourceTree.Trim().ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($sourceTree)) {
+    try {
+        $sourceTree = ((& git -C $projectPath rev-parse "$commit^{tree}" 2>$null) | Out-String).Trim().ToLowerInvariant()
+    } catch {
+        $sourceTree = ""
+    }
+}
+if ([string]::IsNullOrWhiteSpace($sourceTree)) {
+    # Extracted Release bundles and installed plugins intentionally have no
+    # .git directory. Reuse their immutable packaged content-tree identity;
+    # do not synthesize a fake commit or silently derive a different release.
+    foreach ($generationPath in @(
+        (Join-Path $contentPath "codex-praetor-release-generation.json"),
+        (Join-Path $contentPath "release-generation.json"),
+        (Join-Path $contentPath "plugin\release-generation.json")
+    )) {
+        if (-not (Test-Path -LiteralPath $generationPath -PathType Leaf)) { continue }
+        try {
+            $packaged = Get-Content -LiteralPath $generationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $candidateTree = [string]$packaged.source_tree
+            if ($candidateTree -match "^[0-9a-f]{40}$") { $sourceTree = $candidateTree.ToLowerInvariant(); break }
+        } catch { }
+    }
+}
+if ($sourceTree -notmatch "^[0-9a-f]{40}$") {
+    throw "Generation requires the source content tree SHA. Pass -SourceTree when deriving identity from an extracted release bundle."
+}
+
 $skillTree = Get-TreeManifest -Root $skillRoot -Label "skill"
 # This manifest is written only after the generation is derived. Including it
 # would make the plugin tree self-referential and make an extracted artifact
@@ -131,8 +161,9 @@ $result = [ordered]@{
     product = "codex-praetor"
     version = $version
     commit = $commit
+    source_tree = $sourceTree
     content_manifest_sha256 = $contentHash
-    generation_id = "$version--$($commit.Substring(0, 12))--$($contentHash.Substring(0, 12))"
+    generation_id = "$version--$($commit.Substring(0, 12))--$($sourceTree.Substring(0, 12))--$($contentHash.Substring(0, 12))"
     runtime_contract_sha256 = $contractHash
     wrapper_protocol = [string]$contract.wrapperProtocol
     task_contract_schema = [string]$contract.taskContractSchema

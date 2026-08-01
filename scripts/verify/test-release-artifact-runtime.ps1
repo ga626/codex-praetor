@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.13-alpha",
+    [string]$Version = "0.16.14-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [string]$ArtifactManifestPath = "",
     [string]$ObservedToolsPath = "",
@@ -23,7 +23,7 @@ if (-not (Test-Path -LiteralPath $smoke -PathType Leaf)) { throw "MCP protocol s
 if (-not (Test-Path -LiteralPath $nativeHelper -PathType Leaf)) { throw "Native process helper is missing: $nativeHelper" }
 . $nativeHelper
 $artifact = Get-Content -LiteralPath $ArtifactManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ([string]$artifact.status -ne "built") { throw "Artifact manifest is not publishable from build state: $($artifact.status)" }
+if ([string]$artifact.status -notin @("built", "artifact_verified")) { throw "Artifact manifest is not publishable from build state: $($artifact.status)" }
 $zipPath = [IO.Path]::GetFullPath([string]$artifact.artifact.path)
 if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw "Release artifact is missing: $zipPath" }
 $actualHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -65,6 +65,7 @@ try {
         "-File", $packagedGeneration,
         "-ProjectRoot", $tmp,
         "-Commit", [string]$expectedGeneration.commit,
+        "-SourceTree", [string]$expectedGeneration.source_tree,
         "-Json"
     ) -WorkingDirectory $tmp -TimeoutSeconds 45
     if ([int]$generationProbe.exit_code -ne 0) {

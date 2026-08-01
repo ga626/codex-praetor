@@ -12,7 +12,8 @@ on:
         required: false
         type: string
 
-# Candidate and publication call this one preflight; callers supply permissions.
+# Candidate builds and proves exactly one ZIP. Main only resolves, verifies and
+# promotes that ZIP; it never performs a second packaging build.
 jobs:
   candidate_or_release:
     runs-on: windows-latest
@@ -30,6 +31,7 @@ jobs:
           cache-dependency-path: mcp/package-lock.json
 
       - name: Candidate preflight
+        if: ${{ !inputs.publish }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,6 +40,36 @@ jobs:
           if ('${{ inputs.publish }}' -ne 'true') { $arguments += '-AllowDraftMetadataPlaceholders' }
           & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\invoke-release-candidate-preflight.ps1 @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Write verified candidate receipt
+        if: ${{ !inputs.publish }}
+        shell: pwsh
+        run: |
+          $intent = Get-Content .\config\release-intent.json -Raw | ConvertFrom-Json
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\write-release-candidate-receipt.ps1 `
+            -Version "$($intent.version)" `
+            -PullRequestNumber ${{ github.event.pull_request.number }} `
+            -HeadSha "${{ github.event.pull_request.head.sha }}" `
+            -BaseSha "${{ github.event.pull_request.base.sha }}"
+
+      - name: Upload verified candidate artifact
+        if: ${{ !inputs.publish }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: codex-praetor-candidate-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            .codex-praetor/releases/codex-praetor-setup-*.zip
+            .codex-praetor/releases/codex-praetor-setup-*.zip.sha256
+            .codex-praetor/releases/codex-praetor-setup-*.artifact.json
+            .codex-praetor/releases/codex-praetor-setup-*.candidate.json
+
+      - name: Attest verified candidate ZIP
+        if: ${{ !inputs.publish }}
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-path: .codex-praetor/releases/codex-praetor-setup-*.zip
 
       - name: Classify mainline publication
         id: release_impact
@@ -49,6 +81,31 @@ jobs:
           $shouldPublish = (($classification | Out-String) -match 'Pipeline classification: release_impact')
           "publish=$($shouldPublish.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
+      - name: Validate release control plane on main
+        if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-workflow-readiness.ps1 -CheckRemoteActionPins
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Resolve and verify PR candidate artifact
+        if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $intent = Get-Content .\config\release-intent.json -Raw | ConvertFrom-Json
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\resolve-release-promotion-artifact.ps1 `
+            -Repository "${{ github.repository }}" `
+            -MainCommit "${{ github.sha }}" `
+            -Version "$($intent.version)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-artifact-runtime.ps1 `
+            -Version "$($intent.version)" `
+            -OutputRoot ".codex-praetor\releases\promoted" `
+            -ArtifactManifestPath ".codex-praetor\releases\promoted\codex-praetor-setup-$($intent.version).artifact.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Publish immutable Release from this exact main commit
         if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
         shell: pwsh
@@ -59,6 +116,8 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\publish-github-release-asset.ps1 `
             -Version "$($intent.version)" `
             -Tag "$($intent.tag)" `
+            -OutputRoot ".codex-praetor\releases\promoted" `
+            -ArtifactManifestPath ".codex-praetor\releases\promoted\codex-praetor-setup-$($intent.version).artifact.json" `
             -AllowDetachedHead `
             -ResumeExistingRelease `
             -Apply

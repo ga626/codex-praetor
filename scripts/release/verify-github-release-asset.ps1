@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.13-alpha",
+    [string]$Version = "0.16.14-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
@@ -92,6 +92,15 @@ function Resolve-GitHubTagCommit {
     return ([string]$object.sha).ToLowerInvariant()
 }
 
+function Resolve-GitHubCommitTree {
+    param([string]$Repository, [string]$Commit)
+    $commitJson = & gh api "repos/$Repository/git/commits/$Commit"
+    if ($LASTEXITCODE -ne 0) { throw "Unable to resolve GitHub commit tree $Repository@$Commit." }
+    $tree = ($commitJson | ConvertFrom-Json).tree.sha
+    if ([string]$tree -notmatch "^[0-9a-f]{40}$") { throw "GitHub commit $Commit does not expose a tree SHA." }
+    return ([string]$tree).ToLowerInvariant()
+}
+
 Assert-Command -Name "gh"
 
 if ($VerificationMode -eq "same-artifact" -and -not $SkipBuild) {
@@ -163,11 +172,12 @@ try {
     if (-not (Test-Path -LiteralPath $remoteGenerationPath -PathType Leaf)) { throw "Remote release zip is missing its generation manifest." }
     $remoteGeneration = Get-Content -LiteralPath $remoteGenerationPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $tagCommit = Resolve-GitHubTagCommit -Repository $Repository -Tag $Tag
-    if ([string]$remoteGeneration.version -ne $Version -or [string]$remoteGeneration.commit -ne $tagCommit) {
-        throw "Remote release generation does not match version/tag commit. Version=$($remoteGeneration.version) Commit=$($remoteGeneration.commit) TagCommit=$tagCommit"
+    $tagTree = Resolve-GitHubCommitTree -Repository $Repository -Commit $tagCommit
+    if ([string]$remoteGeneration.version -ne $Version -or [string]$remoteGeneration.source_tree -ne $tagTree) {
+        throw "Remote release generation does not match version/tag content tree. Version=$($remoteGeneration.version) SourceTree=$($remoteGeneration.source_tree) TagTree=$tagTree"
     }
-    if ($VerificationMode -eq "same-artifact" -and [string]$remoteGeneration.commit -ne [string]$artifactManifest.generation.commit) {
-        throw "Remote release generation commit differs from the verified local artifact manifest."
+    if ($VerificationMode -eq "same-artifact" -and ([string]$remoteGeneration.commit -ne [string]$artifactManifest.generation.commit -or [string]$remoteGeneration.source_tree -ne [string]$artifactManifest.generation.source_tree)) {
+        throw "Remote release generation differs from the verified artifact manifest."
     }
     if ($VerificationMode -eq "published-artifact" -and (Test-Path -LiteralPath $ArtifactManifestPath -PathType Leaf)) {
         try {
@@ -204,7 +214,7 @@ try {
     Write-Host "[PASS] Downloaded GitHub Release zip verified: $remoteZipHash"
     Write-Host "[PASS] GitHub Release SHA256 file matches."
     if ($VerificationMode -eq "same-artifact") { Write-Host "[PASS] GitHub Release notes match local release notes." }
-    Write-Host "[PASS] Downloaded Release generation matches tag commit: $tagCommit"
+    Write-Host "[PASS] Downloaded Release generation matches tag content tree: $tagTree"
     Write-Host "[PASS] Downloaded remote setup.cmd uses CRLF line endings."
     Write-Host "[PASS] Downloaded remote zip contains the current onboarding wizard."
 
