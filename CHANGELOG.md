@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.14-alpha
+
+- Repaired the release artifact promotion path: the PR candidate builds, verifies, attests, and retains one ZIP; `main` now locates, verifies, and publishes that same ZIP rather than rebuilding another archive.
+- Bound promotion to the candidate receipt, source content tree, ZIP SHA256, artifact manifest, provenance, and post-release download verification. A mismatch now stops the release before tag creation instead of silently publishing a different package.
+- Added structured progress and formal cancellation wording for the release-control stages; this release does not add providers, models, authentication access, automatic merges, or production-side irreversible actions.
+
 ## 0.16.13-alpha
 
 - Repaired Codex Executive mode as a Skill-owned conversation workflow. It no longer depends on an unavailable host thread ID, writes no fake conversation state, and does not expose unusable mode enable/status/disable MCP tools.

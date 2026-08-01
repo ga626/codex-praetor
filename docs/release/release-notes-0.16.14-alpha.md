@@ -17,3 +17,8 @@
 - 候选 ZIP、main promotion ZIP 与远端下载 ZIP 的 SHA256 必须一致。
 - 任意候选收据、内容树、generation 或 digest 不一致都会在 tag/Release 前失败。
 - 发布后仍完成 stable 安装、host 刷新、`runtime_info`、canary 和真实 worker 任务验收。
+
+## 进展与取消
+
+- 发布控制面以 structured progress 记录候选构建、验收、提升、Release 与远端下载复验的阶段结果，避免把长时间的本地检查误解为发布卡住。
+- 如果发布前的任一不可变性校验失败，流程会 formal cancellation：停止当前发布，不创建或替换同版本 Release，并保留失败证据以便按原 SHA 重跑。
