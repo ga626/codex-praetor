@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.13-alpha
+
+- Repaired Codex Executive mode as a Skill-owned conversation workflow. It no longer depends on an unavailable host thread ID, writes no fake conversation state, and does not expose unusable mode enable/status/disable MCP tools.
+- Preserved explicit `job_id` cancellation for real workers and clarified that conversation mode controls future routing, not guessed ownership of existing jobs.
+- Tightened Praetor-owned worker-worktree retirement: eligibility now requires clean state, no non-terminal matching job, and ancestry in the current `origin/main`, rather than the caller's local `HEAD`.
+
 ## 0.16.12-alpha
 
 - Added Codex Executive mode for one Codex conversation and one canonical repository. It persists only a hashed thread binding and a mode session ID under the existing project-local runtime root.

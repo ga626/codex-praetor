@@ -19,7 +19,6 @@ import {
 import { parseKeyValueOutput } from "./parse-key-value.js";
 import { runPowerShell } from "./powershell.js";
 import { routeIntent } from "./route-intent.js";
-import { beginSessionModeClose, enableSessionMode, getCurrentThreadId, getSessionMode, resumeSessionMode, revokeSessionMode } from "./session-mode.js";
 import { capabilityProfilesTool as buildCapabilityProfiles } from "./capability-profiles.js";
 import { evaluationSuiteTool as buildEvaluationSuite, prepareEvaluationTool as buildPrepareEvaluation, verifyEvaluationTaskTool as buildVerifyEvaluationTask } from "./evaluation-suite.js";
 import { explainableRouteTool as buildExplainableRoute } from "./explainable-routing.js";
@@ -76,113 +75,10 @@ export function routeIntentTool(input: {
   allow_native_codex_subagents?: boolean;
 }) {
   const repo = input.repo ? resolveExistingRepo(input.repo) : "";
-  const sessionMode = repo ? getSessionMode(repo) : null;
-  const decision = routeIntent(
-    input.request,
-    input.allow_native_codex_subagents ?? false,
-    sessionMode?.view.context ?? "inactive"
-  );
+  const decision = routeIntent(input.request, input.allow_native_codex_subagents ?? false);
   return {
     ...decision,
-    repo,
-    mode: sessionMode?.view ?? { available: false, context: "inactive", state: "inactive", scope: "host_thread_and_canonical_repo" }
-  };
-}
-
-export function enableSessionModeTool(input: { repo: string }) {
-  const enabled = enableSessionMode(input.repo);
-  return {
-    ok: true,
-    repo: enabled.repo,
-    mode: enabled.view,
-    display: {
-      阶段: "Codex 执行官模式",
-      状态: enabled.already_active ? "已开启" : "已开启",
-      范围: "当前对话 + 当前项目",
-      下一步: "后续实质任务先评估可外派阶段；Codex 继续负责拆分、授权、验收和整合。"
-    }
-  };
-}
-
-export function sessionModeStatusTool(input: { repo: string }) {
-  const repo = resolveExistingRepo(input.repo);
-  const mode = getSessionMode(repo);
-  const activeJobs = mode.policy ? findModeJobs(repo, getCurrentThreadId(), mode.policy.mode_session_id) : [];
-  return {
-    ok: mode.view.context !== "unavailable",
-    repo,
-    mode: mode.view,
-    active_job_count: activeJobs.length,
-    active_job_ids: activeJobs.map((job) => job.job_id),
-    display: {
-      阶段: "Codex 执行官模式",
-      状态: mode.view.state === "active" ? "已开启" : mode.view.state === "closing" ? "正在关闭" : mode.view.state === "unavailable" ? "不可用" : "未开启",
-      范围: "当前对话 + 当前项目",
-      下一步: mode.view.state === "active" ? "后续实质任务先评估可外派阶段。" : mode.view.state === "closing" ? "等待关联 worker 取得终态，避免误报已关闭。" : "输入“开启 Codex 执行官模式”后再使用持续外派。"
-    }
-  };
-}
-
-export async function disableSessionModeTool(input: { repo: string }) {
-  const repo = resolveExistingRepo(input.repo);
-  const mode = getSessionMode(repo);
-  if (mode.view.context === "unavailable") {
-    return {
-      ok: false,
-      repo,
-      state: "unavailable",
-      needs_decision: false,
-      message: "当前宿主没有提供 CODEX_THREAD_ID，不能安全关闭或取消这个对话的 Codex 执行官模式。"
-    };
-  }
-  if (!mode.policy) {
-    return {
-      ok: true,
-      repo,
-      mode: mode.view,
-      cancelled_job_ids: [],
-      display: { 阶段: "Codex 执行官模式", 状态: "未开启", 下一步: "没有需要取消的本模式 worker。" }
-    };
-  }
-
-  const closing = beginSessionModeClose(repo);
-  if (!closing.policy) {
-    return {
-      ok: false,
-      repo,
-      mode: closing.view,
-      needs_decision: true,
-      display: { 阶段: "关闭 Codex 执行官模式", 状态: "需要处理", 下一步: "模式状态刚刚变化；先读取状态后再决定。" }
-    };
-  }
-  const jobs = findModeJobs(repo, getCurrentThreadId(), closing.policy.mode_session_id);
-  const cancellations: Array<{ job_id: string; ok: boolean; terminal: boolean }> = [];
-  for (const job of jobs) {
-    const result = await cancelJobTool({ repo, job_id: job.job_id });
-    const completionPath = path.join(getJobRoot(repo), job.job_id, "completion.json");
-    const completion = existsSync(completionPath) ? readJsonFile(completionPath) : null;
-    const terminal = !!completion && !isActiveStatus(String(completion.status ?? ""));
-    cancellations.push({ job_id: job.job_id, ok: result.ok, terminal });
-  }
-  const failed = cancellations.filter((item) => !item.ok || !item.terminal);
-  if (failed.length > 0) {
-    resumeSessionMode(repo, closing.policy.mode_session_id);
-    return {
-      ok: false,
-      repo,
-      mode: getSessionMode(repo).view,
-      needs_decision: true,
-      cancellations,
-      display: { 阶段: "关闭 Codex 执行官模式", 状态: "需要处理", 下一步: "至少一个本模式 worker 未取得终态；模式保持开启，避免误报已关闭。" }
-    };
-  }
-  const revoked = revokeSessionMode(repo);
-  return {
-    ok: true,
-    repo,
-    mode: revoked.view,
-    cancelled_job_ids: cancellations.map((item) => item.job_id),
-    display: { 阶段: "Codex 执行官模式", 状态: "已关闭", 下一步: "后续任务由 Codex 按普通路由处理。" }
+    repo
   };
 }
 
@@ -441,7 +337,6 @@ function buildDispatchArgs(input: {
   immutable_paths?: string[];
   evidence_bootstrap?: boolean;
   no_notify?: boolean;
-  mode_session_id?: string;
 }) {
   const args = [
     "-NoProfile",
@@ -485,7 +380,6 @@ function buildDispatchArgs(input: {
   if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
   appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
   appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
-  appendOptionalStringArg(args, "-ModeSessionId", input.mode_session_id);
   if (input.real_worktree) {
     args.push("-RealWorktree");
     appendOptionalStringArg(args, "-BaseCommit", input.base_commit);
@@ -706,7 +600,6 @@ export async function dispatchTool(input: {
   no_notify?: boolean;
 }) {
   const repo = resolveExistingRepo(input.repo);
-  const sessionMode = getSessionMode(repo);
   assertResearchContract(input);
   const runMode = input.run_mode ?? "background";
   const result = await runPowerShell(
@@ -716,8 +609,7 @@ export async function dispatchTool(input: {
       repo,
       provider: input.provider ?? "auto",
       run_mode: runMode,
-      no_notify: input.no_notify ?? true,
-      mode_session_id: sessionMode.policy?.mode_session_id
+      no_notify: input.no_notify ?? true
     }),
     { timeoutMs: runMode === "blocking" ? 1_800_000 : 120_000, maxOutputBytes: 512_000 }
   );
@@ -745,7 +637,6 @@ export async function dispatchTool(input: {
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
     task_kind: fields.task_kind ?? input.task_kind ?? "",
-    mode_context: sessionMode.view.context,
     research_contract: input.research_contract ?? null,
     job_id: fields.job_id ?? "",
     job_dir: fields.job_dir ?? "",
@@ -988,21 +879,6 @@ function summarizeJobLane(repo: string, jobDir: string): LaneSummary {
     updated_at: summary.updated_at,
     active: isActiveStatus(summary.status)
   };
-}
-
-function findModeJobs(repo: string, ownerThreadId: string, modeSessionId: string): JobSummary[] {
-  const jobRoot = getJobRoot(repo);
-  if (!ownerThreadId || !modeSessionId || !existsSync(jobRoot)) return [];
-  return readdirSync(jobRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(jobRoot, entry.name))
-    .map((jobDir) => ({ jobDir, summary: summarizeJob(jobDir), meta: readJsonFile(path.join(jobDir, "job.json")) }))
-    .filter(({ summary, meta }) =>
-      isActiveStatus(summary.status)
-      && String(meta.notify_thread_id ?? "") === ownerThreadId
-      && String(meta.mode_session_id ?? "") === modeSessionId
-    )
-    .map(({ summary }) => summary);
 }
 
 function summarizePlanTaskLane(repo: string, planDir: string, plan: Record<string, unknown>, task: Record<string, unknown>): LaneSummary {

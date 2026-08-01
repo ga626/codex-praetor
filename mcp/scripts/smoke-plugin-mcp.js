@@ -89,7 +89,7 @@ function readPublicCapabilities() {
   if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
     throw new Error("Public capability ids must be non-empty and unique.");
   }
-  const supportedScenarios = new Set(["mcp_contract", "route_intent", "provider_operations", "evaluation_suite", "evaluation_prepare", "evaluation_verify", "provider_contract", "release_activation_contract"]);
+  const supportedScenarios = new Set(["skill_workflow", "mcp_contract", "route_intent", "provider_operations", "evaluation_suite", "evaluation_prepare", "evaluation_verify", "provider_contract", "release_activation_contract"]);
   for (const capability of payload.capabilities) {
     const scenario = String(capability?.scenario ?? "");
     if (!supportedScenarios.has(scenario)) {

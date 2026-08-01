@@ -24,6 +24,8 @@ try {
     & git -C $repo add README.md
     & git -C $repo commit -qm "fixture"
     if ($LASTEXITCODE -ne 0) { throw "Unable to create cleanup fixture repository." }
+    & git -C $repo update-ref refs/remotes/origin/main HEAD
+    if ($LASTEXITCODE -ne 0) { throw "Unable to create origin/main fixture reference." }
 
     $runtimeRoot = Join-Path $repo ".codex-praetor"
     $worktreeRoot = Join-Path $runtimeRoot "worktrees"

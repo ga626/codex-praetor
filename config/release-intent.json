@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.12-alpha",
-    "previous_version":  "0.16.11-alpha",
-    "tag":  "v0.16.12-alpha",
+    "version":  "0.16.13-alpha",
+    "previous_version":  "0.16.12-alpha",
+    "tag":  "v0.16.13-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.12-alpha.zip",
+    "artifact":  "codex-praetor-setup-0.16.13-alpha.zip",
     "reason":  "发布影响交付：新增只限当前 Codex 对话和当前项目的 Codex 执行官模式、精确模式会话取消关联与中文可审计摘要。Qoder Agent SDK 与 CodeBuddy ACP 保持既定连接路线；不新增 provider、模型、认证资料访问、自动合并、原生 Codex subagent 冒充或生产侧不可逆动作。"
 }

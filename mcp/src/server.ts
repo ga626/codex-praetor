@@ -62,9 +62,6 @@ import {
   listLanesTool,
   planTool,
   routeIntentTool,
-  enableSessionModeTool,
-  sessionModeStatusTool,
-  disableSessionModeTool,
   runtimeInfoTool,
   statusTool,
   verifyTaskTool,
@@ -115,45 +112,9 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.12-alpha",
-    description: "Codex 执行官模式为当前对话、当前项目提供受控的外部 worker 持续外派状态；Codex 始终负责拆分、验收与整合。"
+    version: "0.16.13-alpha",
+    description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执行官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
   });
-
-  server.registerTool(
-    "codex_praetor_mode_enable",
-    {
-      title: "开启 Codex 执行官模式",
-      description: "仅为当前 Codex 对话与当前项目开启持续外派偏好；宿主未提供对话绑定时会拒绝开启。",
-      annotations: additiveProjectLocalWrite,
-      outputSchema: structuredToolOutputSchema,
-      inputSchema: { repo: z.string().min(1) }
-    },
-    async (input) => asJsonContent(enableSessionModeTool(input))
-  );
-
-  server.registerTool(
-    "codex_praetor_mode_status",
-    {
-      title: "查看 Codex 执行官模式",
-      description: "读取当前对话与当前项目的执行官模式范围、状态和关联活跃 worker 数量。",
-      annotations: readOnlyClosedWorld,
-      outputSchema: structuredToolOutputSchema,
-      inputSchema: { repo: z.string().min(1) }
-    },
-    async (input) => asJsonContent(sessionModeStatusTool(input))
-  );
-
-  server.registerTool(
-    "codex_praetor_mode_disable",
-    {
-      title: "关闭 Codex 执行官模式",
-      description: "正式取消当前对话、当前项目、当前模式会话下的活跃 worker，并在取得终态后关闭模式。",
-      annotations: additiveProjectLocalWrite,
-      outputSchema: structuredToolOutputSchema,
-      inputSchema: { repo: z.string().min(1) }
-    },
-    async (input) => asJsonContent(await disableSessionModeTool(input))
-  );
 
   server.registerTool(
     "codex_praetor_capability_profiles",

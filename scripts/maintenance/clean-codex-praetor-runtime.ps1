@@ -144,14 +144,32 @@ function Test-WorktreeClean {
     return ($status.Count -eq 0)
 }
 
-function Get-MergedBranches {
-    param([string]$ProjectRoot)
+function Test-MergedIntoOriginMain {
+    param([string]$ProjectRoot, [string]$Branch)
+    if ([string]::IsNullOrWhiteSpace($Branch)) { return $false }
+    & git -C $ProjectRoot show-ref --verify --quiet refs/remotes/origin/main
+    if ($LASTEXITCODE -ne 0) { throw "origin/main is unavailable; fetch the approved remote baseline before retirement." }
+    & git -C $ProjectRoot merge-base --is-ancestor $Branch origin/main
+    return ($LASTEXITCODE -eq 0)
+}
 
-    $merged = @(& git -C $ProjectRoot branch --merged HEAD --format "%(refname:short)")
-    if ($LASTEXITCODE -ne 0) {
-        throw "git branch --merged failed."
+function Test-HasActiveJobForWorktree {
+    param([string]$JobsRoot, [string]$WorktreePath)
+    if (-not (Test-Path -LiteralPath $JobsRoot -PathType Container)) { return $false }
+    $target = [System.IO.Path]::GetFullPath($WorktreePath)
+    foreach ($job in @(Get-ChildItem -LiteralPath $JobsRoot -Directory -Force)) {
+        $jobJson = Join-Path $job.FullName "job.json"
+        if (-not (Test-Path -LiteralPath $jobJson -PathType Leaf)) { continue }
+        try { $meta = Get-Content -LiteralPath $jobJson -Raw -Encoding UTF8 | ConvertFrom-Json } catch { continue }
+        $executionRepo = [string]$meta.execution_repo
+        if ([string]::IsNullOrWhiteSpace($executionRepo)) { continue }
+        if (-not [string]::Equals([System.IO.Path]::GetFullPath($executionRepo), $target, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+        $completionPath = Join-Path $job.FullName "completion.json"
+        if (-not (Test-Path -LiteralPath $completionPath -PathType Leaf)) { return $true }
+        try { $completion = Get-Content -LiteralPath $completionPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { return $true }
+        if ([string]$completion.status -in @("starting", "running", "cancel_requested", "unknown", "watcher_failed", "timed_out")) { return $true }
     }
-    return @($merged | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    return $false
 }
 
 $projectRoot = Resolve-GitRoot -Path $Repo
@@ -192,7 +210,6 @@ if ($null -eq $runtimeOwner -or [string]$runtimeOwner.schema -ne "codex-praetor-
     exit 0
 }
 
-$mergedBranches = Get-MergedBranches -ProjectRoot $projectRoot
 $worktreeRecords = @(Get-WorktreeRecords -ProjectRoot $projectRoot)
 $runtimeWorktrees = @($worktreeRecords | Where-Object {
     $full = [System.IO.Path]::GetFullPath($_.Worktree)
@@ -207,8 +224,9 @@ foreach ($record in $runtimeWorktrees) {
     $branch = [string]$record.Branch
     $ownership = Get-WorkerOwnershipRecord -OwnershipRoot $ownershipRoot -ProjectRoot $projectRoot -WorktreeRecord $record
     $isWorkerBranch = $null -ne $ownership
-    $isMerged = $mergedBranches -contains $branch
+    $isMerged = Test-MergedIntoOriginMain -ProjectRoot $projectRoot -Branch $branch
     $isClean = Test-WorktreeClean -Path $record.Worktree
+    $hasActiveJob = Test-HasActiveJobForWorktree -JobsRoot $jobsRoot -WorktreePath $record.Worktree
 
     if (-not $isWorkerBranch) {
         Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $record.Worktree -Branch $branch -Disposition "protected" -Reason "No matching Codex Praetor ownership record." -Owned $false
@@ -216,8 +234,13 @@ foreach ($record in $runtimeWorktrees) {
         continue
     }
     if (-not $isMerged) {
-        Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $record.Worktree -Branch $branch -Disposition "review" -Reason "Praetor-owned worker branch is not merged." -Owned $true
-        Write-Host "[SKIP] Worker branch is not merged: $branch"
+        Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $record.Worktree -Branch $branch -Disposition "review" -Reason "Praetor-owned worker branch is not in latest origin/main." -Owned $true
+        Write-Host "[SKIP] Worker branch is not in latest origin/main: $branch"
+        continue
+    }
+    if ($hasActiveJob) {
+        Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $record.Worktree -Branch $branch -Disposition "protected" -Reason "A non-terminal job still references this worker worktree." -Owned $true
+        Write-Host "[SKIP] Worker worktree is still referenced by a non-terminal job: $($record.Worktree)"
         continue
     }
     if (-not $isClean) {
@@ -227,8 +250,8 @@ foreach ($record in $runtimeWorktrees) {
     }
 
     $worktreePath = [string]$record.Worktree
-    Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $worktreePath -Branch $branch -Disposition "eligible" -Reason "Praetor-owned, clean, and merged." -Owned $true
-    Invoke-MaintenanceAction "Remove clean merged worker worktree $worktreePath" {
+    Add-CleanupCandidate -List $candidates -Kind "worktree" -Path $worktreePath -Branch $branch -Disposition "eligible" -Reason "Praetor-owned, clean, no active job, and merged into origin/main." -Owned $true
+    Invoke-MaintenanceAction "Remove clean origin/main-merged worker worktree $worktreePath" {
         & git -C $projectRoot worktree remove $worktreePath
         if ($LASTEXITCODE -ne 0) {
             throw "git worktree remove failed: $worktreePath"
@@ -276,7 +299,7 @@ if (-not [string]::IsNullOrWhiteSpace($CandidateManifestPath)) {
         project_root = $projectRoot
         runtime_owner = $runtimeOwnerPath
         mode = if ($Apply) { "apply" } else { "dry_run" }
-        policy = "Only a matching Praetor ownership record can make a clean merged worker worktree eligible. Jobs and scratch remain protected until ownership records exist."
+        policy = "Only a matching Praetor ownership record, a clean worktree, no active matching job, and ancestry in latest origin/main can make a worker worktree eligible. Jobs and scratch remain protected until ownership records exist."
         candidates = $candidates.ToArray()
     }
     New-Item -ItemType Directory -Path (Split-Path -Parent $resolvedManifestPath) -Force | Out-Null
