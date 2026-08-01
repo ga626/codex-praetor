@@ -1709,6 +1709,9 @@ $networkRule
 
         $acpRunnerCandidates = @(
             (Join-Path $scriptGrandparent "mcp\dist\codebuddy-acp-runner.js"),
+            # Release bundles retain the executable runner with the plugin MCP,
+            # rather than the checkout-only source MCP directory.
+            (Join-Path $scriptGrandparent "plugin\mcp\dist\codebuddy-acp-runner.js"),
             (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\codebuddy-acp-runner.js")
         )
         $acpRunner = @($acpRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)

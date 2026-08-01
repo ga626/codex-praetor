@@ -84,6 +84,8 @@ jobs:
       - name: Validate release control plane on main
         if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-workflow-readiness.ps1 -CheckRemoteActionPins
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
