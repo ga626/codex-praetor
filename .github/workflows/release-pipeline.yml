@@ -94,6 +94,13 @@ jobs:
           $shouldPublish = (($classification | Out-String) -match 'Pipeline classification: release_impact')
           "publish=$($shouldPublish.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
+      - name: Install MCP dependencies for promoted artifact verification
+        if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\mcp\scripts\install-mcp-dependencies.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Validate release control plane on main
         if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
         shell: pwsh

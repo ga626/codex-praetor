@@ -98,6 +98,7 @@ Assert-True ($preflightText -match 'test-release-workflow-readiness\.ps1') "Cand
 Assert-True ($preflightText -match 'test-release-intent-classification\.ps1') "Candidate preflight must regress dependency-only classification."
 Assert-True ($pipelineText -match 'id:\s*release_impact') "Shared pipeline must classify mainline changes before publication."
 Assert-True ($pipelineText -match "steps\.release_impact\.outputs\.publish\s*==\s*'true'") "Mainline publication must run only for release-impact changes."
+Assert-True ($pipelineText -match '(?ms)- name: Install MCP dependencies for promoted artifact verification\s*\r?\n\s*if:.*steps\.release_impact\.outputs\.publish.*\r?\n\s*shell: pwsh\s*\r?\n\s*run:.*install-mcp-dependencies\.ps1') "Main promotion must install the controlled MCP test dependencies before final artifact runtime verification."
 Assert-True ($pipelineText -match 'publish-github-release-asset\.ps1') "Shared pipeline must own the only publication command."
 Assert-True ($pipelineText -match 'ResumeExistingRelease') "A retry at the original SHA must verify an existing immutable Release instead of overwriting it."
 Assert-True ($preflightText -match 'test-release-artifact-runtime\.ps1') "Candidate preflight must execute final zip runtime acceptance."
