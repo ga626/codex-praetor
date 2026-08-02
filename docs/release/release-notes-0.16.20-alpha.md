@@ -10,3 +10,7 @@
 ## 保持原有边界
 
 本版本不增加 provider、模型、认证资料访问、自动合并或生产侧不可逆动作。真实派工仍以当前安装的 Release、host runtime identity、provider readiness 和任务合同为准。
+
+## 进展与停止
+
+派工继续提供 `structured progress`，让 Codex 能区分启动、执行、停滞、完成和失败。用户停止任务时继续走 `formal cancellation`：系统记录取消请求和最终回执，取消、超时或无验收结论的工作不会被当作已完成。
