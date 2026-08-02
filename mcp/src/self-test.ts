@@ -203,6 +203,10 @@ assert.deepEqual(dependentTask.immutable_paths, []);
 
 const planDispatchPreview = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "contract-scope-round-trip", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
 assert.equal(planDispatchPreview.ok, true, String((planDispatchPreview as Record<string, unknown>).stderr ?? (planDispatchPreview as Record<string, unknown>).message ?? ""));
+const planPreviewRecord = planDispatchPreview as { display: { 阶段: string; 状态: string }; job_id: string };
+assert.equal(planPreviewRecord.display.阶段, "预演 worker 派工", "A plan dry-run must never claim to have dispatched a worker.");
+assert.equal(planPreviewRecord.display.状态, "预演通过，未启动");
+assert.equal(planPreviewRecord.job_id, "", "A dry-run must not create a worker job.");
 
 const planStatus = statusTool({ repo, plan_id: planId });
 assert.equal(planStatus.found, true);

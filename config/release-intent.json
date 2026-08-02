@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.17-alpha",
-    "previous_version":  "0.16.16-alpha",
-    "tag":  "v0.16.17-alpha",
+    "version":  "0.16.18-alpha",
+    "previous_version":  "0.16.17-alpha",
+    "tag":  "v0.16.18-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.17-alpha.zip",
-    "reason":  "发布事故恢复：0.16.16-alpha 的 Release On Main 已成功提升 PR 验证的同一候选 ZIP，但最终 ZIP 运行时验收依赖 MCP 测试工具，而 main 作业未安装该工具所需的受控 npm 依赖，故在创建 tag 前停止；0.16.17-alpha 为新不可变恢复版本。main 现在在提升后验收前调用受控 MCP 依赖安装脚本，并由工作流回归锁定，不假定 PR CI 的 node_modules 跨作业存在。既定 Qoder Agent SDK 与 CodeBuddy ACP 连接路线、结构化进展和 formal cancellation 合同不变。候选仍构建、验收并证明唯一 ZIP；main 只提升同一 ZIP，校验候选收据、内容树、SHA256、provenance 与远端下载。不新增 provider、模型、认证资料访问、自动合并、原生 Codex subagent 冒充或生产侧不可逆动作。"
+    "artifact":  "codex-praetor-setup-0.16.18-alpha.zip",
+    "reason":  "真实派工可用性与成本控制：取消把三条 accepted receipt 作为正常派工硬门禁；三条仅表示 worker identity 已充分观察。worker identity 改为 provider、CLI、model、permission、task kind、connection mode 与 runner identity，不再把普通产品 generation/runtime hash 当作经验清零条件。完整真实用户任务可建立首条证据；validation_only 任务不得经普通派工消耗 provider credits；dry-run 必须如实说明未启动 worker、未创建 job。保留 Qoder Agent SDK、CodeBuddy ACP、隔离 worktree、范围和验收边界；不新增 provider、模型、认证资料访问、自动合并、原生 Codex subagent 冒充或生产侧不可逆动作。"
 }

@@ -10,6 +10,8 @@ export type ExplainableRouteCandidate = {
   cli_hash: string;
   permission_profile: string;
   task_kind: string;
+  connection_mode: string;
+  runner_identity: string;
   generation_id: string;
   runtime_contract_sha256: string;
   task_contract_schema: string;
@@ -30,7 +32,7 @@ function asString(value: unknown): string {
 }
 
 function sameTuple(left: Record<string, unknown>, right: ExplainableRouteCandidate): boolean {
-  return ["provider", "model", "cli_path", "cli_hash", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema"]
+  return ["provider", "model", "cli_path", "cli_hash", "permission_profile", "task_kind", "connection_mode", "runner_identity"]
     .every((key) => asString(left[key]) === right[key as keyof ExplainableRouteCandidate]);
 }
 
@@ -65,12 +67,13 @@ export function explainableRouteTool(input: {
     const profile = profileSet.profiles.find((item) => item.task_family === input.task_family && sameTuple(item.provider_tuple, candidate));
     const failedGates = Object.entries(candidate.hard_gates).filter(([, passed]) => !passed).map(([name]) => name);
     const profileStatus = profile?.status ?? "unknown";
-    const profileEligible = profileStatus === "qualified";
     const profileBlocked = ["blocked", "cooling_down", "stale"].includes(profileStatus);
     const acceptedEvidence = (profile?.evidence ?? []).filter((item) => item.verdict === "accepted");
-    const viable = failedGates.length === 0 && profileEligible && !profileBlocked;
+    // Evidence ranks a ready worker; it is not permission to refuse a complete
+    // user task.  Current hard gates and result acceptance remain mandatory.
+    const viable = failedGates.length === 0 && !profileBlocked;
     const score = viable
-      ? (profileStatus === "qualified" ? 300 : 200) + acceptedEvidence.length * 10 - (candidate.estimated_cost ?? 0) - (candidate.estimated_minutes ?? 0) / 100
+      ? (profileStatus === "qualified" ? 300 : profileStatus === "provisional" ? 250 : 200) + acceptedEvidence.length * 10 - (candidate.estimated_cost ?? 0) - (candidate.estimated_minutes ?? 0) / 100
       : -1;
     const reasons: string[] = [];
     if (failedGates.length > 0) reasons.push(`硬门未通过：${failedGates.join("、")}。`);
@@ -79,7 +82,7 @@ export function explainableRouteTool(input: {
       reasons.push(`画像为 ${profileStatus}：${profile.status_reason}`);
       if (acceptedEvidence.length > 0) reasons.push(`最近可采信证据：${acceptedEvidence.at(-1)?.attempt_id ?? "未知 attempt"}。`);
     }
-    if (!profileEligible && !profileBlocked && failedGates.length === 0) reasons.push("证据不足；正常派工必须停止，只能执行明确标记的小而可回退的 capability canary。")
+    if (!profile && failedGates.length === 0) reasons.push("这是新的完整 worker identity；可用本次真实用户任务建立首条证据，不能为凑记录另烧积分。")
     return {
       candidate,
       profile_id: profile?.profile_id ?? "",
@@ -95,8 +98,8 @@ export function explainableRouteTool(input: {
   const ranked = [...evaluations].sort((left, right) => right.score - left.score || left.candidate.provider.localeCompare(right.candidate.provider));
   const primary = ranked.find((item) => item.viable) ?? null;
   const fallbacks = ranked.filter((item) => item.viable && item !== primary);
-  const boundedValidation = primary === null && evaluations.some((item) => item.hard_gate_result.passed && !["blocked", "cooling_down", "stale"].includes(item.profile_status));
-  const decision = primary ? "recommend_existing" : boundedValidation ? "bounded_validation" : "stop";
+  const bootstrap = primary !== null && !primary.profile_id;
+  const decision = primary ? (bootstrap ? "recommend_bootstrap" : "recommend_existing") : "stop";
 
   return {
     schema: "codex-praetor-explainable-route/v1",
@@ -109,7 +112,7 @@ export function explainableRouteTool(input: {
       fallback_profile_ids: fallbacks.map((item) => item.profile_id),
       note: "这是一项建议，不会自动派工、合并或发布。"
     } : null,
-    bounded_validation: boundedValidation ? "没有足够的新鲜采信证据；先执行一个小、可回退、同任务族的 canary。" : "不适用",
+    bounded_validation: "不自动创建消耗积分的验证任务；下一件本来就要做的完整真实任务才可建立新证据。",
     candidates: ranked,
     recovery: recoveryFor(input.failure_class ?? "unknown"),
     policy: {
@@ -117,7 +120,8 @@ export function explainableRouteTool(input: {
       fallback_requires_same_task_family_and_current_evidence: true,
       automatic_merge_or_publish: false,
       profile_projection_is_not_authorization: true,
-      normal_dispatch_requires_qualified_durable_evidence: true
+      normal_dispatch_requires_qualified_durable_evidence: false,
+      real_user_task_may_establish_first_evidence: true
     }
   };
 }

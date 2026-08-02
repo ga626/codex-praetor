@@ -36,6 +36,8 @@
         "model": { "type": "string" },
         "permission_profile": { "type": "string" },
         "task_kind": { "type": "string" },
+        "connection_mode": { "type": "string" },
+        "runner_identity": { "type": "string" },
         "generation_id": { "type": "string" },
         "runtime_contract_sha256": { "type": "string" },
         "task_contract_schema": { "type": "string" }

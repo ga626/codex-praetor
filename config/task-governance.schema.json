@@ -33,6 +33,8 @@
         "budget": { "$ref": "#/$defs/budget" },
         "stop_loss": { "$ref": "#/$defs/stop_loss" },
         "selection_id": { "type": "string" },
+        "validation_only": { "type": "boolean" },
+        "validation_reason": { "type": "string" },
         "evidence_context": { "$ref": "#/$defs/evidence_context" },
         "human_intervention_count": { "type": "integer", "minimum": 0 },
         "outcome_ids": { "type": "array", "items": { "type": "string" } },
@@ -69,7 +71,7 @@
       "type": "object",
       "properties": {
         "provider": { "type": "string" }, "cli_path": { "type": "string" }, "cli_hash": { "type": "string" },
-        "model": { "type": "string" }, "permission_profile": { "type": "string" }, "task_kind": { "type": "string" },
+        "model": { "type": "string" }, "permission_profile": { "type": "string" }, "task_kind": { "type": "string" }, "connection_mode": { "type": "string" }, "runner_identity": { "type": "string" },
         "generation_id": { "type": "string" }, "runtime_contract_sha256": { "type": "string" }, "task_contract_schema": { "type": "string" }
       }
     },

@@ -1025,6 +1025,7 @@ function Invoke-Or-StartWorker {
         [int]$WorkerTimeoutSeconds = 1200,
         [string]$DependencyBootstrap = "not_required",
         [string]$ConnectionMode = "supervised_cli_text",
+        [string]$RunnerIdentity = "",
         [object]$SdkRunnerOptions = $null,
         [object]$AcpRunnerOptions = $null,
         [string]$ProviderCliPath = ""
@@ -1052,6 +1053,7 @@ function Invoke-Or-StartWorker {
     Write-Output "run_mode=$RunMode"
     Write-Output "task_kind=$TaskKindName"
     Write-Output "connection_mode=$ConnectionMode"
+    Write-Output "runner_identity=$RunnerIdentity"
     Write-Output "dependency_bootstrap=$DependencyBootstrap"
     Write-Output ("worker_network=" + $(if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }))
     if (-not [string]::IsNullOrWhiteSpace($ContractHash)) { Write-Output "contract_hash=$ContractHash" }
@@ -1137,6 +1139,7 @@ function Invoke-Or-StartWorker {
         task_kind = $TaskKindName
         dependency_bootstrap = $DependencyBootstrap
         connection_mode = $ConnectionMode
+        runner_identity = $RunnerIdentity
         qoder_sdk_session = $sdkSessionStatePath
         codebuddy_acp_session = $acpSessionStatePath
         task_contract = $ContractPath
@@ -1144,7 +1147,7 @@ function Invoke-Or-StartWorker {
         generation_id = [string]$generation.generation_id
         runtime_contract_sha256 = $runtimeContractHash
         wrapper_protocol = [string]$runtimeContract.wrapperProtocol
-        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath }); cli_hash = (Get-FileSha256OrEmpty -Path $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath })); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; connection_mode = $ConnectionMode; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
+        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath }); cli_hash = (Get-FileSha256OrEmpty -Path $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath })); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; connection_mode = $ConnectionMode; runner_identity = $RunnerIdentity; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
         contract_hash = $ContractHash
         run_mode = $RunMode
         status = "starting"
@@ -1497,15 +1500,9 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
         throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Run test-provider-capability-canary.ps1 for the exact provider tuple first."
     }
 
-    if (-not $EvidenceBootstrap) {
-        if ([string]::IsNullOrWhiteSpace($TaskFamily)) { throw "Normal dispatch requires an explicit task family. Use an approved plan task or run a bounded CapabilityCanary; do not infer a family from free-form task text." }
-        $capabilityGateScript = Join-Path $scriptDir "test-codex-praetor-capability-evidence.ps1"
-        if (-not (Test-Path -LiteralPath $capabilityGateScript -PathType Leaf)) { throw "Capability evidence gate is missing: $capabilityGateScript" }
-        $capabilityGateRaw = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $capabilityGateScript -TaskFamily $TaskFamily -Provider $resolvedProvider -CliPath $providerCliPath -CliHash (Get-FileSha256OrEmpty -Path $providerCliPath) -Model $model -PermissionProfile $effectivePermissionProfile -TaskKind $TaskKind -GenerationId ([string]$generation.generation_id) -RuntimeContractSha256 $runtimeContractHash -TaskContractSchema ([string]$runtimeContract.taskContractSchema) -EvidenceRoot $CapabilityEvidenceRoot
-        if ($LASTEXITCODE -ne 0) { throw "Capability evidence gate failed to execute: $($capabilityGateRaw -join ' ')" }
-        try { $capabilityGate = ($capabilityGateRaw -join "`n") | ConvertFrom-Json } catch { throw "Capability evidence gate returned invalid JSON: $($capabilityGateRaw -join ' ')" }
-        if (-not [bool]$capabilityGate.allowed) { throw "Capability evidence gate blocked '$resolvedProvider' for '$TaskFamily': $([string]$capabilityGate.reason) Use a frozen real-task evidence bootstrap plan or an explicit bounded CapabilityCanary; do not disguise either as normal dispatch." }
-    }
+    if ([string]::IsNullOrWhiteSpace($TaskFamily)) { throw "Dispatch requires an explicit task family. Use a durable plan task; do not infer a family from free-form task text." }
+    # Capability history is a routing signal only.  It must not block a
+    # complete, user-requested task merely because a release changed.
 }
 
 $dispatchJobId = New-WorkerJobId -ProviderName $resolvedProvider -TierName $Tier
@@ -1690,7 +1687,7 @@ $networkRule
             sdk_environment = if ($null -ne $config.providers.qoder.sdkEnvironment) { $config.providers.qoder.sdkEnvironment } else { [ordered]@{} }
         }
         $cmdArgs = @($sdkRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_SDK_OPTIONS__")
-        Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $resolvedQoder
+        Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -RunnerIdentity ("qoder_agent_sdk:" + (Get-FileSha256OrEmpty -Path $sdkRunnerPath)) -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $resolvedQoder
     }
 
     if ($resolvedProvider -eq "codebuddy") {
@@ -1732,7 +1729,7 @@ $networkRule
             max_stall_seconds = $MaxStallSeconds
         }
         $cmdArgs = @([string]$acpRunner[0], "--options-file", "__CODEX_PRAETOR_CODEBUDDY_ACP_OPTIONS__")
-        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "acp_ndjson" -StructuredOutput "session_update" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "codebuddy_acp" -AcpRunnerOptions $acpRunnerOptions -ProviderCliPath $codebuddy
+        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "acp_ndjson" -StructuredOutput "session_update" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "codebuddy_acp" -RunnerIdentity ("codebuddy_acp:" + (Get-FileSha256OrEmpty -Path ([string]$acpRunner[0]))) -AcpRunnerOptions $acpRunnerOptions -ProviderCliPath $codebuddy
     }
 
 } finally {

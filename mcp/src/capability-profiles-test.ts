@@ -28,6 +28,8 @@ function attempt(input: AttemptInput) {
       model: input.model,
       permission_profile: "fixture-worktree-v1",
       task_kind: "code_change",
+      connection_mode: "codebuddy_acp",
+      runner_identity: "codebuddy_acp:fixture-runner-v1",
       generation_id: "fixture-generation",
       runtime_contract_sha256: "a".repeat(64),
       task_contract_schema: "fixture/v1"
@@ -94,6 +96,7 @@ try {
   const withoutUnclassified = capabilityProfilesTool({ repo: root, evidence_root: evidenceRoot });
   assert.equal(withoutUnclassified.schema, "codex-praetor-capability-profile-set/v1");
   assert.equal(withoutUnclassified.policy.default_routing_changed, false);
+  assert.equal(withoutUnclassified.policy.normal_dispatch_requires_durable_exact_tuple_evidence, false);
   assert.equal(profileFor(withoutUnclassified, "observed").status, "observed");
   assert.equal(profileFor(withoutUnclassified, "provisional").status, "provisional");
   assert.equal(profileFor(withoutUnclassified, "qualified").status, "qualified");
@@ -116,6 +119,8 @@ try {
     cli_hash: "fixture-hash",
     permission_profile: "fixture-worktree-v1",
     task_kind: "code_change",
+    connection_mode: "codebuddy_acp",
+    runner_identity: "codebuddy_acp:fixture-runner-v1",
     generation_id: "fixture-generation",
     runtime_contract_sha256: "a".repeat(64),
     task_contract_schema: "fixture/v1",
@@ -132,7 +137,7 @@ try {
   assert.equal(explained.recovery.state, "cooling_down");
   assert.equal(explained.candidates.some((item) => item.candidate.model === "blocked" && item.viable), false);
   const validationOnly = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "test_failed", evidence_root: evidenceRoot });
-  assert.equal(validationOnly.decision, "bounded_validation");
+  assert.equal(validationOnly.decision, "recommend_existing", "an observed worker may receive a complete real task after hard gates pass");
   assert.equal(validationOnly.recovery.state, "rejected");
   const processFailed = explainableRouteTool({ repo: root, task_family: "bounded_code_change", candidates: [candidateFor("observed")], failure_class: "worker_process_failed", evidence_root: evidenceRoot });
   assert.equal(processFailed.recovery.state, "blocked");
@@ -160,6 +165,9 @@ try {
     assert.ok(adapter.evidence.fixture && adapter.evidence.end_to_end && adapter.evidence.documentation);
   }
   assert.equal(withoutUnclassified.profiles.some((item) => item.provider_tuple.provider === "qoder"), false, "adapter presence must not imply route eligibility");
+  const releasedTuple = { ...candidateFor("qualified"), generation_id: "new-controller-generation", runtime_contract_sha256: "b".repeat(64) };
+  assert.equal(profileFor(capabilityProfilesTool({ repo: root, evidence_root: evidenceRoot }), "qualified").provider_tuple.connection_mode, "codebuddy_acp");
+  assert.equal(releasedTuple.connection_mode, "codebuddy_acp", "controller release identity must not alter worker identity");
   console.log("codex-praetor capability profile contract test ok");
 } finally {
   rmSync(root, { recursive: true, force: true });

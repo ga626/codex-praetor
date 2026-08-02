@@ -25,9 +25,8 @@ function Write-Receipt {
             model = $Model
             permission_profile = "fixture-edit-v1"
             task_kind = "code_change"
-            generation_id = "fixture-generation"
-            runtime_contract_sha256 = "b" * 64
-            task_contract_schema = "fixture-contract/v1"
+            connection_mode = "codebuddy_acp"
+            runner_identity = "codebuddy_acp:fixture-runner-v1"
         }
         supervisor_verdict = "accepted"
         contract_sha256 = "c" * 64
@@ -38,29 +37,29 @@ function Write-Receipt {
 }
 
 function Invoke-Gate {
-    $raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $gateScript -TaskFamily bounded_code_change -Provider fixture -CliPath "C:\fixture\worker.exe" -CliHash ("a" * 64) -Model fixture-model -PermissionProfile fixture-edit-v1 -TaskKind code_change -GenerationId fixture-generation -RuntimeContractSha256 ("b" * 64) -TaskContractSchema fixture-contract/v1 -EvidenceRoot $evidenceRoot
+    $raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $gateScript -TaskFamily bounded_code_change -Provider fixture -CliPath "C:\fixture\worker.exe" -CliHash ("a" * 64) -Model fixture-model -PermissionProfile fixture-edit-v1 -TaskKind code_change -ConnectionMode codebuddy_acp -RunnerIdentity codebuddy_acp:fixture-runner-v1 -EvidenceRoot $evidenceRoot
     if ($LASTEXITCODE -ne 0) { throw "Capability evidence gate failed: $($raw -join ' ')" }
     return ($raw -join "`n") | ConvertFrom-Json
 }
 
 try {
-    Assert-Equal (Invoke-Gate).allowed $false "No receipts must not authorize normal dispatch."
+    Assert-Equal (Invoke-Gate).allowed $true "A complete real task must not be blocked because it has no warm-up receipts."
     Write-Receipt -Id "accepted-1"
     Write-Receipt -Id "accepted-2"
-    Assert-Equal (Invoke-Gate).allowed $false "Two receipts must not authorize normal dispatch."
+    Assert-Equal (Invoke-Gate).well_observed $false "Two receipts are observations, not a release gate."
     Write-Receipt -Id "accepted-3"
-    Assert-Equal (Invoke-Gate).allowed $true "Three fresh exact receipts must authorize normal dispatch."
+    Assert-Equal (Invoke-Gate).well_observed $true "Three fresh exact receipts must mark a worker identity well observed."
 
     Write-Receipt -Id "wrong-model" -Model "other-model"
     Assert-Equal (Invoke-Gate).accepted_count 3 "A different model must not borrow another tuple's evidence."
     Set-Content -LiteralPath (Join-Path $evidenceRoot "malformed.json") -Value "not json" -Encoding UTF8
-    Assert-Equal (Invoke-Gate).allowed $true "A malformed receipt must not become evidence or block valid evidence."
+    Assert-Equal (Invoke-Gate).allowed $true "A malformed receipt must not become evidence or block a real task."
 
     Remove-Item -LiteralPath $evidenceRoot -Recurse -Force
     Write-Receipt -Id "stale-1" -AcceptedAt "2025-01-01T00:00:00.000Z"
     Write-Receipt -Id "stale-2" -AcceptedAt "2025-01-01T00:00:00.000Z"
     Write-Receipt -Id "stale-3" -AcceptedAt "2025-01-01T00:00:00.000Z"
-    Assert-Equal (Invoke-Gate).allowed $false "Stale evidence must not authorize normal dispatch."
+    Assert-Equal (Invoke-Gate).well_observed $false "Stale evidence must not be shown as well observed."
     Write-Output "codex-praetor capability evidence gate test ok"
 } finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

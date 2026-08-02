@@ -39,7 +39,9 @@ const plannedTaskContractSchema = z.object({
   sensitivity: z.string().optional(),
   base_commit: z.string().regex(/^[0-9a-f]{40}$/i).optional(),
   immutable_paths: z.array(z.string().min(1)).optional(),
-  evidence_context: z.record(z.string(), z.unknown()).optional()
+  evidence_context: z.record(z.string(), z.unknown()).optional(),
+  validation_only: z.boolean().optional(),
+  validation_reason: z.string().min(1).optional()
 });
 import {
   detectConflictsTool,
@@ -112,7 +114,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.17-alpha",
+    version: "0.16.18-alpha",
     description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执行官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
   });
 
@@ -176,6 +178,8 @@ export function createServer(): McpServer {
           cli_hash: z.string().min(1),
           permission_profile: z.string().min(1),
           task_kind: z.string().min(1),
+          connection_mode: z.string().min(1),
+          runner_identity: z.string().min(1),
           generation_id: z.string().min(1),
           runtime_contract_sha256: z.string().min(1),
           task_contract_schema: z.string().min(1),

@@ -1,0 +1,23 @@
+{
+  "schema": "codex-praetor-research-evidence/v1",
+  "report": "Codex执行官-首次真实派工门禁根因与可用性修复方案-2026-08-02.md",
+  "date": "2026-08-02",
+  "product_baseline": { "ref": "origin/main", "commit": "f82fd818ebbb18a12485c8e11102a95d408eef13" },
+  "local_evidence": [
+    { "path": "scripts/dispatch/test-codex-praetor-capability-evidence.ps1", "fact": "旧实现把三条 accepted 作为 normal dispatch 门禁，并把 generation/runtime hash 当作 exact tuple 字段。" },
+    { "path": "mcp/src/capability-profiles.ts", "fact": "旧投影未把 connection mode 作为必需 worker identity，且将三条记录标为 qualified。" },
+    { "path": "mcp/src/tools.ts", "fact": "计划 dry-run 通过 dispatchTool 复用已启动展示；计划无 evidence context 时无法使用既有 bootstrap。" }
+  ],
+  "external_evidence": [
+    { "url": "https://developers.openai.com/api/docs/guides/agent-evals", "fact": "真实 trace 应沉淀为可重复 eval，而非重复消耗真实执行。" },
+    { "url": "https://docs.temporal.io/production-deployment/worker-deployments/worker-versioning", "fact": "版本变更通过兼容性、渐进切换和回退管理，不是无条件清零历史。" },
+    { "url": "https://code.claude.com/docs/en/sandboxing", "fact": "文件和网络隔离边界可以支撑自动执行。" },
+    { "url": "https://docs.openhands.dev/openhands/usage/architecture/runtime", "fact": "隔离 runtime 与动作观察接口是执行控制的基础。" }
+  ],
+  "policy": {
+    "normal_real_dispatch_minimum_accepted": 0,
+    "well_observed_minimum_accepted": 3,
+    "automatic_validation_only_provider_calls": false,
+    "worker_identity_excludes_controller_release_hashes": true
+  }
+}
