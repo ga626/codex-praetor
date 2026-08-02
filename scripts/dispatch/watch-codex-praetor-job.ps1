@@ -382,6 +382,8 @@ try {
         stderr = $meta.stderr
         stderr_nonempty = (-not [string]::IsNullOrWhiteSpace([string]$meta.stderr) -and (Test-Path -LiteralPath ([string]$meta.stderr)) -and ((Get-Item -LiteralPath ([string]$meta.stderr)).Length -gt 0))
         worktree = $meta.execution_repo
+        base_commit = $meta.base_commit
+        worktree_head = $meta.worktree_head
         task_kind = $meta.task_kind
         contract_hash = $meta.contract_hash
         task_contract_schema = $meta.task_contract_schema

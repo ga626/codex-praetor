@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.19-alpha
+
+- Fixed delegated local-audit and test tasks to honor a declared Git base commit, rather than silently creating their worker worktree from a stale checkout's HEAD.
+- Persisted the frozen commit and observed worktree HEAD through the task contract, job, completion, and ledger attempt; registration rechecks the actual Git HEAD before the task can proceed.
+- Refused reuse of a same-named worker branch when it points at a different commit, with regression coverage for explicit-base, default-HEAD, and mismatch cases.
+
 ## 0.16.18-alpha
 
 - Removed the three-receipt warm-up requirement as a normal real-task dispatch gate. Three accepted records now mean a worker identity is well observed and influence recommendation only.
