@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.19-alpha",
-    "previous_version":  "0.16.18-alpha",
-    "tag":  "v0.16.19-alpha",
+    "version":  "0.16.20-alpha",
+    "previous_version":  "0.16.19-alpha",
+    "tag":  "v0.16.20-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.19-alpha.zip",
-    "reason":  "派工 Git 基线一致性：任何声明 base_commit 的任务，无论任务种类，均在隔离 worker worktree 创建前解析并固定该提交；任务合同、job、completion 和 ledger attempt 记录同一 SHA，登记时重查实际 worktree HEAD。拒绝复用指向不同提交的同名 worker branch。保留 Qoder Agent SDK、CodeBuddy ACP、隔离 worktree、范围和验收边界；不新增 provider、模型、认证资料访问、自动合并、原生 Codex subagent 冒充或生产侧不可逆动作。"
+    "artifact":  "codex-praetor-setup-0.16.20-alpha.zip",
+    "reason":  "来源可见性与旧 checkout 防误用：新增只读 source provenance 检查，区分 origin/main 产品基线、明确记录的候选 checkout、落后或脏 checkout、分叉历史和未知来源；doctor 仅展示诊断，不让历史 active.json、旧 cache 或开发 checkout 冒充当前 Release/host/runtime 权威。检查不 fetch、pull、reset、覆盖用户修改，也不扫描历史 worktree；保留既有 Qoder Agent SDK、CodeBuddy ACP、隔离 worktree、范围和验收边界。"
 }

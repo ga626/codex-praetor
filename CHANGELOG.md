@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.20-alpha
+
+- Added a read-only source provenance probe that distinguishes the `origin/main` product baseline, an explicitly recorded candidate checkout, stale or dirty checkouts, diverged history, and unknown provenance without fetching, pulling, resetting, or scanning historical worktrees.
+- Added the provenance classification to doctor diagnostics so a stale source checkout cannot silently stand in for the installed Release, host runtime identity, or provider readiness authority.
+- Added regression coverage for clean baseline, candidate, stale, dirty, and missing-remote-ref cases.
+
 ## 0.16.19-alpha
 
 - Fixed delegated local-audit and test tasks to honor a declared Git base commit, rather than silently creating their worker worktree from a stale checkout's HEAD.
