@@ -8,6 +8,11 @@
 - 计划派工会在真实 worker 启动后自动记录实际连接方式的证据上下文；`validation_only` 任务不能通过常规派工消耗 provider credits。
 - dry-run 现在明确显示“预演通过，未启动”，并保证不创建 job，不会再误报已派发。
 
+## 进展与取消仍可追溯
+
+- 派工过程继续提供 `structured progress`：Codex 可以根据 worker 的结构化状态判断是在启动、执行、完成还是失败，而不是把无输出误判成成功。
+- 用户发起停止时走 `formal cancellation`：系统会记录取消请求与最终状态；没有完成、超时或被取消的 job 不会被当成已验收结果。
+
 ## 安全边界保持不变
 
 认证资料、provider 数据库、生产环境与不可逆外部动作仍不外派。编辑仍只在隔离 worktree；worker 完成不代表 accepted，Codex 仍须检查范围、独立检查和最终结果后才可整合。
