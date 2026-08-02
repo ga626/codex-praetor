@@ -382,9 +382,9 @@ function buildDispatchArgs(input: {
   if (input.budget) args.push("-BudgetJson", JSON.stringify(input.budget));
   appendOptionalStringArg(args, "-FailureInjection", input.failure_injection);
   appendOptionalStringArg(args, "-Sensitivity", input.sensitivity);
+  appendOptionalStringArg(args, "-BaseCommit", input.base_commit);
   if (input.real_worktree) {
     args.push("-RealWorktree");
-    appendOptionalStringArg(args, "-BaseCommit", input.base_commit);
     if ((input.immutable_paths?.length ?? 0) > 0) args.push("-ImmutablePathsJson", JSON.stringify(input.immutable_paths));
   }
   if (input.task_material) {

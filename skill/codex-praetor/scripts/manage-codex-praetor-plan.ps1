@@ -146,6 +146,45 @@ function Assert-RealWorktreeAcceptance {
     return $changed
 }
 
+function Assert-BaseCommitEvidence {
+    param(
+        [Parameter(Mandatory = $true)][object]$Task,
+        [Parameter(Mandatory = $true)][object]$Completion,
+        [Parameter(Mandatory = $true)][string]$JobDir
+    )
+
+    $declared = ([string]$Task.base_commit).Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($declared)) { return }
+    if ($declared -notmatch '^[0-9a-f]{40}$') { throw "Task declares an unresolved base_commit: $declared" }
+
+    $jobPath = Join-Path $JobDir "job.json"
+    $contractPath = Join-Path $JobDir "task-contract.json"
+    if (-not (Test-Path -LiteralPath $jobPath -PathType Leaf)) { throw "Base commit integrity failure: job metadata is missing: $jobPath" }
+    if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) { throw "Base commit integrity failure: task contract is missing: $contractPath" }
+    $job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $contract = Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $reported = @(
+        [string]$contract.base_commit,
+        [string]$contract.worktree_head,
+        [string]$job.base_commit,
+        [string]$job.worktree_head,
+        [string]$Completion.base_commit,
+        [string]$Completion.worktree_head
+    ) | ForEach-Object { $_.Trim().ToLowerInvariant() }
+    if (@($reported | Where-Object { $_ -ne $declared }).Count -gt 0) {
+        throw "Base commit integrity failure: task, contract, job, or completion does not match declared base_commit $declared."
+    }
+
+    $worktree = [string]$Completion.worktree
+    if ([string]::IsNullOrWhiteSpace($worktree) -or -not (Test-Path -LiteralPath $worktree -PathType Container)) {
+        throw "Base commit integrity failure: completion worktree is unavailable for verification."
+    }
+    $actual = (& git -C $worktree rev-parse --verify "HEAD^{commit}" 2>$null | Out-String).Trim().ToLowerInvariant()
+    if ($LASTEXITCODE -ne 0 -or $actual -ne $declared) {
+        throw "Base commit integrity failure: actual worktree HEAD $actual does not match declared base_commit $declared."
+    }
+}
+
 function Get-RequiredEvidenceContext {
     param([object]$Task)
     $context = $Task.evidence_context
@@ -633,6 +672,7 @@ if ($Action -eq "Init") {
         Upsert-Task -Plan $plan -Id $recordTaskId -TitleValue "" -DependsValue "" -StatusValue $recordStatus -AcceptanceValue ([string]$completion.acceptance) -JobIdValue ([string]$completion.job_id) -JobDirValue $JobDir -ProviderValue ([string]$completion.provider) -TierValue ([string]$completion.tier) -ModelValue ([string]$completion.model) -ModeValue ([string]$completion.mode) -CompletionValue $completionFile -SummaryValue $summaryText
         $recordTask = @($plan.tasks | Where-Object { $_.task_id -eq $recordTaskId } | Select-Object -First 1)
         if ($recordTask.Count -ne 1) { throw "Task missing after recording job: $recordTaskId" }
+        Assert-BaseCommitEvidence -Task $recordTask[0] -Completion $completion -JobDir $JobDir
         $jobPath = Join-Path $JobDir "job.json"
         $job = if (Test-Path -LiteralPath $jobPath -PathType Leaf) { Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
         $submittedAt = if ($null -ne $job) { [string]$job.created_at } else { "" }
@@ -640,7 +680,7 @@ if ($Action -eq "Init") {
         $workerFinishedAt = [string]$completion.exited_at
         $attemptWriteSet = [object[]]@()
         if ($null -ne $completion.write_set) { $attemptWriteSet = @($completion.write_set) }
-        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; contract_sha256 = Get-CompletionContractSha256 -Completion $completion; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = $attemptWriteSet; execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
+        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; worktree_head = [string]$completion.worktree_head; contract_sha256 = Get-CompletionContractSha256 -Completion $completion; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = $attemptWriteSet; execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
         $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }
         Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }

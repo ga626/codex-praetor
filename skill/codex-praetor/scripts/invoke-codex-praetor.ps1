@@ -661,6 +661,12 @@ function Ensure-WorkerWorktree {
 
     $branchName = "cw-$Name"
     $existingBranch = & git -C $projectRoot branch --list $branchName 2>$null
+    if (-not [string]::IsNullOrWhiteSpace($existingBranch) -and -not [string]::IsNullOrWhiteSpace($BaseCommit)) {
+        $existingBranchCommit = Resolve-GitCommit -RepoPath $projectRoot -Commitish $branchName
+        if ($existingBranchCommit -ne $BaseCommit) {
+            throw "Existing worker branch $branchName is at $existingBranchCommit, not the required BaseCommit $BaseCommit. Refuse to reuse a mismatched worker branch."
+        }
+    }
     New-Item -ItemType Directory -Path (Split-Path -Parent $worktreePath) -Force | Out-Null
 
     $previousErrorAction = $ErrorActionPreference
@@ -677,6 +683,12 @@ function Ensure-WorkerWorktree {
     }
     if ($worktreeExitCode -ne 0) {
         throw "git worktree add failed for $worktreePath. $worktreeOutput"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($BaseCommit)) {
+        $observedCommit = Resolve-GitCommit -RepoPath $worktreePath -Commitish "HEAD"
+        if ($observedCommit -ne $BaseCommit) {
+            throw "Worker worktree HEAD $observedCommit does not match required BaseCommit $BaseCommit."
+        }
     }
 
     Write-WorkerWorktreeOwnership -RepoPath $RepoPath -Name $Name -WorktreePath $worktreePath -BranchName $branchName | Out-Null
@@ -1021,6 +1033,8 @@ function Invoke-Or-StartWorker {
         [string]$TaskKindName = "local_audit",
         [string]$ContractPath = "",
         [string]$ContractHash = "",
+        [string]$BaseCommitValue = "",
+        [string]$WorktreeHead = "",
         [string]$RequestedJobId = "",
         [int]$WorkerTimeoutSeconds = 1200,
         [string]$DependencyBootstrap = "not_required",
@@ -1144,6 +1158,8 @@ function Invoke-Or-StartWorker {
         codebuddy_acp_session = $acpSessionStatePath
         task_contract = $ContractPath
         task_contract_schema = [string]$runtimeContract.taskContractSchema
+        base_commit = $BaseCommitValue
+        worktree_head = $WorktreeHead
         generation_id = [string]$generation.generation_id
         runtime_contract_sha256 = $runtimeContractHash
         wrapper_protocol = [string]$runtimeContract.wrapperProtocol
@@ -1517,8 +1533,10 @@ $executionRepo = $Repo
 try {
     $resolvedBaseCommit = ""
     $immutableManifest = @()
-    if ($RealWorktree) {
+    if (-not [string]::IsNullOrWhiteSpace($BaseCommit)) {
         $resolvedBaseCommit = Resolve-GitCommit -RepoPath $Repo -Commitish $BaseCommit
+    }
+    if ($RealWorktree) {
         $immutableManifest = @(Get-ImmutablePathManifest -RepoPath $Repo -Commit $resolvedBaseCommit -Paths $ImmutablePath)
     }
     if ($requiresWorkerWorktree -and -not [string]::IsNullOrWhiteSpace($WorktreeName)) {
@@ -1526,6 +1544,13 @@ try {
             $executionRepo = Get-WorkerWorktreePath -RepoPath $Repo -Name $WorktreeName
         } else {
             $executionRepo = Ensure-WorkerWorktree -RepoPath $Repo -Name $WorktreeName -BaseCommit $resolvedBaseCommit
+        }
+    }
+    $observedWorktreeHead = ""
+    if (-not $DryRun -and $requiresWorkerWorktree -and -not [string]::IsNullOrWhiteSpace($executionRepo)) {
+        $observedWorktreeHead = Resolve-GitCommit -RepoPath $executionRepo -Commitish "HEAD"
+        if (-not [string]::IsNullOrWhiteSpace($resolvedBaseCommit) -and $observedWorktreeHead -ne $resolvedBaseCommit) {
+            throw "Worker worktree HEAD $observedWorktreeHead does not match required BaseCommit $resolvedBaseCommit."
         }
     }
     $taskMaterial = if ([string]::IsNullOrWhiteSpace($TaskMaterialJson)) { $null } else { ConvertTo-TaskMaterial -Json $TaskMaterialJson }
@@ -1550,6 +1575,7 @@ try {
         task_family = $TaskFamily
         repo = (Resolve-Path -LiteralPath $Repo).Path
         execution_worktree = $executionRepo
+        worktree_head = $observedWorktreeHead
         provider = $resolvedProvider
         tier = $Tier
         model = $model
@@ -1687,7 +1713,7 @@ $networkRule
             sdk_environment = if ($null -ne $config.providers.qoder.sdkEnvironment) { $config.providers.qoder.sdkEnvironment } else { [ordered]@{} }
         }
         $cmdArgs = @($sdkRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_SDK_OPTIONS__")
-        Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -RunnerIdentity ("qoder_agent_sdk:" + (Get-FileSha256OrEmpty -Path $sdkRunnerPath)) -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $resolvedQoder
+        Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -RunnerIdentity ("qoder_agent_sdk:" + (Get-FileSha256OrEmpty -Path $sdkRunnerPath)) -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $resolvedQoder
     }
 
     if ($resolvedProvider -eq "codebuddy") {
@@ -1729,7 +1755,7 @@ $networkRule
             max_stall_seconds = $MaxStallSeconds
         }
         $cmdArgs = @([string]$acpRunner[0], "--options-file", "__CODEX_PRAETOR_CODEBUDDY_ACP_OPTIONS__")
-        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "acp_ndjson" -StructuredOutput "session_update" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "codebuddy_acp" -RunnerIdentity ("codebuddy_acp:" + (Get-FileSha256OrEmpty -Path ([string]$acpRunner[0]))) -AcpRunnerOptions $acpRunnerOptions -ProviderCliPath $codebuddy
+        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "acp_ndjson" -StructuredOutput "session_update" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "codebuddy_acp" -RunnerIdentity ("codebuddy_acp:" + (Get-FileSha256OrEmpty -Path ([string]$acpRunner[0]))) -AcpRunnerOptions $acpRunnerOptions -ProviderCliPath $codebuddy
     }
 
 } finally {
