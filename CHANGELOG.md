@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.21-alpha
+
+- Added automatic first-use bootstrap for real plan tasks: after the provider's official login, the first successful real task records the current provider, CLI, model, permission, task kind and connection mode as readiness without asking users to run an internal canary.
+- Added durable readiness recording from successful worker completion and kept failed or partial workers out of readiness evidence.
+- Distinguished job creation, worker start, completion and Codex acceptance in dispatch responses; after a host stream disconnect, Codex can read the same job timeline instead of blindly dispatching a duplicate task.
+- Updated the release, installation, troubleshooting and public-capability contracts for the user-first path.
+
 ## 0.16.20-alpha
 
 - Added a read-only source provenance probe that distinguishes the `origin/main` product baseline, an explicitly recorded candidate checkout, stale or dirty checkouts, diverged history, and unknown provenance without fetching, pulling, resetting, or scanning historical worktrees.

@@ -425,6 +425,21 @@ try {
 
     Write-JsonFile -Path $completionPath -Value $completion
 
+    if ([bool]$latestMeta.evidence_bootstrap -and -not [string]::IsNullOrWhiteSpace([string]$latestMeta.readiness_path)) {
+        $readinessRecorder = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "record-codex-praetor-readiness.ps1"
+        if (Test-Path -LiteralPath $readinessRecorder -PathType Leaf) {
+            try {
+                $bootstrapOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $readinessRecorder -JobDir $JobDir -ReadinessPath ([string]$latestMeta.readiness_path) 2>&1
+                $completion.readiness_bootstrap = ($bootstrapOutput -join "`n")
+                $completion.readiness_bootstrap_status = if ($LASTEXITCODE -eq 0) { "recorded" } else { "failed" }
+            } catch {
+                $completion.readiness_bootstrap_status = "failed"
+                $completion.readiness_bootstrap_error = $_.Exception.Message
+            }
+            Write-JsonFile -Path $completionPath -Value $completion
+        }
+    }
+
     if (-not [string]::IsNullOrWhiteSpace([string]$meta.plan_id) -and -not [string]::IsNullOrWhiteSpace([string]$meta.task_id)) {
         $planScript = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "manage-codex-praetor-plan.ps1"
         $planRoot = [string]$meta.plan_root

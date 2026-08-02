@@ -370,6 +370,8 @@ $entry = [pscustomobject]@{
     expires_at = (Get-Date).AddHours($ExpiresAfterHours).ToString("o")
     wrapper_protocol = [string]$runtimeContract.wrapperProtocol
     provider_source = "capability_canary"
+    connection_mode = [string]$workerTuple.connection_mode
+    runner_identity = [string]$workerTuple.runner_identity
     cli_version = Get-Field -Text $outputText -Name "version"
     repo_observation = $repoObservation
     evidence = [ordered]@{
@@ -420,6 +422,8 @@ $state = [pscustomobject]@{
         model = [string]$entry.model
         permission_profile = [string]$entry.permission_profile
         task_kind = [string]$entry.task_kind
+        connection_mode = [string]$entry.connection_mode
+        runner_identity = [string]$entry.runner_identity
     }
     provider_source = "capability_canary"
     repo_observation = $repoObservation

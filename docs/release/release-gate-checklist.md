@@ -47,7 +47,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.16.20-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.16.21-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -125,7 +125,7 @@ The immutable GitHub Release is the product delivery record. Do not run a second
 4. Run one readonly `codex_praetor_dispatch_dry_run` only after the installation and host identities match. This verifies the ordinary user entry without creating a job or worktree.
 4. A cache directory held by an older Desktop process is normal. Codex owns its cleanup; neither the installer nor release closeout deletes it.
 
-The local check proves this one Desktop installation has refreshed. It is not a second publication gate and it cannot change a successful remote Release into a release incident. A branch candidate must use an explicitly isolated `-UserProfileRoot` and must never overwrite the stable profile.
+The local check proves this one Desktop installation has refreshed. It is not a second publication gate and it cannot change a successful remote Release into a release incident. A branch candidate must use an explicitly isolated `-UserProfileRoot` and must never overwrite the stable profile. Provider readiness remains user-scoped: the published artifact must not contain a user's readiness file. The first real plan task performs the bounded bootstrap automatically when no matching tuple exists.
 
 ## 6. Final Human Confirmation
 

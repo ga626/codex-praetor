@@ -66,7 +66,7 @@ try {
     $currentHostPath = Join-Path $testRoot "current-host-runtime.json"
     [ordered]@{ runtime_contract = [ordered]@{ version = [string]$topGeneration.version }; contract_path = "C:\\cache\\runtime-contract.json"; runtime_identity = [ordered]@{ runtime_contract_sha256 = [string]$topGeneration.runtime_contract_sha256; project_root = "C:\\cache"; process_id = 1 } } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $currentHostPath -Encoding UTF8
     $currentHostState = (& $installationStateScript -ExpectedGenerationPath $expectedGenerationPath -InstallRoot $installRoot -MarketplacePath $marketplace -HostRuntimeInfoPath $currentHostPath -Json | ConvertFrom-Json)
-    Assert-True ([string]$currentHostState.status -eq "needs_canary") "Matching installed and host identities must be the only route to canary."
+    Assert-True ([string]$currentHostState.status -eq "needs_first_use_bootstrap") "Matching installed and host identities must be the only route to first-use bootstrap."
     $newExpectedPath = Join-Path $testRoot "newer-release-generation.json"
     $newExpected = Get-Content -LiteralPath $expectedGenerationPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $newExpected.commit = "ffffffffffffffffffffffffffffffffffffffff"

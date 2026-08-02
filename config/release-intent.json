@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.20-alpha",
-    "previous_version":  "0.16.19-alpha",
-    "tag":  "v0.16.20-alpha",
+    "version":  "0.16.21-alpha",
+    "previous_version":  "0.16.20-alpha",
+    "tag":  "v0.16.21-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.20-alpha.zip",
-    "reason":  "来源可见性与旧 checkout 防误用：新增只读 source provenance 检查，区分 origin/main 产品基线、明确记录的候选 checkout、落后或脏 checkout、分叉历史和未知来源；doctor 仅展示诊断，不让历史 active.json、旧 cache 或开发 checkout 冒充当前 Release/host/runtime 权威。检查不 fetch、pull、reset、覆盖用户修改，也不扫描历史 worktree；保留既有 Qoder Agent SDK、CodeBuddy ACP、隔离 worktree、范围和验收边界。"
+    "artifact":  "codex-praetor-setup-0.16.21-alpha.zip",
+    "reason":  "发布后首用可用性与真实派工断线恢复：首次真实计划任务自动完成隔离 bootstrap 并记录 provider readiness，readiness 绑定真实 provider tuple 与连接方式；严格区分 dry-run、job、worker、completion、accepted；宿主 stream 断线后按同一 job_id 恢复，不盲目重派；同步 Qoder Agent SDK、CodeBuddy ACP、隔离 worktree、范围和验收边界。"
 }
