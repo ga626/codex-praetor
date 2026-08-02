@@ -1,5 +1,11 @@
 ﻿$ErrorActionPreference = "Stop"
-. (Join-Path $PSScriptRoot "ensure-file-hash.ps1")
+$hashHelperCandidates = @(
+    (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1"),
+    (Join-Path $PSScriptRoot "ensure-file-hash.ps1")
+)
+$hashHelper = @($hashHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($hashHelper).Count -ne 1) { throw "Codex Praetor hash helper is missing." }
+. ([string]$hashHelper[0])
 
 function Get-CodexPraetorFileSha256 {
     param([string]$Path)
@@ -16,9 +22,20 @@ function Read-CodexPraetorJson {
 function Test-CodexPraetorReadinessEvidence {
     param([object]$Entry)
 
+    # Readiness is a compact pointer to a real worker receipt.  Legacy entries
+    # without this shape may be historical, but cannot authorize a new task.
     $evidence = $Entry.evidence
     if ($null -eq $evidence) { return $false }
-    return ([string]$evidence.schema -eq "codex-praetor-canary-evidence/v1" -and -not [string]::IsNullOrWhiteSpace([string]$evidence.job_id) -and -not [string]::IsNullOrWhiteSpace([string]$evidence.worker_stdout_sha256) -and -not [string]::IsNullOrWhiteSpace([string]$evidence.completion_sha256) -and [string]$evidence.completion_status -eq "process_exited" -and [int]$evidence.worker_exit_code -eq 0 -and [string]$evidence.failure_class -eq "")
+    return (
+        [string]$evidence.schema -eq "codex-praetor-canary-evidence/v1" -and
+        -not [string]::IsNullOrWhiteSpace([string]$evidence.job_id) -and
+        -not [string]::IsNullOrWhiteSpace([string]$evidence.worker_stdout_sha256) -and
+        -not [string]::IsNullOrWhiteSpace([string]$evidence.completion_sha256) -and
+        [string]$evidence.completion_status -eq "process_exited" -and
+        [int]$evidence.worker_exit_code -eq 0 -and
+        [string]$evidence.failure_class -eq "" -and
+        -not [string]::IsNullOrWhiteSpace([string]$Entry.connection_mode)
+    )
 }
 
 function Test-CodexPraetorProviderReadiness {
@@ -31,7 +48,8 @@ function Test-CodexPraetorProviderReadiness {
         [string]$Kind,
         [string]$ExpectedGeneration,
         [string]$ExpectedRuntimeContract,
-        [string]$ExpectedTaskContract
+        [string]$ExpectedTaskContract,
+        [string]$ExpectedConnectionMode = ""
     )
 
     $state = Read-CodexPraetorJson -Path $Path
@@ -53,6 +71,7 @@ function Test-CodexPraetorProviderReadiness {
         if (-not (Test-CodexPraetorReadinessEvidence -Entry $entry)) { continue }
         if ([string]$entry.provider -ne $ProviderName -or [string]$entry.cli_path -ne $Cli -or [string]$entry.cli_hash -ne $cliHash) { continue }
         if ([string]$entry.model -ne $ModelName -or [string]$entry.permission_profile -ne $Permission -or [string]$entry.task_kind -ne $Kind) { continue }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedConnectionMode) -and [string]$entry.connection_mode -ne $ExpectedConnectionMode) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedGeneration) -and [string]$entry.generation_id -ne $ExpectedGeneration) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedRuntimeContract) -and [string]$entry.runtime_contract_sha256 -ne $ExpectedRuntimeContract) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedTaskContract) -and [string]$entry.task_contract_schema -ne $ExpectedTaskContract) { continue }

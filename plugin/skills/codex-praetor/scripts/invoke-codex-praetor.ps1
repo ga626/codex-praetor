@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet("auto", "qoder", "codebuddy")]
     [string]$Provider = "auto",
 
@@ -439,7 +439,8 @@ function Test-ProviderReadiness {
     )
 
     if (Get-Command Test-CodexPraetorProviderReadiness -ErrorAction SilentlyContinue) {
-        return (Test-CodexPraetorProviderReadiness -Path $ReadinessPath -ProviderName $ProviderName -Cli $CliPath -ModelName $ModelName -Permission $PermissionProfileName -Kind $TaskKindName -ExpectedGeneration ([string]$generation.generation_id) -ExpectedRuntimeContract $runtimeContractHash -ExpectedTaskContract ([string]$runtimeContract.taskContractSchema))
+        $connectionModeName = if ($ProviderName -eq "qoder") { "qoder_agent_sdk" } elseif ($ProviderName -eq "codebuddy") { "codebuddy_acp" } else { "" }
+        return (Test-CodexPraetorProviderReadiness -Path $ReadinessPath -ProviderName $ProviderName -Cli $CliPath -ModelName $ModelName -Permission $PermissionProfileName -Kind $TaskKindName -ExpectedGeneration ([string]$generation.generation_id) -ExpectedRuntimeContract $runtimeContractHash -ExpectedTaskContract ([string]$runtimeContract.taskContractSchema) -ExpectedConnectionMode $connectionModeName)
     }
     return [ordered]@{ ok = $false; reason = "Readiness helper is missing."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
 }
@@ -1154,6 +1155,8 @@ function Invoke-Or-StartWorker {
         dependency_bootstrap = $DependencyBootstrap
         connection_mode = $ConnectionMode
         runner_identity = $RunnerIdentity
+        evidence_bootstrap = [bool]$EvidenceBootstrap
+        readiness_path = $providerReadinessPath
         qoder_sdk_session = $sdkSessionStatePath
         codebuddy_acp_session = $acpSessionStatePath
         task_contract = $ContractPath
@@ -1355,7 +1358,7 @@ if ($EvidenceBootstrap) {
     Assert-RealTaskEvidenceBootstrap
 }
 
-if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
+if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not $EvidenceBootstrap) {
     $healthScript = Join-Path $scriptDir "get-codex-praetor-health.ps1"
     if (-not (Test-Path -LiteralPath $healthScript -PathType Leaf)) {
         $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
@@ -1513,7 +1516,7 @@ $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
 if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind
     if (-not $readiness.ok) {
-        throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Run test-provider-capability-canary.ps1 for the exact provider tuple first."
+        throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Use a durable real-task evidence bootstrap or run the provider canary."
     }
 
     if ([string]::IsNullOrWhiteSpace($TaskFamily)) { throw "Dispatch requires an explicit task family. Use a durable plan task; do not infer a family from free-form task text." }

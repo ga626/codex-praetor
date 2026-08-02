@@ -27,7 +27,8 @@ function Test-CodexPraetorReadinessEvidence {
         -not [string]::IsNullOrWhiteSpace([string]$evidence.completion_sha256) -and
         [string]$evidence.completion_status -eq "process_exited" -and
         [int]$evidence.worker_exit_code -eq 0 -and
-        [string]$evidence.failure_class -eq ""
+        [string]$evidence.failure_class -eq "" -and
+        -not [string]::IsNullOrWhiteSpace([string]$Entry.connection_mode)
     )
 }
 
@@ -41,7 +42,8 @@ function Test-CodexPraetorProviderReadiness {
         [string]$Kind,
         [string]$ExpectedGeneration,
         [string]$ExpectedRuntimeContract,
-        [string]$ExpectedTaskContract
+        [string]$ExpectedTaskContract,
+        [string]$ExpectedConnectionMode = ""
     )
 
     $state = Read-CodexPraetorJson -Path $Path
@@ -63,6 +65,7 @@ function Test-CodexPraetorProviderReadiness {
         if (-not (Test-CodexPraetorReadinessEvidence -Entry $entry)) { continue }
         if ([string]$entry.provider -ne $ProviderName -or [string]$entry.cli_path -ne $Cli -or [string]$entry.cli_hash -ne $cliHash) { continue }
         if ([string]$entry.model -ne $ModelName -or [string]$entry.permission_profile -ne $Permission -or [string]$entry.task_kind -ne $Kind) { continue }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedConnectionMode) -and [string]$entry.connection_mode -ne $ExpectedConnectionMode) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedGeneration) -and [string]$entry.generation_id -ne $ExpectedGeneration) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedRuntimeContract) -and [string]$entry.runtime_contract_sha256 -ne $ExpectedRuntimeContract) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedTaskContract) -and [string]$entry.task_contract_schema -ne $ExpectedTaskContract) { continue }

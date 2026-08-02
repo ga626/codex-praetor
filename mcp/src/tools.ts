@@ -185,7 +185,7 @@ export function jobTimelineTool(input: { repo: string; job_id: string }) {
       模型: String(meta.model ?? ""),
       连接: connectionDisplayName(connectionMode),
       任务类别: String(meta.task_kind ?? ""),
-      下一步: completion ? "由 Codex 读取结果并记录验收结论。" : "等待 worker 到达终态。"
+      下一步: completion ? "由 Codex 读取结果并记录验收结论；宿主断线后可用同一 job_id 重新读取。" : "等待 worker 到达终态；宿主断线后用同一 job_id 重新读取，不要重派。"
     },
     job_id: input.job_id,
     contract_hash: String(meta.contract_hash ?? ""),
@@ -468,6 +468,13 @@ export function classifyWorkerOutcome(input: {
       next_action: "保留日志作为诊断证据；检查 provider 状态后再决定改派或重试。"
     };
   }
+  if (String(completion?.readiness_bootstrap_status ?? input.meta.readiness_bootstrap_status ?? "") === "failed") {
+    return {
+      class: "readiness_bootstrap_failed",
+      explanation: "真实任务完成了，但当前 provider 的首用 readiness 没能持久记录，不能把本次能力状态当作已就绪。",
+      next_action: "保留本次 job 证据，检查 readiness 文件写入权限后，从同一任务结果恢复记录；不要重复执行原任务。"
+    };
+  }
   if (failureClass === "max_turns_exceeded") {
     return {
       class: "worker_max_turns_exceeded",
@@ -624,7 +631,7 @@ export async function dispatchTool(input: {
   return {
     display: {
       阶段: isDryRun ? "预演 worker 派工" : "已派发 worker",
-      状态: result.exitCode === 0 ? (isDryRun ? "预演通过，未启动" : "已启动") : "失败",
+      状态: result.exitCode === 0 ? (isDryRun ? "预演通过，未启动" : fields.job_id ? (fields.pid === "pending" ? "job 已创建，等待 watcher 启动" : "worker 已启动") : "未确认 job") : "失败",
       执行者: providerDisplayName(fields.provider ?? input.provider ?? "auto"),
       模型: String(fields.model ?? ""),
       连接: connectionDisplayName(fields.connection_mode ?? ""),
@@ -655,6 +662,9 @@ export async function dispatchTool(input: {
       : runMode === "background"
         ? "worker 已交给本地 watcher；等待 completion.json 后再由 Codex 验收。"
         : "blocking worker 已退出；仍需 Codex 验收输出和改动。",
+    job_created: !isDryRun && Boolean(fields.job_id),
+    worker_started: !isDryRun && fields.pid !== "pending" && Boolean(fields.pid),
+    transport_recovery: !isDryRun && Boolean(fields.job_id) ? `宿主断线时调用 codex_praetor_job_timeline，job_id=${fields.job_id}；不要重复创建任务。` : "",
     stdout: result.stdout,
     stderr: result.stderr
   };
@@ -1388,7 +1398,7 @@ export async function dispatchPlanTaskTool(input: {
   const taskMaterial = task.task_material && typeof task.task_material === "object" && !Array.isArray(task.task_material) ? task.task_material as Record<string, unknown> : undefined;
   const baseCommit = String(task.base_commit ?? "").trim();
   const immutablePaths = Array.isArray(task.immutable_paths) ? task.immutable_paths.map(String) : [];
-  const evidenceContext = task.evidence_context && typeof task.evidence_context === "object" && !Array.isArray(task.evidence_context) ? task.evidence_context as Record<string, unknown> : undefined;
+  let evidenceContext = task.evidence_context && typeof task.evidence_context === "object" && !Array.isArray(task.evidence_context) ? task.evidence_context as Record<string, unknown> : undefined;
   const validationOnly = task.validation_only === true;
   if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || !["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"].includes(taskFamily) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
@@ -1403,12 +1413,33 @@ export async function dispatchPlanTaskTool(input: {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "This task is marked validation_only and cannot spend provider credits through normal plan dispatch. Use local fixtures or explicitly create a user task instead." };
   }
   const requiredEvidenceContext = ["source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256"];
-  const evidenceBootstrap = !!evidenceContext
-    && !requiredEvidenceContext.some((field) => !String(evidenceContext[field] ?? "").trim())
-    && ["real_historical_issue", "real_user_request"].includes(String(evidenceContext.source_category))
-    && ["supervised_cli_text", "qoder_agent_sdk", "codebuddy_acp"].includes(String(evidenceContext.connection_mode));
+  const existingEvidenceContext = evidenceContext;
+  let evidenceBootstrap = !!existingEvidenceContext
+    && !requiredEvidenceContext.some((field) => !String(existingEvidenceContext[field] ?? "").trim())
+    && ["real_historical_issue", "real_user_request"].includes(String(existingEvidenceContext?.source_category))
+    && ["supervised_cli_text", "qoder_agent_sdk", "codebuddy_acp"].includes(String(existingEvidenceContext?.connection_mode));
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
+  }
+  if (!input.dry_run && !evidenceContext) {
+    const bootstrapConnection = input.provider === "qoder" ? "qoder_agent_sdk" : input.provider === "codebuddy" ? "codebuddy_acp" : "supervised_cli_text";
+    evidenceContext = automaticUserRequestEvidenceContext({
+      repo,
+      planId: input.plan_id,
+      taskId,
+      title,
+      acceptance,
+      requiredChecks,
+      connectionMode: bootstrapConnection
+    });
+    const contextResult = await runPowerShell(
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "SetEvidenceContext", "-PlanId", input.plan_id, "-PlanRoot", getPlanRoot(repo), "-TaskId", taskId, "-EvidenceContextJson", JSON.stringify(evidenceContext), "-OutputJson"],
+      { timeoutMs: 30_000 }
+    );
+    if (contextResult.exitCode !== 0) {
+      return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "无法为真实用户任务记录首用 evidence context，worker 尚未启动。", stderr: contextResult.stderr };
+    }
+    evidenceBootstrap = true;
   }
   const dispatched = await dispatchTool({
     repo,
@@ -1439,7 +1470,7 @@ export async function dispatchPlanTaskTool(input: {
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });
-  if (dispatched.ok && !input.dry_run && !evidenceContext && dispatched.job_id) {
+  if (dispatched.ok && !input.dry_run && evidenceContext && String(evidenceContext.connection_mode) === "supervised_cli_text" && dispatched.job_id) {
     const context = automaticUserRequestEvidenceContext({
       repo,
       planId: input.plan_id,

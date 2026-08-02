@@ -30,15 +30,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.20-alpha/codex-praetor-setup-0.16.20-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.20-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.16.20-alpha.zip .\codex-praetor-setup-0.16.20-alpha
-cd .\codex-praetor-setup-0.16.20-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.21-alpha/codex-praetor-setup-0.16.21-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.21-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.16.21-alpha.zip .\codex-praetor-setup-0.16.21-alpha
+cd .\codex-praetor-setup-0.16.21-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.16.20-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.16.21-alpha
 ```
 
 ### 2. 双击安装向导
@@ -109,13 +109,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile
 ```
 
-正式更新会生成发布证据，记录下载包校验和同一 artifact 的发布结果。真实派工由当前运行插件自身决定：它会验证当前 bundled generation、runtime contract，以及所选 provider 的 CLI、模型、权限、任务类型和有效的只读 canary。旧发布回执、旧缓存或旧 `active.json` 不会反向阻断已加载的新插件；如果当前版本尚未完成 canary，系统会明确提示先运行一次真实只读 canary。
+正式更新会生成发布证据，记录下载包校验和同一 artifact 的发布结果。真实派工由当前运行插件自身决定：它会验证当前 bundled generation、runtime contract，以及所选 provider 的 CLI、模型、权限、任务类型和有效的 readiness。旧发布回执、旧缓存或旧 `active.json` 不会反向阻断已加载的新插件。没有 readiness 时，第一次真实计划任务会在隔离 worktree 中自动完成一次最小首用 bootstrap；这不是用户需要理解或手动运行的内部脚本。
 
 ### 5. 让 Codex 发现插件
 
 先确认 stable marketplace 已安装该下载包的 `release-generation.json`，再使用 Codex 支持的刷新动作或完全重启 Codex Desktop。刷新后新开一个任务，先调用 `codex_praetor_runtime_info`；它的版本和 runtime contract SHA 必须等于下载包。仅打开新任务不能刷新已经运行的 host。
 
-身份一致后才运行真实只读 canary；canary 通过后再做 dry-run 或真实派工。平时工具通道临时失败时，优先看 [troubleshooting.zh.md](troubleshooting.zh.md) 的轻量恢复步骤。
+身份一致后可以直接做 dry-run 或真实派工。已登录 provider 的用户不需要为了“凑够验证次数”先消费额外任务；首次真实计划任务会自动记录当前 provider tuple。平时工具通道临时失败时，优先看 [troubleshooting.zh.md](troubleshooting.zh.md) 的轻量恢复步骤。
 
 ### 6. 第一次 dry-run
 
@@ -127,7 +127,7 @@ Get-ScheduledTask -TaskName CodexPraetor-GenerationReconcile
 
 你应该看到 Codex Praetor 选择外部 worker 路线，而不是创建 Codex 自己的 subagent。
 
-dry-run 不会启动真实 worker，也不会修改文件。等 provider 安装、登录和只读 canary 都通过后，Codex 才应该进入真实派工闭环：派发 worker、读取结果、检查报告或改动、记录验收结论，再继续下一批计划任务。
+dry-run 不会启动真实 worker，也不会修改文件。provider 已安装并按官方方式登录后，Codex 可以直接进入真实派工闭环：必要时自动做一次只读首用 bootstrap，派发 worker、读取结果、检查报告或改动、记录验收结论，再继续下一批计划任务。
 
 ### 7. 安装验收
 
@@ -139,7 +139,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-code
 
 看到 `[PASS]` 后，再在 Codex 里完成一次 dry-run。没有 provider 时，doctor 和 dry-run 仍然应该通过；只有真实派工会不可用。
 
-如果你已经安装并登录某个 provider，再跑只读 canary。默认只预览命令，不会启动真实 worker：
+如果你要提前诊断某个 provider，仍可以手动预览只读 canary。它是排障工具，不是普通用户开始真实任务的前置条件：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
@@ -196,9 +196,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 ## 配置真实派工
 
-真实派工前，你需要至少一个外部 CLI 已安装、已授权，并通过只读 canary。`0.16.20-alpha` 使用 Qoder Agent SDK 或 CodeBuddy ACP 获取结构化进展；你不需要手工选择连接协议。
+真实派工前，你需要至少一个外部 CLI 已安装并按 provider 官方方式完成授权。`0.16.21-alpha` 使用 Qoder Agent SDK 或 CodeBuddy ACP 获取结构化进展；你不需要手工选择连接协议，也不需要为了首次使用手动跑内部 canary。
 
-第一次真实任务也不是直接跳过保护。Codex 会先把你的真实请求写成可追溯计划，明确允许路径、禁止路径、检查和验收；只有这些信息齐全，才会创建受控的首次证据。之后的普通派工会继续核对当前 provider readiness 和同一 provider、模型、权限、任务类型的已采信证据。
+第一次真实任务也不是直接跳过保护。Codex 会先把你的真实请求写成可追溯计划，明确允许路径、禁止路径、检查和验收；只有这些信息齐全，才会创建受控的首次证据。首次任务成功后，系统自动把同一 provider、模型、连接方式、权限和任务类型记录为 readiness；之后的普通派工复用这条证据，只有真正的身份或合同变化才需要重新验证。
 
 Codex Praetor 不会在未经你确认时安装 provider，也不会读取账号数据库、token、cookie。Qoder 和 CodeBuddy 通常需要官方登录或授权。
 

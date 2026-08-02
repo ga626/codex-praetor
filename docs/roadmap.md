@@ -2,7 +2,7 @@
 
 ## 当前状态：2026-07-29
 
-`v0.16.11-alpha` 是当前已公开交付的基线。候选 `v0.16.20-alpha` 在既定 Qoder Agent SDK 与 CodeBuddy ACP 连接层之上增加 Codex 执行官模式：只绑定当前对话和当前项目，后续实质任务先评估可外派阶段，关闭时精确取消同一模式会话的活跃 worker 并读取终态。真实改码仍只在隔离 worktree、明确合同和当前精确 tuple 证据下运行；不读取认证资料、不自动合并，也不自动扩大到未经证实的模型或 provider。合并后仍只由 Release On Main 从合并 SHA 创建、发布和复验不可变 Release。
+`v0.16.11-alpha` 是当前已公开交付的基线。候选 `v0.16.21-alpha` 在既定 Qoder Agent SDK 与 CodeBuddy ACP 连接层之上增加 Codex 执行官模式：只绑定当前对话和当前项目，后续实质任务先评估可外派阶段，关闭时精确取消同一模式会话的活跃 worker 并读取终态。真实改码仍只在隔离 worktree、明确合同和当前精确 tuple 证据下运行；不读取认证资料、不自动合并，也不自动扩大到未经证实的模型或 provider。合并后仍只由 Release On Main 从合并 SHA 创建、发布和复验不可变 Release。
 
 已经完成：
 

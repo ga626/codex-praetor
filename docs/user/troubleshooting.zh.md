@@ -12,14 +12,14 @@
 | 没有 Qoder、CodeBuddy | 不是故障 | 只能做 plan、dry-run、status、lane/conflict，不能真实派工 |
 | 执行官模式没有按预期工作 | 仍加载旧插件，或当前对话没有使用插件内 Skill | 刷新 host 后在新对话运行 `runtime_info`；模式由当前对话的 Skill 工作规范维护，不依赖 MCP 对话 ID |
 | provider 已安装但真实派工失败 | provider 未登录、权限不够、CLI 路径不对、worker 无有效产出或持续没有结构化进展 | 先读取 worker result 摘要和失败分类；需要账号动作时重新运行向导，任务太大时缩小后重派 |
-| 更新后 health 提示当前 generation 没有 readiness | 新插件已加载，但还没有为这一个运行版本完成真实只读 canary | 对已登录的 provider 真实运行一次 capability canary；不要编辑 `active.json` 或 readiness 文件 |
+| 更新后 health 提示当前 generation 没有 readiness | 新插件已加载，但当前用户还没有这个 provider tuple 的有效 readiness | 直接提交一个真实计划任务；系统会在隔离 worktree 中自动做一次首用 bootstrap。若失败，按错误分类处理；不要编辑 `active.json` 或 readiness 文件 |
 | canary 提示仓库有变动 | 开始前已有未提交改动，或运行中有其他流程改动仓库 | 开始前变脏时清理、提交或改用隔离 checkout；运行中变动会被记录，先审查后再编辑，不要伪造 readiness |
 | 执行 provider 官方安装时提示网络不可用或超时 | 官方安装源、DNS、代理或系统网络还没准备好 | 检查网络/代理后重试；也可以先跳过 provider，先完成本体安装 |
 | 更新后旧目录仍然存在 | 旧 generation 仍在保留窗口内，或被 Codex/运行时占用 | 查看 health/退休清单；不要强杀 Codex，维护任务会在下次登录或 15 分钟重试 |
 
 ## 看不到 Codex Praetor 插件
 
-先确认你已经运行过安装向导。如果你使用的是 `0.16.20-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
+先确认你已经运行过安装向导。如果你使用的是 `0.16.21-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
@@ -100,7 +100,7 @@ Codex Praetor 不会替你登录，也不会读取 provider 的账号数据库�
 
 如果向导刚装完 provider 后一时找不到命令，先重新运行 `setup.cmd` 选择同一家 provider。新版向导会同时检查 PATH 和常见安装目录：Qoder 的 `.qoder`、CodeBuddy 的 `AppData\Local\codebuddy\bin`。
 
-登录后，先预览 capability canary：
+登录后，可以预览 capability canary 做排障：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-capability-canary.ps1 -Provider codebuddy
@@ -112,7 +112,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-capability-canary.ps1 -Provider codebuddy -Apply
 ```
 
-如果 `-Apply` 失败，优先按 provider 官方方式重新登录或修正本地 `cliPath`。插件更新、版本、模型或权限合同变化后，需要对当前运行版本重新运行一次 canary；旧 `active.json` 只用于发布历史和回收诊断，不是派工准入依据。不要把 token、cookie、账号页面或本地数据库贴到 issue 或聊天里。
+如果真实任务的自动 bootstrap 失败，优先按错误分类重新登录、修正本地 `cliPath` 或检查网络。只有需要单独诊断时才运行 `-Apply` canary；普通用户不需要为了派工手动执行它。旧 `active.json` 只用于发布历史和回收诊断，不是派工准入依据。不要把 token、cookie、账号页面或本地数据库贴到 issue 或聊天里。
 
 canary 的自然语言任务本身很短，只读取 `README.md` 并返回成功标记；权限、模型、CLI hash、generation、日志和仓库观察由插件的外围协议验证。这样既是真实 provider 路径，又不会把一大份测试规程塞给 worker。
 
@@ -130,7 +130,7 @@ Codex Praetor 现在把“worker 进程完成”和“任务验收通过”分�
 - 需要人工处理：登录、授权、发布、合并或产品判断需要用户参与。
 - 跳过：这项任务被明确取消或不再需要。
 
-如果 worker 输出里出现 `Max turns exceeded` 或类似历史兼容提示，不要把它当作有效完成，也不要盲目提高固定轮数。保留 worktree 和终态证据，由 Codex 判断是缩小任务、补充上下文、走冷恢复、换已合格 provider，还是接管剩余工作。对于 0.16.5 的 Qoder SDK 与 CodeBuddy ACP 路径，持续没有结构化进展会优先归类为 `progress_saturated` 并正式收束。
+如果 worker 输出里出现 `Max turns exceeded` 或类似历史兼容提示，不要把它当作有效完成，也不要盲目提高固定轮数。保留 worktree 和终态证据，由 Codex 判断是缩小任务、补充上下文、走冷恢复、换 provider，还是接管剩余工作。若 Codex 宿主出现 `stream disconnected before completion`，先用同一个 `job_id` 调用 `codex_praetor_job_timeline` 读取已有任务；不要盲目重新派发。对于 Qoder SDK 与 CodeBuddy ACP 路径，持续没有结构化进展会优先归类为 `progress_saturated` 并正式收束。
 
 provider 说明：
 
