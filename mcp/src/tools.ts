@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {
@@ -280,6 +281,7 @@ export async function dispatchDryRunTool(input: {
     provider: fields.provider ?? input.provider,
     tier: fields.tier ?? input.tier ?? "",
     model: fields.model ?? "",
+    connection_mode: fields.connection_mode ?? "",
     model_policy: fields.model_policy ?? "",
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? input.run_mode ?? "blocking",
@@ -600,6 +602,7 @@ export async function dispatchTool(input: {
   no_notify?: boolean;
 }) {
   const repo = resolveExistingRepo(input.repo);
+  const isDryRun = input.dry_run === true;
   assertResearchContract(input);
   const runMode = input.run_mode ?? "background";
   const result = await runPowerShell(
@@ -620,12 +623,12 @@ export async function dispatchTool(input: {
 
   return {
     display: {
-      阶段: "已派发 worker",
-      状态: result.exitCode === 0 ? "已启动" : "失败",
+      阶段: isDryRun ? "预演 worker 派工" : "已派发 worker",
+      状态: result.exitCode === 0 ? (isDryRun ? "预演通过，未启动" : "已启动") : "失败",
       执行者: providerDisplayName(fields.provider ?? input.provider ?? "auto"),
       模型: String(fields.model ?? ""),
       连接: connectionDisplayName(fields.connection_mode ?? ""),
-      下一步: result.exitCode === 0 ? "worker 终态后由 Codex 检查 diff、范围和测试。" : "读取失败分类后决定恢复、改派或由 Codex 接管。"
+      下一步: result.exitCode === 0 ? (isDryRun ? "未创建 job；Codex 可据此决定是否真实派工。" : "worker 终态后由 Codex 检查 diff、范围和测试。") : "读取失败分类后决定恢复、改派或由 Codex 接管。"
     },
     ok: result.exitCode === 0,
     exit_code: result.exitCode,
@@ -634,6 +637,7 @@ export async function dispatchTool(input: {
     provider: fields.provider ?? input.provider ?? "auto",
     tier: fields.tier ?? input.tier ?? "",
     model: fields.model ?? "",
+    connection_mode: fields.connection_mode ?? "",
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
     task_kind: fields.task_kind ?? input.task_kind ?? "",
@@ -646,8 +650,9 @@ export async function dispatchTool(input: {
     completion_path: completionPath,
     completion,
     command: fields.command ?? "",
-    status_note:
-      runMode === "background"
+    status_note: isDryRun
+      ? "预演通过：未启动 worker，未创建 job。"
+      : runMode === "background"
         ? "worker 已交给本地 watcher；等待 completion.json 后再由 Codex 验收。"
         : "blocking worker 已退出；仍需 Codex 验收输出和改动。",
     stdout: result.stdout,
@@ -672,6 +677,8 @@ export type PlannedTaskContract = {
   base_commit?: string;
   immutable_paths?: string[];
   evidence_context?: Record<string, unknown>;
+  validation_only?: boolean;
+  validation_reason?: string;
 };
 
 function validatePlannedTaskContract(task: PlannedTaskContract, taskId: string): string | undefined {
@@ -745,6 +752,9 @@ export async function planTool(input: {
       "-Sensitivity", task.sensitivity ?? "", "-BaseCommit", task.base_commit ?? "",
       "-ImmutablePathsJson", JSON.stringify(task.immutable_paths ?? []), "-OutputJson"
     ];
+    if (task.validation_only) {
+      upsertArgs.push("-ValidationOnly", "-ValidationReason", task.validation_reason?.trim() || "validation_only plan task");
+    }
     upsertArgs.push("-AllowedPathsJson", JSON.stringify(task.allowed_paths));
     upsertArgs.push("-ForbiddenPathsJson", JSON.stringify(task.forbidden_paths));
     upsertArgs.push("-RequiredChecksJson", JSON.stringify(task.required_checks));
@@ -1313,6 +1323,30 @@ function getPlanTask(repo: string, planId: string, taskId: string) {
   return { plan, task };
 }
 
+function currentCommitOrPlanRef(repo: string, planId: string): string {
+  try {
+    const value = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return /^[0-9a-f]{40}$/i.test(value) ? value : `plan:${planId}`;
+  } catch {
+    return `plan:${planId}`;
+  }
+}
+
+function automaticUserRequestEvidenceContext(input: { repo: string; planId: string; taskId: string; title: string; acceptance: string; requiredChecks: string[]; connectionMode: string }) {
+  const inputSha = createHash("sha256").update(JSON.stringify({ title: input.title, acceptance: input.acceptance, required_checks: input.requiredChecks })).digest("hex");
+  const verifierSha = createHash("sha256").update(input.requiredChecks.join("\n")).digest("hex");
+  return {
+    source_category: "real_user_request",
+    source_ref: `plan:${input.planId}:task:${input.taskId}`,
+    source_commit: currentCommitOrPlanRef(input.repo, input.planId),
+    input_sha256: inputSha,
+    connection_mode: input.connectionMode,
+    verifier_id: "codex-praetor-plan-acceptance",
+    verifier_version: "v1",
+    verifier_sha256: verifierSha
+  };
+}
+
 export async function dispatchPlanTaskTool(input: {
   repo: string;
   plan_id: string;
@@ -1355,6 +1389,7 @@ export async function dispatchPlanTaskTool(input: {
   const baseCommit = String(task.base_commit ?? "").trim();
   const immutablePaths = Array.isArray(task.immutable_paths) ? task.immutable_paths.map(String) : [];
   const evidenceContext = task.evidence_context && typeof task.evidence_context === "object" && !Array.isArray(task.evidence_context) ? task.evidence_context as Record<string, unknown> : undefined;
+  const validationOnly = task.validation_only === true;
   if (!title || !acceptance || !["local_audit", "test_execution", "code_change", "external_research_support"].includes(taskKind) || !["readonly", "edit"].includes(mode) || !["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"].includes(taskFamily) || allowedPaths.length === 0 || forbiddenPaths.length === 0 || requiredChecks.length === 0 || Object.keys(budget).length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Plan task is missing its dispatch contract; repair the plan instead of inferring task kind or permissions." };
   }
@@ -1364,6 +1399,9 @@ export async function dispatchPlanTaskTool(input: {
   if (taskKind === "code_change" && (!/^[0-9a-f]{40}$/i.test(baseCommit) || immutablePaths.length === 0)) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "Real code-change task lacks a frozen base commit or immutable paths; dispatch is blocked before worker launch." };
   }
+  if (validationOnly) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "This task is marked validation_only and cannot spend provider credits through normal plan dispatch. Use local fixtures or explicitly create a user task instead." };
+  }
   const requiredEvidenceContext = ["source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256"];
   const evidenceBootstrap = !!evidenceContext
     && !requiredEvidenceContext.some((field) => !String(evidenceContext[field] ?? "").trim())
@@ -1372,7 +1410,7 @@ export async function dispatchPlanTaskTool(input: {
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
   }
-  return dispatchTool({
+  const dispatched = await dispatchTool({
     repo,
     task: title,
     provider: input.provider ?? "auto",
@@ -1401,6 +1439,25 @@ export async function dispatchPlanTaskTool(input: {
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });
+  if (dispatched.ok && !input.dry_run && !evidenceContext && dispatched.job_id) {
+    const context = automaticUserRequestEvidenceContext({
+      repo,
+      planId: input.plan_id,
+      taskId,
+      title,
+      acceptance,
+      requiredChecks,
+      connectionMode: dispatched.connection_mode || (dispatched.provider === "qoder" ? "qoder_agent_sdk" : "codebuddy_acp")
+    });
+    const contextResult = await runPowerShell(
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "SetEvidenceContext", "-PlanId", input.plan_id, "-PlanRoot", getPlanRoot(repo), "-TaskId", taskId, "-EvidenceContextJson", JSON.stringify(context), "-OutputJson"],
+      { timeoutMs: 30_000 }
+    );
+    if (contextResult.exitCode !== 0) {
+      return { ...dispatched, ok: false, message: "Worker started but its automatic evidence context could not be recorded; do not accept this task until the ledger is repaired.", stderr: `${dispatched.stderr}\n${contextResult.stderr}` };
+    }
+  }
+  return dispatched;
 }
 
 export async function verifyTaskTool(input: {

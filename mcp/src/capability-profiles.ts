@@ -12,7 +12,9 @@ const hardBlockedFailures = new Set(["provider_risk_control", "provider_auth_req
 const transientFailures = new Set(["worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable"]);
 const profileEvidenceMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 const transientCooldownMs = 60 * 60 * 1000;
-const requiredTupleFields = ["provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema"];
+// This is the worker identity, not the controller release identity.  A normal
+// product release must not erase otherwise applicable worker experience.
+const requiredTupleFields = ["provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "connection_mode", "runner_identity"];
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
@@ -35,14 +37,13 @@ function tupleFrom(attempt: JsonRecord, task: JsonRecord): JsonRecord {
     model: asString(tuple.model) || asString(attempt.model) || asString(task.model),
     permission_profile: asString(tuple.permission_profile),
     task_kind: asString(tuple.task_kind) || asString(attempt.task_kind) || "",
-    generation_id: asString(tuple.generation_id),
-    runtime_contract_sha256: asString(tuple.runtime_contract_sha256),
-    task_contract_schema: asString(tuple.task_contract_schema)
+    connection_mode: asString(tuple.connection_mode),
+    runner_identity: asString(tuple.runner_identity)
   };
 }
 
 function tupleKey(tuple: JsonRecord): string {
-  return ["provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "generation_id", "runtime_contract_sha256", "task_contract_schema"].map((key) => asString(tuple[key])).join("\u001f");
+  return requiredTupleFields.map((key) => asString(tuple[key])).join("\u001f");
 }
 
 function profileId(tuple: JsonRecord, taskFamily: string): string {
@@ -214,7 +215,7 @@ export function capabilityProfilesTool(input: { repo: string; include_unclassifi
       statusReason = "最近能力证据已超过 30 天；必须重新 canary，旧结果不能用于路由。";
     } else if (durableAccepted.length >= 3) {
       status = "qualified";
-      statusReason = "至少三次独立 attempt 已被 Codex 采信；仍须通过当前硬门。";
+      statusReason = "至少三次独立真实记录已被 Codex 采信；这是优先推荐标签，不是派工门禁。";
     } else if (durableAccepted.length >= 2) {
       status = "provisional";
       statusReason = "已有少量独立采信，只能在低风险工作包中保守建议。";
@@ -244,8 +245,9 @@ export function capabilityProfilesTool(input: { repo: string; include_unclassifi
       profile_is_projection: true,
       default_routing_changed: false,
       hard_gates_remain_authoritative: true,
-      normal_dispatch_requires_durable_exact_tuple_evidence: true,
-      qualified_minimum_accepted_attempts: 3
+      normal_dispatch_requires_durable_exact_tuple_evidence: false,
+      well_observed_minimum_accepted_attempts: 3,
+      controller_validation_is_separate_from_worker_identity: true
     }
   };
 }

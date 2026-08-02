@@ -40,9 +40,8 @@ function statusFor(profile: RecordValue | undefined, readiness: RecordValue[]) {
   if (profileStatus === "blocked") return { status: "暂不可派", next_action: "先处理最近的明确阻断原因，再重新 canary；不得自动重试。" };
   if (profileStatus === "cooling_down") return { status: "冷却中", next_action: "等待冷却结束；仅对短暂故障执行有界重试，不能改为无限重派。" };
   if (profileStatus === "stale") return { status: "证据过期", next_action: "重新运行当前 generation 的 canary 和小型同任务族验证。" };
-  if (currentReadiness && profileStatus === "qualified") return { status: "能派", next_action: "仍需按本次任务的完整 tuple、范围、预算和用户授权逐项检查。" };
-  if (currentReadiness) return { status: "可小范围验证", next_action: "当前 tuple 已通过 canary，但真实同任务族证据不足；只派小而可回退的工作包。" };
-  return { status: "可小范围验证", next_action: "尚无当前 generation 的匹配 canary；先做最小权限 canary，不要直接派正式任务。" };
+  if (currentReadiness) return { status: "能派", next_action: "可直接派发完整、受控的真实用户任务；仍须逐项检查范围、预算、权限和验收。" };
+  return { status: "待就绪", next_action: "先完成当前 worker 身份的无付费 readiness 检查；不要为凑历史记录创建额外真实任务。" };
 }
 
 export function providerOperationsTool(input: { repo: string; task_family?: TaskFamily; readiness_entries?: RecordValue[] }) {

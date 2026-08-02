@@ -6,16 +6,14 @@ param(
     [Parameter(Mandatory = $true)][string]$Model,
     [Parameter(Mandatory = $true)][string]$PermissionProfile,
     [Parameter(Mandatory = $true)][string]$TaskKind,
-    [Parameter(Mandatory = $true)][string]$GenerationId,
-    [Parameter(Mandatory = $true)][string]$RuntimeContractSha256,
-    [Parameter(Mandatory = $true)][string]$TaskContractSchema,
+    [string]$ConnectionMode = "",
+    [string]$RunnerIdentity = "",
     [string]$EvidenceRoot = "$env:USERPROFILE\.codex\codex-praetor-capability-evidence",
-    [ValidateRange(1, 100)][int]$MinimumAccepted = 3,
     [ValidateRange(1, 365)][int]$MaximumAgeDays = 30
 )
 $ErrorActionPreference = "Stop"
 function Get-StringProperty { param([object]$Object, [string]$Name) if ($null -eq $Object) { return "" }; $property = $Object.PSObject.Properties[$Name]; if ($null -eq $property -or $null -eq $property.Value) { return "" }; return [string]$property.Value }
-$expected = [ordered]@{ provider = $Provider; cli_path = $CliPath; cli_hash = $CliHash; model = $Model; permission_profile = $PermissionProfile; task_kind = $TaskKind; generation_id = $GenerationId; runtime_contract_sha256 = $RuntimeContractSha256; task_contract_schema = $TaskContractSchema }
+$expected = [ordered]@{ provider = $Provider; cli_path = $CliPath; cli_hash = $CliHash; model = $Model; permission_profile = $PermissionProfile; task_kind = $TaskKind; connection_mode = $ConnectionMode; runner_identity = $RunnerIdentity }
 $acceptedIds = New-Object System.Collections.Generic.List[string]
 $cutoff = (Get-Date).ToUniversalTime().AddDays(-$MaximumAgeDays)
 if (Test-Path -LiteralPath $EvidenceRoot -PathType Container) {
@@ -30,5 +28,5 @@ if (Test-Path -LiteralPath $EvidenceRoot -PathType Container) {
         } catch { }
     }
 }
-$allowed = $acceptedIds.Count -ge $MinimumAccepted
-[ordered]@{ schema = "codex-praetor-capability-gate/v1"; allowed = $allowed; reason = if ($allowed) { "Fresh accepted evidence satisfies the exact provider tuple and task family." } else { "Normal dispatch requires $MinimumAccepted fresh accepted receipts for this exact provider tuple and task family." }; task_family = $TaskFamily; minimum_accepted = $MinimumAccepted; maximum_age_days = $MaximumAgeDays; accepted_evidence_ids = @($acceptedIds); accepted_count = $acceptedIds.Count } | ConvertTo-Json -Depth 5 -Compress
+$wellObserved = $acceptedIds.Count -ge 3
+[ordered]@{ schema = "codex-praetor-capability-gate/v2"; allowed = $true; reason = if ($wellObserved) { "Worker identity is well observed; normal dispatch remains subject to current safety and acceptance contracts." } else { "No warm-up task is required. This real task may establish worker evidence after Codex accepts it." }; task_family = $TaskFamily; well_observed = $wellObserved; well_observed_minimum_accepted = 3; maximum_age_days = $MaximumAgeDays; accepted_evidence_ids = @($acceptedIds); accepted_count = $acceptedIds.Count; controller_validation_is_separate = $true } | ConvertTo-Json -Depth 5 -Compress

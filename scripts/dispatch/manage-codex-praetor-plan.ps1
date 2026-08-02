@@ -44,6 +44,8 @@ param(
     [string]$ImmutablePathsJson = "",
     [string]$EvidenceContextJson = "",
     [string]$EvidenceContextPath = "",
+    [switch]$ValidationOnly,
+    [string]$ValidationReason = "",
     [string]$InterventionKind = "",
     [string]$InterventionSummary = "",
     [ValidateSet("", "accepted", "rejected", "retry", "human_required", "skipped")]
@@ -351,6 +353,8 @@ function Upsert-Task {
             base_commit = ""
             immutable_paths = @()
             evidence_context = $null
+            validation_only = $false
+            validation_reason = ""
             human_intervention_count = 0
             created_at = (Get-Date).ToString("o")
             updated_at = (Get-Date).ToString("o")
@@ -378,6 +382,7 @@ function Upsert-Task {
     if (-not [string]::IsNullOrWhiteSpace($TaskMaterialJson)) { try { Set-DynamicProperty -Target $existing -Name "task_material" -Value ($TaskMaterialJson | ConvertFrom-Json) } catch { throw "TaskMaterialJson is not valid JSON." } }
     if (-not [string]::IsNullOrWhiteSpace($BaseCommit)) { Set-DynamicProperty -Target $existing -Name "base_commit" -Value $BaseCommit }
     if ($ImmutablePath.Count -gt 0) { Set-DynamicProperty -Target $existing -Name "immutable_paths" -Value @($ImmutablePath) }
+    if ($ValidationOnly) { Set-DynamicProperty -Target $existing -Name "validation_only" -Value $true; Set-DynamicProperty -Target $existing -Name "validation_reason" -Value $ValidationReason }
     if (-not [string]::IsNullOrWhiteSpace($CompletionValue)) { $existing.completion = $CompletionValue }
     if (-not [string]::IsNullOrWhiteSpace($SummaryValue)) { $existing.summary = $SummaryValue }
     $existing.updated_at = (Get-Date).ToString("o")

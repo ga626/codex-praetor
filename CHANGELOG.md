@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.18-alpha
+
+- Removed the three-receipt warm-up requirement as a normal real-task dispatch gate. Three accepted records now mean a worker identity is well observed and influence recommendation only.
+- Separated worker identity from controller release identity: connection mode and runner identity are tracked, while ordinary generation/runtime-contract changes no longer erase applicable worker history.
+- Made plan dispatch create durable real-user-request evidence context from the actual selected connection after worker start, reject `validation_only` provider spending, and make dry-run explicitly report that no worker or job was created.
+
 ## 0.16.17-alpha
 
 - Recovered the Release On Main path after `0.16.16-alpha` promoted the verified candidate ZIP but stopped before tag creation because final artifact runtime validation lacked its MCP test dependencies.
