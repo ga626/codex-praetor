@@ -250,6 +250,20 @@ if ($headOk) {
     Add-Check "git-head" $status "This repository has no initial commit; real worker worktree creation will be blocked." "Finish redaction and checks, then create a clean initial commit."
 }
 
+$provenanceScript = Join-Path $projectRoot "scripts\verify\get-codex-praetor-source-provenance.ps1"
+if ((Test-Path -LiteralPath $provenanceScript -PathType Leaf) -and $headOk) {
+    try {
+        $provenance = (& powershell -NoProfile -ExecutionPolicy Bypass -File $provenanceScript -Repo $Repo -Json | Out-String) | ConvertFrom-Json
+        $provenanceStatus = if ([string]$provenance.classification -eq "product_baseline") { "ready" } elseif ([string]$provenance.classification -eq "candidate_checkout") { "info" } else { "degraded" }
+        $provenanceNext = if ($provenanceStatus -eq "ready") { "" } else { "Use origin/main or an explicitly recorded candidate commit; do not treat this checkout as the current product baseline. The probe is read-only." }
+        Add-Check "source-provenance" $provenanceStatus "Source checkout classification: $($provenance.classification) ($($provenance.reason))." $provenanceNext
+    } catch {
+        Add-Check "source-provenance" "degraded" "Source checkout provenance could not be read; this does not alter installed-plugin dispatch authority." $_.Exception.Message
+    }
+} elseif (-not (Test-Path -LiteralPath $provenanceScript -PathType Leaf)) {
+    Add-Check "source-provenance" "degraded" "Source checkout provenance helper is missing." "Restore scripts/verify/get-codex-praetor-source-provenance.ps1 before release."
+}
+
 if (Test-CommandExists "node") {
     $nodeVersion = (& node --version 2>$null)
     Add-Check "node" "ready" "Node is available: $nodeVersion" ""
