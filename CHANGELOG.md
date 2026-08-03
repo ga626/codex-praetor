@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.23-alpha
+
+- Recovered the Release On Main path after `0.16.22-alpha` promoted its verified candidate ZIP but stopped before tag creation because the publisher treated GitHub Actions' expected detached HEAD as a non-empty branch name.
+- Normalized empty native Git branch output before checking the explicit GitHub Actions detached-HEAD allowance, with a release-control regression assertion.
+- This is a new immutable recovery version; it preserves structured progress and formal cancellation boundaries and does not overwrite or republish `0.16.22-alpha`.
+
 ## 0.16.22-alpha
 
 - Fixed a Windows Qoder Agent SDK session-state race where one transient `EPERM`, `EBUSY`, or `EACCES` during atomic replacement could fail a real worker before it started.
