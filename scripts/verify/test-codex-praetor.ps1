@@ -226,6 +226,7 @@ $jsonPaths = @(
     (Join-Path $projectRoot "config\release-receipt.schema.json"),
     (Join-Path $projectRoot "config\release-intent.json"),
     (Join-Path $projectRoot "config\release-intent.schema.json"),
+    (Join-Path $projectRoot "config\provider-release-evidence.schema.json"),
     (Join-Path $projectRoot "config\public-capabilities.json"),
     (Join-Path $projectRoot "config\public-capabilities.schema.json"),
     $pluginMcpPackage

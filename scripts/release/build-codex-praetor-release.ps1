@@ -68,6 +68,7 @@ function Test-BlockedReleasePath {
     if ($normalized -like "docs\productization-execution-map-*.md") { return $true }
     if ($normalized -like "docs\release-readiness-audit-*.md") { return $true }
     if ($normalized -like "docs\reports\*") { return $true }
+    if ($normalized -eq "config\provider-release-evidence.json") { return $true }
     if ($normalized -like "*\node_modules\*") { return $true }
     if ($normalized -like "mcp\dist\*") { return $true }
     if ($normalized -like "*.local.json") { return $true }
