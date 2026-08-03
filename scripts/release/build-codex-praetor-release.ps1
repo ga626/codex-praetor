@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.21-alpha",
+    [string]$Version = "0.16.22-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
@@ -68,6 +68,7 @@ function Test-BlockedReleasePath {
     if ($normalized -like "docs\productization-execution-map-*.md") { return $true }
     if ($normalized -like "docs\release-readiness-audit-*.md") { return $true }
     if ($normalized -like "docs\reports\*") { return $true }
+    if ($normalized -eq "config\provider-release-evidence.json") { return $true }
     if ($normalized -like "*\node_modules\*") { return $true }
     if ($normalized -like "mcp\dist\*") { return $true }
     if ($normalized -like "*.local.json") { return $true }
@@ -193,8 +194,6 @@ function New-DeterministicZip {
         [System.DateTimeOffset]$EntryTimestamp
     )
 
-    Add-Type -AssemblyName System.IO.Compression
-
     if (Test-Path -LiteralPath $DestinationPath -PathType Leaf) {
         Remove-Item -LiteralPath $DestinationPath -Force
     }
@@ -210,32 +209,153 @@ function New-DeterministicZip {
         })
     }
 
-    $orderedFiles = @($files | Sort-Object -Property EntryName)
-    $stream = [System.IO.File]::Open($DestinationPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
-    try {
-        $archive = New-Object System.IO.Compression.ZipArchive -ArgumentList $stream, ([System.IO.Compression.ZipArchiveMode]::Create)
-        try {
-            foreach ($file in $orderedFiles) {
-                $entry = $archive.CreateEntry($file.EntryName, [System.IO.Compression.CompressionLevel]::Optimal)
-                $entry.LastWriteTime = $EntryTimestamp
-                $inputStream = [System.IO.File]::OpenRead($file.FullName)
-                try {
-                    $entryStream = $entry.Open()
-                    try {
-                        $inputStream.CopyTo($entryStream)
-                    } finally {
-                        $entryStream.Dispose()
-                    }
-                } finally {
-                    $inputStream.Dispose()
-                }
-            }
-        } finally {
-            $archive.Dispose()
+    # ZipArchive guarantees a valid ZIP, not an identical byte stream across
+    # runtime implementations. A release artifact is an identity boundary, so
+    # write the small stored-ZIP subset we need ourselves and set every emitted
+    # field: UTF-8 flag, DOS timestamp, platform/version, attributes, ordering,
+    # and zero-length extra/comment fields. This avoids hidden runtime metadata.
+    if ($null -eq ("CodexPraetor.ReleasePackaging.CanonicalStoredZipWriter" -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace CodexPraetor.ReleasePackaging
+{
+    public static class CanonicalStoredZipWriter
+    {
+        private sealed class Entry
+        {
+            public byte[] Name;
+            public byte[] Data;
+            public uint Crc32;
+            public uint Offset;
         }
-    } finally {
-        $stream.Dispose()
+
+        private static readonly uint[] CrcTable = BuildCrcTable();
+
+        private static uint[] BuildCrcTable()
+        {
+            var table = new uint[256];
+            for (uint index = 0; index < 256; index++)
+            {
+                uint value = index;
+                for (int bit = 0; bit < 8; bit++)
+                {
+                    value = (value & 1) == 0 ? value >> 1 : 0xedb88320u ^ (value >> 1);
+                }
+                table[index] = value;
+            }
+            return table;
+        }
+
+        private static uint GetCrc32(byte[] data)
+        {
+            uint value = 0xffffffffu;
+            foreach (byte item in data)
+            {
+                value = CrcTable[(value ^ item) & 0xff] ^ (value >> 8);
+            }
+            return ~value;
+        }
+
+        private static void RequireUInt32(long value, string label)
+        {
+            if (value < 0 || value > uint.MaxValue) throw new InvalidOperationException(label + " exceeds canonical ZIP limits.");
+        }
+
+        private static void WriteLocalHeader(BinaryWriter writer, Entry entry)
+        {
+            writer.Write(0x04034b50u);
+            writer.Write((ushort)20);
+            writer.Write((ushort)0x0800);
+            writer.Write((ushort)0);
+            writer.Write((ushort)0);
+            writer.Write((ushort)0x5821);
+            writer.Write(entry.Crc32);
+            writer.Write((uint)entry.Data.Length);
+            writer.Write((uint)entry.Data.Length);
+            writer.Write((ushort)entry.Name.Length);
+            writer.Write((ushort)0);
+            writer.Write(entry.Name);
+            writer.Write(entry.Data);
+        }
+
+        private static void WriteCentralHeader(BinaryWriter writer, Entry entry)
+        {
+            writer.Write(0x02014b50u);
+            writer.Write((ushort)20);
+            writer.Write((ushort)20);
+            writer.Write((ushort)0x0800);
+            writer.Write((ushort)0);
+            writer.Write((ushort)0);
+            writer.Write((ushort)0x5821);
+            writer.Write(entry.Crc32);
+            writer.Write((uint)entry.Data.Length);
+            writer.Write((uint)entry.Data.Length);
+            writer.Write((ushort)entry.Name.Length);
+            writer.Write((ushort)0);
+            writer.Write((ushort)0);
+            writer.Write((ushort)0);
+            writer.Write((ushort)0);
+            writer.Write(0u);
+            writer.Write(entry.Offset);
+            writer.Write(entry.Name);
+        }
+
+        public static void Create(string destinationPath, string[] sourcePaths, string[] entryNames)
+        {
+            if (sourcePaths == null || entryNames == null || sourcePaths.Length != entryNames.Length) throw new ArgumentException("Canonical ZIP inputs are malformed.");
+            if (sourcePaths.Length == 0 || sourcePaths.Length > ushort.MaxValue) throw new InvalidOperationException("Canonical ZIP entry count is outside supported limits.");
+
+            var entries = new List<Entry>(sourcePaths.Length);
+            for (int index = 0; index < sourcePaths.Length; index++)
+            {
+                byte[] name = new UTF8Encoding(false, true).GetBytes(entryNames[index]);
+                byte[] data = File.ReadAllBytes(sourcePaths[index]);
+                if (name.Length == 0 || name.Length > ushort.MaxValue) throw new InvalidOperationException("Canonical ZIP entry name is outside supported limits: " + entryNames[index]);
+                RequireUInt32(data.LongLength, "Canonical ZIP entry size");
+                entries.Add(new Entry { Name = name, Data = data, Crc32 = GetCrc32(data) });
+            }
+
+            using (var stream = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new BinaryWriter(stream, new UTF8Encoding(false), true))
+            {
+                foreach (Entry entry in entries)
+                {
+                    RequireUInt32(stream.Position, "Canonical ZIP local-header offset");
+                    entry.Offset = (uint)stream.Position;
+                    WriteLocalHeader(writer, entry);
+                }
+
+                RequireUInt32(stream.Position, "Canonical ZIP central-directory offset");
+                uint centralDirectoryOffset = (uint)stream.Position;
+                foreach (Entry entry in entries) WriteCentralHeader(writer, entry);
+                RequireUInt32(stream.Position - centralDirectoryOffset, "Canonical ZIP central-directory size");
+                uint centralDirectorySize = (uint)(stream.Position - centralDirectoryOffset);
+
+                writer.Write(0x06054b50u);
+                writer.Write((ushort)0);
+                writer.Write((ushort)0);
+                writer.Write((ushort)entries.Count);
+                writer.Write((ushort)entries.Count);
+                writer.Write(centralDirectorySize);
+                writer.Write(centralDirectoryOffset);
+                writer.Write((ushort)0);
+            }
+        }
     }
+}
+'@
+    }
+
+    $orderedFiles = @($files | Sort-Object -Property EntryName)
+    [CodexPraetor.ReleasePackaging.CanonicalStoredZipWriter]::Create(
+        $DestinationPath,
+        [string[]]@($orderedFiles | ForEach-Object { $_.FullName }),
+        [string[]]@($orderedFiles | ForEach-Object { $_.EntryName })
+    )
 }
 
 function Write-ReleaseGenerationManifest {

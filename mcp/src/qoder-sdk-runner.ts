@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, renameSync, watch, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, watch } from "node:fs";
 import path from "node:path";
 import { query, qodercliAuth } from "@qoder-ai/qoder-agent-sdk";
+import { writeJsonStateFile } from "./qoder-sdk-state.js";
 
 type RunnerOptions = {
   schema: "codex-praetor-qoder-sdk-runner/v1";
@@ -80,9 +81,7 @@ function writeState(options: RunnerOptions, state: Omit<State, "schema" | "job_i
     ...state,
     updated_at: new Date().toISOString()
   };
-  const temporary = `${options.state_path}.${process.pid}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify(payload)}\n`, "utf8");
-  renameSync(temporary, options.state_path);
+  writeJsonStateFile(options.state_path, payload);
 }
 
 function insideRoot(root: string, candidate: string) {

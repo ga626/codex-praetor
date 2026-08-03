@@ -65,10 +65,11 @@ try {
     Invoke-Check "release package build" (Join-Path $release "build-codex-praetor-release.ps1") $buildArgs
     Invoke-Check "release package determinism" (Join-Path $verify "test-release-package-determinism.ps1") @("-Version", [string]$intent.version)
     Invoke-Check "final artifact runtime" (Join-Path $verify "test-release-artifact-runtime.ps1") @("-Version", [string]$intent.version, "-MarkVerified")
+    $artifactPath = Join-Path $root (".codex-praetor\releases\codex-praetor-setup-" + [string]$intent.version + ".artifact.json")
+    Invoke-Check "provider release hard gate" (Join-Path $verify "test-provider-release-evidence.ps1") @("-EvidencePath", (Join-Path $root ".codex-praetor\provider-release-evidence.json"), "-ArtifactManifestPath", $artifactPath)
     Invoke-Check "historical release mutations" (Join-Path $verify "test-runtime-contract-mutations.ps1")
     Invoke-Check "isolated release closeout" (Join-Path $verify "test-release-closeout.ps1")
 
-    $artifactPath = Join-Path $root (".codex-praetor\releases\codex-praetor-setup-" + [string]$intent.version + ".artifact.json")
     $artifact = Get-Content -LiteralPath $artifactPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$artifact.status -ne "artifact_verified") { throw "Candidate artifact is not verified: $artifactPath" }
     $receiptParent = Split-Path -Parent $ReceiptPath

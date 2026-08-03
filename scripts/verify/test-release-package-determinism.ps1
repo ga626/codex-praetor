@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.21-alpha"
+    [string]$Version = "0.16.22-alpha"
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,6 +64,48 @@ function Assert-ZipEntryMetadata {
     }
 }
 
+function Assert-CanonicalZipStructure {
+    param([string]$ZipPath)
+
+    $bytes = [System.IO.File]::ReadAllBytes($ZipPath)
+    if ($bytes.Length -lt 22) { throw "Release zip is too small for a canonical end record: $ZipPath" }
+    $endOffset = $bytes.Length - 22
+    if ([BitConverter]::ToUInt32($bytes, $endOffset) -ne 0x06054b50) { throw "Release zip has no canonical end record: $ZipPath" }
+    if ([BitConverter]::ToUInt16($bytes, $endOffset + 20) -ne 0) { throw "Release zip must not contain an end-record comment: $ZipPath" }
+    $entryCount = [BitConverter]::ToUInt16($bytes, $endOffset + 10)
+    $centralSize = [BitConverter]::ToUInt32($bytes, $endOffset + 12)
+    $centralOffset = [BitConverter]::ToUInt32($bytes, $endOffset + 16)
+    if ($centralOffset + $centralSize -ne $endOffset) { throw "Release zip central directory does not end at the end record: $ZipPath" }
+
+    $offset = [int]$centralOffset
+    for ($index = 0; $index -lt $entryCount; $index++) {
+        if ($offset + 46 -gt $bytes.Length -or [BitConverter]::ToUInt32($bytes, $offset) -ne 0x02014b50) {
+            throw "Release zip central directory entry $index is malformed: $ZipPath"
+        }
+        $versionMadeBy = [BitConverter]::ToUInt16($bytes, $offset + 4)
+        $versionNeeded = [BitConverter]::ToUInt16($bytes, $offset + 6)
+        $flags = [BitConverter]::ToUInt16($bytes, $offset + 8)
+        $method = [BitConverter]::ToUInt16($bytes, $offset + 10)
+        $dosTime = [BitConverter]::ToUInt16($bytes, $offset + 12)
+        $dosDate = [BitConverter]::ToUInt16($bytes, $offset + 14)
+        $nameLength = [BitConverter]::ToUInt16($bytes, $offset + 28)
+        $extraLength = [BitConverter]::ToUInt16($bytes, $offset + 30)
+        $commentLength = [BitConverter]::ToUInt16($bytes, $offset + 32)
+        $diskStart = [BitConverter]::ToUInt16($bytes, $offset + 34)
+        $internalAttributes = [BitConverter]::ToUInt16($bytes, $offset + 36)
+        $externalAttributes = [BitConverter]::ToUInt32($bytes, $offset + 38)
+
+        if ($versionMadeBy -ne 20 -or $versionNeeded -ne 20 -or $flags -ne 0x0800 -or $method -ne 0) {
+            throw "Release zip central directory entry $index has non-canonical version, UTF-8 flag, or compression metadata: $ZipPath"
+        }
+        if ($dosTime -ne 0 -or $dosDate -ne 0x5821 -or $extraLength -ne 0 -or $commentLength -ne 0 -or $diskStart -ne 0 -or $internalAttributes -ne 0 -or $externalAttributes -ne 0) {
+            throw "Release zip central directory entry $index contains non-canonical metadata: $ZipPath"
+        }
+        $offset += 46 + $nameLength + $extraLength + $commentLength
+    }
+    if ($offset -ne $endOffset) { throw "Release zip central directory length is non-canonical: $ZipPath" }
+}
+
 Remove-Item -LiteralPath (Join-Path $runtimeRoot "determinism-check") -Recurse -Force -ErrorAction SilentlyContinue
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File $buildScript -Version $Version -OutputRoot $outputA -Apply -AllowDraftMetadataPlaceholders
@@ -98,7 +140,9 @@ if ($shaTextA -notlike "$zipHashA*") {
 }
 
 Assert-ZipEntryMetadata -ZipPath $zipA
+Assert-CanonicalZipStructure -ZipPath $zipA
 
 Write-Host "[PASS] Release package builds deterministically: $zipHashA"
 Write-Host "[PASS] Release SHA256 file is reproducible."
 Write-Host "[PASS] Release zip entries are sorted and use fixed timestamps."
+Write-Host "[PASS] Release zip uses canonical stored-entry headers with no runtime-specific metadata."

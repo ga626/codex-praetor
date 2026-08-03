@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-praetor.local/schema/provider-release-evidence/v1",
+  "title": "Codex Praetor provider release evidence",
+  "type": "object",
+  "required": ["schema", "status", "product", "version", "head", "artifact_sha256", "providers"],
+  "properties": {
+    "schema": { "const": "codex-praetor-provider-release-evidence/v1" },
+    "status": { "const": "accepted" },
+    "product": { "const": "codex-praetor" },
+    "version": { "type": "string", "minLength": 1 },
+    "head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "source_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "generated_at": { "type": "string", "minLength": 1 },
+    "providers": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["provider", "job_id", "task_id", "evidence_kind", "model", "connection_mode", "cli_hash", "generation_id", "runtime_contract_sha256", "canary", "completion_status", "exit_code", "evidence_state", "artifact_state", "governance_state", "repository_clean", "accepted"],
+        "properties": {
+          "provider": { "enum": ["qoder", "codebuddy"] },
+          "job_id": { "type": "string", "minLength": 1 },
+          "task_id": { "type": "string", "minLength": 1 },
+          "evidence_kind": { "const": "real_task" },
+          "model": { "type": "string", "minLength": 1 },
+          "connection_mode": { "enum": ["qoder_agent_sdk", "codebuddy_acp"] },
+          "cli_hash": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "generation_id": { "type": "string", "minLength": 1 },
+          "runtime_contract_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "canary": { "type": "object", "required": ["status", "job_id"], "properties": { "status": { "const": "accepted" }, "job_id": { "type": "string", "minLength": 1 } } },
+          "completion_status": { "const": "process_exited" },
+          "exit_code": { "const": 0 },
+          "evidence_state": { "const": "report_valid" },
+          "artifact_state": { "const": "report_observed" },
+          "governance_state": { "const": "accepted" },
+          "repository_clean": { "const": true },
+          "accepted": { "const": true },
+          "accepted_at": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

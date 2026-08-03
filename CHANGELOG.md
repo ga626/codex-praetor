@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.22-alpha
+
+- Fixed a Windows Qoder Agent SDK session-state race where one transient `EPERM`, `EBUSY`, or `EACCES` during atomic replacement could fail a real worker before it started.
+- Added unique temporary state paths, bounded replacement retries, cleanup after a final failure, and regression coverage for successful retry and persistent lock scenarios.
+- Kept the CodeBuddy ACP and Qoder Agent SDK readiness contracts exact, and made dual-provider release acceptance require the same final artifact's current-generation canary and real-task evidence for both providers.
+
 ## 0.16.21-alpha
 
 - Added automatic first-use bootstrap for real plan tasks: after the provider's official login, the first successful real task records the current provider, CLI, model, permission, task kind and connection mode as readiness without asking users to run an internal canary.

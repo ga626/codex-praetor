@@ -22,6 +22,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # pull_request defaults to GitHub's synthetic merge ref. A candidate
+          # artifact and its provider evidence must instead use the immutable
+          # PR head; publication keeps the actual main commit.
+          ref: ${{ inputs.publish && github.sha || github.event.pull_request.head.sha }}
+
+      - name: Assert checkout identity
+        if: ${{ !inputs.publish }}
+        shell: pwsh
+        run: |
+          $expected = '${{ github.event.pull_request.head.sha }}'.ToLowerInvariant()
+          $actual = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Candidate checkout is not the PR head. expected=$expected actual=$actual" }
+          Write-Host "[PASS] Candidate checkout identity: $actual"
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -29,6 +42,38 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: mcp/package-lock.json
+
+      - name: Materialize provider release evidence
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = '${{ github.repository }}'
+          $publish = '${{ inputs.publish }}' -eq 'true'
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
+          if ($publish) {
+            $uri = "https://api.github.com/repos/$repo/commits/${{ github.sha }}/pulls"
+            $pulls = @(Invoke-RestMethod -Method Get -Uri $uri -Headers $headers)
+            $pull = @($pulls | Select-Object -First 1)
+          } else {
+            $number = '${{ github.event.pull_request.number }}'
+            if ([string]::IsNullOrWhiteSpace($number)) { throw 'Provider evidence requires a pull request context.' }
+            $uri = "https://api.github.com/repos/$repo/pulls/$number"
+            $pull = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers
+          }
+          if ($null -eq $pull -or [string]::IsNullOrWhiteSpace([string]$pull.body)) { throw 'The release PR has no provider evidence body.' }
+          $marker = '<!-- codex-praetor-provider-release-evidence -->'
+          $body = [string]$pull.body
+          $markerIndex = $body.IndexOf($marker, [System.StringComparison]::Ordinal)
+          if ($markerIndex -lt 0) { throw "Missing provider evidence marker: $marker" }
+          $tail = $body.Substring($markerIndex + $marker.Length)
+          $match = [regex]::Match($tail, '(?s)```json\s*(.*?)\s*```')
+          if (-not $match.Success) { throw 'Provider evidence marker is not followed by a JSON fence.' }
+          $json = $match.Groups[1].Value.Trim()
+          $null = $json | ConvertFrom-Json
+          New-Item -ItemType Directory -Path '.codex-praetor' -Force | Out-Null
+          Set-Content -LiteralPath '.codex-praetor/provider-release-evidence.json' -Value ($json + [Environment]::NewLine) -Encoding UTF8
+          Write-Host '[PASS] Provider release evidence materialized from the release PR.'
 
       - name: Candidate preflight
         if: ${{ !inputs.publish }}
@@ -125,6 +170,10 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-artifact-runtime.ps1 `
             -Version "$($intent.version)" `
             -OutputRoot ".codex-praetor\releases\promoted" `
+            -ArtifactManifestPath ".codex-praetor\releases\promoted\codex-praetor-setup-$($intent.version).artifact.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-release-evidence.ps1 `
+            -EvidencePath ".codex-praetor\provider-release-evidence.json" `
             -ArtifactManifestPath ".codex-praetor\releases\promoted\codex-praetor-setup-$($intent.version).artifact.json"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

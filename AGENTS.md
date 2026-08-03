@@ -11,6 +11,10 @@
 
 - 改 `plugin/`、`mcp/`、`skill/`、安装/排错/发布路径、版本、用户体验或公开能力即为发布影响 PR；同一 PR 更新版本面、changelog、release notes、`config/release-intent.json` 与能力清单。
 - PR 就绪前从最终 stage/zip 验证受影响场景和全量确定性能力矩阵；源码、`mcp/dist`、`plugin/mcp/dist`、zip、runtime contract 或 generation 任一漂移即失败。真实 provider 仅在其合同、权限、派工或恢复行为变化时，于隔离环境验证并记录真实状态。
+- 发布影响 PR 的合并硬门还包括 PR 正文中的 provider evidence：CI 会把标记段落 materialize 到被忽略的 `.codex-praetor/provider-release-evidence.json`，并绑定 artifact 自己记录的生成提交或其 source tree、同一已验证 artifact SHA、当前 generation/runtime contract，分别包含 Qoder 与 CodeBuddy 各一条 Codex `accepted` 的真实任务和 accepted canary；PR merge ref 与 provider 任务的 source head 可以不同，但必须证明 Git tree 相同；合并后的 `main` 由 promotion tree 校验保证该候选 artifact 与合并内容一致。缺任一家、只提供合成夹具、只提供 process exit 0 或 artifact SHA 不一致都不得合并或发布。证据不进入源码和发布包，避免改变 artifact 身份。
+- 候选 CI 必须显式检出 PR 的 immutable head，并在日志中断言 `git rev-parse HEAD` 与 PR head 相同；不得依赖 GitHub `pull_request` 的默认 synthetic merge ref。候选 artifact 的 SHA 只能绑定该实际检出的提交，main promotion 另行验证合并后的 promotion tree。
+- 发布 ZIP 是跨环境身份物，不得把任意运行时的默认 `ZipArchive`/压缩器输出当作跨机器确定性承诺。写入器必须固定排序、UTF-8 标志、DOS 时间、版本/平台、属性、extra/comment 和压缩方式；确定性检查除重复构建外必须检查这些二进制头字段。遇到 artifact SHA 不一致，先区分检出提交、stage 内容和 ZIP 字节格式，再决定修复；禁止只改 evidence SHA 后重试 CI。
+- 同一发布 PR 首次 CI 失败后，后续推送前必须归类该 PR 的全部失败 run，并用本地定向证据证明共同根因已被覆盖；历史失败可用于补充检查项，但 Dependabot 或无关 PR 的失败不得混入产品根因结论。
 - 阶段 1 的 route、plan、dry-run 和真实 worker 任务属于取证；单样本失败只记录分类并继续冻结矩阵，不得直接触发版本、Release 或 host 刷新。只有至少两条独立真实任务证明同一产品根因，才建立一个集中修复 PR。
 - 共同根因 PR 的开发期只跑受影响组。版本面、候选 artifact 和全量确定性矩阵只能在范围冻结后各运行一次；候选冻结后发现的独立问题记入下一证据门，不回填当前 PR。host 刷新只属于 PR D 的用户交付链，不得作为 PR B 或阶段 1 的诊断工具。
 - 对话只在阶段 1/2 事实报告、公开边界变化、PR D host 刷新或不可恢复 release incident 停下。
