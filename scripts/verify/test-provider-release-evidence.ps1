@@ -27,13 +27,22 @@ $runtime = Read-Json (Join-Path $root "config\runtime-contract.json")
 $head = ((& git -C $root rev-parse HEAD | Out-String).Trim()).ToLowerInvariant()
 $artifactSha = ([string]$artifact.artifact.sha256).ToLowerInvariant()
 $artifactCommit = ([string]$artifact.generation.commit).ToLowerInvariant()
+$sourceTree = ([string]$artifact.generation.source_tree).ToLowerInvariant()
 
 Require ([string]$evidence.schema -eq "codex-praetor-provider-release-evidence/v1") "schema is not provider-release-evidence/v1"
 Require ([string]$evidence.status -eq "accepted") "overall status must be accepted"
 Require ([string]$evidence.product -eq "codex-praetor") "product is not codex-praetor"
 Require ([string]$evidence.version -eq [string]$intent.version) "evidence version does not match release intent"
 Require ($artifactCommit -match '^[0-9a-f]{40}$') "artifact generation commit is missing or malformed"
-Require ([string]$evidence.head -eq $artifactCommit) "evidence head does not match the artifact generation commit"
+Require ($sourceTree -match '^[0-9a-f]{40}$') "artifact source tree is missing or malformed"
+$evidenceHead = ([string]$evidence.head).ToLowerInvariant()
+$evidenceSourceHead = ([string]$evidence.source_head).ToLowerInvariant()
+$headMatches = $evidenceHead -eq $artifactCommit
+if (-not $headMatches -and $evidenceSourceHead -match '^[0-9a-f]{40}$') {
+    $observedTree = ((& git -C $root rev-parse "$evidenceSourceHead^{tree}" 2>$null | Out-String).Trim()).ToLowerInvariant()
+    $headMatches = $observedTree -eq $sourceTree
+}
+Require $headMatches "evidence head/source_head does not match the artifact generation commit or source tree"
 Require ($artifact.status -eq "artifact_verified") "artifact manifest is not artifact_verified"
 Require ([string]$evidence.artifact_sha256.ToLowerInvariant() -eq $artifactSha) "evidence artifact SHA does not match the verified artifact"
 Require ([string]$runtime.version -eq [string]$intent.version) "runtime contract version does not match release intent"

@@ -10,6 +10,7 @@
     "product": { "const": "codex-praetor" },
     "version": { "type": "string", "minLength": 1 },
     "head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "source_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "generated_at": { "type": "string", "minLength": 1 },
     "providers": {
