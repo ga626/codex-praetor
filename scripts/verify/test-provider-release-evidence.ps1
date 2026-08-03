@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) { $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
 $root = [System.IO.Path]::GetFullPath($ProjectRoot)
-if ([string]::IsNullOrWhiteSpace($EvidencePath)) { $EvidencePath = Join-Path $root "config\provider-release-evidence.json" }
+if ([string]::IsNullOrWhiteSpace($EvidencePath)) { $EvidencePath = Join-Path $root ".codex-praetor\provider-release-evidence.json" }
 if ([string]::IsNullOrWhiteSpace($ArtifactManifestPath)) {
     $intent = Get-Content -LiteralPath (Join-Path $root "config\release-intent.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $ArtifactManifestPath = Join-Path $root (".codex-praetor\releases\codex-praetor-setup-" + [string]$intent.version + ".artifact.json")
@@ -26,12 +26,14 @@ $intent = Read-Json (Join-Path $root "config\release-intent.json")
 $runtime = Read-Json (Join-Path $root "config\runtime-contract.json")
 $head = ((& git -C $root rev-parse HEAD | Out-String).Trim()).ToLowerInvariant()
 $artifactSha = ([string]$artifact.artifact.sha256).ToLowerInvariant()
+$artifactCommit = ([string]$artifact.generation.commit).ToLowerInvariant()
 
 Require ([string]$evidence.schema -eq "codex-praetor-provider-release-evidence/v1") "schema is not provider-release-evidence/v1"
 Require ([string]$evidence.status -eq "accepted") "overall status must be accepted"
 Require ([string]$evidence.product -eq "codex-praetor") "product is not codex-praetor"
 Require ([string]$evidence.version -eq [string]$intent.version) "evidence version does not match release intent"
-Require ([string]$evidence.head -eq $head) "evidence head does not match current HEAD"
+Require ($artifactCommit -match '^[0-9a-f]{40}$') "artifact generation commit is missing or malformed"
+Require ([string]$evidence.head -eq $artifactCommit) "evidence head does not match the artifact generation commit"
 Require ($artifact.status -eq "artifact_verified") "artifact manifest is not artifact_verified"
 Require ([string]$evidence.artifact_sha256.ToLowerInvariant() -eq $artifactSha) "evidence artifact SHA does not match the verified artifact"
 Require ([string]$runtime.version -eq [string]$intent.version) "runtime contract version does not match release intent"
@@ -61,5 +63,6 @@ foreach ($entry in @($evidence.providers)) {
 }
 
 Write-Output "[PASS] Provider release hard gate: Qoder and CodeBuddy each have an accepted real task on the same verified artifact."
-Write-Output "head=$head"
+Write-Output "current_head=$head"
+Write-Output "artifact_generation_commit=$artifactCommit"
 Write-Output "artifact_sha256=$artifactSha"
