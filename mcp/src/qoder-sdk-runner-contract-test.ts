@@ -15,4 +15,5 @@ assert.match(source, /pathToQoderCLIExecutable:\s*options\.cli_path/, "Runner mu
 assert.match(source, /QODERCLI_PATH:\s*options\.cli_path/, "Runner must pass the configured user CLI into the SDK child-process environment.");
 assert.match(source, /\.\.\.\(options\.sdk_environment \?\? \{\}\)/, "Runner must preserve the non-secret site configuration selected by the user.");
 assert.doesNotMatch(source, /\binterrupt\s*\(/, "The rejected Qoder interrupt() route must not re-enter the formal runner.");
+assert.match(source, /writeJsonStateFile\(options\.state_path, payload\)/, "State writes must use the resilient replacement helper.");
 console.log("Qoder SDK abort contract regression ok");
