@@ -217,7 +217,12 @@ function New-DeterministicZip {
         $archive = New-Object System.IO.Compression.ZipArchive -ArgumentList $stream, ([System.IO.Compression.ZipArchiveMode]::Create)
         try {
             foreach ($file in $orderedFiles) {
-                $entry = $archive.CreateEntry($file.EntryName, [System.IO.Compression.CompressionLevel]::Optimal)
+                # Deflate bytes are implementation-dependent across the Windows
+                # PowerShell/.NET versions used locally and in GitHub Actions.
+                # Store entries uncompressed so the same source tree produces
+                # the same immutable artifact everywhere; ordering, timestamps,
+                # and source bytes remain fixed by this function.
+                $entry = $archive.CreateEntry($file.EntryName, [System.IO.Compression.CompressionLevel]::NoCompression)
                 $entry.LastWriteTime = $EntryTimestamp
                 $inputStream = [System.IO.File]::OpenRead($file.FullName)
                 try {
