@@ -22,6 +22,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # pull_request defaults to GitHub's synthetic merge ref. A candidate
+          # artifact and its provider evidence must instead use the immutable
+          # PR head; publication keeps the actual main commit.
+          ref: ${{ inputs.publish && github.sha || github.event.pull_request.head.sha }}
+
+      - name: Assert checkout identity
+        if: ${{ !inputs.publish }}
+        shell: pwsh
+        run: |
+          $expected = '${{ github.event.pull_request.head.sha }}'.ToLowerInvariant()
+          $actual = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Candidate checkout is not the PR head. expected=$expected actual=$actual" }
+          Write-Host "[PASS] Candidate checkout identity: $actual"
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
