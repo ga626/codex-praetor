@@ -29,13 +29,13 @@ try {
 
     $packagePath = Join-Path $scratch "mcp\package.json"
     $packageText = Get-Content -LiteralPath $packagePath -Raw -Encoding UTF8
-    $typescriptVersion = [regex]::Match($packageText, '"typescript"\s*:\s*"(?<version>[^"]+)"')
-    Assert-True $typescriptVersion.Success "Fixture no longer contains the typescript development dependency."
-    $replacementVersion = $typescriptVersion.Groups["version"].Value + "-fixture.0"
-    $updated = $packageText.Substring(0, $typescriptVersion.Groups["version"].Index) + $replacementVersion + $packageText.Substring($typescriptVersion.Groups["version"].Index + $typescriptVersion.Groups["version"].Length)
+    $runtimeDependencyVersion = [regex]::Match($packageText, '"@qoder-ai/qoder-agent-sdk"\s*:\s*"(?<version>[^"]+)"')
+    Assert-True $runtimeDependencyVersion.Success "Fixture no longer contains the Qoder SDK production dependency."
+    $replacementVersion = $runtimeDependencyVersion.Groups["version"].Value + "-fixture.0"
+    $updated = $packageText.Substring(0, $runtimeDependencyVersion.Groups["version"].Index) + $replacementVersion + $packageText.Substring($runtimeDependencyVersion.Groups["version"].Index + $runtimeDependencyVersion.Groups["version"].Length)
     Set-Content -LiteralPath $packagePath -Value $updated -Encoding UTF8
     & git -C $scratch add mcp/package.json
-    & git -C $scratch commit -qm "update dev dependency"
+    & git -C $scratch commit -qm "update production dependency"
     if ($LASTEXITCODE -ne 0) { throw "Unable to commit the dependency-only fixture change." }
 
     # There is deliberately no origin remote. A non-release candidate must not

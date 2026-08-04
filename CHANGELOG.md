@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.27-alpha
+
+- Fixed the shared CI pipeline so dependency-manifest-only changes run deterministic MCP installation and tests instead of failing before test execution for missing release-only PR evidence.
+- Preserved the strict candidate ZIP, Desktop host receipt, and same-artifact promotion gates for actual release-impact changes.
+- Updated Hono to 4.13.0, ip-address to 10.4.0, `@modelcontextprotocol/sdk` to 1.30.0, and `@qoder-ai/qoder-agent-sdk` to 1.0.17.
+
 ## 0.16.26-alpha
 
 - Changed release-impact delivery from “merge then first host verification” to a candidate-first gate: PR CI creates one attested ZIP, a real Codex Desktop must prove that exact candidate generation before main may promote it.
