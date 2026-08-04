@@ -22,7 +22,7 @@
     "author":  "Codex Praetor",
     "license":  "MIT",
     "dependencies":  {
-                         "@qoder-ai/qoder-agent-sdk":  "1.0.15",
+                         "@qoder-ai/qoder-agent-sdk":  "1.0.17",
                          "@modelcontextprotocol/sdk":  "^1.30.0",
                          "zod":  "^4.4.3"
                      },
