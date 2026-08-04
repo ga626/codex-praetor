@@ -23,6 +23,8 @@ $candidateHostReceiptWriterPath = Join-Path $root "scripts\release\write-candida
 $candidateActivationPath = Join-Path $root "scripts\release\activate-pr-candidate.ps1"
 $intentGatePath = Join-Path $root "scripts\verify\test-release-intent.ps1"
 $preflightPath = Join-Path $root "scripts\verify\invoke-release-candidate-preflight.ps1"
+$preCommitHookPath = Join-Path $root ".githooks\pre-commit"
+$prePushHookPath = Join-Path $root ".githooks\pre-push"
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -60,6 +62,8 @@ Assert-True (Test-Path -LiteralPath $candidateHostReceiptWriterPath -PathType Le
 Assert-True (Test-Path -LiteralPath $candidateActivationPath -PathType Leaf) "Candidate activation entry is missing: $candidateActivationPath"
 Assert-True (Test-Path -LiteralPath $intentGatePath -PathType Leaf) "Release intent gate is missing: $intentGatePath"
 Assert-True (Test-Path -LiteralPath $preflightPath -PathType Leaf) "Candidate preflight is missing: $preflightPath"
+Assert-True (Test-Path -LiteralPath $preCommitHookPath -PathType Leaf) "Fast pre-commit hook is missing: $preCommitHookPath"
+Assert-True (Test-Path -LiteralPath $prePushHookPath -PathType Leaf) "Fast pre-push hook is missing: $prePushHookPath"
 
 $ciText = Get-Content -LiteralPath $ciPath -Raw -Encoding UTF8
 $releaseText = Get-Content -LiteralPath $releasePath -Raw -Encoding UTF8
@@ -68,6 +72,8 @@ $publisherText = Get-Content -LiteralPath $publisherPath -Raw -Encoding UTF8
 $resolverText = Get-Content -LiteralPath $resolverPath -Raw -Encoding UTF8
 $intentGateText = Get-Content -LiteralPath $intentGatePath -Raw -Encoding UTF8
 $preflightText = Get-Content -LiteralPath $preflightPath -Raw -Encoding UTF8
+$preCommitHookText = Get-Content -LiteralPath $preCommitHookPath -Raw -Encoding UTF8
+$prePushHookText = Get-Content -LiteralPath $prePushHookPath -Raw -Encoding UTF8
 
 $candidateArtifactName = (& $candidateArtifactNamePath -Version "0.16.16-alpha" -PullRequestNumber 74 -HeadSha "0123456789abcdef0123456789abcdef01234567" | Out-String).Trim()
 Assert-True ($candidateArtifactName -eq "codex-praetor-candidate-0.16.16-alpha-pr74-0123456789abcdef0123456789abcdef01234567") "Candidate artifact naming helper must produce the canonical version, PR, and full-SHA name."
@@ -114,6 +120,12 @@ Assert-True ($pipelineText -match 'ResumeExistingRelease') "A retry at the origi
 Assert-True ($preflightText -match 'test-release-artifact-runtime\.ps1') "Candidate preflight must execute final zip runtime acceptance."
 Assert-True ($preflightText -match 'test-release-artifact-runtime\.ps1.*-MarkVerified') "Candidate preflight must mark the verified artifact."
 Assert-True ($preflightText -match 'test-provider-canary-evidence\.ps1') "Candidate preflight must regress canary evidence."
+foreach ($hook in @(@{ name = 'pre-commit'; text = $preCommitHookText }, @{ name = 'pre-push'; text = $prePushHookText })) {
+    Assert-True ($hook.text -match 'git diff .*--check') "$($hook.name) must reject whitespace damage quickly."
+    Assert-True ($hook.text -match 'doctor-codex-praetor\.ps1') "$($hook.name) must retain the fast staged doctor gate."
+    Assert-True ($hook.text -match 'test-release-workflow-readiness\.ps1') "$($hook.name) must retain release-control static checks."
+    Assert-True ($hook.text -notmatch 'test-codex-praetor\.ps1') "$($hook.name) must not duplicate the full product regression before every push."
+}
 Assert-True ($pipelineText -notmatch 'OutputRoot\s+"\.codex-praetor\\ci-release"') "Publication must not switch to a second ci-release build output."
 Assert-True ($pipelineText -notmatch '(?ms)if:\s*\$\{\{\s*inputs\.publish\s*\}\}\s*\r?\n\s*shell:\s*pwsh\s*\r?\n\s*env:\s*\r?\n\s*GH_TOKEN.*invoke-release-candidate-preflight') "Main publication must not invoke the candidate preflight and rebuild a second ZIP."
 Assert-True ($publisherText -match 'artifact_verified') "Publisher must require an artifact_verified manifest."
