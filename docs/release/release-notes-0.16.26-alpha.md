@@ -13,3 +13,5 @@ After installing or updating, a user may need one supported Codex Desktop refres
 ## No provider or account expansion
 
 This release changes release assurance and installation recovery only. It does not add a provider, model, account permission, or new worker execution capability.
+
+Qoder Agent SDK and CodeBuddy ACP keep their existing structured progress and formal cancellation contracts. This release does not change either provider's dispatch, permission, connection, or recovery semantics.
