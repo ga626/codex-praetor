@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.16.25-alpha`
+Target release: `0.16.26-alpha`
 
-Status: `v0.16.14-alpha` stopped before creating a tag, Release, or public download. It must not be backfilled or overwritten. `v0.16.25-alpha` is the next immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
+Status: `v0.16.14-alpha` stopped before creating a tag, Release, or public download. It must not be backfilled or overwritten. `v0.16.26-alpha` is the next immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
@@ -110,7 +110,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 8. 远端下载复验通过后，Codex 在本机执行同一 Release 的自动激活：
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.16.25-alpha -Json
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.16.26-alpha -Json
    ```
 
    它不手改 cache 或用户 readiness；会停在 `needs_host_restart` 或 `needs_first_use_bootstrap`。前者只需要一次受支持的 Desktop 刷新，之后必须用 `runtime_info` 验明运行身份。后者不是发布失败：用户完成 provider 官方登录后，第一次真实计划任务会在隔离 worktree 中自动记录首用 readiness；不要求用户手动运行内部 canary。
@@ -139,3 +139,11 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 ## 依赖更新 PR 的处理
 
 `mcp/`、plugin 或安装包依赖会进入用户下载的 zip，因此属于发布影响变更。Dependabot 可以继续提出候选 PR，但它不会自动填写产品版本、release notes 和 release intent；这类 PR 的失败门禁是预期的“不得直接合并”信号。审阅通过后，把依赖变更纳入下一份显式递增版本的产品 PR，而不是绕过门禁合并。
+# Candidate-first release sequence
+
+1. PR CI builds, package-tests, and attests the one candidate ZIP.
+2. The maintainer activates that ZIP with its candidate receipt; the installer automatically preserves the preceding stable plugin.
+3. After one supported Desktop refresh, `runtime_info` proves the candidate generation. Add the generated candidate-host receipt to the PR body under `<!-- codex-praetor-candidate-host-receipt -->`.
+4. Only then merge. Main retrieves the existing ZIP, verifies the receipt and source tree, creates a draft, uploads the same ZIP, downloads it for SHA/package verification, then publishes the draft.
+
+Do not rebuild after host acceptance, substitute an asset, or rerun a public provider task after publication. A failed tag or draft is a release incident: rerun the original workflow SHA and preserve the existing candidate/draft evidence.

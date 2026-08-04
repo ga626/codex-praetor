@@ -19,7 +19,7 @@
 
 ## 看不到 Codex Praetor 插件
 
-先确认你已经运行过安装向导。如果你使用的是 `0.16.25-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
+先确认你已经运行过安装向导。如果你使用的是 `0.16.26-alpha` 的 Windows 安装 zip，优先直接双击根目录的 `setup.cmd`。自动化或排错时也可以运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
@@ -184,3 +184,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\doctor-code
 ```text
 https://github.com/ga626/codex-praetor/issues
 ```
+# 候选安装回退（仅发布维护者）
+
+如果候选安装后 Desktop 未加载预期 generation，不要改缓存、认证或 provider 数据。使用候选激活结果里的 `previous_stable_backup` 调用 `scripts/release/restore-candidate-stable-backup.ps1 -BackupPath <path> -Apply` 恢复上一份 stable，然后刷新一次 Desktop。普通用户不需要执行这一步；他们应使用已公开 Release 的正常安装路径。

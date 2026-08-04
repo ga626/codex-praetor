@@ -1,9 +1,10 @@
 param(
-    [string]$Version = "0.16.25-alpha",
+    [string]$Version = "0.16.26-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ReleaseZip = "",
     [string]$ReleaseSha256 = "",
+    [string]$CandidateReceiptPath = "",
     [string]$UserProfileRoot = $env:USERPROFILE,
     [string]$CodexCommand = "codex",
     [string]$HostRuntimeInfoPath = "",
@@ -102,15 +103,31 @@ try {
         $shaPath = Join-Path $tempRoot "$releaseName.zip.sha256"
     }
     if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw "Release zip is missing: $zipPath" }
+    $candidateReceipt = $null
+    if (-not [string]::IsNullOrWhiteSpace($CandidateReceiptPath)) {
+        if ($sourceKind -ne "explicit_release_fixture") { throw "Candidate activation requires an explicit candidate ZIP and SHA256 sidecar." }
+        $CandidateReceiptPath = [System.IO.Path]::GetFullPath($CandidateReceiptPath)
+        if (-not (Test-Path -LiteralPath $CandidateReceiptPath -PathType Leaf)) { throw "Candidate receipt is missing: $CandidateReceiptPath" }
+        $candidateReceipt = Get-Content -LiteralPath $CandidateReceiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$candidateReceipt.schema -ne "codex-praetor-release-candidate/v1" -or [string]$candidateReceipt.status -ne "artifact_verified") { throw "Candidate receipt is not an artifact_verified v1 receipt." }
+        if ([string]$candidateReceipt.candidate.version -ne $Version) { throw "Candidate receipt version differs from requested activation version." }
+        $sourceKind = "verified_pr_candidate"
+    }
     if ($SkipMaintenance -and $sourceKind -eq "published_release") { throw "Published Release activation may not skip generation maintenance installation." }
     $expectedHash = Read-SidecarHash -Path $shaPath
     $actualHash = Get-Sha256 -Path $zipPath
     if ($actualHash -ne $expectedHash) { throw "Release zip hash differs from its SHA256 sidecar." }
+    if ($null -ne $candidateReceipt -and $actualHash -ne ([string]$candidateReceipt.artifact.zip_sha256).ToLowerInvariant()) { throw "Candidate ZIP hash differs from its verified candidate receipt." }
 
     $stage = Join-Path $tempRoot "stage"
     Expand-Archive -LiteralPath $zipPath -DestinationPath $stage -Force
     $generationPath = Join-Path $stage "codex-praetor-release-generation.json"
     $generation = Read-ReleaseGeneration -Path $generationPath
+    if ($null -ne $candidateReceipt) {
+        if ([string]$generation.generation_id -ne [string]$candidateReceipt.generation.id -or [string]$generation.source_tree -ne [string]$candidateReceipt.generation.source_tree -or [string]$generation.runtime_contract_sha256 -ne [string]$candidateReceipt.generation.runtime_contract_sha256) {
+            throw "Candidate bundle generation does not match the verified candidate receipt."
+        }
+    }
     if ($sourceKind -eq "published_release") {
         $tagCommit = Resolve-GitHubTagCommit -Repo $Repository -ReleaseTag $Tag
         $tagTree = Resolve-GitHubCommitTree -Repo $Repository -Commit $tagCommit
@@ -127,6 +144,8 @@ try {
     $profileRoot = [System.IO.Path]::GetFullPath($UserProfileRoot)
     $installRoot = Join-Path $profileRoot "plugins\codex-praetor"
     $marketplacePath = Join-Path $profileRoot ".agents\plugins\marketplace.json"
+    $backupRoot = Join-Path (Split-Path -Parent $installRoot) ".codex-praetor-backups"
+    $backupsBefore = if (Test-Path -LiteralPath $backupRoot) { @(Get-ChildItem -LiteralPath $backupRoot -Directory | Select-Object -ExpandProperty FullName) } else { @() }
     $installOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File $installScript -SourcePlugin (Join-Path $stage "plugin") -ExpectedGenerationPath $generationPath -InstallRoot $installRoot -MarketplacePath $marketplacePath -Apply | Out-String)
     if ($LASTEXITCODE -ne 0) { throw "Bundled user installer failed." }
     if (-not $Json -and -not [string]::IsNullOrWhiteSpace($installOutput)) { Write-Host $installOutput.TrimEnd() }
@@ -150,6 +169,8 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($HostRuntimeInfoPath)) { $stateArgs += @("-HostRuntimeInfoPath", [System.IO.Path]::GetFullPath($HostRuntimeInfoPath)) }
     $state = (& powershell @stateArgs | Out-String | ConvertFrom-Json)
     if ([string]$state.status -eq "needs_install") { throw "Stable marketplace identity does not match the verified Release after activation." }
+    $backupsAfter = if (Test-Path -LiteralPath $backupRoot) { @(Get-ChildItem -LiteralPath $backupRoot -Directory | Select-Object -ExpandProperty FullName) } else { @() }
+    $createdBackup = @($backupsAfter | Where-Object { $_ -notin $backupsBefore } | Sort-Object -Descending | Select-Object -First 1)
     $payload = [ordered]@{
         schema = "codex-praetor-published-activation/v1"
         status = [string]$state.status
@@ -158,6 +179,8 @@ try {
         tag = $Tag
         generation = $generation
         release_sha256 = $actualHash
+        candidate_receipt_sha256 = if ($null -eq $candidateReceipt) { "" } else { (Get-Sha256 -Path $CandidateReceiptPath) }
+        previous_stable_backup = if ($createdBackup.Count -eq 1) { [string]$createdBackup[0] } else { "" }
         installation_state = $state
         next_action = [string]$state.next_action
     }

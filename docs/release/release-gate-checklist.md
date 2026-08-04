@@ -48,7 +48,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.16.25-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.16.26-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -138,3 +138,10 @@ Stop before irreversible public release steps and ask for confirmation when:
 - Creating a new version tag or GitHub release.
 - Publishing any package/archive intended for other users.
 - Replacing existing GitHub Release assets with `gh release upload --clobber`.
+# Candidate-first public release rule
+
+For every release-impact PR, first build and attest one candidate ZIP in PR CI. Before merging, install that exact ZIP into the maintainer stable entry with the bundled transactional installer, refresh Codex Desktop once, and record a candidate-host receipt from `codex_praetor_runtime_info`. The receipt must match the candidate ZIP SHA, generation, runtime-contract SHA, and PR source tree. The main workflow promotes only that ZIP.
+
+Provider credit is not a per-version tax: rerun a minimal real provider task only when the affected provider's adapter, identity, permission, connection, task contract, dispatch, or recovery semantics changed. Documentation, release metadata, and release-control-only changes use deterministic checks plus the host receipt.
+
+After merge, create a GitHub draft with the promoted ZIP, download-verify that draft, then publish it. A public Release is not the first functional test. If a tag or draft step fails, stop new release work and rerun the original SHA as a release incident.

@@ -17,10 +17,12 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $fixture "docs") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $fixture "config") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $fixture "scripts\dispatch") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $fixture "mcp\src") -Force | Out-Null
     Invoke-Git @("init", "-q")
     Invoke-Git @("config", "user.email", "fixture@example.invalid")
     Invoke-Git @("config", "user.name", "Codex Praetor Fixture")
     [IO.File]::WriteAllText((Join-Path $fixture "scripts\dispatch\invoke-codex-praetor.ps1"), "# fixture`n", (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText((Join-Path $fixture "mcp\src\tools.ts"), "export function runtimeInfoTool() { return 'baseline'; }`nexport function capabilityProfilesTool() { return 'provider-sensitive'; }`n", (New-Object Text.UTF8Encoding($false)))
     [IO.File]::WriteAllText((Join-Path $fixture "config\runtime-contract.json"), '{"product":"codex-praetor","version":"0.16.24-alpha","taskContractSchema":"fixture/v1"}' + "`n", (New-Object Text.UTF8Encoding($false)))
     Invoke-Git @("add", ".")
     Invoke-Git @("commit", "-qm", "provider source")
@@ -43,11 +45,20 @@ try {
     Assert-True ($versionImpact.Count -eq 0) "A runtime-contract version-only release change must not demand new provider evidence."
     Assert-True ($sourceSurface -eq (Get-CodexPraetorProviderCompatibilitySurfaceHash -Repo $fixture -Revision $versionTarget)) "A runtime-contract version-only release change must preserve the provider surface hash."
 
+    $toolsPath = Join-Path $fixture "mcp\src\tools.ts"
+    [IO.File]::WriteAllText($toolsPath, ((Get-Content -LiteralPath $toolsPath -Raw -Encoding UTF8).Replace("baseline", "observed")), (New-Object Text.UTF8Encoding($false)))
+    Invoke-Git @("add", "mcp/src/tools.ts")
+    Invoke-Git @("commit", "-qm", "runtime observability")
+    $observabilityTarget = ((& git -C $fixture rev-parse HEAD | Out-String).Trim())
+    $observabilityImpact = @(Get-CodexPraetorProviderCompatibilityImpact -Repo $fixture -ComparisonBase $versionTarget -TargetRef $observabilityTarget)
+    Assert-True ($observabilityImpact.Count -eq 0) "runtime_info-only changes must not demand provider evidence."
+    Assert-True ($sourceSurface -eq (Get-CodexPraetorProviderCompatibilitySurfaceHash -Repo $fixture -Revision $observabilityTarget)) "runtime_info-only changes must preserve the provider compatibility surface hash."
+
     [IO.File]::AppendAllText((Join-Path $fixture "scripts\dispatch\invoke-codex-praetor.ps1"), "# provider behavior changed`n", (New-Object Text.UTF8Encoding($false)))
     Invoke-Git @("add", ".")
     Invoke-Git @("commit", "-qm", "provider behavior")
     $providerTarget = ((& git -C $fixture rev-parse HEAD | Out-String).Trim())
-    $providerImpact = @(Get-CodexPraetorProviderCompatibilityImpact -Repo $fixture -ComparisonBase $versionTarget -TargetRef $providerTarget)
+    $providerImpact = @(Get-CodexPraetorProviderCompatibilityImpact -Repo $fixture -ComparisonBase $observabilityTarget -TargetRef $providerTarget)
     Assert-True (($providerImpact -join ",") -eq "codebuddy,qoder") "Provider behavior change must invalidate both provider evidence tuples."
     Assert-True ($sourceSurface -ne (Get-CodexPraetorProviderCompatibilitySurfaceHash -Repo $fixture -Revision $providerTarget)) "Provider behavior change must invalidate the portable provider surface hash."
     Write-Output "[PASS] Provider evidence continuity permits documentation/version-only releases and rejects provider behavior changes."

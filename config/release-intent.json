@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.25-alpha",
-    "previous_version":  "0.16.24-alpha",
-    "tag":  "v0.16.25-alpha",
+    "version":  "0.16.26-alpha",
+    "previous_version":  "0.16.25-alpha",
+    "tag":  "v0.16.26-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.25-alpha.zip",
-    "reason":  "交付未发布的 Qoder Agent SDK 与 CodeBuddy ACP readiness/first-use 改进，并修复 main promotion 将 PR candidate commit 误要求等于 merge commit 的回归：candidate 绑定 PR head，main 仅在 source tree 相同且 receipt/SHA 完整时提升同一不可变 artifact。"
+    "artifact":  "codex-praetor-setup-0.16.26-alpha.zip",
+    "reason":  "将发布链改为候选制品先经真实 Codex Desktop 验收、main 只提升同一 ZIP，并在 GitHub draft 下载复验后才公开；保留 Qoder Agent SDK 与 CodeBuddy ACP 的既有 structured progress 和 formal cancellation 合同，本次不改变它们的执行语义。"
 }

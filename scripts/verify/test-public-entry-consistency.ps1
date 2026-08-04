@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.16.25-alpha",
+    [string]$Version = "0.16.26-alpha",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ProjectRoot = "",
     [switch]$SkipRemoteRelease
@@ -176,7 +176,7 @@ Assert-Contains -Text $releaseNotes -Needle "structured progress" -Label $releas
 Assert-Contains -Text $releaseNotes -Needle "formal cancellation" -Label $releaseNotesPath
 Assert-Contains -Text $releaseIntent -Needle "Qoder Agent SDK" -Label "config/release-intent.json"
 Assert-Contains -Text $releaseIntent -Needle "CodeBuddy ACP" -Label "config/release-intent.json"
-Assert-Contains -Text $changelog -Needle "0.16.25-alpha" -Label "CHANGELOG.md"
+Assert-Contains -Text $changelog -Needle "0.16.26-alpha" -Label "CHANGELOG.md"
 Assert-Contains -Text $troubleshooting -Needle "进展" -Label "docs/user/troubleshooting.zh.md"
 foreach ($entry in @{ "README.md" = $readme; "README.en.md" = $readmeEn; $releaseNotesPath = $releaseNotes; "config/release-intent.json" = $releaseIntent }.GetEnumerator()) {
     Assert-NotContains -Text $entry.Value -Needle "只修正只读解析" -Label $entry.Key

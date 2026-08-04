@@ -43,7 +43,7 @@ jobs:
           cache: npm
           cache-dependency-path: mcp/package-lock.json
 
-      - name: Materialize provider release evidence
+      - name: Materialize release PR evidence
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -61,19 +61,22 @@ jobs:
             $uri = "https://api.github.com/repos/$repo/pulls/$number"
             $pull = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers
           }
-          if ($null -eq $pull -or [string]::IsNullOrWhiteSpace([string]$pull.body)) { throw 'The release PR has no provider evidence body.' }
-          $marker = '<!-- codex-praetor-provider-release-evidence -->'
+          if ($null -eq $pull -or [string]::IsNullOrWhiteSpace([string]$pull.body)) { throw 'The release PR has no evidence body.' }
           $body = [string]$pull.body
-          $markerIndex = $body.IndexOf($marker, [System.StringComparison]::Ordinal)
-          if ($markerIndex -lt 0) { throw "Missing provider evidence marker: $marker" }
-          $tail = $body.Substring($markerIndex + $marker.Length)
-          $match = [regex]::Match($tail, '(?s)```json\s*(.*?)\s*```')
-          if (-not $match.Success) { throw 'Provider evidence marker is not followed by a JSON fence.' }
-          $json = $match.Groups[1].Value.Trim()
-          $null = $json | ConvertFrom-Json
           New-Item -ItemType Directory -Path '.codex-praetor' -Force | Out-Null
-          Set-Content -LiteralPath '.codex-praetor/provider-release-evidence.json' -Value ($json + [Environment]::NewLine) -Encoding UTF8
-          Write-Host '[PASS] Provider release evidence materialized from the release PR.'
+          function Materialize-JsonMarker([string]$Marker, [string]$Path, [bool]$Required) {
+            $markerIndex = $body.IndexOf($Marker, [System.StringComparison]::Ordinal)
+            if ($markerIndex -lt 0) { if ($Required) { throw "Missing required PR evidence marker: $Marker" }; return }
+            $tail = $body.Substring($markerIndex + $Marker.Length)
+            $match = [regex]::Match($tail, '(?s)```json\s*(.*?)\s*```')
+            if (-not $match.Success) { throw "PR evidence marker is not followed by JSON: $Marker" }
+            $json = $match.Groups[1].Value.Trim()
+            $null = $json | ConvertFrom-Json
+            Set-Content -LiteralPath $Path -Value ($json + [Environment]::NewLine) -Encoding UTF8
+          }
+          Materialize-JsonMarker '<!-- codex-praetor-provider-release-evidence -->' '.codex-praetor/provider-release-evidence.json' $true
+          Materialize-JsonMarker '<!-- codex-praetor-candidate-host-receipt -->' '.codex-praetor/candidate-host-receipt.json' $publish
+          Write-Host '[PASS] Release PR evidence materialized.'
 
       - name: Candidate preflight
         if: ${{ !inputs.publish }}
@@ -176,6 +179,11 @@ jobs:
             -EvidencePath ".codex-praetor\provider-release-evidence.json" `
             -ArtifactManifestPath ".codex-praetor\releases\promoted\codex-praetor-setup-$($intent.version).artifact.json" `
             -BaseRef '${{ inputs.base_ref }}' `
+            -PromotionMainCommit "${{ github.sha }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-candidate-host-receipt.ps1 `
+            -ReceiptPath ".codex-praetor\candidate-host-receipt.json" `
+            -ArtifactManifestPath ".codex-praetor\releases\promoted\codex-praetor-setup-$($intent.version).artifact.json" `
             -PromotionMainCommit "${{ github.sha }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
