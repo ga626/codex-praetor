@@ -37,7 +37,7 @@ $receipt = [ordered]@{
     pull_request = [ordered]@{ number = $PullRequestNumber; head_sha = $HeadSha.ToLowerInvariant(); base_sha = $BaseSha.ToLowerInvariant() }
     candidate = [ordered]@{ version = $Version; checkout_commit = $head; content_tree = $tree }
     artifact = [ordered]@{ name = $releaseName; zip_sha256 = $zipHash; manifest_sha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant() }
-    generation = [ordered]@{ id = [string]$manifest.generation.id; commit = [string]$manifest.generation.commit; source_tree = [string]$manifest.generation.source_tree; content_manifest_sha256 = [string]$manifest.generation.content_manifest_sha256 }
+    generation = [ordered]@{ id = [string]$manifest.generation.id; commit = [string]$manifest.generation.commit; source_tree = [string]$manifest.generation.source_tree; runtime_contract_sha256 = [string]$manifest.generation.runtime_contract_sha256; content_manifest_sha256 = [string]$manifest.generation.content_manifest_sha256 }
     created_at = [DateTime]::UtcNow.ToString("o")
 }
 [IO.File]::WriteAllText($receiptPath, (($receipt | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))

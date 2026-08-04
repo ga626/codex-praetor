@@ -7,6 +7,7 @@ $scratch = Join-Path $root (".codex-praetor\published-activation-" + [Guid]::New
 $build = Join-Path $root "scripts\release\build-codex-praetor-release.ps1"
 $generation = Join-Path $root "scripts\release\get-codex-praetor-generation.ps1"
 $activation = Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1"
+$candidateReceiptWriter = Join-Path $root "scripts\release\write-release-candidate-receipt.ps1"
 $hostReceiptWriter = Join-Path $root "scripts\release\write-candidate-host-receipt.ps1"
 $hostReceiptGate = Join-Path $root "scripts\verify\test-candidate-host-receipt.ps1"
 
@@ -29,8 +30,13 @@ try {
     $artifact.status = "artifact_verified"
     $artifact.verification = [ordered]@{ status = "passed" }
     $artifact | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $artifactManifest -Encoding UTF8
-    $candidateReceipt = Join-Path $scratch "candidate.json"
-    [ordered]@{ schema = "codex-praetor-release-candidate/v1"; status = "artifact_verified"; pull_request = [ordered]@{ number = 123; head_sha = "0123456789abcdef0123456789abcdef01234567" }; candidate = [ordered]@{ version = $version; checkout_commit = "0123456789abcdef0123456789abcdef01234567"; content_tree = [string]$artifact.generation.source_tree }; artifact = [ordered]@{ zip_sha256 = [string]$artifact.artifact.sha256; manifest_sha256 = (Get-FileHash -LiteralPath $artifactManifest -Algorithm SHA256).Hash.ToLowerInvariant() }; generation = $artifact.generation } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $candidateReceipt -Encoding UTF8
+    $head = ((& git -C $root rev-parse HEAD) | Out-String).Trim()
+    $base = ((& git -C $root rev-parse HEAD^) | Out-String).Trim()
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $candidateReceiptWriter -Version $version -PullRequestNumber 123 -HeadSha $head -BaseSha $base -ProjectRoot $root -OutputRoot $releaseRootRelative
+    if ($LASTEXITCODE -ne 0) { throw "Candidate receipt writing fixture failed." }
+    $candidateReceipt = Join-Path $releaseRoot "codex-praetor-setup-$version.candidate.json"
+    $writtenCandidateReceipt = Get-Content -LiteralPath $candidateReceipt -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$writtenCandidateReceipt.generation.runtime_contract_sha256 -eq [string]$artifact.generation.runtime_contract_sha256) "Candidate receipt must retain the artifact runtime contract identity for stable activation."
     $profile = Join-Path $scratch "profile"
     $expectedCodexHome = Join-Path $profile ".codex"
     $fakeCodex = Join-Path $scratch "fake-codex.cmd"
