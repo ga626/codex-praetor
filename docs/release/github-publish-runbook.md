@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.16.24-alpha`
+Target release: `0.16.25-alpha`
 
-Status: `v0.16.14-alpha` stopped before creating a tag, Release, or public download. It must not be backfilled or overwritten. `v0.16.24-alpha` is the next immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
+Status: `v0.16.14-alpha` stopped before creating a tag, Release, or public download. It must not be backfilled or overwritten. `v0.16.25-alpha` is the next immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
@@ -19,6 +19,7 @@ This runbook defines the single merge-to-release pipeline. A release-impacting P
 - The repository must have a protected `main` branch, required CI checks, and `contents: write` permission for the `Release On Main` workflow.
 - Release tags and assets are immutable. A version already tagged on another commit is a hard failure, never an asset replacement.
 - A publishable artifact must have an `artifact_verified` manifest matching its zip SHA; the publisher may not rebuild a second upload candidate.
+- 合并后的 main commit 与 PR candidate head 通常不是同一个 SHA。promotion 必须以候选回执和 `source_tree` 证明它们内容相同；不得把“SHA 不同”当成 artifact 失效，也不得在树不同的情况下提升候选包。
 - The automatic workflow is the only supported public release path; do not run the old manual sequence after merge.
 
 ## User-Owned One-Time Actions
@@ -109,7 +110,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 8. 远端下载复验通过后，Codex 在本机执行同一 Release 的自动激活：
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.16.24-alpha -Json
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.16.25-alpha -Json
    ```
 
    它不手改 cache 或用户 readiness；会停在 `needs_host_restart` 或 `needs_first_use_bootstrap`。前者只需要一次受支持的 Desktop 刷新，之后必须用 `runtime_info` 验明运行身份。后者不是发布失败：用户完成 provider 官方登录后，第一次真实计划任务会在隔离 worktree 中自动记录首用 readiness；不要求用户手动运行内部 canary。

@@ -673,6 +673,14 @@ if (Test-Path -LiteralPath $providerEvidenceContinuityTest -PathType Leaf) {
     } catch { Add-Fail "Provider release evidence continuity regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Provider release evidence continuity script missing: $providerEvidenceContinuityTest" }
 
+$providerPromotionTreeTest = Join-Path $projectRoot "scripts\verify\test-provider-release-evidence-promotion-tree.ps1"
+if (Test-Path -LiteralPath $providerPromotionTreeTest -PathType Leaf) {
+    try {
+        $promotionTreeOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $providerPromotionTreeTest -ProjectRoot $projectRoot
+        if ($LASTEXITCODE -eq 0 -and (($promotionTreeOutput | Out-String) -match "Promotion accepts")) { Add-Pass "Provider promotion-tree regression passes" } else { Add-Fail "Provider promotion-tree regression failed: $($promotionTreeOutput | Out-String)" }
+    } catch { Add-Fail "Provider promotion-tree regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Provider promotion-tree regression script missing: $providerPromotionTreeTest" }
+
 $devIsolationTest = Join-Path $projectRoot "scripts\verify\test-dev-channel-isolation.ps1"
 if (Test-Path -LiteralPath $devIsolationTest -PathType Leaf) {
     try {

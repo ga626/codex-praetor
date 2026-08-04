@@ -89,6 +89,8 @@ Assert-True ($pipelineText -match 'get-release-candidate-artifact-name\.ps1') "P
 Assert-True ($pipelineText -match 'steps\.candidate_artifact\.outputs\.name') "PR CI upload must use the shared candidate artifact name output."
 Assert-True ($pipelineText -match 'actions/attest-build-provenance@[0-9a-f]{40}') "PR CI must attest the verified candidate ZIP with a pinned action."
 Assert-True ($pipelineText -match 'resolve-release-promotion-artifact\.ps1') "Main publication must resolve the previously verified candidate artifact."
+Assert-True ($pipelineText -match 'test-provider-release-evidence\.ps1[\s\S]*-PromotionMainCommit\s+"\$\{\{ github\.sha \}\}"') "Main promotion must compare the promoted main tree without requiring its merge commit SHA to equal the PR artifact commit."
+Assert-True ((Get-Content -LiteralPath (Join-Path $root "scripts\verify\test-provider-release-evidence.ps1") -Raw -Encoding UTF8) -match 'candidate artifact source tree does not match the promoted main tree') "Provider evidence validation must accept only a promoted main tree equal to the verified candidate tree."
 Assert-True ($resolverText -match 'get-release-candidate-artifact-name\.ps1') "Main publication must resolve the same candidate artifact name through the shared helper."
 Assert-True ($pipelineText -notmatch 'name:\s*codex-praetor-candidate-\$\{\{ github\.event\.pull_request\.number \}\}') "PR CI must not keep an independent legacy candidate artifact naming rule."
 Assert-True ($pipelineText -match '(?ms)- name: Validate release control plane on main\s*\r?\n\s*if:.*\r?\n\s*shell: pwsh\s*\r?\n\s*env:\s*\r?\n\s*GH_TOKEN:\s*\$\{\{ github\.token \}\}') "Main release-control validation must pass GitHub Actions token to gh."

@@ -21,6 +21,8 @@
 - 共同根因 PR 的开发期只跑受影响组。版本面、候选 artifact 和全量确定性矩阵只能在范围冻结后各运行一次；候选冻结后发现的独立问题记入下一证据门，不回填当前 PR。host 刷新只属于 PR D 的用户交付链，不得作为 PR B 或阶段 1 的诊断工具。
 - 对话只在阶段 1/2 事实报告、公开边界变化、PR D host 刷新或不可恢复 release incident 停下。
 - main 合并后仅由受保护的 `Release On Main` 从合并 SHA 自动构建、发布和远端下载复验；同一带 SHA manifest 的 zip 贯穿运行时验收、上传、下载和 attestation。tag/draft 后失败只重跑原 run；创建 tag 前发现 workflow 缺陷才可用递增版本恢复 PR。
+- main promotion 必须区分“候选 artifact 的 PR head”与“合并后的 main commit”：artifact generation commit 绑定前者，后者只能以完整 source tree 与候选回执验证同内容。不得要求两个 commit SHA 相同；必须回归“同 tree、不同 SHA 通过”和“tree 不同拒绝”，避免把正常 merge 误判为发布故障。
+- provider 真实任务证据按实际兼容面而非文件名或 release version 判断：runtime-contract 的纯版本递增不得要求重跑或消耗 provider 积分；tuple、权限、adapter、任务合同等语义变化才触发受影响 provider 的真实证据门，并且必须有“版本不触发、语义变化触发”回归。
 - PR 候选 artifact 的命名只能由 `scripts/release/get-release-candidate-artifact-name.ps1` 生成；上传、main 提升和回归检查必须共用该唯一合同，禁止在 YAML 或其他脚本手写第二套命名规则。
 - main 提升同一候选 ZIP 后，若最终运行时验收依赖仓库 MCP 测试工具，发布作业必须先调用受控的 `mcp/scripts/install-mcp-dependencies.ps1`；不得假定 PR CI 的依赖目录会跨作业存在。
 - release incident 的修复必须把故障纳入能力场景或故障注入；模拟 proof 不替代最终包证据。不得同版本补发、手工上传替代包或把收口缺口留给下一 PR。

@@ -175,7 +175,8 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-release-evidence.ps1 `
             -EvidencePath ".codex-praetor\provider-release-evidence.json" `
             -ArtifactManifestPath ".codex-praetor\releases\promoted\codex-praetor-setup-$($intent.version).artifact.json" `
-            -BaseRef '${{ inputs.base_ref }}'
+            -BaseRef '${{ inputs.base_ref }}' `
+            -PromotionMainCommit "${{ github.sha }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Publish immutable Release from this exact main commit

@@ -2,7 +2,8 @@ param(
     [string]$ProjectRoot = "",
     [string]$EvidencePath = "",
     [string]$ArtifactManifestPath = "",
-    [string]$BaseRef = ""
+    [string]$BaseRef = "",
+    [string]$PromotionMainCommit = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,15 +30,26 @@ $runtime = Read-Json (Join-Path $root "config\runtime-contract.json")
 $head = ((& git -C $root rev-parse HEAD | Out-String).Trim()).ToLowerInvariant()
 $artifactSha = ([string]$artifact.artifact.sha256).ToLowerInvariant()
 $artifactCommit = ([string]$artifact.generation.commit).ToLowerInvariant()
+$sourceTree = ([string]$artifact.generation.source_tree).ToLowerInvariant()
 
 Require ([string]$evidence.schema -eq "codex-praetor-provider-release-evidence/v2") "schema is not provider-release-evidence/v2"
 Require ([string]$evidence.status -eq "accepted") "overall status must be accepted"
 Require ([string]$evidence.product -eq "codex-praetor") "product is not codex-praetor"
 Require ([string]$evidence.version -eq [string]$intent.version) "evidence version does not match release intent"
 Require ($artifactCommit -match '^[0-9a-f]{40}$') "artifact generation commit is missing or malformed"
+Require ($sourceTree -match '^[0-9a-f]{40}$') "artifact source tree is missing or malformed"
 $evidenceHead = ([string]$evidence.head).ToLowerInvariant()
 $evidenceSurfaceHash = ([string]$evidence.provider_surface_sha256).ToLowerInvariant()
-Require ($artifactCommit -eq $head) "artifact generation commit does not match candidate HEAD"
+if ([string]::IsNullOrWhiteSpace($PromotionMainCommit)) {
+    Require ($artifactCommit -eq $head) "candidate artifact generation commit does not match candidate HEAD"
+} else {
+    $promotionCommit = $PromotionMainCommit.Trim().ToLowerInvariant()
+    Require ($promotionCommit -match '^[0-9a-f]{40}$') "promotion main commit is missing or malformed"
+    Require ($head -eq $promotionCommit) "promotion main commit does not match the checked-out main HEAD"
+    $promotionTree = ((& git -C $root rev-parse ("$promotionCommit" + "^{tree}") 2>$null | Out-String).Trim()).ToLowerInvariant()
+    Require ($promotionTree -match '^[0-9a-f]{40}$') "promotion main source tree is missing or malformed"
+    Require ($sourceTree -eq $promotionTree) "candidate artifact source tree does not match the promoted main tree"
+}
 Require ($evidenceHead -eq $artifactCommit) "evidence binding head does not match the artifact generation commit"
 Require ($evidenceSurfaceHash -match '^[0-9a-f]{64}$') "evidence provider_surface_sha256 is missing or malformed"
 Require ($evidenceSurfaceHash -eq (Get-CodexPraetorProviderCompatibilitySurfaceHash -Repo $root)) "provider compatibility surface differs from the accepted evidence"
