@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.25-alpha",
+    [string]$Version = "0.16.26-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
@@ -142,8 +142,6 @@ if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) { throw "Release no
 if ($releaseExists -and $releaseIsDraft) {
     & gh release upload $Tag $zipPath $shaPath --repo $Repository --clobber
     if ($LASTEXITCODE -ne 0) { throw "Failed to resume draft GitHub Release assets." }
-    & gh release edit $Tag --repo $Repository --notes-file $notesPath --draft=false --prerelease
-    if ($LASTEXITCODE -ne 0) { throw "Failed to publish the resumed draft GitHub Release." }
 } elseif ($releaseExists) {
     throw "Published GitHub Releases are verify-only. Use a new version for recovery."
 } else {
@@ -159,9 +157,13 @@ if ($releaseExists -and $releaseIsDraft) {
     if ($LASTEXITCODE -ne 0) { throw "Failed to create draft GitHub Release $Tag." }
     & gh release upload $Tag $zipPath $shaPath --repo $Repository
     if ($LASTEXITCODE -ne 0) { throw "Failed to upload draft GitHub Release assets." }
-    & gh release edit $Tag --repo $Repository --draft=false --prerelease
-    if ($LASTEXITCODE -ne 0) { throw "Failed to publish GitHub Release $Tag." }
 }
+
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "verify-github-release-asset.ps1") -Version $Version -Tag $Tag -Repository $Repository -OutputRoot $OutputRoot -ArtifactManifestPath $ArtifactManifestPath -SkipBuild -AllowDraft
+if ($LASTEXITCODE -ne 0) { throw "Draft GitHub Release verification failed; leave the original draft and rerun this exact SHA after correction." }
+
+& gh release edit $Tag --repo $Repository --notes-file $notesPath --draft=false --prerelease
+if ($LASTEXITCODE -ne 0) { throw "Draft verification passed but GitHub Release publication failed; treat this as a release incident and rerun the original SHA." }
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "verify-github-release-asset.ps1") -Version $Version -Tag $Tag -Repository $Repository -OutputRoot $OutputRoot -ArtifactManifestPath $ArtifactManifestPath -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw "Remote GitHub Release verification failed after upload." }

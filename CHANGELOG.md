@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.26-alpha
+
+- Changed release-impact delivery from “merge then first host verification” to a candidate-first gate: PR CI creates one attested ZIP, a real Codex Desktop must prove that exact candidate generation before main may promote it.
+- Added reversible candidate activation and a candidate-host receipt bound to the PR tree, ZIP SHA256, runtime-contract SHA and host runtime identity.
+- Main now uploads the promoted ZIP as a GitHub draft, remote-download verifies the draft, and publishes only after that verification. Provider credit is spent only when a provider execution semantic changed.
+
 ## 0.16.25-alpha
 
 - Recovered the Release On Main path after `0.16.24-alpha` stopped before tag creation because promotion incorrectly required the PR candidate commit SHA to equal GitHub's normal merge commit SHA.

@@ -50,6 +50,7 @@ assert.equal(researchRoute.research_authority, "codex_kr_primary");
 const runtimeInfo = runtimeInfoTool();
 assert.equal(runtimeInfo.runtime_contract !== null, true);
 assert.match(runtimeInfo.runtime_identity.runtime_contract_sha256, /^[0-9a-f]{64}$/);
+assert.equal(runtimeInfo.runtime_identity.version, runtimeInfo.runtime_contract?.version ?? "");
 assert.ok(runtimeInfo.runtime_identity.process_id > 0);
 assert.ok(runtimeInfo.runtime_identity.project_root.length > 0);
 assert.equal(

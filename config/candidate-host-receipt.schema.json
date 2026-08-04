@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-praetor.local/schema/candidate-host-receipt/v1",
+  "title": "Codex Praetor candidate host receipt",
+  "type": "object",
+  "required": ["schema", "status", "pull_request", "candidate", "artifact", "host_runtime", "accepted_at"],
+  "properties": {
+    "schema": { "const": "codex-praetor-candidate-host-receipt/v1" },
+    "status": { "const": "accepted" },
+    "pull_request": { "type": "object", "required": ["number", "head_sha"] },
+    "candidate": { "type": "object", "required": ["version", "content_tree", "generation_id", "runtime_contract_sha256"] },
+    "artifact": { "type": "object", "required": ["zip_sha256", "candidate_receipt_sha256"] },
+    "host_runtime": { "type": "object", "required": ["version", "generation_id", "runtime_contract_sha256", "source_sha256"] },
+    "checks": { "type": "array" },
+    "accepted_at": { "type": "string", "minLength": 1 }
+  }
+}

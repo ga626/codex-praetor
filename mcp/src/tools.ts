@@ -86,6 +86,8 @@ export function routeIntentTool(input: {
 export function runtimeInfoTool() {
   const contractPath = getRuntimeContractPath();
   const contract = existsSync(contractPath) ? readJsonFile(contractPath) : null;
+  const generationPath = path.join(getProjectRoot(), "release-generation.json");
+  const generation = existsSync(generationPath) ? readJsonFile(generationPath) : null;
   const startedAt = new Date(Date.now() - process.uptime() * 1_000).toISOString();
   const runtimeContractSha256 = contract
     ? createHash("sha256").update(readFileSync(contractPath)).digest("hex")
@@ -100,6 +102,8 @@ export function runtimeInfoTool() {
     contract_path: contractPath,
     runtime_identity: {
       schema: "codex-praetor-runtime-identity/v1",
+      version: typeof contract?.version === "string" ? contract.version : "",
+      generation_id: typeof generation?.generation_id === "string" ? generation.generation_id : "",
       runtime_contract_sha256: runtimeContractSha256,
       project_root: getProjectRoot(),
       mcp_root: getMcpRoot(),

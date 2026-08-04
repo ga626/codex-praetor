@@ -70,6 +70,7 @@ try {
     Invoke-Check "provider release evidence gate" (Join-Path $verify "test-provider-release-evidence.ps1") @("-EvidencePath", (Join-Path $root ".codex-praetor\provider-release-evidence.json"), "-ArtifactManifestPath", $artifactPath, "-BaseRef", $BaseRef)
     Invoke-Check "historical release mutations" (Join-Path $verify "test-runtime-contract-mutations.ps1")
     Invoke-Check "isolated release closeout" (Join-Path $verify "test-release-closeout.ps1")
+    Invoke-Check "candidate activation and host receipt" (Join-Path $verify "test-published-release-activation.ps1")
 
     $artifact = Get-Content -LiteralPath $artifactPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$artifact.status -ne "artifact_verified") { throw "Candidate artifact is not verified: $artifactPath" }

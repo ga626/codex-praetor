@@ -7,6 +7,8 @@ $scratch = Join-Path $root (".codex-praetor\published-activation-" + [Guid]::New
 $build = Join-Path $root "scripts\release\build-codex-praetor-release.ps1"
 $generation = Join-Path $root "scripts\release\get-codex-praetor-generation.ps1"
 $activation = Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1"
+$hostReceiptWriter = Join-Path $root "scripts\release\write-candidate-host-receipt.ps1"
+$hostReceiptGate = Join-Path $root "scripts\verify\test-candidate-host-receipt.ps1"
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -22,6 +24,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Fixture release build failed." }
     $zip = Join-Path $releaseRoot "codex-praetor-setup-$version.zip"
     $sha = "$zip.sha256"
+    $artifactManifest = Join-Path $releaseRoot "codex-praetor-setup-$version.artifact.json"
+    $artifact = Get-Content -LiteralPath $artifactManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+    $artifact.status = "artifact_verified"
+    $artifact.verification = [ordered]@{ status = "passed" }
+    $artifact | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $artifactManifest -Encoding UTF8
+    $candidateReceipt = Join-Path $scratch "candidate.json"
+    [ordered]@{ schema = "codex-praetor-release-candidate/v1"; status = "artifact_verified"; pull_request = [ordered]@{ number = 123; head_sha = "0123456789abcdef0123456789abcdef01234567" }; candidate = [ordered]@{ version = $version; checkout_commit = "0123456789abcdef0123456789abcdef01234567"; content_tree = [string]$artifact.generation.source_tree }; artifact = [ordered]@{ zip_sha256 = [string]$artifact.artifact.sha256; manifest_sha256 = (Get-FileHash -LiteralPath $artifactManifest -Algorithm SHA256).Hash.ToLowerInvariant() }; generation = $artifact.generation } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $candidateReceipt -Encoding UTF8
     $profile = Join-Path $scratch "profile"
     $expectedCodexHome = Join-Path $profile ".codex"
     $fakeCodex = Join-Path $scratch "fake-codex.cmd"
@@ -43,6 +52,16 @@ exit /b 0
     Assert-True ([string]$result.status -eq "needs_host_restart") "Verified installation must stop at the explicit host refresh boundary."
     Assert-True ([string]$result.generation.generation_id -eq [string]$current.generation_id) "Activated plugin must retain the exact bundled generation (expected=$($current.generation_id); actual=$($result.generation.generation_id))."
     Assert-True (Test-Path -LiteralPath (Join-Path $profile "plugins\codex-praetor\release-generation.json") -PathType Leaf) "Activation did not install the bundled plugin generation."
+    $candidate = (& powershell -NoProfile -ExecutionPolicy Bypass -File $activation -Version $version -ReleaseZip $zip -ReleaseSha256 $sha -CandidateReceiptPath $candidateReceipt -UserProfileRoot $profile -CodexCommand $fakeCodex -SkipMaintenance -Json | Out-String | ConvertFrom-Json)
+    Assert-True ([string]$candidate.source_kind -eq "verified_pr_candidate") "Candidate activation must remain distinguishable from a published Release."
+    Assert-True ([string]$candidate.status -eq "needs_host_restart") "Candidate activation must stop before host evidence is claimed."
+    $runtimeInfo = Join-Path $scratch "runtime-info.json"
+    [ordered]@{ runtime_contract = [ordered]@{ version = $version }; runtime_identity = [ordered]@{ version = $version; generation_id = [string]$current.generation_id; runtime_contract_sha256 = [string]$current.runtime_contract_sha256 } } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $runtimeInfo -Encoding UTF8
+    $hostReceipt = Join-Path $scratch "candidate-host.json"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $hostReceiptWriter -CandidateReceiptPath $candidateReceipt -HostRuntimeInfoPath $runtimeInfo -PullRequestNumber 123 -OutputPath $hostReceipt -ProjectRoot $root
+    if ($LASTEXITCODE -ne 0) { throw "Candidate host receipt writing failed." }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $hostReceiptGate -ReceiptPath $hostReceipt -ArtifactManifestPath $artifactManifest -ProjectRoot $root
+    if ($LASTEXITCODE -ne 0) { throw "Candidate host receipt acceptance gate failed." }
     Write-Host "[PASS] Published Release activation accepts the official table-shaped plugin list, installs the verified bundle, and stops at host refresh."
 } finally {
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }

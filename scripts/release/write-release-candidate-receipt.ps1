@@ -35,7 +35,7 @@ $receipt = [ordered]@{
     schema = "codex-praetor-release-candidate/v1"
     status = "artifact_verified"
     pull_request = [ordered]@{ number = $PullRequestNumber; head_sha = $HeadSha.ToLowerInvariant(); base_sha = $BaseSha.ToLowerInvariant() }
-    candidate = [ordered]@{ checkout_commit = $head; content_tree = $tree }
+    candidate = [ordered]@{ version = $Version; checkout_commit = $head; content_tree = $tree }
     artifact = [ordered]@{ name = $releaseName; zip_sha256 = $zipHash; manifest_sha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant() }
     generation = [ordered]@{ id = [string]$manifest.generation.id; commit = [string]$manifest.generation.commit; source_tree = [string]$manifest.generation.source_tree; content_manifest_sha256 = [string]$manifest.generation.content_manifest_sha256 }
     created_at = [DateTime]::UtcNow.ToString("o")

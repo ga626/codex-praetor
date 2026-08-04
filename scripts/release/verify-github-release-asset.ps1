@@ -1,11 +1,12 @@
 param(
-    [string]$Version = "0.16.25-alpha",
+    [string]$Version = "0.16.26-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
     [string]$ArtifactManifestPath = "",
     [ValidateSet("same-artifact", "published-artifact")][string]$VerificationMode = "same-artifact",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$AllowDraft
 )
 
 $ErrorActionPreference = "Stop"
@@ -129,7 +130,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Unable to read GitHub Release $Repository@$Tag. Output: $releaseJson"
 }
 $release = $releaseJson | ConvertFrom-Json
-if ([bool]$release.isDraft) {
+if ([bool]$release.isDraft -and -not $AllowDraft) {
     throw "GitHub Release $Tag is still a draft; public release verification cannot pass."
 }
 $assetNames = @($release.assets | ForEach-Object { $_.name })
@@ -211,7 +212,7 @@ try {
     Assert-Contains -Text $setupText -Needle "Qoder" -Label "Qoder choice"
     Assert-Contains -Text $setupText -Needle "CodeBuddy" -Label "CodeBuddy choice"
 
-    Write-Host "[PASS] Downloaded GitHub Release zip verified: $remoteZipHash"
+    Write-Host "[PASS] Downloaded $(if ([bool]$release.isDraft) { 'draft' } else { 'published' }) GitHub Release zip verified: $remoteZipHash"
     Write-Host "[PASS] GitHub Release SHA256 file matches."
     if ($VerificationMode -eq "same-artifact") { Write-Host "[PASS] GitHub Release notes match local release notes." }
     Write-Host "[PASS] Downloaded Release generation matches tag content tree: $tagTree"
