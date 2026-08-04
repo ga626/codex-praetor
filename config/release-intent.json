@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.24-alpha",
-    "previous_version":  "0.16.23-alpha",
-    "tag":  "v0.16.24-alpha",
+    "version":  "0.16.25-alpha",
+    "previous_version":  "0.16.24-alpha",
+    "tag":  "v0.16.25-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.24-alpha.zip",
-    "reason":  "将 Qoder Agent SDK 与 CodeBuddy ACP 的 readiness 从每次 generation 作废改为 provider compatibility fingerprint；允许首条受限真实计划任务自动建立证据，将 canary 降为排障入口，并让候选按实际兼容面变化决定最小真实 provider 验收，main 只提升同一不可变 artifact。"
+    "artifact":  "codex-praetor-setup-0.16.25-alpha.zip",
+    "reason":  "交付未发布的 Qoder Agent SDK 与 CodeBuddy ACP readiness/first-use 改进，并修复 main promotion 将 PR candidate commit 误要求等于 merge commit 的回归：candidate 绑定 PR head，main 仅在 source tree 相同且 receipt/SHA 完整时提升同一不可变 artifact。"
 }

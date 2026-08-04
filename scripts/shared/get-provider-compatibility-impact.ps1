@@ -8,9 +8,34 @@ function Get-CodexPraetorProviderCompatibilitySurfaceHash {
     $paths = if ([string]::IsNullOrWhiteSpace($Revision)) { @(& git -C $Repo ls-files) } else { @(& git -C $Repo ls-tree -r --name-only $Revision) }
     if ($LASTEXITCODE -ne 0) { throw "Unable to enumerate provider compatibility surface." }
     $records = foreach ($path in @($paths | Where-Object { Test-CodexPraetorProviderCompatibilityPath -Path $_ } | Sort-Object)) {
-        $blob = if ([string]::IsNullOrWhiteSpace($Revision)) { (& git -C $Repo hash-object -- $path | Out-String).Trim() } else { (& git -C $Repo rev-parse "$Revision`:$path" | Out-String).Trim() }
-        if ($LASTEXITCODE -ne 0 -or $blob -notmatch '^[0-9a-f]{40,64}$') { throw "Unable to hash provider compatibility path: $path" }
-        "$path`t$blob"
+        # The release version lives in the runtime contract but does not alter
+        # a worker tuple, permission, adapter, or task contract. Hash the
+        # contract's provider-relevant semantic content so an immutable
+        # recovery release does not spend provider credits merely to advance a
+        # version number.
+        if ($path -eq "config/runtime-contract.json") {
+            $text = if ([string]::IsNullOrWhiteSpace($Revision)) {
+                Get-Content -LiteralPath (Join-Path $Repo $path) -Raw -Encoding UTF8
+            } else {
+                (& git -C $Repo show "$Revision`:$path" | Out-String)
+            }
+            if ($LASTEXITCODE -ne 0) { throw "Unable to read provider compatibility path: $path" }
+            try {
+                $contract = $text | ConvertFrom-Json
+                $contract.PSObject.Properties.Remove("version")
+                $normalized = $contract | ConvertTo-Json -Depth 20 -Compress
+            } catch {
+                throw "Unable to normalize provider compatibility path: $path :: $($_.Exception.Message)"
+            }
+            $bytes = [Text.Encoding]::UTF8.GetBytes($normalized)
+            $algorithm = [Security.Cryptography.SHA256]::Create()
+            try { $contentHash = ([BitConverter]::ToString($algorithm.ComputeHash($bytes))).Replace("-", "").ToLowerInvariant() } finally { $algorithm.Dispose() }
+            "$path`t$contentHash"
+        } else {
+            $blob = if ([string]::IsNullOrWhiteSpace($Revision)) { (& git -C $Repo hash-object -- $path | Out-String).Trim() } else { (& git -C $Repo rev-parse "$Revision`:$path" | Out-String).Trim() }
+            if ($LASTEXITCODE -ne 0 -or $blob -notmatch '^[0-9a-f]{40,64}$') { throw "Unable to hash provider compatibility path: $path" }
+            "$path`t$blob"
+        }
     }
     $bytes = [Text.Encoding]::UTF8.GetBytes(($records -join "`n") + "`n")
     $algorithm = [Security.Cryptography.SHA256]::Create()
@@ -30,6 +55,14 @@ function Get-CodexPraetorProviderCompatibilityImpact {
     # changed after a real task was accepted.
     $changed = @(& git -C $Repo diff --name-only $ComparisonBase $TargetRef)
     if ($LASTEXITCODE -ne 0) { throw "Unable to inspect provider compatibility changes against $ComparisonBase" }
+
+    # A path name is only a cheap routing hint. It must not turn a version-only
+    # edit of the runtime contract into an expensive real-worker requirement.
+    # Compare the portable provider surface before deciding whether any tuple
+    # needs new evidence.
+    $baseSurface = Get-CodexPraetorProviderCompatibilitySurfaceHash -Repo $Repo -Revision $ComparisonBase
+    $targetSurface = Get-CodexPraetorProviderCompatibilitySurfaceHash -Repo $Repo -Revision $TargetRef
+    if ($baseSurface -eq $targetSurface) { return @() }
 
     $affected = New-Object System.Collections.Generic.HashSet[string]
     foreach ($path in $changed) {

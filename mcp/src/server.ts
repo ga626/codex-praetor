@@ -114,7 +114,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.24-alpha",
+    version: "0.16.25-alpha",
     description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执行官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
   });
 

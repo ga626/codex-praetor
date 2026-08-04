@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.25-alpha
+
+- Recovered the Release On Main path after `0.16.24-alpha` stopped before tag creation because promotion incorrectly required the PR candidate commit SHA to equal GitHub's normal merge commit SHA.
+- Promotion now keeps the candidate artifact bound to its PR head while proving that the candidate `source_tree` equals the promoted `main` tree; regression coverage accepts same-tree/different-SHA promotion and rejects a different tree.
+- Carries the unreleased `0.16.24-alpha` provider-readiness and first-use-bootstrap improvements forward as this new immutable recovery release. It does not overwrite or republish `0.16.24-alpha`.
+
 ## 0.16.24-alpha
 
 - Reworked provider readiness around an explicit compatibility fingerprint instead of invalidating Qoder/CodeBuddy evidence on every package generation.
