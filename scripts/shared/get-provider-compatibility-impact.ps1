@@ -3,6 +3,25 @@ function Test-CodexPraetorProviderCompatibilityPath {
     return ($Path -match '(?i)(qoder|qoder-sdk|codebuddy|codebuddy-acp)' -or $Path -match '^(mcp/src/tools\.ts|scripts/dispatch/(invoke|record|watch)-codex-praetor|scripts/verify/(resolve-codex-praetor-readiness|test-provider-capability-canary)|plugin/skills/codex-praetor/scripts/(invoke|record|watch|resolve)-codex-praetor|skill/codex-praetor/scripts/(invoke|record|watch|resolve)-codex-praetor|config/(runtime-contract|codex-praetor-tiers|provider-onboarding-checklist))')
 }
 
+function Get-CodexPraetorProviderCompatibilityContent {
+    param([Parameter(Mandatory = $true)][string]$Repo, [Parameter(Mandatory = $true)][string]$Path, [string]$Revision = "")
+    $text = if ([string]::IsNullOrWhiteSpace($Revision)) {
+        Get-Content -LiteralPath (Join-Path $Repo $Path) -Raw -Encoding UTF8
+    } else {
+        (& git -C $Repo show "$Revision`:$Path" | Out-String)
+    }
+    if ($LASTEXITCODE -ne 0) { throw "Unable to read provider compatibility path: $Path" }
+    # runtime_info is an observability-only surface. Its version/generation
+    # display must not consume a paid provider task. Keep the rest of tools.ts
+    # in the provider surface, so dispatch semantics still invalidate evidence.
+    if ($Path -eq "mcp/src/tools.ts") {
+        $pattern = '(?s)export function runtimeInfoTool\(\)\s*\{.*?(?=\r?\nexport function capabilityProfilesTool)'
+        if (-not [regex]::IsMatch($text, $pattern)) { throw "Unable to isolate observability-only runtimeInfoTool from $Path" }
+        $text = [regex]::Replace($text, $pattern, 'export function runtimeInfoTool() { /* observability-only */ }', 1)
+    }
+    return $text
+}
+
 function Get-CodexPraetorProviderCompatibilitySurfaceHash {
     param([Parameter(Mandatory = $true)][string]$Repo, [string]$Revision = "")
     $paths = if ([string]::IsNullOrWhiteSpace($Revision)) { @(& git -C $Repo ls-files) } else { @(& git -C $Repo ls-tree -r --name-only $Revision) }
@@ -13,17 +32,14 @@ function Get-CodexPraetorProviderCompatibilitySurfaceHash {
         # contract's provider-relevant semantic content so an immutable
         # recovery release does not spend provider credits merely to advance a
         # version number.
-        if ($path -eq "config/runtime-contract.json") {
-            $text = if ([string]::IsNullOrWhiteSpace($Revision)) {
-                Get-Content -LiteralPath (Join-Path $Repo $path) -Raw -Encoding UTF8
-            } else {
-                (& git -C $Repo show "$Revision`:$path" | Out-String)
-            }
-            if ($LASTEXITCODE -ne 0) { throw "Unable to read provider compatibility path: $path" }
+        if ($path -eq "config/runtime-contract.json" -or $path -eq "mcp/src/tools.ts") {
+            $text = Get-CodexPraetorProviderCompatibilityContent -Repo $Repo -Path $path -Revision $Revision
             try {
-                $contract = $text | ConvertFrom-Json
-                $contract.PSObject.Properties.Remove("version")
-                $normalized = $contract | ConvertTo-Json -Depth 20 -Compress
+                if ($path -eq "config/runtime-contract.json") {
+                    $contract = $text | ConvertFrom-Json
+                    $contract.PSObject.Properties.Remove("version")
+                    $normalized = $contract | ConvertTo-Json -Depth 20 -Compress
+                } else { $normalized = $text }
             } catch {
                 throw "Unable to normalize provider compatibility path: $path :: $($_.Exception.Message)"
             }
