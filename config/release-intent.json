@@ -7,5 +7,5 @@
     "release_required":  true,
     "release_mode":  "auto_on_main",
     "artifact":  "codex-praetor-setup-0.16.27-alpha.zip",
-    "reason":  "修复普通 MCP 依赖更新被错误送入发布证据门禁的问题：依赖清单专用更新改走确定性安装与 MCP 测试，真正的产品发布仍保持候选 ZIP、Desktop host 验收和同一制品提升；同时升级 Hono、ip-address、MCP TypeScript SDK 与 Qoder Agent SDK。"
+    "reason":  "修复普通 MCP 依赖更新被错误送入发布证据门禁的问题：依赖清单专用更新改走确定性安装与 MCP 测试，真正的产品发布仍保持候选 ZIP、Desktop host 验收和同一制品提升；同时升级 Hono、ip-address、MCP TypeScript SDK 与 Qoder Agent SDK，并保持 CodeBuddy ACP 的既有 structured progress 与 formal cancellation 合同。"
 }

@@ -14,4 +14,4 @@ This maintenance release does not add setup steps or change how normal natural-l
 
 This release updates packaged dependency versions and CI routing only. It does not add a provider, model, account permission, or new worker execution capability.
 
-Qoder Agent SDK and CodeBuddy ACP retain their existing structured-progress and formal-cancellation contracts. The affected deterministic adapter contract tests run in CI; no provider credits are spent unless a provider execution semantic changes.
+Qoder Agent SDK and CodeBuddy ACP retain their existing structured progress and formal cancellation contracts. The affected deterministic adapter contract tests run in CI; no provider credits are spent unless a provider execution semantic changes.
