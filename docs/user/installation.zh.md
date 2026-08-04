@@ -30,15 +30,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.23-alpha/codex-praetor-setup-0.16.23-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.23-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.16.23-alpha.zip .\codex-praetor-setup-0.16.23-alpha
-cd .\codex-praetor-setup-0.16.23-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.24-alpha/codex-praetor-setup-0.16.24-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.24-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.16.24-alpha.zip .\codex-praetor-setup-0.16.24-alpha
+cd .\codex-praetor-setup-0.16.24-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.16.23-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.16.24-alpha
 ```
 
 ### 2. 双击安装向导
@@ -151,7 +151,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provid
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy -Apply
 ```
 
-这个 canary 只读取 `README.md`。开始前主仓库必须是干净的；如果运行期间有其他流程改动仓库，系统会保留真实 provider 结果并记录这次仓库变动，先审查变动再进入编辑任务。它通过后，再考虑真实派工。真实派工完成后不代表任务自动完成；Codex 还要读取 worker 结果，确认输出能采信，必要时看 diff、跑验证，再把任务标成采信、拒绝、重试、需要人工处理或跳过。
+这个 canary 只读取 `README.md`。开始前主仓库必须是干净的；如果运行期间有其他流程改动仓库，系统会保留真实 provider 结果并记录这次仓库变动，先审查变动再进入编辑任务。它只用于排障，不是普通用户真实派工的前置步骤。真实派工完成后不代表任务自动完成；Codex 还要读取 worker 结果，确认输出能采信，必要时看 diff、跑验证，再把任务标成采信、拒绝、重试、需要人工处理或跳过。
 
 ## 从源码安装
 
@@ -196,7 +196,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 ## 配置真实派工
 
-真实派工前，你需要至少一个外部 CLI 已安装并按 provider 官方方式完成授权。`0.16.23-alpha` 使用 Qoder Agent SDK 或 CodeBuddy ACP 获取结构化进展；你不需要手工选择连接协议，也不需要为了首次使用手动跑内部 canary。
+真实派工前，你需要至少一个外部 CLI 已安装并按 provider 官方方式完成授权。`0.16.24-alpha` 使用 Qoder Agent SDK 或 CodeBuddy ACP 获取结构化进展；你不需要手工选择连接协议，也不需要为了首次使用手动跑内部 canary。
 
 第一次真实任务也不是直接跳过保护。Codex 会先把你的真实请求写成可追溯计划，明确允许路径、禁止路径、检查和验收；只有这些信息齐全，才会创建受控的首次证据。首次任务成功后，系统自动把同一 provider、模型、连接方式、权限和任务类型记录为 readiness；之后的普通派工复用这条证据，只有真正的身份或合同变化才需要重新验证。
 
@@ -249,7 +249,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 1. 关闭并重新打开 Codex，或新开一个任务。
 2. 运行上面的 doctor 验收命令。
-3. provider 已经安装并登录时，先跑只读 canary，再做真实派工。
+3. provider 已经安装并登录时，直接提交范围清楚的真实计划任务；仅在排障时运行只读 canary。
 4. 仍然失败时，按 [troubleshooting.zh.md](troubleshooting.zh.md) 区分独立 host 诊断与正在运行的 Desktop host；不要把新任务当作刷新动作。
 5. 需要恢复旧版时，按 [uninstall.zh.md](uninstall.zh.md) 的“回滚到上一个备份”操作。
 

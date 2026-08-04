@@ -4,9 +4,9 @@
 
 Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching bounded work to external CLI worker agents while Codex remains the planner, supervisor, integrator, and final verifier.
 
-Current productization target: **0.16.23-alpha**. Qoder Agent SDK and CodeBuddy ACP each have three independent, real bounded code-change records accepted by Codex, and both adapters passed provider-side formal cancellation plus fresh-task cold recovery in a clean isolated worktree. Codex observes structured progress, stall, formal cancellation, and terminal evidence before it evaluates a worker result; durable plan ledgers preserve allowed and forbidden paths, required checks, immutable paths, and real task IDs.
+Current productization target: **0.16.24-alpha**. Qoder Agent SDK and CodeBuddy ACP each have three independent, real bounded code-change records accepted by Codex, and both adapters passed provider-side formal cancellation plus fresh-task cold recovery in a clean isolated worktree. Codex observes structured progress, stall, formal cancellation, and terminal evidence before it evaluates a worker result; durable plan ledgers preserve allowed and forbidden paths, required checks, immutable paths, and real task IDs.
 
-This is not unrestricted provider code editing after installation. A first real task must be a Codex-created, traceable plan with explicit scope, forbidden paths, checks, and acceptance. Later normal dispatch uses only current readiness and qualified evidence for the exact provider tuple. Copied task material, canaries, and markers remain regression evidence only.
+This is not unrestricted provider code editing after installation. A first real task must be a Codex-created, traceable plan with explicit scope, forbidden paths, checks, and acceptance. An eligible first readonly task establishes first-use evidence automatically; later dispatch checks the exact provider compatibility fingerprint. Copied task material, canaries, and markers remain regression evidence only.
 
 ## Codex Executive mode
 
@@ -14,7 +14,7 @@ Say `开启 Codex 执行官模式` (or the shorter `开启执行官模式`) in a
 
 This release adds no provider, credential or provider-database access, automatic merge, or irreversible production-side action.
 
-[Download 0.16.23-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.16.23-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
+[Download 0.16.24-alpha](https://github.com/ga626/codex-praetor/releases/tag/v0.16.24-alpha) · [Chinese installation guide](docs/user/installation.zh.md) · [Chinese troubleshooting guide](docs/user/troubleshooting.zh.md)
 
 ## What It Does
 
@@ -33,9 +33,9 @@ The supported alpha scope is intentionally narrow:
 Download and extract the release zip:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.23-alpha/codex-praetor-setup-0.16.23-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.23-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.16.23-alpha.zip .\codex-praetor-setup-0.16.23-alpha
-cd .\codex-praetor-setup-0.16.23-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.24-alpha/codex-praetor-setup-0.16.24-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.24-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.16.24-alpha.zip .\codex-praetor-setup-0.16.24-alpha
+cd .\codex-praetor-setup-0.16.24-alpha
 ```
 
 Preview the install:
@@ -64,11 +64,11 @@ Codex Praetor does not install providers, sign in for users, inspect provider ac
 
 Without a provider, Codex Praetor can still validate planning, route-intent, dry-run, job status, lane listing, and conflict detection. Real dispatch needs at least one installed and authenticated provider.
 
-The 0.16.23-alpha source line records runtime identity alongside logical tasks, immutable worker attempts, evidence, and Codex supervisor verdicts. A worker process exit or same-name tool list is not enough to advance a release; Codex must verify the loaded runtime generation.
+The 0.16.24-alpha source line records runtime identity alongside logical tasks, immutable worker attempts, evidence, and Codex supervisor verdicts. A worker process exit or same-name tool list is not enough to advance a release; Codex must verify the loaded runtime generation.
 
-## Readonly Provider Canary
+## Diagnostic Readonly Provider Canary
 
-Before real dispatch, run a readonly canary. It previews the command by default:
+Normal use does not require a canary before real dispatch. Use this only to diagnose installation, login, or connection problems; it previews the command by default:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy
@@ -80,7 +80,7 @@ After the provider is installed and signed in, add `-Apply`:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-provider-readonly-canary.ps1 -Provider codebuddy -Apply
 ```
 
-The canary asks the worker to read `README.md`, return a fixed marker, and leave the main repository status unchanged.
+The canary asks the worker to read `README.md`, return a fixed marker, and leave the main repository status unchanged. It is diagnostic evidence, not a normal-user prerequisite or a substitute for Codex acceptance of a real task.
 
 ## Development Validation
 

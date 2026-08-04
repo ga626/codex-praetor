@@ -34,7 +34,8 @@ try {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $recorder -JobDir $jobDir -ReadinessPath $readiness | Out-Null
     Assert-True ($LASTEXITCODE -eq 0) "Readiness recorder failed."
     $state = Get-Content -LiteralPath $readiness -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-True ([string]$state.schema -eq "codex-praetor-generation-readiness/v3") "Unexpected readiness schema."
+    Assert-True ([string]$state.schema -eq "codex-praetor-generation-readiness/v4") "Unexpected readiness schema."
+    Assert-True ([string]$state.entries[0].provider_compatibility_fingerprint -match '^[0-9a-f]{64}$') "Readiness must persist its provider compatibility fingerprint."
     Assert-True (@($state.entries).Count -eq 1) "Readiness entry was not recorded."
     Assert-True ([string]$state.entries[0].provider_source -eq "real_user_task_bootstrap") "Readiness source was not recorded."
     Assert-True ([string]$state.entries[0].connection_mode -eq "codebuddy_acp") "Connection mode was not recorded."

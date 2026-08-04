@@ -16,6 +16,21 @@ function Sha256([string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+function New-ProviderCompatibilityFingerprint([object]$Tuple) {
+    $canonical = @(
+        "provider=$([string]$Tuple.provider)",
+        "cli_hash=$([string]$Tuple.cli_hash)",
+        "model=$([string]$Tuple.model)",
+        "permission=$([string]$Tuple.permission_profile)",
+        "task_kind=$([string]$Tuple.task_kind)",
+        "connection_mode=$([string]$Tuple.connection_mode)",
+        "runner_identity=$([string]$Tuple.runner_identity)",
+        "task_contract_schema=$([string]$Tuple.task_contract_schema)"
+    ) -join "`n"
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonical)))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+}
+
 $jobPath = Join-Path $JobDir "job.json"
 $completionPath = Join-Path $JobDir "completion.json"
 $job = Read-Json $jobPath
@@ -49,6 +64,7 @@ $entry = [ordered]@{
     task_kind = [string]$providerTuple.task_kind
     connection_mode = [string]$providerTuple.connection_mode
     runner_identity = [string]$providerTuple.runner_identity
+    provider_compatibility_fingerprint = (New-ProviderCompatibilityFingerprint -Tuple $providerTuple)
     status = "passed"
     passed_at = (Get-Date).ToString("o")
     expires_at = (Get-Date).AddHours($ExpiresAfterHours).ToString("o")
@@ -82,7 +98,7 @@ $entries = @($entries | Where-Object {
 })
 $entries += [pscustomobject]$entry
 $stateOut = [ordered]@{
-    schema = "codex-praetor-generation-readiness/v3"
+    schema = "codex-praetor-generation-readiness/v4"
     status = "passed"
     generation_id = [string]$entry.generation_id
     runtime_contract_sha256 = [string]$entry.runtime_contract_sha256

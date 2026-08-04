@@ -15,7 +15,7 @@ $hashHelperCandidates = @(
     (Join-Path $PSScriptRoot "ensure-file-hash.ps1")
 )
 $hashHelper = @($hashHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
-if (@($hashHelper).Count -ne 1) { throw "Codex Praetor hash helper is missing." }
+if (@($hashHelper).Count -ne 1) { throw "Health hash helper is missing." }
 . ([string]$hashHelper[0])
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $candidateRoot = $scriptDir
@@ -191,10 +191,10 @@ if ($null -ne $runningGeneration -and (Get-Command Get-CodexPraetorCurrentReadin
     $readinessResult = Get-CodexPraetorCurrentReadinessEntries -Path $readinessPath -ExpectedGeneration ([string]$runningGeneration.generation_id) -ExpectedRuntimeContract $runtimeContractHash -ExpectedTaskContract ([string]$contract.taskContractSchema)
 }
 if ($null -ne $readinessResult -and $readinessResult.ok) {
-    Add-HealthCheck -Name "provider_readiness" -Status "ready" -Message "当前运行 generation 已有有效 provider readiness tuple；真实派工仍会逐项校验实际选择的 tuple。" -Details $readinessResult
+    Add-HealthCheck -Name "provider_readiness" -Status "ready" -Message "存在有效 provider readiness tuple；真实派工仍会逐项校验实际选择的 compatibility fingerprint。" -Details $readinessResult
 } else {
     $details = if ($null -eq $readinessResult) { $readinessPath } else { $readinessResult }
-    Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "当前运行 generation 没有有效 readiness tuple；首次真实计划任务会自动完成一次首用 bootstrap，也可以手动运行 capability canary 做排障。" -Details $details
+    Add-HealthCheck -Name "provider_readiness" -Status "blocked" -Message "没有匹配的 readiness tuple；首次受限真实计划任务会自动完成一次首用 bootstrap，capability canary 仅用于排障。" -Details $details
 }
 
 $retirementManifestPath = Join-Path (Split-Path -Parent $activeReceiptPath) "retirement.json"

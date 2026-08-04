@@ -440,7 +440,15 @@ function Test-ProviderReadiness {
 
     if (Get-Command Test-CodexPraetorProviderReadiness -ErrorAction SilentlyContinue) {
         $connectionModeName = if ($ProviderName -eq "qoder") { "qoder_agent_sdk" } elseif ($ProviderName -eq "codebuddy") { "codebuddy_acp" } else { "" }
-        return (Test-CodexPraetorProviderReadiness -Path $ReadinessPath -ProviderName $ProviderName -Cli $CliPath -ModelName $ModelName -Permission $PermissionProfileName -Kind $TaskKindName -ExpectedGeneration ([string]$generation.generation_id) -ExpectedRuntimeContract $runtimeContractHash -ExpectedTaskContract ([string]$runtimeContract.taskContractSchema) -ExpectedConnectionMode $connectionModeName)
+        $runnerName = if ($ProviderName -eq "qoder") { "qoder-sdk-runner.js" } elseif ($ProviderName -eq "codebuddy") { "codebuddy-acp-runner.js" } else { "" }
+        $runnerCandidates = @(
+            (Join-Path $scriptGrandparent "mcp\\dist\\$runnerName"),
+            (Join-Path $scriptGrandparent "plugin\\mcp\\dist\\$runnerName"),
+            (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\\dist\\$runnerName")
+        )
+        $runnerPath = @($runnerCandidates | Where-Object { -not [string]::IsNullOrWhiteSpace($runnerName) -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1)
+        $runnerIdentity = if (@($runnerPath).Count -eq 1) { "${connectionModeName}:" + (Get-FileSha256OrEmpty -Path ([string]$runnerPath[0])) } else { "" }
+        return (Test-CodexPraetorProviderReadiness -Path $ReadinessPath -ProviderName $ProviderName -Cli $CliPath -ModelName $ModelName -Permission $PermissionProfileName -Kind $TaskKindName -ExpectedTaskContract ([string]$runtimeContract.taskContractSchema) -ExpectedConnectionMode $connectionModeName -ExpectedRunnerIdentity $runnerIdentity)
     }
     return [ordered]@{ ok = $false; reason = "Readiness helper is missing."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
 }
@@ -1513,7 +1521,7 @@ $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
 } else {
     [System.IO.Path]::GetFullPath($ReadinessPath)
 }
-if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly) {
+if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not $EvidenceBootstrap) {
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind
     if (-not $readiness.ok) {
         throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Use a durable real-task evidence bootstrap or run the provider canary."

@@ -665,6 +665,14 @@ if (Test-Path -LiteralPath $evidenceBootstrapTest -PathType Leaf) {
     } catch { Add-Fail "Real-task evidence bootstrap gate regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Real-task evidence bootstrap gate script missing: $evidenceBootstrapTest" }
 
+$providerEvidenceContinuityTest = Join-Path $projectRoot "scripts\verify\test-provider-release-evidence-continuity.ps1"
+if (Test-Path -LiteralPath $providerEvidenceContinuityTest -PathType Leaf) {
+    try {
+        $continuityOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $providerEvidenceContinuityTest -ProjectRoot $projectRoot
+        if ($LASTEXITCODE -eq 0 -and (($continuityOutput | Out-String) -match "Provider evidence continuity")) { Add-Pass "Provider release evidence continuity regression passes" } else { Add-Fail "Provider release evidence continuity regression failed: $($continuityOutput | Out-String)" }
+    } catch { Add-Fail "Provider release evidence continuity regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "Provider release evidence continuity script missing: $providerEvidenceContinuityTest" }
+
 $devIsolationTest = Join-Path $projectRoot "scripts\verify\test-dev-channel-isolation.ps1"
 if (Test-Path -LiteralPath $devIsolationTest -PathType Leaf) {
     try {

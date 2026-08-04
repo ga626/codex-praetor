@@ -1,0 +1,57 @@
+{
+  "schema": "codex-praetor-research-evidence/v1",
+  "validation_profile": "report_minimal",
+  "report": "2026-08-04-release-validation-user-ready-plan.md",
+  "product_baseline": {
+    "ref": "origin/main",
+    "commit": "5a8ca442058c442abb99bad99b0a04e268737922"
+  },
+  "evidence": [
+    {
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "source": "https://code.visualstudio.com/api/working-with-extensions/testing-extension",
+      "fact": "VS Code distinguishes unit tests from integration tests that run in a dedicated Extension Development Host.",
+      "strength": "official_primary"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "source": "https://docs.github.com/en/actions/concepts/security/artifact-attestations",
+      "fact": "Attestations bind a release artifact to workflow and commit provenance; GitHub advises signing release software rather than frequent test builds.",
+      "strength": "official_primary"
+    },
+    {
+      "access_path": "native_mcp",
+      "tool": "mcp__knowledgeradar__kr_web_search",
+      "source": "https://pactflow.io/blog/ai-automation-part-1/",
+      "fact": "Contract tests can use mocks for isolated fast feedback while provider verification covers the real compatibility gap.",
+      "strength": "vendor_explanatory"
+    },
+    {
+      "access_path": "local_readonly",
+      "tool": "PowerShell/Get-Content",
+      "source": "scripts/dispatch/invoke-codex-praetor.ps1",
+      "fact": "The dispatcher rejects a missing readiness tuple before creating a worker job.",
+      "strength": "local_primary"
+    },
+    {
+      "access_path": "local_readonly",
+      "tool": "PowerShell/Get-Content",
+      "source": "scripts/dispatch/record-codex-praetor-readiness.ps1",
+      "fact": "Readiness bootstrap is only recorded after a successful worker completion, creating a first-use ordering contradiction.",
+      "strength": "local_primary"
+    },
+    {
+      "access_path": "github_cli",
+      "tool": "gh run list; gh run view --log-failed",
+      "source": "ga626/codex-praetor Release On Main history",
+      "fact": "Six merged PRs had a failing main release run, including artifacts, dependencies, token/control-plane and detached-HEAD failures.",
+      "strength": "project_remote_primary"
+    }
+  ],
+  "gaps": [
+    "No release process can pre-prove every future user's local provider login, quota, network, CLI installation or Desktop host cache.",
+    "OpenAI developer page extraction failed with a TLS EOF in this research run and was not used as evidence."
+  ]
+}

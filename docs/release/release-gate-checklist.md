@@ -24,7 +24,7 @@ These checks protect the source repository. They may stay in the repo, but they 
 - Release package determinism: `scripts/verify/test-release-package-determinism.ps1`. The same staged release content must produce the same zip SHA256, stable entry order, and fixed zip entry timestamps.
 - Continuous orchestration MCP validation: route-intent, dry-run, real dispatch tool listing, result reading, next-ready lookup, plan-task dispatch tool listing, and verify-task recording must pass protocol smoke before release.
 - Provider readonly canary preview: `scripts/verify/test-provider-readonly-canary.ps1 -Provider codebuddy`. Apply runs require a clean starting repository or isolated checkout; drift observed during a run is recorded separately from provider proof and must be reviewed before edit work.
-- Provider release hard gate: after the final artifact is verified, CI materializes the PR正文 marker `codex-praetor-provider-release-evidence` to ignored `.codex-praetor/provider-release-evidence.json`, then `scripts/verify/test-provider-release-evidence.ps1` must pass. The manifest binds the artifact generation commit or an evidence `source_head` whose Git tree equals the artifact source tree, plus the artifact SHA; it contains one Codex-accepted real task plus an accepted canary for both Qoder (`qoder_agent_sdk`) and CodeBuddy (`codebuddy_acp`). This handles GitHub PR merge refs without weakening content identity. Mainline promotion additionally verifies that the candidate content tree equals the merged main tree. The evidence file is deliberately excluded from source/artifact identity to avoid a hash cycle; synthetic fixtures, exit code 0 without acceptance, stale generation, or one-provider-only evidence block merge and publication.
+- Provider release evidence gate: after the final artifact is verified, CI materializes the PR正文 marker `codex-praetor-provider-release-evidence` to ignored `.codex-praetor/provider-release-evidence.json`, then `scripts/verify/test-provider-release-evidence.ps1` must pass. The manifest binds evidence to the artifact SHA and classifies the changed provider compatibility surface. If that surface is unchanged, it requires zero real provider runs; if it changed, it requires exactly one Codex-accepted real task for each affected provider tuple. Canary/marker fixtures never count as real-task evidence. This handles GitHub PR merge refs without weakening content identity, and avoids wasting credits on package-only changes.
 - MCP source tests: `npm test` under `mcp/`.
 - Plugin protocol smoke: `mcp/scripts/smoke-plugin-mcp.js` against the packaged runtime.
 - Runtime contract generation: `config/runtime-contract.json` is the only editable contract; `scripts/release/sync-codex-praetor-runtime-contract.ps1` generates the plugin and Skill copies, and CI rejects drift.
@@ -48,7 +48,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.16.23-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.16.24-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
