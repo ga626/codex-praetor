@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.22-alpha",
+    [string]$Version = "0.16.23-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$OutputRoot = ".codex-praetor\releases",
@@ -38,7 +38,10 @@ function Assert-Command {
 Assert-Command -Name "git"
 Assert-Command -Name "gh"
 
-$branch = (& git -C $projectRoot branch --show-current).Trim()
+# GitHub Actions deliberately checks the release SHA out detached.  Native
+# PowerShell emits no pipeline object for an empty branch name, so normalize
+# through Out-String before calling Trim().
+$branch = (& git -C $projectRoot branch --show-current | Out-String).Trim()
 $status = (& git -C $projectRoot status --short)
 Write-Host "Codex Praetor GitHub Release publish plan"
 Write-Host "Repository: $Repository"

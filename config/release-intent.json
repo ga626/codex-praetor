@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.22-alpha",
-    "previous_version":  "0.16.21-alpha",
-    "tag":  "v0.16.22-alpha",
+    "version":  "0.16.23-alpha",
+    "previous_version":  "0.16.22-alpha",
+    "tag":  "v0.16.23-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.22-alpha.zip",
-    "reason":  "修复 Qoder Agent SDK 在 Windows 状态文件替换遇到瞬时 EPERM/EBUSY/EACCES 时的真实任务误失败：临时路径唯一、有限退避重试并清理失败临时文件；保持 Qoder Agent SDK 与 CodeBuddy ACP 的 readiness 绑定真实 provider tuple 与连接方式，严格区分 dry-run、job、worker、completion、accepted，并要求发布前对 Qoder 与 CodeBuddy 完成同一最终 artifact 的当前 generation canary 与真实任务验收。"
+    "artifact":  "codex-praetor-setup-0.16.23-alpha.zip",
+    "reason":  "修复 Release On Main 在 GitHub Actions detached HEAD 环境中将空分支名直接 Trim 而中断的问题；保持 Qoder Agent SDK 与 CodeBuddy ACP 的 readiness 绑定真实 provider tuple 与连接方式，严格区分 dry-run、job、worker、completion、accepted，并要求发布前对 Qoder 与 CodeBuddy 完成同一最终 artifact 的当前 generation canary 与真实任务验收。"
 }

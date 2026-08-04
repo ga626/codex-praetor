@@ -108,6 +108,8 @@ Assert-True ($pipelineText -notmatch 'OutputRoot\s+"\.codex-praetor\\ci-release"
 Assert-True ($pipelineText -notmatch '(?ms)if:\s*\$\{\{\s*inputs\.publish\s*\}\}\s*\r?\n\s*shell:\s*pwsh\s*\r?\n\s*env:\s*\r?\n\s*GH_TOKEN.*invoke-release-candidate-preflight') "Main publication must not invoke the candidate preflight and rebuild a second ZIP."
 Assert-True ($publisherText -match 'artifact_verified') "Publisher must require an artifact_verified manifest."
 Assert-True ($publisherText -notmatch 'build-codex-praetor-release\.ps1') "Publisher must not rebuild a second upload artifact."
+Assert-True ($publisherText -match 'branch --show-current\s*\|\s*Out-String') "Publisher must normalize an empty detached-HEAD branch result before calling Trim()."
+Assert-True ($publisherText -match 'AllowDetachedHead.*GITHUB_ACTIONS') "Publisher must permit the known detached-HEAD release-runner context only when explicitly requested by the workflow."
 
 $pins = @(Get-ActionPins -Path $ciPath) + @(Get-ActionPins -Path $releasePath) + @(Get-ActionPins -Path $pipelinePath)
 Assert-True ($pins.Count -gt 0) "No external action pins were discovered."
