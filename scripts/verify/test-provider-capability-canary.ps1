@@ -79,6 +79,13 @@ $statePath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
     [System.IO.Path]::GetFullPath($ReadinessPath)
 }
 $marker = "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
+$readinessHelperCandidates = @(
+    (Join-Path $projectRoot "scripts\verify\resolve-codex-praetor-readiness.ps1"),
+    (Join-Path $scriptDir "resolve-codex-praetor-readiness.ps1")
+)
+$readinessHelper = @($readinessHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+if (@($readinessHelper).Count -ne 1) { throw "Capability canary readiness helper is missing." }
+. ([string]$readinessHelper[0])
 
 function Get-Field {
     param([string]$Text, [string]$Name)
@@ -372,6 +379,7 @@ $entry = [pscustomobject]@{
     provider_source = "capability_canary"
     connection_mode = [string]$workerTuple.connection_mode
     runner_identity = [string]$workerTuple.runner_identity
+    provider_compatibility_fingerprint = (Get-CodexPraetorProviderCompatibilityFingerprint -ProviderName $Provider -CliHash $cliHash -ModelName ([string]$workerTuple.model) -Permission ([string]$workerTuple.permission_profile) -Kind $TaskKind -ConnectionMode ([string]$workerTuple.connection_mode) -RunnerIdentity ([string]$workerTuple.runner_identity) -TaskContractSchema ([string]$runtimeContract.taskContractSchema))
     cli_version = Get-Field -Text $outputText -Name "version"
     repo_observation = $repoObservation
     evidence = [ordered]@{
@@ -410,7 +418,7 @@ $entries = @($entries | Where-Object {
 })
 $entries += $entry
 $state = [pscustomobject]@{
-    schema = "codex-praetor-generation-readiness/v3"
+    schema = "codex-praetor-generation-readiness/v4"
     status = "passed"
     generation_id = [string]$generation.generation_id
     runtime_contract_sha256 = $runtimeContractHash

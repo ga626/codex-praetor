@@ -1,13 +1,17 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.16.23-alpha`
+Target release: `0.16.24-alpha`
 
-Status: `v0.16.14-alpha` stopped before creating a tag, Release, or public download. It must not be backfilled or overwritten. `v0.16.23-alpha` is the next immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
+Status: `v0.16.14-alpha` stopped before creating a tag, Release, or public download. It must not be backfilled or overwritten. `v0.16.24-alpha` is the next immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
 ## Hard Rules
+
+- 本机 GitHub 发布链路默认走用户当前代理节点：每次推送、创建 PR、查询 Actions/Release 或下载资产前，先在 `127.0.0.1:7897` 临时代理下完成不超过 20 秒的 HTTPS 与 `git ls-remote --heads origin main` 探针。只有这两项都通过，才对当次 Git 与 `gh` 命令设置进程级 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`；代理失败则停止并提示更换节点。直连不是正常发布候选，也不能自动作为代理失败后的兜底，除非用户明确当前节点支持直连或要求做诊断对照。
+
+- 这条代理规则只覆盖本机控制面：`git fetch/push/ls-remote`、`gh` 查询和本机远端下载。GitHub-hosted Actions 的 runner 不经过本机代理；因此在两项本机代理探针均通过后，CI 或 `Release On Main` 失败必须读取其 run 日志并按权限、workflow、候选内容或 GitHub runner 故障处理，不能通过切直连、重配本机代理或手工替换 Release 资产掩盖。
 
 - Do not paste GitHub Personal Access Tokens into Codex, docs, scripts, issues, release notes, or config files.
 - If a token is pasted into any chat, issue, log, or terminal transcript, revoke it immediately in GitHub before continuing.
@@ -105,12 +109,12 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 8. 远端下载复验通过后，Codex 在本机执行同一 Release 的自动激活：
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.16.23-alpha -Json
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.16.24-alpha -Json
    ```
 
    它不手改 cache 或用户 readiness；会停在 `needs_host_restart` 或 `needs_first_use_bootstrap`。前者只需要一次受支持的 Desktop 刷新，之后必须用 `runtime_info` 验明运行身份。后者不是发布失败：用户完成 provider 官方登录后，第一次真实计划任务会在隔离 worktree 中自动记录首用 readiness；不要求用户手动运行内部 canary。
 
-   发布维护者仍需在最终 artifact 和隔离用户目录中分别验证 Qoder、CodeBuddy 的真实只读 canary。维护者证据证明发布包能走通，不冒充普通用户的账号 readiness。
+   发布维护者先完成最终 artifact 和隔离用户目录的零积分验证。只有 provider compatibility fingerprint 变化时，才对受影响 provider 各完成一条经 Codex 验收的真实只读任务；canary 仅用于排障，不重复计作发布前置。维护者证据证明发布包能走通，不冒充普通用户的账号 readiness。
 
 9. 已公开 Release 只能下载复验，不能替换资产或修改说明。源代码、合同或 artifact 有缺陷时，必须使用递增版本的恢复 PR。
 

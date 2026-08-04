@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.24-alpha
+
+- Reworked provider readiness around an explicit compatibility fingerprint instead of invalidating Qoder/CodeBuddy evidence on every package generation.
+- Made the first eligible real readonly plan task establish first-use evidence automatically; diagnostic canaries are no longer a normal-user prerequisite.
+- Changed release evidence to require only the affected providers' accepted real tasks and to bind that evidence to the immutable candidate ZIP SHA.
+
 ## 0.16.23-alpha
 
 - Recovered the Release On Main path after `0.16.22-alpha` promoted its verified candidate ZIP but stopped before tag creation because the publisher treated GitHub Actions' expected detached HEAD as a non-empty branch name.

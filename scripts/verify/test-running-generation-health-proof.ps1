@@ -43,7 +43,7 @@ try {
         status = "passed"; expires_at = (Get-Date).AddHours(1).ToString("o"); evidence = [ordered]@{ schema = "codex-praetor-canary-evidence/v1"; job_id = "health-proof"; worker_stdout_sha256 = "a"; completion_sha256 = "b"; completion_status = "process_exited"; worker_exit_code = 0; failure_class = "" }
     }
     [ordered]@{
-        schema = "codex-praetor-generation-readiness/v3"; status = "passed"; generation_id = [string]$generation.generation_id
+        schema = "codex-praetor-generation-readiness/v4"; status = "passed"; generation_id = [string]$generation.generation_id
         runtime_contract_sha256 = $contractHash; task_contract_schema = [string]$contract.taskContractSchema; entries = @($entry)
     } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $profile ".codex\codex-praetor-readiness.json") -Encoding UTF8
 
@@ -61,9 +61,9 @@ try {
     Assert-True ([string]$payload.status -eq "ready") "Old receipt plus current plugin/readiness must leave dispatch health ready."
     Assert-True ([string]$payload.diagnostic_status -eq "degraded") "Old receipt must remain visible as diagnostic degradation without changing dispatch health."
 
-    $entry.generation_id = "wrong-generation"
+    $entry.generation_id = "new-package-generation"
     [ordered]@{
-        schema = "codex-praetor-generation-readiness/v3"; status = "passed"; generation_id = "wrong-generation"
+        schema = "codex-praetor-generation-readiness/v4"; status = "passed"; generation_id = "new-package-generation"
         runtime_contract_sha256 = $contractHash; task_contract_schema = [string]$contract.taskContractSchema; entries = @($entry)
     } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $profile ".codex\codex-praetor-readiness.json") -Encoding UTF8
     $previousErrorAction = $ErrorActionPreference
@@ -75,9 +75,9 @@ try {
         $ErrorActionPreference = $previousErrorAction
     }
     $wrongReadiness = Find-Check -Payload $wrongPayload -Name "provider_readiness"
-    Assert-True ($wrongExitCode -ne 0) "A readiness proof for another generation must fail closed."
-    Assert-True ([string]$wrongReadiness.status -eq "blocked") "Wrong-generation readiness proof must be blocked."
-    Write-Host "[PASS] Running generation is the health readiness authority."
+    Assert-True ($wrongExitCode -eq 0) "A package-only generation change must retain compatible readiness."
+    Assert-True ([string]$wrongReadiness.status -eq "ready") "Compatible provider evidence must not be blocked by a new package generation."
+    Write-Host "[PASS] Running generation remains an installation authority while provider readiness follows compatibility fingerprints."
 } finally {
     foreach ($path in @($profile, $cli)) { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue } }
 }
