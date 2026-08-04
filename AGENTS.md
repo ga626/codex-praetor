@@ -15,7 +15,8 @@
 - 候选 CI 必须显式检出 PR 的 immutable head，并在日志中断言 `git rev-parse HEAD` 与 PR head 相同；不得依赖 GitHub `pull_request` 的默认 synthetic merge ref。候选 artifact 的 SHA 只能绑定该实际检出的提交，main promotion 另行验证合并后的 promotion tree。
 - 发布 ZIP 是跨环境身份物，不得把任意运行时的默认 `ZipArchive`/压缩器输出当作跨机器确定性承诺。写入器必须固定排序、UTF-8 标志、DOS 时间、版本/平台、属性、extra/comment 和压缩方式；确定性检查除重复构建外必须检查这些二进制头字段。遇到 artifact SHA 不一致，先区分检出提交、stage 内容和 ZIP 字节格式，再决定修复；禁止只改 evidence SHA 后重试 CI。
 - 同一发布 PR 首次 CI 失败后，后续推送前必须归类该 PR 的全部失败 run，并用本地定向证据证明共同根因已被覆盖；历史失败可用于补充检查项，但 Dependabot 或无关 PR 的失败不得混入产品根因结论。
-- 本机 GitHub 发布链路默认走用户当前代理节点：推送、PR、Release 或远端下载前，先以不超过 20 秒的 `127.0.0.1:7897` 代理 HTTPS 探针和同一代理环境下的 `git ls-remote --heads origin main` 探针确认链路；`gh` 与 Git 都只在当前进程设置 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`。不得将直连作为正常候选；只有用户明确当前节点支持直连时才做对照诊断。代理探针失败即停止并提示切换节点，不把它归为代码、CI、认证或 artifact 缺陷；不得写全局 Git、Codex 或 provider 代理配置。
+- 本机 GitHub 发布链路默认走用户当前代理节点：推送、PR、Actions/Release 查询或远端资产下载前，先以不超过 20 秒的 `127.0.0.1:7897` 代理 HTTPS 探针和同一代理环境下的 `git ls-remote --heads origin main` 探针确认链路；`gh` 与 Git 都只在当前进程设置 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`。不得将直连作为正常候选或自动兜底；只有用户明确当前节点支持直连时才做对照诊断。两项代理探针任一失败即停止并提示切换节点，不把它归为代码、CI、认证或 artifact 缺陷；两项均通过后出现的 HTTP 认证/权限错误、分支保护、CI 断言、旧提交/候选内容或 artifact 问题分别处理，不允许再归咎节点。不得写全局 Git、Codex 或 provider 代理配置。
+- 本机代理只负责本机到 GitHub 的控制面；GitHub-hosted Actions 的 runner 不经过这台电脑的代理。PR CI 或 `Release On Main` 失败必须先读取对应 run 日志：runner 网络/权限/工作流失败进入 CI 或 release incident；不能靠改本机代理、直连重试或手工替换发布资产“修好”。
 - 阶段 1 的 route、plan、dry-run 和真实 worker 任务属于取证；单样本失败只记录分类并继续冻结矩阵，不得直接触发版本、Release 或 host 刷新。只有至少两条独立真实任务证明同一产品根因，才建立一个集中修复 PR。
 - 共同根因 PR 的开发期只跑受影响组。版本面、候选 artifact 和全量确定性矩阵只能在范围冻结后各运行一次；候选冻结后发现的独立问题记入下一证据门，不回填当前 PR。host 刷新只属于 PR D 的用户交付链，不得作为 PR B 或阶段 1 的诊断工具。
 - 对话只在阶段 1/2 事实报告、公开边界变化、PR D host 刷新或不可恢复 release incident 停下。

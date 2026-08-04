@@ -9,7 +9,9 @@ This runbook defines the single merge-to-release pipeline. A release-impacting P
 
 ## Hard Rules
 
-- 本机 GitHub 发布链路默认走用户当前代理节点：每次推送、创建 PR、查询 Release 或下载资产前，先在 `127.0.0.1:7897` 临时代理下完成短时 HTTPS 与 `git ls-remote --heads origin main` 探针。只有这两项都通过，才对当次 Git 与 `gh` 命令设置进程级 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`；代理失败则停止并提示更换节点。直连不是正常发布候选，除非用户明确当前节点支持直连或要求做诊断对照；不能把节点故障误修成产品或发布工作流问题。
+- 本机 GitHub 发布链路默认走用户当前代理节点：每次推送、创建 PR、查询 Actions/Release 或下载资产前，先在 `127.0.0.1:7897` 临时代理下完成不超过 20 秒的 HTTPS 与 `git ls-remote --heads origin main` 探针。只有这两项都通过，才对当次 Git 与 `gh` 命令设置进程级 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`；代理失败则停止并提示更换节点。直连不是正常发布候选，也不能自动作为代理失败后的兜底，除非用户明确当前节点支持直连或要求做诊断对照。
+
+- 这条代理规则只覆盖本机控制面：`git fetch/push/ls-remote`、`gh` 查询和本机远端下载。GitHub-hosted Actions 的 runner 不经过本机代理；因此在两项本机代理探针均通过后，CI 或 `Release On Main` 失败必须读取其 run 日志并按权限、workflow、候选内容或 GitHub runner 故障处理，不能通过切直连、重配本机代理或手工替换 Release 资产掩盖。
 
 - Do not paste GitHub Personal Access Tokens into Codex, docs, scripts, issues, release notes, or config files.
 - If a token is pasted into any chat, issue, log, or terminal transcript, revoke it immediately in GitHub before continuing.
