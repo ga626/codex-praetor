@@ -43,7 +43,17 @@ if (-not $SkipAttestationVerification) {
     & gh attestation verify $zip --repo $Repository
     if ($LASTEXITCODE -ne 0) { throw "GitHub provenance attestation verification failed for the candidate ZIP." }
 }
-$activation = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1") -Version $Version -ReleaseZip $zip -ReleaseSha256 $sha -CandidateReceiptPath $receipt -UserProfileRoot $UserProfileRoot -CodexCommand $CodexCommand -SkipMaintenance:$SkipMaintenance -Json
+$activationArguments = @(
+    "-Version", $Version,
+    "-ReleaseZip", $zip,
+    "-ReleaseSha256", $sha,
+    "-CandidateReceiptPath", $receipt,
+    "-UserProfileRoot", $UserProfileRoot,
+    "-CodexCommand", $CodexCommand,
+    "-Json"
+)
+if ($SkipMaintenance) { $activationArguments += "-SkipMaintenance" }
+$activation = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1") @activationArguments
 if ($LASTEXITCODE -ne 0) { throw "Verified candidate activation failed." }
 $payload = $activation | Out-String | ConvertFrom-Json
 $payload | Add-Member -NotePropertyName candidate_artifact_directory -NotePropertyValue $DownloadRoot

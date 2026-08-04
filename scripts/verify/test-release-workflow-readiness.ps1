@@ -121,6 +121,9 @@ Assert-True ($publisherText -notmatch 'build-codex-praetor-release\.ps1') "Publi
 Assert-True ($publisherText -match 'verify-github-release-asset\.ps1.*-AllowDraft') "Publisher must download-verify the draft artifact before it becomes public."
 Assert-True ($publisherText -match 'Draft GitHub Release verification failed') "Draft verification failure must leave the original draft for incident recovery."
 Assert-True ((Get-Content -LiteralPath $candidateActivationPath -Raw -Encoding UTF8) -match 'gh attestation verify') "Candidate activation must independently verify GitHub provenance before stable installation."
+$candidateActivationText = Get-Content -LiteralPath $candidateActivationPath -Raw -Encoding UTF8
+Assert-True ($candidateActivationText -notmatch '-SkipMaintenance:\$SkipMaintenance') "Candidate activation must not serialize a SwitchParameter as a string when launching the stable installer."
+Assert-True ($candidateActivationText -match 'if \(\$SkipMaintenance\) \{ \$activationArguments \+= "-SkipMaintenance" \}') "Candidate activation must pass the optional maintenance switch only when it is enabled."
 Assert-True ($publisherText -match 'branch --show-current\s*\|\s*Out-String') "Publisher must normalize an empty detached-HEAD branch result before calling Trim()."
 Assert-True ($publisherText -match 'AllowDetachedHead.*GITHUB_ACTIONS') "Publisher must permit the known detached-HEAD release-runner context only when explicitly requested by the workflow."
 
