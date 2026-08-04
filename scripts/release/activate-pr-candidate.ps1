@@ -6,6 +6,7 @@ param(
     [string]$CodexCommand = "codex",
     [string]$DownloadRoot = "",
     [switch]$SkipMaintenance,
+    [switch]$SkipAttestationVerification,
     [switch]$Json
 )
 
@@ -27,10 +28,21 @@ if ($LASTEXITCODE -ne 0) { throw "Unable to download verified candidate artifact
 $releaseName = "codex-praetor-setup-$Version"
 $zip = Join-Path $DownloadRoot "$releaseName.zip"
 $sha = Join-Path $DownloadRoot "$releaseName.zip.sha256"
+$manifestPath = Join-Path $DownloadRoot "$releaseName.artifact.json"
 $receipt = Join-Path $DownloadRoot "$releaseName.candidate.json"
-foreach ($path in @($zip, $sha, $receipt)) { if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Downloaded candidate artifact is incomplete: $path" } }
+foreach ($path in @($zip, $sha, $manifestPath, $receipt)) { if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Downloaded candidate artifact is incomplete: $path" } }
 $candidate = Get-Content -LiteralPath $receipt -Raw -Encoding UTF8 | ConvertFrom-Json
 if ([int]$candidate.pull_request.number -ne $PullRequestNumber -or ([string]$candidate.pull_request.head_sha).ToLowerInvariant() -ne $head) { throw "Downloaded candidate receipt is not bound to PR #$PullRequestNumber at $head." }
+$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ([string]$manifest.status -ne "artifact_verified" -or [string]$manifest.verification.status -ne "passed") { throw "Downloaded candidate artifact manifest is not verified." }
+$zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($zipHash -ne ([string]$candidate.artifact.zip_sha256).ToLowerInvariant() -or $zipHash -ne ([string]$manifest.artifact.sha256).ToLowerInvariant()) { throw "Candidate ZIP hash differs from its receipt or verified artifact manifest." }
+$manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($manifestHash -ne ([string]$candidate.artifact.manifest_sha256).ToLowerInvariant()) { throw "Candidate artifact manifest differs from the candidate receipt." }
+if (-not $SkipAttestationVerification) {
+    & gh attestation verify $zip --repo $Repository
+    if ($LASTEXITCODE -ne 0) { throw "GitHub provenance attestation verification failed for the candidate ZIP." }
+}
 $activation = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1") -Version $Version -ReleaseZip $zip -ReleaseSha256 $sha -CandidateReceiptPath $receipt -UserProfileRoot $UserProfileRoot -CodexCommand $CodexCommand -SkipMaintenance:$SkipMaintenance -Json
 if ($LASTEXITCODE -ne 0) { throw "Verified candidate activation failed." }
 $payload = $activation | Out-String | ConvertFrom-Json

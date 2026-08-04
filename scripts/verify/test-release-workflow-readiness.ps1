@@ -20,6 +20,7 @@ $candidateArtifactNamePath = Join-Path $root "scripts\release\get-release-candid
 $resolverPath = Join-Path $root "scripts\release\resolve-release-promotion-artifact.ps1"
 $candidateHostReceiptGatePath = Join-Path $root "scripts\verify\test-candidate-host-receipt.ps1"
 $candidateHostReceiptWriterPath = Join-Path $root "scripts\release\write-candidate-host-receipt.ps1"
+$candidateActivationPath = Join-Path $root "scripts\release\activate-pr-candidate.ps1"
 $intentGatePath = Join-Path $root "scripts\verify\test-release-intent.ps1"
 $preflightPath = Join-Path $root "scripts\verify\invoke-release-candidate-preflight.ps1"
 
@@ -56,6 +57,7 @@ Assert-True (Test-Path -LiteralPath $candidateArtifactNamePath -PathType Leaf) "
 Assert-True (Test-Path -LiteralPath $resolverPath -PathType Leaf) "Release promotion resolver is missing: $resolverPath"
 Assert-True (Test-Path -LiteralPath $candidateHostReceiptGatePath -PathType Leaf) "Candidate host receipt gate is missing: $candidateHostReceiptGatePath"
 Assert-True (Test-Path -LiteralPath $candidateHostReceiptWriterPath -PathType Leaf) "Candidate host receipt writer is missing: $candidateHostReceiptWriterPath"
+Assert-True (Test-Path -LiteralPath $candidateActivationPath -PathType Leaf) "Candidate activation entry is missing: $candidateActivationPath"
 Assert-True (Test-Path -LiteralPath $intentGatePath -PathType Leaf) "Release intent gate is missing: $intentGatePath"
 Assert-True (Test-Path -LiteralPath $preflightPath -PathType Leaf) "Candidate preflight is missing: $preflightPath"
 
@@ -118,6 +120,7 @@ Assert-True ($publisherText -match 'artifact_verified') "Publisher must require 
 Assert-True ($publisherText -notmatch 'build-codex-praetor-release\.ps1') "Publisher must not rebuild a second upload artifact."
 Assert-True ($publisherText -match 'verify-github-release-asset\.ps1.*-AllowDraft') "Publisher must download-verify the draft artifact before it becomes public."
 Assert-True ($publisherText -match 'Draft GitHub Release verification failed') "Draft verification failure must leave the original draft for incident recovery."
+Assert-True ((Get-Content -LiteralPath $candidateActivationPath -Raw -Encoding UTF8) -match 'gh attestation verify') "Candidate activation must independently verify GitHub provenance before stable installation."
 Assert-True ($publisherText -match 'branch --show-current\s*\|\s*Out-String') "Publisher must normalize an empty detached-HEAD branch result before calling Trim()."
 Assert-True ($publisherText -match 'AllowDetachedHead.*GITHUB_ACTIONS') "Publisher must permit the known detached-HEAD release-runner context only when explicitly requested by the workflow."
 
