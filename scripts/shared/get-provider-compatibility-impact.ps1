@@ -80,12 +80,30 @@ function Get-CodexPraetorProviderCompatibilityImpact {
     $targetSurface = Get-CodexPraetorProviderCompatibilitySurfaceHash -Repo $Repo -Revision $TargetRef
     if ($baseSurface -eq $targetSurface) { return @() }
 
+    function Test-ProviderPathSemanticChange([string]$Path) {
+        if ($Path -ne "config/runtime-contract.json") { return $true }
+        $baseText = Get-CodexPraetorProviderCompatibilityContent -Repo $Repo -Path $Path -Revision $ComparisonBase
+        $targetText = Get-CodexPraetorProviderCompatibilityContent -Repo $Repo -Path $Path -Revision $TargetRef
+        try {
+            $baseContract = $baseText | ConvertFrom-Json
+            $targetContract = $targetText | ConvertFrom-Json
+            $baseContract.PSObject.Properties.Remove("version")
+            $targetContract.PSObject.Properties.Remove("version")
+            return (($baseContract | ConvertTo-Json -Depth 20 -Compress) -ne ($targetContract | ConvertTo-Json -Depth 20 -Compress))
+        } catch {
+            throw "Unable to compare provider-relevant runtime contract content: $($_.Exception.Message)"
+        }
+    }
+
     $affected = New-Object System.Collections.Generic.HashSet[string]
     foreach ($path in $changed) {
         $normalized = [string]$path
+        if ((Test-CodexPraetorProviderCompatibilityPath -Path $normalized) -and -not (Test-ProviderPathSemanticChange -Path $normalized)) {
+            continue
+        }
         if ($normalized -match '(?i)(qoder|qoder-sdk)') { $null = $affected.Add("qoder") }
         if ($normalized -match '(?i)(codebuddy|codebuddy-acp)') { $null = $affected.Add("codebuddy") }
-        if (Test-CodexPraetorProviderCompatibilityPath -Path $normalized) {
+        if ((Test-CodexPraetorProviderCompatibilityPath -Path $normalized) -and $normalized -notmatch '(?i)(qoder|qoder-sdk|codebuddy|codebuddy-acp)') {
             $null = $affected.Add("qoder")
             $null = $affected.Add("codebuddy")
         }
