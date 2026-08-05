@@ -68,6 +68,33 @@ exit /b 0
     if ($LASTEXITCODE -ne 0) { throw "Deferred plugin-cache refresh fixture failed." }
     $deferred = Get-Content -LiteralPath $deferredState -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ([string]$deferred.status -eq "completed") "Deferred plugin-cache refresh did not confirm the official plugin install."
+    $lockedMarker = Join-Path $scratch "plugin-cache-lock-once.marker"
+    $lockedCodex = Join-Path $scratch "fake-codex-cache-lock-once.cmd"
+    @"
+@echo off
+if "%1"=="plugin" if "%2"=="add" (
+  if exist "$lockedMarker" goto success
+  type nul > "$lockedMarker"
+  echo Error: failed to back up plugin cache entry: Access is denied. 1>&2
+  exit /b 1
+)
+:success
+if "%1"=="plugin" if "%2"=="list" (
+  echo PLUGIN                            STATUS              VERSION                     PATH
+  echo codex-praetor@personal            installed, enabled  $version                 C:\fixture\plugins\codex-praetor
+)
+exit /b 0
+"@ | Set-Content -LiteralPath $lockedCodex -Encoding ASCII
+    $deferredActivation = (& powershell -NoProfile -ExecutionPolicy Bypass -File $activation -Version $version -ReleaseZip $zip -ReleaseSha256 $sha -UserProfileRoot $profile -CodexCommand $lockedCodex -SkipMaintenance -DeferPluginCacheRefresh -DeferredCacheRefreshWaitSeconds 1 -Json | Out-String | ConvertFrom-Json)
+    Assert-True ([string]$deferredActivation.status -eq "awaiting_host_exit") "A recognized plugin-cache lock must become awaiting_host_exit, not an activation exception."
+    $deferredActivationState = [string]$deferredActivation.deferred_refresh_state
+    $deadline = (Get-Date).AddSeconds(5)
+    while ((-not (Test-Path -LiteralPath $deferredActivationState -PathType Leaf)) -and (Get-Date -lt $deadline)) { Start-Sleep -Milliseconds 250 }
+    Assert-True (Test-Path -LiteralPath $deferredActivationState -PathType Leaf) "Deferred cache refresh did not write a result state."
+    $deferredActivationResult = Get-Content -LiteralPath $deferredActivationState -Raw -Encoding UTF8 | ConvertFrom-Json
+    $deferredStatus = [string]$deferredActivationResult.status
+    $deferredReason = [string]$deferredActivationResult.reason
+    Assert-True (($deferredStatus -eq "completed") -or ($deferredStatus -eq "timed_out" -and $deferredReason -eq "codex_desktop_still_running")) "Deferred cache refresh did not either complete without a host or correctly wait for the host to exit."
     $runtimeInfo = Join-Path $scratch "runtime-info.json"
     [ordered]@{ runtime_contract = [ordered]@{ version = $version }; runtime_identity = [ordered]@{ version = $version; generation_id = [string]$current.generation_id; runtime_contract_sha256 = [string]$current.runtime_contract_sha256 } } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $runtimeInfo -Encoding UTF8
     $executionRepo = Join-Path $scratch "execution-worktree"

@@ -15,6 +15,9 @@
 )
 
 $ErrorActionPreference = "Stop"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+    $global:PSNativeCommandUseErrorActionPreference = $false
+}
 . (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 if ([string]::IsNullOrWhiteSpace($Tag)) { $Tag = "v$Version" }
 $releaseName = "codex-praetor-setup-$Version"
@@ -60,8 +63,17 @@ function Invoke-CodexCommandInProfile {
         New-Item -ItemType Directory -Path $env:CODEX_HOME -Force | Out-Null
         $stderrPath = [IO.Path]::GetTempFileName()
         try {
-            $output = & $CodexCommand @Arguments 2> $stderrPath
-            $exitCode = $LASTEXITCODE
+            # A nonzero CLI exit is evidence we must classify below.  The
+            # PowerShell shim can otherwise turn its stderr into a terminating
+            # NativeCommandError before we can recognize a cache lock.
+            $previousErrorActionPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                $output = & $CodexCommand @Arguments 2> $stderrPath
+                $exitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousErrorActionPreference
+            }
             $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw -Encoding UTF8 } else { "" }
         } finally {
             if (Test-Path -LiteralPath $stderrPath) { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }

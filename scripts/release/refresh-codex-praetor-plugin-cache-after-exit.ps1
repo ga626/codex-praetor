@@ -9,6 +9,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+    $global:PSNativeCommandUseErrorActionPreference = $false
+}
 
 function Write-Status {
     param([string]$Status, [string]$Reason, [int]$ExitCode = 0)
@@ -48,14 +51,26 @@ try {
     $env:HOME = $profileRoot
     $env:CODEX_HOME = Join-Path $profileRoot ".codex"
     New-Item -ItemType Directory -Path $env:CODEX_HOME -Force | Out-Null
-    & $CodexCommand plugin add $PluginSelector
-    $addExitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $CodexCommand plugin add $PluginSelector
+        $addExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     if ($addExitCode -ne 0) {
         Write-Status -Status "failed" -Reason "official_plugin_add_failed" -ExitCode $addExitCode
         exit $addExitCode
     }
-    $pluginList = (& $CodexCommand plugin list | Out-String)
-    $listExitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $pluginList = (& $CodexCommand plugin list | Out-String)
+        $listExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     $expectedPattern = "(?m)^\s*" + [regex]::Escape($PluginSelector) + "\s+.*?\s+" + [regex]::Escape($ExpectedVersion) + "(?:\s|$)"
     if ($listExitCode -ne 0 -or $pluginList -notmatch $expectedPattern) {
         Write-Status -Status "failed" -Reason "plugin_list_does_not_confirm_expected_version" -ExitCode $listExitCode
