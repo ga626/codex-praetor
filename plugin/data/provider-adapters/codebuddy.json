@@ -5,11 +5,11 @@
   "cli": {
     "discovery": "Read nodePath, cliPath and versionCommand from the local Codex Praetor configuration; never commit account or path details.",
     "version_command": ["--version"],
-    "identity_fields": ["cli_path", "cli_hash", "version"]
+    "identity_fields": ["distribution", "cli_path", "cli_hash", "version", "connection_mode", "runner_identity"]
   },
   "models": {
-    "allowed": ["hy3", "deepseek-v4-flash", "deepseek-v4-pro"],
-    "not_default": ["hy3-preview-agent"]
+    "allowed": ["hy3"],
+    "not_default": ["hy3-preview-agent", "deepseek-v4-flash", "deepseek-v4-pro"]
   },
   "permissions": {
     "mappings": [
@@ -20,7 +20,7 @@
     "minimum_canaries": ["local_audit", "test_execution", "code_change"]
   },
   "lifecycle": {
-    "launch": "invoke-codex-praetor.ps1 starts the Node ACP runner with a fixed model; the runner speaks JSON-RPC NDJSON to CodeBuddy and owns filesystem and bounded terminal client proxies.",
+    "launch": "invoke-codex-praetor.ps1 starts the Node ACP runner with a fixed model; it never uses CodeBuddy daemon or automatic model selection, and owns filesystem and bounded terminal client proxies.",
     "parse_terminal_state": "watch-codex-praetor-job.ps1 requires CodeBuddy ACP terminal evidence, separates a clean process exit from a usable worker result, and records structured session updates without retaining chain-of-thought text.",
     "cleanup": "session/cancel is sent through ACP; Codex cold recovery creates a new ACP session from durable ledger state. Controlled retention later reclaims disposable worktrees.",
     "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "provider_cancelled_unexpected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable", "cancelled_session_terminated", "progress_saturated"]

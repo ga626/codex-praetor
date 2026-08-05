@@ -4,7 +4,7 @@ Codex Praetor can dispatch Qoder only when the user has installed and signed in 
 
 Codex Praetor does not silently install Qoder, sign in for the user, read Qoder account files, or promise that a model is free. It can guide the user to the official install/auth flow, wait for the user to finish, re-check the CLI, and then call the configured CLI path with the model allowlist from the local config.
 
-In 0.16.5-alpha, Codex Praetor uses the Qoder Agent SDK for structured supervision but passes `providers.qoder.cliPath` as the SDK process path. Your installed CLI and its normal login state remain authoritative; the package never copies or reads that login state.
+For the Qoder China route, Codex Praetor invokes the configured QoderWork CLI directly with its documented `--print --output-format stream-json` protocol. Your installed CLI and its normal login state remain authoritative; the package never copies or reads that login state. The global Qoder Agent SDK is a different, explicit opt-in route and is never inferred from a CLI filename or PATH.
 
 普通用户只需要记住一句：Codex Praetor 可以发现并调用 Qoder，但 Qoder 账号登录、浏览器授权、Personal Access Token 和额度状态都属于 Qoder 自己的流程。
 
@@ -64,7 +64,7 @@ Then edit only your local config:
 
 If `qodercli` is on `PATH`, you may use `qodercli` as the path.
 
-Codex Praetor passes this configured CLI path to the Qoder Agent SDK. The package does not ship a second Qoder CLI, choose a region for you, or replace the CLI edition and login state you installed.
+For the Qoder China route, Codex Praetor starts this configured CLI directly. The package does not ship a second Qoder CLI, choose a region for you, replace the CLI edition or login state you installed, or silently reinterpret a China CLI as a global SDK runtime.
 
 ## Verify
 
@@ -108,4 +108,4 @@ Nothing is broken. Qoder real dispatch is disabled, but Codex Praetor can still 
 
 ## Evidence and acceptance
 
-The Qoder SDK runner records its session and completion as evidence. Codex still independently validates the isolated diff and the required check before accepting a task — Qoder-side evidence does not replace Codex-side acceptance.
+For the Qoder China route, the watcher records the original stdout/stderr, parsed `stream-json` events, process terminal state, completion record and worker worktree. An exit code of zero without a parseable event is rejected as `provider_output_unparseable`. Cancellation is controlled process cancellation, not a claim of SDK-session abort. Codex still independently validates the isolated diff and the required check before accepting a task — Qoder-side evidence does not replace Codex-side acceptance.

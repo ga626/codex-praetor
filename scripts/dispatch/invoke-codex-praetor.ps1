@@ -420,12 +420,40 @@ function Assert-RealTaskEvidenceBootstrap {
     if ([string]$context.source_category -notin @("real_historical_issue", "real_user_request")) {
         throw "Evidence bootstrap is limited to real historical issues or real user requests."
     }
-    if ([string]$context.connection_mode -notin @("supervised_cli_text", "qoder_agent_sdk", "codebuddy_acp")) {
+    if ([string]$context.connection_mode -notin @("supervised_cli_text", "supervised_cli_stream_json", "qoder_agent_sdk", "codebuddy_acp")) {
         throw "Evidence bootstrap requires a recognized tested connection mode."
     }
     if (@($planTask.allowed_paths).Count -eq 0 -or @($planTask.forbidden_paths).Count -eq 0 -or @($planTask.completion_definition.required_checks).Count -eq 0) {
         throw "Evidence bootstrap requires a complete plan scope and independent checks."
     }
+}
+
+function Get-QoderConnectionMode {
+    param([object]$ProviderConfig, [string]$CliPath)
+
+    $distribution = [string]$ProviderConfig.distribution
+    $configured = [string]$ProviderConfig.connectionMode
+    if ($distribution -eq "qoder_cn") {
+        if (-not [string]::IsNullOrWhiteSpace($configured) -and $configured -ne "supervised_cli_stream_json") {
+            throw "Qoder distribution qoder_cn must use connectionMode=supervised_cli_stream_json; it cannot fall back to the global SDK."
+        }
+        return "supervised_cli_stream_json"
+    }
+    if ($distribution -eq "qoder_global") {
+        if ($configured -ne "qoder_agent_sdk") {
+            throw "Qoder distribution qoder_global requires explicit connectionMode=qoder_agent_sdk."
+        }
+        return "qoder_agent_sdk"
+    }
+
+    # Compatibility bridge for an already configured QoderWork CN executable.
+    # It never chooses the global SDK by filename or PATH: a non-CN legacy
+    # configuration stops with an actionable migration error instead.
+    if ($configured -eq "supervised_cli_stream_json" -or ([string]$CliPath -match "(?i)qoderclicn|qoderwork\s*cn|qoder\s*cn")) {
+        Write-Warning "Legacy Qoder config detected. Set distribution=qoder_cn and connectionMode=supervised_cli_stream_json in your local config before the next provider update."
+        return "supervised_cli_stream_json"
+    }
+    throw "Qoder route is not explicit. Set distribution=qoder_cn with connectionMode=supervised_cli_stream_json, or distribution=qoder_global with connectionMode=qoder_agent_sdk after a separate global-route validation."
 }
 
 function Test-ProviderReadiness {
@@ -435,20 +463,27 @@ function Test-ProviderReadiness {
         [string]$CliPath,
         [string]$ModelName,
         [string]$PermissionProfileName,
-        [string]$TaskKindName
+        [string]$TaskKindName,
+        [string]$ConnectionModeName = "",
+        [string]$DistributionName = "",
+        [string]$RunnerIdentity = ""
     )
 
     if (Get-Command Test-CodexPraetorProviderReadiness -ErrorAction SilentlyContinue) {
-        $connectionModeName = if ($ProviderName -eq "qoder") { "qoder_agent_sdk" } elseif ($ProviderName -eq "codebuddy") { "codebuddy_acp" } else { "" }
-        $runnerName = if ($ProviderName -eq "qoder") { "qoder-sdk-runner.js" } elseif ($ProviderName -eq "codebuddy") { "codebuddy-acp-runner.js" } else { "" }
+        if ([string]::IsNullOrWhiteSpace($ConnectionModeName)) {
+            $ConnectionModeName = if ($ProviderName -eq "qoder") { Get-QoderConnectionMode -ProviderConfig $config.providers.qoder -CliPath $CliPath } elseif ($ProviderName -eq "codebuddy") { "codebuddy_acp" } else { "" }
+        }
+        $runnerName = if ($ConnectionModeName -eq "qoder_agent_sdk") { "qoder-sdk-runner.js" } elseif ($ConnectionModeName -eq "codebuddy_acp") { "codebuddy-acp-runner.js" } else { "" }
         $runnerCandidates = @(
             (Join-Path $scriptGrandparent "mcp\\dist\\$runnerName"),
             (Join-Path $scriptGrandparent "plugin\\mcp\\dist\\$runnerName"),
             (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\\dist\\$runnerName")
         )
         $runnerPath = @($runnerCandidates | Where-Object { -not [string]::IsNullOrWhiteSpace($runnerName) -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1)
-        $runnerIdentity = if (@($runnerPath).Count -eq 1) { "${connectionModeName}:" + (Get-FileSha256OrEmpty -Path ([string]$runnerPath[0])) } else { "" }
-        return (Test-CodexPraetorProviderReadiness -Path $ReadinessPath -ProviderName $ProviderName -Cli $CliPath -ModelName $ModelName -Permission $PermissionProfileName -Kind $TaskKindName -ExpectedTaskContract ([string]$runtimeContract.taskContractSchema) -ExpectedConnectionMode $connectionModeName -ExpectedRunnerIdentity $runnerIdentity)
+        if ([string]::IsNullOrWhiteSpace($RunnerIdentity)) {
+            $RunnerIdentity = if (@($runnerPath).Count -eq 1) { "${ConnectionModeName}:" + (Get-FileSha256OrEmpty -Path ([string]$runnerPath[0])) } elseif ($ConnectionModeName -eq "supervised_cli_stream_json") { "${ConnectionModeName}:" + (Get-FileSha256OrEmpty -Path $CliPath) } else { "" }
+        }
+        return (Test-CodexPraetorProviderReadiness -Path $ReadinessPath -ProviderName $ProviderName -Cli $CliPath -ModelName $ModelName -Permission $PermissionProfileName -Kind $TaskKindName -ExpectedTaskContract ([string]$runtimeContract.taskContractSchema) -ExpectedDistribution $DistributionName -ExpectedConnectionMode $ConnectionModeName -ExpectedRunnerIdentity $RunnerIdentity)
     }
     return [ordered]@{ ok = $false; reason = "Readiness helper is missing."; cli_hash = (Get-FileSha256OrEmpty -Path $CliPath) }
 }
@@ -543,8 +578,11 @@ function Get-WorkerWorktreePath {
         [string]$RepoPath,
         [string]$Name
     )
-    $artifactRoot = Get-ProjectArtifactRoot -RepoPath $RepoPath
-    return (Join-Path (Join-Path $artifactRoot "worktrees") $Name)
+    # Worker worktrees are disposable project-local execution copies, not
+    # runtime evidence. Keep them under one visible, bounded project path so
+    # cleanup and health never need to enumerate historical Git worktrees.
+    $projectRoot = Get-CanonicalProjectRootPath -RepoPath $RepoPath
+    return (Join-Path (Join-Path $projectRoot ".codex\worktrees") $Name)
 }
 
 function Get-CanonicalProjectRootPath {
@@ -605,7 +643,7 @@ function Initialize-ProjectArtifactOwnership {
         schema = "codex-praetor-runtime-owner/v1"
         canonical_project_root = $projectRoot
         git_common_directory = $commonDirectory
-        managed_worktree_root = (Join-Path $artifactRoot "worktrees")
+        managed_worktree_root = (Join-Path $projectRoot ".codex\worktrees")
         created_at = (Get-Date).ToString("o")
     }
     $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
@@ -1048,6 +1086,7 @@ function Invoke-Or-StartWorker {
         [int]$WorkerTimeoutSeconds = 1200,
         [string]$DependencyBootstrap = "not_required",
         [string]$ConnectionMode = "supervised_cli_text",
+        [string]$ProviderDistribution = "",
         [string]$RunnerIdentity = "",
         [object]$SdkRunnerOptions = $null,
         [object]$AcpRunnerOptions = $null,
@@ -1076,6 +1115,7 @@ function Invoke-Or-StartWorker {
     Write-Output "run_mode=$RunMode"
     Write-Output "task_kind=$TaskKindName"
     Write-Output "connection_mode=$ConnectionMode"
+    Write-Output "distribution=$ProviderDistribution"
     Write-Output "runner_identity=$RunnerIdentity"
     Write-Output "dependency_bootstrap=$DependencyBootstrap"
     Write-Output ("worker_network=" + $(if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }))
@@ -1162,6 +1202,7 @@ function Invoke-Or-StartWorker {
         task_kind = $TaskKindName
         dependency_bootstrap = $DependencyBootstrap
         connection_mode = $ConnectionMode
+        distribution = $ProviderDistribution
         runner_identity = $RunnerIdentity
         evidence_bootstrap = [bool]$EvidenceBootstrap
         readiness_path = $providerReadinessPath
@@ -1174,7 +1215,7 @@ function Invoke-Or-StartWorker {
         generation_id = [string]$generation.generation_id
         runtime_contract_sha256 = $runtimeContractHash
         wrapper_protocol = [string]$runtimeContract.wrapperProtocol
-        provider_tuple = [ordered]@{ provider = $ProviderName; cli_path = $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath }); cli_hash = (Get-FileSha256OrEmpty -Path $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath })); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; connection_mode = $ConnectionMode; runner_identity = $RunnerIdentity; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
+        provider_tuple = [ordered]@{ provider = $ProviderName; distribution = $ProviderDistribution; cli_path = $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath }); cli_hash = (Get-FileSha256OrEmpty -Path $(if ([string]::IsNullOrWhiteSpace($ProviderCliPath)) { $Exe } else { $ProviderCliPath })); model = $ModelName; permission_profile = $PermissionProfileName; output_format = $OutputFormatName; task_kind = $TaskKindName; connection_mode = $ConnectionMode; runner_identity = $RunnerIdentity; generation_id = [string]$generation.generation_id; runtime_contract_sha256 = $runtimeContractHash; task_contract_schema = [string]$runtimeContract.taskContractSchema }
         contract_hash = $ContractHash
         run_mode = $RunMode
         status = "starting"
@@ -1493,6 +1534,8 @@ if ([string]::IsNullOrWhiteSpace($effectiveOutputFormat)) {
 }
 
 $providerCliPath = ""
+$qoderConnectionMode = ""
+$providerDistribution = ""
 if ($resolvedProvider -eq "qoder") {
     $providerCliPath = [string]$config.providers.qoder.cliPath
     if (-not $DryRun -and -not $PreflightOnly -and -not (Test-Path -LiteralPath $providerCliPath -PathType Leaf)) {
@@ -1502,19 +1545,26 @@ if ($resolvedProvider -eq "qoder") {
         }
         $providerCliPath = [string]$qoderCommand.Source
     }
-    $sdkRunnerCandidates = @(
-        (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
-        # Release bundles retain the executable runner with the plugin MCP,
-        # rather than the checkout-only source MCP directory.
-        (Join-Path $scriptGrandparent "plugin\mcp\dist\qoder-sdk-runner.js"),
-        (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
-    )
-    $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
-    if (@($sdkRunner).Count -ne 1) {
-        throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
+    $qoderConnectionMode = Get-QoderConnectionMode -ProviderConfig $config.providers.qoder -CliPath $providerCliPath
+    $providerDistribution = [string]$config.providers.qoder.distribution
+    if ([string]::IsNullOrWhiteSpace($providerDistribution) -and $qoderConnectionMode -eq "supervised_cli_stream_json") { $providerDistribution = "qoder_cn" }
+    if ($qoderConnectionMode -eq "qoder_agent_sdk") {
+        $sdkRunnerCandidates = @(
+            (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
+            # Release bundles retain the executable runner with the plugin MCP,
+            # rather than the checkout-only source MCP directory.
+            (Join-Path $scriptGrandparent "plugin\mcp\dist\qoder-sdk-runner.js"),
+            (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
+        )
+        $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+        if (@($sdkRunner).Count -ne 1) {
+            throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
+        }
     }
 } elseif ($resolvedProvider -eq "codebuddy") {
     $providerCliPath = [string]$config.providers.codebuddy.cliPath
+    $providerDistribution = [string]$config.providers.codebuddy.distribution
+    if ([string]::IsNullOrWhiteSpace($providerDistribution)) { $providerDistribution = "codebuddy_cn" }
 }
 $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
     Join-Path $env:USERPROFILE ".codex\codex-praetor-readiness.json"
@@ -1522,7 +1572,9 @@ $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
     [System.IO.Path]::GetFullPath($ReadinessPath)
 }
 if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not $EvidenceBootstrap) {
-    $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind
+    $expectedConnection = if ($resolvedProvider -eq "qoder") { $qoderConnectionMode } elseif ($resolvedProvider -eq "codebuddy") { "codebuddy_acp" } else { "" }
+    $expectedRunnerIdentity = if ($expectedConnection -eq "supervised_cli_stream_json") { "${expectedConnection}:" + (Get-FileSha256OrEmpty -Path $providerCliPath) } else { "" }
+    $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind -ConnectionModeName $expectedConnection -DistributionName $providerDistribution -RunnerIdentity $expectedRunnerIdentity
     if (-not $readiness.ok) {
         throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Use a durable real-task evidence bootstrap or run the provider canary."
     }
@@ -1691,17 +1743,6 @@ $networkRule
             }
             $resolvedQoder = [string]$qoderCommand.Source
         }
-        $sdkRunnerCandidates = @(
-            (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
-            (Join-Path $scriptGrandparent "plugin\mcp\dist\qoder-sdk-runner.js"),
-            (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
-        )
-        $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
-        if (@($sdkRunner).Count -ne 1) {
-            throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
-        }
-        $sdkRunnerPath = [string]$sdkRunner[0]
-        $nodeCommand = "node"
         $allowedTools = if ($TaskKind -eq "test_execution") {
             @("Read", "Grep", "Glob", "Bash")
         } elseif ($Mode -eq "readonly") {
@@ -1709,22 +1750,61 @@ $networkRule
         } else {
             @("Read", "Grep", "Glob", "Edit", "Write", "Bash")
         }
-        $sdkRunnerOptions = [ordered]@{
-            schema = "codex-praetor-qoder-sdk-runner/v1"
-            cwd = $executionRepo
-            prompt = $supervisedTask
-            cli_path = $resolvedQoder
-            model = $model
-            permission_mode = if ($TaskKind -eq "test_execution" -or $Mode -eq "edit") { "bypassPermissions" } else { "dontAsk" }
-            allowed_tools = $allowedTools
-            allowed_paths = @($AllowedPath)
-            forbidden_paths = @($ForbiddenPath)
-            required_checks = @($RequiredCheck)
-            max_stall_seconds = $MaxStallSeconds
-            sdk_environment = if ($null -ne $config.providers.qoder.sdkEnvironment) { $config.providers.qoder.sdkEnvironment } else { [ordered]@{} }
+        if ($qoderConnectionMode -eq "supervised_cli_stream_json") {
+            # Qoder CN's documented headless interface is its own CLI protocol.
+            # Keep the worker in the isolated worktree and validate its diff after
+            # exit; do not force the unrelated global Agent SDK protocol onto it.
+            $directCliArgs = @(
+                "--print",
+                "--output-format", "stream-json",
+                # QoderWork CN's automatic classifier is an external service.
+                # If it is unavailable, it can deny a deterministic local
+                # check after edits have already been made.  The supervisor
+                # has already bounded tools and paths, so use the documented
+                # non-interactive mode consistently and validate the result.
+                "--permission-mode", "dont_ask",
+                "--model", $model,
+                "--tools", ($allowedTools -join ","),
+                "--allowed-tools", ($allowedTools -join ","),
+                "--disallowed-tools", "WebFetch,WebSearch,Agent,AskUserQuestion,Skill,TodoWrite",
+                $supervisedTask
+            )
+            if (-not [string]::IsNullOrWhiteSpace($effectiveReasoningEffort)) {
+                $directCliArgs = @("--reasoning-effort", $effectiveReasoningEffort) + $directCliArgs
+            }
+            if ($effectiveContextWindow -gt 0) {
+                $directCliArgs = @("--context-window", "$effectiveContextWindow") + $directCliArgs
+            }
+            Invoke-Or-StartWorker -Exe $resolvedQoder -ArgumentList $directCliArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -ProviderDistribution $providerDistribution -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "stream-json" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "supervised_cli_stream_json" -RunnerIdentity ("supervised_cli_stream_json:" + (Get-FileSha256OrEmpty -Path $resolvedQoder)) -ProviderCliPath $resolvedQoder
+        } else {
+            $sdkRunnerCandidates = @(
+                (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),
+                (Join-Path $scriptGrandparent "plugin\mcp\dist\qoder-sdk-runner.js"),
+                (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-sdk-runner.js")
+            )
+            $sdkRunner = @($sdkRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+            if (@($sdkRunner).Count -ne 1) {
+                throw "Qoder SDK runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
+            }
+            $sdkRunnerPath = [string]$sdkRunner[0]
+            $nodeCommand = "node"
+            $sdkRunnerOptions = [ordered]@{
+                schema = "codex-praetor-qoder-sdk-runner/v1"
+                cwd = $executionRepo
+                prompt = $supervisedTask
+                cli_path = $resolvedQoder
+                model = $model
+                permission_mode = if ($TaskKind -eq "test_execution" -or $Mode -eq "edit") { "bypassPermissions" } else { "dontAsk" }
+                allowed_tools = $allowedTools
+                allowed_paths = @($AllowedPath)
+                forbidden_paths = @($ForbiddenPath)
+                required_checks = @($RequiredCheck)
+                max_stall_seconds = $MaxStallSeconds
+                sdk_environment = if ($null -ne $config.providers.qoder.sdkEnvironment) { $config.providers.qoder.sdkEnvironment } else { [ordered]@{} }
+            }
+            $cmdArgs = @($sdkRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_SDK_OPTIONS__")
+            Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -ProviderDistribution $providerDistribution -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -RunnerIdentity ("qoder_agent_sdk:" + (Get-FileSha256OrEmpty -Path $sdkRunnerPath)) -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $resolvedQoder
         }
-        $cmdArgs = @($sdkRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_SDK_OPTIONS__")
-        Invoke-Or-StartWorker -Exe $nodeCommand -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName $effectiveOutputFormat -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "qoder_agent_sdk" -RunnerIdentity ("qoder_agent_sdk:" + (Get-FileSha256OrEmpty -Path $sdkRunnerPath)) -SdkRunnerOptions $sdkRunnerOptions -ProviderCliPath $resolvedQoder
     }
 
     if ($resolvedProvider -eq "codebuddy") {
@@ -1766,7 +1846,7 @@ $networkRule
             max_stall_seconds = $MaxStallSeconds
         }
         $cmdArgs = @([string]$acpRunner[0], "--options-file", "__CODEX_PRAETOR_CODEBUDDY_ACP_OPTIONS__")
-        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "acp_ndjson" -StructuredOutput "session_update" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "codebuddy_acp" -RunnerIdentity ("codebuddy_acp:" + (Get-FileSha256OrEmpty -Path ([string]$acpRunner[0]))) -AcpRunnerOptions $acpRunnerOptions -ProviderCliPath $codebuddy
+        Invoke-Or-StartWorker -Exe $node -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "codebuddy" -ProviderDistribution $providerDistribution -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "acp_ndjson" -StructuredOutput "session_update" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "codebuddy_acp" -RunnerIdentity ("codebuddy_acp:" + (Get-FileSha256OrEmpty -Path ([string]$acpRunner[0]))) -AcpRunnerOptions $acpRunnerOptions -ProviderCliPath $codebuddy
     }
 
 } finally {

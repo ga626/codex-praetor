@@ -23,6 +23,7 @@ function New-ProviderCompatibilityFingerprint([object]$Tuple) {
         "model=$([string]$Tuple.model)",
         "permission=$([string]$Tuple.permission_profile)",
         "task_kind=$([string]$Tuple.task_kind)",
+        "distribution=$([string]$Tuple.distribution)",
         "connection_mode=$([string]$Tuple.connection_mode)",
         "runner_identity=$([string]$Tuple.runner_identity)",
         "task_contract_schema=$([string]$Tuple.task_contract_schema)"
@@ -47,7 +48,7 @@ $stdoutPath = [string]$job.stdout
 $completionPath = [string]$job.completion
 $providerTuple = $completion.provider_tuple
 if ($null -eq $providerTuple) { $providerTuple = $job.provider_tuple }
-foreach ($name in @("provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "connection_mode")) {
+foreach ($name in @("provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "distribution", "connection_mode")) {
     if ([string]::IsNullOrWhiteSpace([string]$providerTuple.$name)) { throw "Readiness bootstrap is missing provider tuple field: $name" }
 }
 if ([string]$providerTuple.cli_hash -ne (Sha256 ([string]$providerTuple.cli_path))) { throw "Readiness bootstrap CLI hash does not match the current CLI." }
@@ -62,6 +63,7 @@ $entry = [ordered]@{
     model = [string]$providerTuple.model
     permission_profile = [string]$providerTuple.permission_profile
     task_kind = [string]$providerTuple.task_kind
+    distribution = [string]$providerTuple.distribution
     connection_mode = [string]$providerTuple.connection_mode
     runner_identity = [string]$providerTuple.runner_identity
     provider_compatibility_fingerprint = (New-ProviderCompatibilityFingerprint -Tuple $providerTuple)
@@ -94,17 +96,18 @@ $entries = @($entries | Where-Object {
         [string]$_.model -eq [string]$entry.model -and
         [string]$_.permission_profile -eq [string]$entry.permission_profile -and
         [string]$_.task_kind -eq [string]$entry.task_kind -and
+        [string]$_.distribution -eq [string]$entry.distribution -and
         [string]$_.connection_mode -eq [string]$entry.connection_mode)
 })
 $entries += [pscustomobject]$entry
 $stateOut = [ordered]@{
-    schema = "codex-praetor-generation-readiness/v4"
+    schema = "codex-praetor-generation-readiness/v5"
     status = "passed"
     generation_id = [string]$entry.generation_id
     runtime_contract_sha256 = [string]$entry.runtime_contract_sha256
     task_contract_schema = [string]$entry.task_contract_schema
     provider = [string]$entry.provider
-    tuple = [ordered]@{ cli_path = [string]$entry.cli_path; cli_hash = [string]$entry.cli_hash; model = [string]$entry.model; permission_profile = [string]$entry.permission_profile; task_kind = [string]$entry.task_kind; connection_mode = [string]$entry.connection_mode; runner_identity = [string]$entry.runner_identity }
+    tuple = [ordered]@{ cli_path = [string]$entry.cli_path; cli_hash = [string]$entry.cli_hash; model = [string]$entry.model; permission_profile = [string]$entry.permission_profile; task_kind = [string]$entry.task_kind; distribution = [string]$entry.distribution; connection_mode = [string]$entry.connection_mode; runner_identity = [string]$entry.runner_identity }
     provider_source = "real_user_task_bootstrap"
     updated_at = (Get-Date).ToString("o")
     entries = $entries

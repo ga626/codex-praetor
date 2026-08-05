@@ -42,6 +42,7 @@ try {
 
     Write-Host "[RUN] MCP dependencies and tests"
     Invoke-Check "Qoder SDK install bootstrap" (Join-Path $verify "test-qoder-sdk-install-bootstrap.ps1")
+    Invoke-Check "Qoder CN CLI connection contract" (Join-Path $verify "test-qoder-cn-cli-connection-contract.ps1")
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "mcp\scripts\install-mcp-dependencies.ps1")
     if ($LASTEXITCODE -ne 0) { throw "Candidate preflight failed: MCP dependency installation." }
     & npm --prefix (Join-Path $root "mcp") test

@@ -43,8 +43,8 @@ try {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $wrapper -Provider qoder -Tier qoder-day-cheap -ConfigPath $configPath -Repo $linkedRepo -Task "Return the canary marker only." -Mode readonly -TaskKind test_execution -RequiredCheck "Test-Path README.md" -CapabilityCanary -WorktreeName $worktreeName -JobRoot $jobRoot -LockRoot $lockRoot -PlanRoot $planRoot -ScratchRoot $scratchRoot -NoNotify -TimeoutSeconds 30 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Linked-worktree dispatch failed." }
 
-    $workerTree = Join-Path $canonicalRepo ".codex-praetor\worktrees\$worktreeName"
-    $nestedWorkerTree = Join-Path $linkedRepo ".codex-praetor\worktrees\$worktreeName"
+    $workerTree = Join-Path $canonicalRepo ".codex\worktrees\$worktreeName"
+    $nestedWorkerTree = Join-Path $linkedRepo ".codex\worktrees\$worktreeName"
     Assert-True (Test-Path -LiteralPath $workerTree -PathType Container) "Worker worktree was not created under the canonical project root."
     Assert-True (-not (Test-Path -LiteralPath $nestedWorkerTree -PathType Container)) "Worker worktree was incorrectly nested below the source linked worktree."
     $runtimeOwner = Get-Content -LiteralPath (Join-Path $canonicalRepo ".codex-praetor\runtime-owner.json") -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -54,7 +54,7 @@ try {
     Write-Output "[PASS] Linked source worktree dispatch uses the canonical Git checkout, writes Praetor ownership records, and never nests worker runtime below the source worktree."
 } finally {
     $canonicalRepo = Join-Path $scratch "canonical-repo"
-    $workerTree = Join-Path $canonicalRepo ".codex-praetor\worktrees\linked-regression"
+    $workerTree = Join-Path $canonicalRepo ".codex\worktrees\linked-regression"
     if (Test-Path -LiteralPath $workerTree -PathType Container) {
         & git -C $canonicalRepo worktree remove --force $workerTree 2>$null | Out-Null
         & git -C $canonicalRepo branch -D "cw-linked-regression" 2>$null | Out-Null

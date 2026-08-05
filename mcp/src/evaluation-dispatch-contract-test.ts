@@ -105,7 +105,31 @@ try {
   const dispatchedRecord = dispatched as Record<string, unknown>;
   assert.equal(dispatched.ok, true, String(dispatchedRecord.stderr ?? dispatchedRecord.message ?? ""));
   assert.equal(dispatchedRecord.task_kind, "test_execution");
-  assert.match(String(dispatchedRecord.command ?? ""), /qoder-sdk-runner\.js --options-file/);
+  assert.match(String(dispatchedRecord.command ?? ""), /--print --output-format stream-json/);
+  assert.match(String(dispatchedRecord.command ?? ""), /--model Qwen3\.7-Plus/);
+  assert.match(wrapperSource, /distribution qoder_cn must use connectionMode=supervised_cli_stream_json/);
+  assert.match(wrapperSource, /distribution qoder_global requires explicit connectionMode=qoder_agent_sdk/);
+
+  config.providers.qoder.distribution = "qoder_global";
+  config.providers.qoder.connectionMode = "qoder_agent_sdk";
+  writeFileSync(configPath, `${JSON.stringify(config)}\n`, "utf8");
+  const globalDispatch = await dispatchDryRunTool({
+    repo,
+    task: "Contract-only global Qoder route probe. Do not start a worker.",
+    provider: "qoder",
+    tier: "qoder-day-cheap",
+    mode: "readonly",
+    run_mode: "blocking",
+    task_kind: "test_execution",
+    task_family: "fixed_test_execution",
+    acceptance: "The explicitly opted-in global Qoder route resolves to its SDK runner.",
+    allowed_paths: ["README.md"],
+    forbidden_paths: [".git", "**/*auth*"],
+    required_checks: ["git diff --exit-code"],
+    budget: { max_wall_seconds: 300 }
+  });
+  assert.equal(globalDispatch.ok, true, String((globalDispatch as Record<string, unknown>).stderr ?? ""));
+  assert.match(String((globalDispatch as Record<string, unknown>).command ?? ""), /qoder-sdk-runner\.js --options-file/);
 
   const planPath = path.join(planRoot, planId, "plan.json");
   assert.ok(existsSync(planPath));

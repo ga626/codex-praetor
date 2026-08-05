@@ -71,8 +71,10 @@ if ($expectedProviders.Count -eq 0) {
 $seenJobs = @{}
 foreach ($entry in @($evidence.providers)) {
     $provider = [string]$entry.provider
-    $expectedConnection = if ($provider -eq "qoder") { "qoder_agent_sdk" } else { "codebuddy_acp" }
+    $distribution = [string]$entry.distribution
+    $expectedConnection = if ($provider -eq "qoder" -and $distribution -eq "qoder_cn") { "supervised_cli_stream_json" } elseif ($provider -eq "qoder" -and $distribution -eq "qoder_global") { "qoder_agent_sdk" } elseif ($provider -eq "codebuddy" -and $distribution -eq "codebuddy_cn") { "codebuddy_acp" } else { "" }
     Require ([string]$entry.evidence_kind -eq "real_task") "$provider evidence is not a real task"
+    Require (-not [string]::IsNullOrWhiteSpace($expectedConnection)) "$provider distribution is not an approved route: provider=$provider distribution=$distribution"
     Require ([string]$entry.connection_mode -eq $expectedConnection) "$provider connection mode is not the approved adapter"
     Require (-not [string]::IsNullOrWhiteSpace([string]$entry.model)) "$provider model is missing"
     Require ([string]$entry.cli_hash -match '^[0-9a-fA-F]{64}$') "$provider CLI hash is missing or malformed"

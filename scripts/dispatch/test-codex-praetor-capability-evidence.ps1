@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Model,
     [Parameter(Mandatory = $true)][string]$PermissionProfile,
     [Parameter(Mandatory = $true)][string]$TaskKind,
+    [Parameter(Mandatory = $true)][string]$Distribution,
     [string]$ConnectionMode = "",
     [string]$RunnerIdentity = "",
     [string]$EvidenceRoot = "$env:USERPROFILE\.codex\codex-praetor-capability-evidence",
@@ -13,7 +14,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 function Get-StringProperty { param([object]$Object, [string]$Name) if ($null -eq $Object) { return "" }; $property = $Object.PSObject.Properties[$Name]; if ($null -eq $property -or $null -eq $property.Value) { return "" }; return [string]$property.Value }
-$expected = [ordered]@{ provider = $Provider; cli_path = $CliPath; cli_hash = $CliHash; model = $Model; permission_profile = $PermissionProfile; task_kind = $TaskKind; connection_mode = $ConnectionMode; runner_identity = $RunnerIdentity }
+$expected = [ordered]@{ provider = $Provider; distribution = $Distribution; cli_path = $CliPath; cli_hash = $CliHash; model = $Model; permission_profile = $PermissionProfile; task_kind = $TaskKind; connection_mode = $ConnectionMode; runner_identity = $RunnerIdentity }
 $acceptedIds = New-Object System.Collections.Generic.List[string]
 $cutoff = (Get-Date).ToUniversalTime().AddDays(-$MaximumAgeDays)
 if (Test-Path -LiteralPath $EvidenceRoot -PathType Container) {

@@ -16,8 +16,10 @@
     "qoder": {
       "cliPath": "C:\\Path\\To\\qodercli.exe",
       "versionCommand": ["--version"],
+      "distribution": "qoder_cn",
       "allowedModels": ["Qwen3.7-Plus", "Qwen3.7-Max"],
       "knownButNotDefaultModels": [
+        "Qwen3.8-Max",
         "Qwen3.6-Flash",
         "DeepSeek-V4-Pro",
         "DeepSeek-V4-Flash",
@@ -31,15 +33,18 @@
       "contextWindowFlag": "--context-window",
       "defaultOutputFormat": "text",
       "supportsJsonSchema": false,
-      "notes": "Install Qoder or QoderWork CLI and set this path in config/codex-praetor.local.json or CODEX_PRAETOR_CONFIG. The SDK runner invokes this configured CLI and reuses only its normal login state; it does not ship, replace, or copy a Qoder CLI. Confirm login and credits in Qoder before real dispatch."
+      "connectionMode": "supervised_cli_stream_json",
+      "notes": "Set distribution explicitly. qoder_cn always uses QoderWork CN's documented print/stream-json protocol; qoder_global is a separate opt-in route and must set connectionMode=qoder_agent_sdk after its own validation. Codex Praetor never chooses a global CLI from PATH, ships, replaces, or copies a Qoder CLI. Confirm login and credits in Qoder before real dispatch."
     },
     "codebuddy": {
       "nodePath": "node",
       "cliPath": "C:\\Path\\To\\codebuddy",
       "versionCommand": ["--version"],
+      "distribution": "codebuddy_cn",
+      "connectionMode": "codebuddy_acp",
       "blockedModels": ["auto"],
-      "allowedModels": ["hy3", "deepseek-v4-flash", "deepseek-v4-pro"],
-      "knownButNotDefaultModels": ["hy3-preview-agent"],
+      "allowedModels": ["hy3"],
+      "knownButNotDefaultModels": ["hy3-preview-agent", "deepseek-v4-flash", "deepseek-v4-pro"],
       "trustedExtraModels": [
         {
           "modelDisplay": "Hy3",
@@ -66,7 +71,7 @@
       "agentFlag": "--agent",
       "defaultOutputFormat": "text",
       "supportsJsonSchema": true,
-      "notes": "Install CodeBuddy or WorkBuddy CLI, then set nodePath and cliPath in a local config. The auto model is blocked by default."
+      "notes": "Install CodeBuddy or WorkBuddy CLI, then set nodePath and cliPath in a local config. codebuddy_acp is the only supported route; daemon is not used. The auto model is blocked. DeepSeek entries stay manual candidates until this exact CLI identity has a recorded ACP model handshake."
     }
   },
   "tiers": {

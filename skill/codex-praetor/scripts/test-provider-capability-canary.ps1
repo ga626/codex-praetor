@@ -121,6 +121,13 @@ function Get-CanaryWorkerEvidence {
     if (-not (Test-Path -LiteralPath $stdoutPath -PathType Leaf)) { throw "Capability canary did not publish worker stdout." }
     $workerOutput = Get-Content -LiteralPath $stdoutPath -Raw -Encoding UTF8
     if ($workerOutput -notmatch [regex]::Escape($ExpectedMarker)) { throw "Worker stdout did not return the required marker." }
+    # A provider may append a success marker after admitting that its own
+    # permission classifier prevented a required local check.  That is not a
+    # usable capability proof: the independent diff may look correct while
+    # the worker did not complete its declared contract.
+    if ($workerOutput -match '(?i)classifier unavailable|cannot approve bash') {
+        throw "Capability canary worker reported an unavailable permission classifier; do not record readiness from a self-asserted marker."
+    }
     return [pscustomobject]@{
         job = $job
         completion = $completion
@@ -357,6 +364,9 @@ $workerTuple = $workerEvidence.job.provider_tuple
 if ($null -eq $workerTuple -or [string]$workerTuple.provider -ne $Provider) {
     throw "Capability canary did not retain the actual $Provider provider tuple."
 }
+if ([string]::IsNullOrWhiteSpace([string]$workerTuple.distribution)) {
+    throw "Capability canary did not retain the actual provider distribution."
+}
 $cliPath = [string]$workerTuple.cli_path
 $cliHash = [string]$workerTuple.cli_hash
 if ([string]::IsNullOrWhiteSpace($cliPath) -or [string]::IsNullOrWhiteSpace($cliHash)) {
@@ -372,6 +382,7 @@ $entry = [pscustomobject]@{
     model = [string]$workerTuple.model
     permission_profile = [string]$workerTuple.permission_profile
     task_kind = $TaskKind
+    distribution = [string]$workerTuple.distribution
     status = "passed"
     passed_at = (Get-Date).ToString("o")
     expires_at = (Get-Date).AddHours($ExpiresAfterHours).ToString("o")
@@ -379,7 +390,7 @@ $entry = [pscustomobject]@{
     provider_source = "capability_canary"
     connection_mode = [string]$workerTuple.connection_mode
     runner_identity = [string]$workerTuple.runner_identity
-    provider_compatibility_fingerprint = (Get-CodexPraetorProviderCompatibilityFingerprint -ProviderName $Provider -CliHash $cliHash -ModelName ([string]$workerTuple.model) -Permission ([string]$workerTuple.permission_profile) -Kind $TaskKind -ConnectionMode ([string]$workerTuple.connection_mode) -RunnerIdentity ([string]$workerTuple.runner_identity) -TaskContractSchema ([string]$runtimeContract.taskContractSchema))
+    provider_compatibility_fingerprint = (Get-CodexPraetorProviderCompatibilityFingerprint -ProviderName $Provider -CliHash $cliHash -ModelName ([string]$workerTuple.model) -Permission ([string]$workerTuple.permission_profile) -Kind $TaskKind -Distribution ([string]$workerTuple.distribution) -ConnectionMode ([string]$workerTuple.connection_mode) -RunnerIdentity ([string]$workerTuple.runner_identity) -TaskContractSchema ([string]$runtimeContract.taskContractSchema))
     cli_version = Get-Field -Text $outputText -Name "version"
     repo_observation = $repoObservation
     evidence = [ordered]@{
@@ -414,11 +425,12 @@ $entries = @($entries | Where-Object {
         [string]$_.cli_path -eq $entry.cli_path -and
         [string]$_.model -eq $entry.model -and
         [string]$_.permission_profile -eq $entry.permission_profile -and
-        [string]$_.task_kind -eq $entry.task_kind)
+        [string]$_.task_kind -eq $entry.task_kind -and
+        [string]$_.distribution -eq $entry.distribution)
 })
 $entries += $entry
 $state = [pscustomobject]@{
-    schema = "codex-praetor-generation-readiness/v4"
+    schema = "codex-praetor-generation-readiness/v5"
     status = "passed"
     generation_id = [string]$generation.generation_id
     runtime_contract_sha256 = $runtimeContractHash
@@ -430,6 +442,7 @@ $state = [pscustomobject]@{
         model = [string]$entry.model
         permission_profile = [string]$entry.permission_profile
         task_kind = [string]$entry.task_kind
+        distribution = [string]$entry.distribution
         connection_mode = [string]$entry.connection_mode
         runner_identity = [string]$entry.runner_identity
     }

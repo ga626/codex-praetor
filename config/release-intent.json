@@ -7,5 +7,5 @@
     "release_required":  true,
     "release_mode":  "auto_on_main",
     "artifact":  "codex-praetor-setup-0.16.28-alpha.zip",
-    "reason":  "修复 Qoder Agent SDK 与 CodeBuddy ACP 的真实代码任务首入口合同断裂：公开预检会贯通冻结 base_commit、immutable_paths、范围和必需检查，执行官 Skill 区分只读预演与未启动 worker 的代码任务合同预检；发布候选必须绑定同一 ZIP、Desktop host、真实 worker job、隔离 worktree、completion 和 Codex 验收，不能再把 runtime_info 或 health 误当成可真实派工。"
+    "reason":  "修复中国版 Qoder CLI stream-json 与 CodeBuddy ACP 的真实代码任务首入口合同断裂：公开预检会贯通冻结 base_commit、immutable_paths、范围和必需检查，执行官 Skill 区分只读预演与未启动 worker 的代码任务合同预检；发布候选必须绑定同一 ZIP、Desktop host、真实 worker job、隔离 worktree、completion 和 Codex 验收，不能再把 runtime_info 或 health 误当成可真实派工。全球 Qoder Agent SDK 只能作为另行验证的显式 opt-in，不会用中国版 CLI 冒充其运行时。"
 }

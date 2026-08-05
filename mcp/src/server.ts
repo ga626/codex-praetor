@@ -173,6 +173,7 @@ export function createServer(): McpServer {
         failure_class: z.enum(["provider_risk_control", "provider_auth_required", "provider_cli_missing", "provider_rejected", "provider_output_unparseable", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "network_timeout", "rate_limited", "provider_unavailable", "max_turns_exceeded", "progress_saturated", "test_failed", "scope_violation", "unknown"]).optional(),
         candidates: z.array(z.object({
           provider: z.enum(["qoder", "codebuddy"]),
+          distribution: z.enum(["qoder_cn", "qoder_global", "codebuddy_cn"]),
           model: z.string().min(1),
           cli_path: z.string().min(1),
           cli_hash: z.string().min(1),

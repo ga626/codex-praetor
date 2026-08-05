@@ -39,6 +39,7 @@ function providerDisplayName(value: unknown): string {
 function connectionDisplayName(value: unknown): string {
   const connection = String(value ?? "").trim();
   if (connection === "qoder_agent_sdk") return "Qoder Agent SDK";
+  if (connection === "supervised_cli_stream_json") return "Qoder CLI（stream-json）";
   if (connection === "codebuddy_acp") return "ACP";
   return connection;
 }
@@ -1429,12 +1430,12 @@ export async function dispatchPlanTaskTool(input: {
   let evidenceBootstrap = !!existingEvidenceContext
     && !requiredEvidenceContext.some((field) => !String(existingEvidenceContext[field] ?? "").trim())
     && ["real_historical_issue", "real_user_request"].includes(String(existingEvidenceContext?.source_category))
-    && ["supervised_cli_text", "qoder_agent_sdk", "codebuddy_acp"].includes(String(existingEvidenceContext?.connection_mode));
+    && ["supervised_cli_text", "supervised_cli_stream_json", "qoder_agent_sdk", "codebuddy_acp"].includes(String(existingEvidenceContext?.connection_mode));
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
   }
   if (!input.dry_run && !evidenceContext) {
-    const bootstrapConnection = input.provider === "qoder" ? "qoder_agent_sdk" : input.provider === "codebuddy" ? "codebuddy_acp" : "supervised_cli_text";
+    const bootstrapConnection = input.provider === "qoder" ? "supervised_cli_stream_json" : input.provider === "codebuddy" ? "codebuddy_acp" : "supervised_cli_text";
     evidenceContext = automaticUserRequestEvidenceContext({
       repo,
       planId: input.plan_id,
@@ -1482,7 +1483,7 @@ export async function dispatchPlanTaskTool(input: {
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });
-  if (dispatched.ok && !input.dry_run && evidenceContext && String(evidenceContext.connection_mode) === "supervised_cli_text" && dispatched.job_id) {
+  if (dispatched.ok && !input.dry_run && evidenceContext && dispatched.job_id && String(dispatched.connection_mode ?? "") && String(evidenceContext.connection_mode ?? "") !== String(dispatched.connection_mode)) {
     const context = automaticUserRequestEvidenceContext({
       repo,
       planId: input.plan_id,

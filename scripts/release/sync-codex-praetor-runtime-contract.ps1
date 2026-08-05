@@ -21,7 +21,19 @@ $runtimeData = @(
     [ordered]@{ source = "config\public-capabilities.json"; target = "plugin\data\public-capabilities.json" },
     [ordered]@{ source = "config\provider-onboarding-checklist.json"; target = "plugin\data\provider-onboarding-checklist.json" },
     [ordered]@{ source = "config\provider-adapters\qoder.json"; target = "plugin\data\provider-adapters\qoder.json" },
-    [ordered]@{ source = "config\provider-adapters\codebuddy.json"; target = "plugin\data\provider-adapters\codebuddy.json" }
+    [ordered]@{ source = "config\provider-adapters\codebuddy.json"; target = "plugin\data\provider-adapters\codebuddy.json" },
+    # The installed product executes these scripts under plugin/ rather than
+    # their source locations. Keep the execution chain generated from one
+    # canonical source so a source-only fix cannot ship an older protocol.
+    [ordered]@{ source = "scripts\dispatch\invoke-codex-praetor.ps1"; target = "plugin\skills\codex-praetor\scripts\invoke-codex-praetor.ps1" },
+    [ordered]@{ source = "scripts\dispatch\record-codex-praetor-readiness.ps1"; target = "plugin\skills\codex-praetor\scripts\record-codex-praetor-readiness.ps1" },
+    [ordered]@{ source = "scripts\dispatch\watch-codex-praetor-job.ps1"; target = "plugin\skills\codex-praetor\scripts\watch-codex-praetor-job.ps1" },
+    [ordered]@{ source = "scripts\dispatch\test-codex-praetor-capability-evidence.ps1"; target = "plugin\skills\codex-praetor\scripts\test-codex-praetor-capability-evidence.ps1" },
+    [ordered]@{ source = "scripts\verify\resolve-codex-praetor-readiness.ps1"; target = "plugin\skills\codex-praetor\scripts\resolve-codex-praetor-readiness.ps1" },
+    [ordered]@{ source = "scripts\verify\test-provider-capability-canary.ps1"; target = "plugin\skills\codex-praetor\scripts\test-provider-capability-canary.ps1" },
+    [ordered]@{ source = "scripts\verify\get-codex-praetor-runtime-inventory.ps1"; target = "plugin\skills\codex-praetor\scripts\get-codex-praetor-runtime-inventory.ps1" },
+    # skill/ is a compatibility mirror of the installed plugin skill.
+    [ordered]@{ source = "plugin\skills\codex-praetor\scripts"; target = "skill\codex-praetor\scripts" }
 )
 
 if (-not (Test-Path -LiteralPath $canonical -PathType Leaf)) {

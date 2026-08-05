@@ -130,7 +130,7 @@ Codex Praetor 现在把“worker 进程完成”和“任务验收通过”分�
 - 需要人工处理：登录、授权、发布、合并或产品判断需要用户参与。
 - 跳过：这项任务被明确取消或不再需要。
 
-如果 worker 输出里出现 `Max turns exceeded` 或类似历史兼容提示，不要把它当作有效完成，也不要盲目提高固定轮数。保留 worktree 和终态证据，由 Codex 判断是缩小任务、补充上下文、走冷恢复、换 provider，还是接管剩余工作。若 Codex 宿主出现 `stream disconnected before completion`，先用同一个 `job_id` 调用 `codex_praetor_job_timeline` 读取已有任务；不要盲目重新派发。对于 Qoder SDK 与 CodeBuddy ACP 路径，持续没有结构化进展会优先归类为 `progress_saturated` 并正式收束。
+如果 worker 输出里出现 `Max turns exceeded` 或类似历史兼容提示，不要把它当作有效完成，也不要盲目提高固定轮数。保留 worktree 和终态证据，由 Codex 判断是缩小任务、补充上下文、走冷恢复、换 provider，还是接管剩余工作。若 Codex 宿主出现 `stream disconnected before completion`，先用同一个 `job_id` 调用 `codex_praetor_job_timeline` 读取已有任务；不要盲目重新派发。对于中国版 Qoder CLI `stream-json` 与 CodeBuddy ACP 路径，持续没有可解析进展会优先归类为 `progress_saturated`；Qoder 以退出码 0 结束却没有一条可解析 JSON 事件时，会明确归类为 `provider_output_unparseable`，不能当作成功。
 
 provider 说明：
 

@@ -168,13 +168,13 @@ Assert-NotContains -Text $installZh -Needle "安装后重启 Codex，或者打�
 # This is a release-impacting transport change. Keep public entrypoints from
 # silently downgrading it to the earlier parser-only fix, or promising that an
 # arbitrary installed provider can edit code without the task contract.
-Assert-Contains -Text $readme -Needle "Qoder Agent SDK" -Label "README.md"
-Assert-Contains -Text $readme -Needle "CodeBuddy ACP" -Label "README.md"
-Assert-Contains -Text $readmeEn -Needle "Qoder Agent SDK" -Label "README.en.md"
-Assert-Contains -Text $readmeEn -Needle "CodeBuddy ACP" -Label "README.en.md"
-Assert-Contains -Text $releaseNotes -Needle "structured progress" -Label $releaseNotesPath
-Assert-Contains -Text $releaseNotes -Needle "formal cancellation" -Label $releaseNotesPath
-Assert-Contains -Text $releaseIntent -Needle "Qoder Agent SDK" -Label "config/release-intent.json"
+Assert-Contains -Text $readme -Needle "stream-json" -Label "README.md"
+Assert-Contains -Text $readme -Needle "CodeBuddy 走 ACP" -Label "README.md"
+Assert-Contains -Text $readmeEn -Needle "stream-json" -Label "README.en.md"
+Assert-Contains -Text $readmeEn -Needle "CodeBuddy uses ACP" -Label "README.en.md"
+Assert-Contains -Text $releaseNotes -Needle "stream-json" -Label $releaseNotesPath
+Assert-Contains -Text $releaseNotes -Needle "controlled process cancellation" -Label $releaseNotesPath
+Assert-Contains -Text $releaseIntent -Needle "stream-json" -Label "config/release-intent.json"
 Assert-Contains -Text $releaseIntent -Needle "CodeBuddy ACP" -Label "config/release-intent.json"
 Assert-Contains -Text $changelog -Needle "0.16.28-alpha" -Label "CHANGELOG.md"
 Assert-Contains -Text $troubleshooting -Needle "进展" -Label "docs/user/troubleshooting.zh.md"

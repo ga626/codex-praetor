@@ -12,6 +12,6 @@ After updating and performing the normal supported Desktop refresh, start a new 
 
 ## Provider and account boundary
 
-This release does not add providers, models or account permissions. Qoder Agent SDK and CodeBuddy ACP remain the supported worker connections. Their official login, available quota and network availability remain provider-specific first-use conditions; they are not hidden by release receipts.
+This release does not add providers, models or account permissions. Qoder China CLI `stream-json` and CodeBuddy ACP are the supported worker connections. Their official login, available quota and network availability remain provider-specific first-use conditions; they are not hidden by release receipts. The global Qoder Agent SDK is a separate future opt-in route, not a fallback for the China CLI.
 
-Both connections retain their existing structured progress and formal cancellation contracts.
+CodeBuddy retains its ACP session protocol. Qoder China retains parseable stdout progress, controlled process cancellation, and terminal/diff acceptance; it does not claim SDK session cancellation.

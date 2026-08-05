@@ -134,6 +134,31 @@ function Update-LockForWorker {
     $updated | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $Path -Encoding UTF8
 }
 
+function Get-StreamJsonObservation {
+    param([string]$Path)
+
+    $result = [ordered]@{ total_lines = 0; parsed_events = 0; invalid_lines = 0; event_types = @() }
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return [pscustomobject]$result
+    }
+    $types = New-Object System.Collections.Generic.List[string]
+    foreach ($line in @(Get-Content -LiteralPath $Path -Encoding UTF8)) {
+        if ([string]::IsNullOrWhiteSpace([string]$line)) { continue }
+        $result.total_lines += 1
+        try {
+            $event = [string]$line | ConvertFrom-Json
+            if ($null -eq $event -or $event -isnot [object]) { throw "not an event object" }
+            $result.parsed_events += 1
+            $type = if ($event.PSObject.Properties["type"]) { [string]$event.type } elseif ($event.PSObject.Properties["event"]) { [string]$event.event } else { "untyped" }
+            if (-not [string]::IsNullOrWhiteSpace($type) -and -not $types.Contains($type)) { $types.Add($type) }
+        } catch {
+            $result.invalid_lines += 1
+        }
+    }
+    $result.event_types = @($types)
+    return [pscustomobject]$result
+}
+
 $metaPath = Join-Path $JobDir "job.json"
 $completionPath = Join-Path $JobDir "completion.json"
 $cancelRequestPath = Join-Path $JobDir "cancel-request.json"
@@ -316,6 +341,13 @@ try {
     }
 
     $stdoutHasText = -not [string]::IsNullOrWhiteSpace([string]$meta.stdout) -and (Test-Path -LiteralPath ([string]$meta.stdout) -PathType Leaf) -and ((Get-Item -LiteralPath ([string]$meta.stdout)).Length -gt 0)
+    $streamJsonObservation = $null
+    if ([string]$latestMeta.connection_mode -eq "supervised_cli_stream_json") {
+        $streamJsonObservation = Get-StreamJsonObservation -Path ([string]$meta.stdout)
+        if ([string]::IsNullOrWhiteSpace($semanticFailure) -and $null -ne $exitCode -and $exitCode -eq 0 -and $streamJsonObservation.parsed_events -eq 0) {
+            $semanticFailure = "provider_output_unparseable"
+        }
+    }
     $worktreeStatus = ""
     $worktreeChanged = $false
     if ($status -eq "process_exited" -and [string]$meta.task_kind -eq "code_change" -and -not [string]::IsNullOrWhiteSpace([string]$meta.execution_repo)) {
@@ -344,6 +376,7 @@ try {
         worktree_changed = $worktreeChanged
         worktree_status = $worktreeStatus
         boundary_denials_observed = if ($null -ne $acpSession) { [int]$acpSession.boundary_denials } else { 0 }
+        stream_json = $streamJsonObservation
         observed_at = (Get-Date).ToString("o")
     }
 

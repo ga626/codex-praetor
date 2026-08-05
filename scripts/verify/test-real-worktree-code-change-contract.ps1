@@ -60,7 +60,9 @@ lines.on("line", (line) => {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $planScript -Action UpsertTask -PlanId real-edit -PlanRoot $planRoot -TaskId change -TaskTitle "repair allowed file" -TaskFamily bounded_code_change -TaskKind code_change -Mode edit -AllowedPath "src" -ForbiddenPath ".git/**" -RequiredCheck "cmd /c findstr /x fixed src\allowed.txt" -BudgetJson '{"max_attempts":1,"max_turns":1,"max_wall_seconds":30}' -BaseCommit $baseCommit -ImmutablePath "mcp/package.json" -Acceptance "real diff" | Out-Null
     & powershell -NoProfile -ExecutionPolicy Bypass -File $wrapper -Provider codebuddy -Tier codebuddy-free -ConfigPath $configPath -Repo $repo -Task "Repair src/allowed.txt so it contains fixed." -Mode edit -TaskKind code_change -TaskFamily bounded_code_change -RealWorktree -BaseCommit $baseCommit -ImmutablePath "mcp/package.json" -AllowedPath "src" -ForbiddenPath ".git/**" -RequiredCheck "cmd /c findstr /x fixed src\allowed.txt" -CapabilityCanary -PlanId real-edit -TaskId change -WorktreeName real-edit -JobRoot $jobRoot -LockRoot $lockRoot -PlanRoot $planRoot -ScratchRoot $scratchRoot -NoNotify -TimeoutSeconds 30 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Real-worktree fixture dispatch failed." }
-    $workerTree = Join-Path $repo ".codex-praetor\worktrees\real-edit"
+    # New dispatches use the project-local canonical root. The older
+    # .codex-praetor root is historical state, not a destination.
+    $workerTree = Join-Path $repo ".codex\worktrees\real-edit"
     Assert-True (Test-Path -LiteralPath $workerTree -PathType Container) "Real code-change did not create its Git worktree."
     $changed = (& git -C $workerTree diff --name-only $baseCommit | Out-String).Trim()
     if ($changed -ne "src/allowed.txt") {
@@ -89,7 +91,7 @@ lines.on("line", (line) => {
     }
     Write-Output "[PASS] Real code-change uses a frozen Git worktree, limits its diff, preserves immutable files, and requires independent acceptance evidence."
 } finally {
-    $workerTree = Join-Path $scratch "repo\.codex-praetor\worktrees\real-edit"
+    $workerTree = Join-Path $scratch "repo\.codex\worktrees\real-edit"
     $repoPath = Join-Path $scratch "repo"
     if (Test-Path -LiteralPath $workerTree -PathType Container) {
         & git -C $repoPath worktree remove --force $workerTree 2>$null | Out-Null

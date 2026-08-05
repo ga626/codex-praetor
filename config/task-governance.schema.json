@@ -70,7 +70,7 @@
     "provider_tuple": {
       "type": "object",
       "properties": {
-        "provider": { "type": "string" }, "cli_path": { "type": "string" }, "cli_hash": { "type": "string" },
+        "provider": { "type": "string" }, "distribution": { "type": "string" }, "cli_path": { "type": "string" }, "cli_hash": { "type": "string" },
         "model": { "type": "string" }, "permission_profile": { "type": "string" }, "task_kind": { "type": "string" }, "connection_mode": { "type": "string" }, "runner_identity": { "type": "string" },
         "generation_id": { "type": "string" }, "runtime_contract_sha256": { "type": "string" }, "task_contract_schema": { "type": "string" }
       }

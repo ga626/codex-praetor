@@ -18,6 +18,16 @@ function Read-JsonOrNull { param([string]$Path) if (-not (Test-Path -LiteralPath
 function Add-InventoryItem { param([System.Collections.Generic.List[object]]$List, [string]$Category, [string]$Path, [string]$Identity, [string]$Reason, [bool]$Protected) $List.Add([pscustomobject]@{ category = $Category; path = $Path; identity = $Identity; reason = $Reason; protected = $Protected }) }
 
 $items = New-Object 'System.Collections.Generic.List[object]'
+$canonicalRepo = (Resolve-Path -LiteralPath $Repo).Path
+try {
+    $commonRaw = (& git -C $canonicalRepo rev-parse --git-common-dir 2>$null | Out-String).Trim().Replace('/', '\\')
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($commonRaw)) {
+        $commonPath = if ($commonRaw -match '^[A-Za-z]:\\') { [IO.Path]::GetFullPath($commonRaw) } else { [IO.Path]::GetFullPath((Join-Path $canonicalRepo $commonRaw)) }
+        if ((Split-Path -Leaf $commonPath) -eq '.git') { $canonicalRepo = Split-Path -Parent $commonPath }
+    }
+} catch { }
+$managedWorktreeRoot = Join-Path $canonicalRepo '.codex\worktrees'
+$legacyWorktreeRoot = Join-Path $canonicalRepo '.codex-praetor\worktrees'
 $active = Read-JsonOrNull -Path $activePath
 $activeGeneration = if ($null -ne $active) { [string]$active.generation.generation_id } else { "" }
 $retired = @{}
@@ -40,26 +50,25 @@ if (Test-Path -LiteralPath $cacheRoot -PathType Container) {
 }
 
 try {
-    $worktrees = & git -C $Repo worktree list --porcelain 2>$null
-    $current = $null
-    foreach ($line in @($worktrees)) {
-        if ([string]$line -like "worktree *") {
-            if ($null -ne $current) { Add-InventoryItem $items $current.category $current.path $current.identity $current.reason $false }
-            $path = ([string]$line).Substring(9)
-            $current = [ordered]@{ path = $path; identity = ""; category = "test-scratch"; reason = "worktree" }
-        } elseif ($null -ne $current -and [string]$line -like "branch *") {
-            $current.identity = ([string]$line).Substring(7)
+    # Do not use `git worktree list`: a repository may retain hundreds of
+    # unrelated historical checkout registrations. The product owns only the
+    # fixed project-local root below, so inspect that one bounded directory.
+    if (Test-Path -LiteralPath $managedWorktreeRoot -PathType Container) {
+        foreach ($dir in @(Get-ChildItem -LiteralPath $managedWorktreeRoot -Directory -Force)) {
+            $status = (& git -C $dir.FullName status --porcelain 2>$null | Out-String).Trim()
+            $branch = (& git -C $dir.FullName branch --show-current 2>$null | Out-String).Trim()
+            if ([string]::IsNullOrWhiteSpace($branch)) { Add-InventoryItem $items "audit-retained" $dir.FullName "" "managed worktree detached；不自动回收" $true }
+            else {
+                & git -C $canonicalRepo merge-base --is-ancestor $branch origin/main 2>$null
+                $merged = ($LASTEXITCODE -eq 0)
+                if ($status) { Add-InventoryItem $items "dirty/unmerged" $dir.FullName $branch "worktree 有未提交修改" $true }
+                elseif ($merged) { Add-InventoryItem $items "clean+merged" $dir.FullName $branch "worktree clean 且 branch 已并入 origin/main" $false }
+                else { Add-InventoryItem $items "clean+unmerged" $dir.FullName $branch "worktree clean 但 branch 尚未并入 origin/main" $true }
+            }
         }
     }
-    if ($null -ne $current) { Add-InventoryItem $items $current.category $current.path $current.identity $current.reason $false }
-    foreach ($item in @($items | Where-Object { $_.path -and (Test-Path -LiteralPath $_.path -PathType Container) -and $_.category -eq "test-scratch" -and $_.identity -like "refs/heads/*" })) {
-        $status = (& git -C $item.path status --porcelain 2>$null | Out-String).Trim()
-        $branch = $item.identity.Substring(11)
-        & git -C $Repo merge-base --is-ancestor $branch origin/main 2>$null
-        $merged = ($LASTEXITCODE -eq 0)
-        if ($status) { $item.category = "dirty/unmerged"; $item.reason = "worktree 有未提交修改" }
-        elseif ($merged) { $item.category = "clean+merged"; $item.reason = "worktree clean 且 branch 已并入 origin/main" }
-        else { $item.category = "clean+unmerged"; $item.reason = "worktree clean 但 branch 尚未并入 origin/main" }
+    if (Test-Path -LiteralPath $legacyWorktreeRoot -PathType Container -and $legacyWorktreeRoot -ne $managedWorktreeRoot) {
+        Add-InventoryItem $items "audit-retained" $legacyWorktreeRoot "legacy-worktree-root" "旧版派工目录仅登记；不在健康检查中逐个扫描或自动删除" $true
     }
 } catch { }
 

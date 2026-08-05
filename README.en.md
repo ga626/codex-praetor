@@ -4,7 +4,7 @@
 
 Codex Praetor is a Windows-first Codex plugin and MCP layer for dispatching bounded work to external CLI worker agents while Codex remains the planner, supervisor, integrator, and final verifier.
 
-Current productization target: **0.16.28-alpha**. Qoder Agent SDK and CodeBuddy ACP each have three independent, real bounded code-change records accepted by Codex, and both adapters passed provider-side formal cancellation plus fresh-task cold recovery in a clean isolated worktree. Codex observes structured progress, stall, formal cancellation, and terminal evidence before it evaluates a worker result; durable plan ledgers preserve allowed and forbidden paths, required checks, immutable paths, and real task IDs.
+Current productization target: **0.16.28-alpha**. Qoder China uses its documented CLI `--print --output-format stream-json` route and CodeBuddy uses ACP. Codex evaluates terminal evidence, worktree diffs, and required checks before it accepts either result. Qoder China progress is parseable stdout and its cancellation is controlled process cancellation; it is not presented as a global Qoder Agent SDK session. The global Qoder Agent SDK is a future explicit opt-in route that requires its own installation, login, and validation and is never selected from PATH or a binary filename.
 
 This is not unrestricted provider code editing after installation. A first real task must be a Codex-created, traceable plan with explicit scope, forbidden paths, checks, and acceptance. An eligible first readonly task establishes first-use evidence automatically; later dispatch checks the exact provider compatibility fingerprint. Copied task material, canaries, and markers remain regression evidence only.
 

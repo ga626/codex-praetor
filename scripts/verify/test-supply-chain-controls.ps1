@@ -29,10 +29,12 @@ foreach ($workflow in $workflows) {
     }
 }
 $dependabot = Join-Path $ProjectRoot ".github\dependabot.yml"
-Assert-True (Test-Path -LiteralPath $dependabot -PathType Leaf) "Dependabot configuration is missing."
-$dependabotText = Get-Content -LiteralPath $dependabot -Raw -Encoding UTF8
-Assert-True ($dependabotText -match 'package-ecosystem: github-actions') "Dependabot does not monitor GitHub Actions."
-Assert-True ($dependabotText -match 'package-ecosystem: npm') "Dependabot does not monitor npm dependencies."
+Assert-True (-not (Test-Path -LiteralPath $dependabot -PathType Leaf)) "Automatic Dependabot version-update PRs must remain disabled; use the explicit provider-update candidate process instead."
+$dependencyGovernance = Join-Path $ProjectRoot "docs\release\dependency-update-governance.md"
+Assert-True (Test-Path -LiteralPath $dependencyGovernance -PathType Leaf) "Manual dependency and provider update governance is missing."
+$dependencyGovernanceText = Get-Content -LiteralPath $dependencyGovernance -Raw -Encoding UTF8
+Assert-True ($dependencyGovernanceText -match 'Dependabot Alerts') "Dependency governance must preserve manual security-alert review."
+Assert-True ($dependencyGovernanceText -match 'provider-critical') "Dependency governance must classify provider-critical dependencies."
 $mcpPackagePath = Join-Path $ProjectRoot "mcp\package.json"
 $mcpLockPath = Join-Path $ProjectRoot "mcp\package-lock.json"
 Assert-True (Test-Path -LiteralPath $mcpPackagePath -PathType Leaf) "MCP package manifest is missing."
@@ -63,4 +65,4 @@ $workflowReadiness = Join-Path $ProjectRoot "scripts\verify\test-release-workflo
 Assert-True (Test-Path -LiteralPath $workflowReadiness -PathType Leaf) "Release workflow readiness test is missing."
 & powershell -NoProfile -ExecutionPolicy Bypass -File $workflowReadiness -ProjectRoot $ProjectRoot
 if ($LASTEXITCODE -ne 0) { throw "Release workflow readiness contract failed." }
-Write-Host "[PASS] Supply-chain action pinning, patched MCP runtime dependencies, least privilege, release workflow readiness, Dependabot, and release evidence controls are verified."
+Write-Host "[PASS] Supply-chain action pinning, manual dependency-update governance, patched MCP runtime dependencies, least privilege, release workflow readiness, and release evidence controls are verified."
