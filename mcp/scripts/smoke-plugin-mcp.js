@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,6 +23,17 @@ const observedOutputIndex = process.argv.indexOf("--observed-tools-output");
 const observedOutputPath = observedOutputIndex >= 0 ? path.resolve(process.argv[observedOutputIndex + 1]) : "";
 const skipDryRun =
   process.argv.includes("--skip-dry-run") || process.env.CODEX_PRAETOR_SKIP_PROVIDER_DRY_RUN === "1";
+const evaluationRepo = path.join(os.tmpdir(), `codex-praetor-plugin-smoke-evaluation-${process.pid}-${Date.now()}-${randomUUID()}`);
+
+function initializeEvaluationRepo() {
+  mkdirSync(evaluationRepo, { recursive: true });
+  writeFileSync(path.join(evaluationRepo, "README.md"), "Codex Praetor packaged evaluation fixture\n", "utf8");
+  execFileSync("git", ["-C", evaluationRepo, "init", "-q"], { stdio: "pipe" });
+  execFileSync("git", ["-C", evaluationRepo, "config", "user.email", "codex-praetor-smoke@example.invalid"], { stdio: "pipe" });
+  execFileSync("git", ["-C", evaluationRepo, "config", "user.name", "Codex Praetor packaged smoke"], { stdio: "pipe" });
+  execFileSync("git", ["-C", evaluationRepo, "add", "README.md"], { stdio: "pipe" });
+  execFileSync("git", ["-C", evaluationRepo, "commit", "--no-verify", "-qm", "evaluation fixture"], { stdio: "pipe" });
+}
 
 const requiredTools = [
   "codex_praetor_route_intent",
@@ -259,11 +272,12 @@ try {
     throw new Error(`Packaged evaluation suite data is missing or invalid: ${JSON.stringify(evaluationSuitePayload)}`);
   }
 
+  initializeEvaluationRepo();
   const evaluationPrepareResult = await client.callTool(
     {
       name: "codex_praetor_prepare_evaluation",
       arguments: {
-        repo,
+        repo: evaluationRepo,
         // Evaluation preparation writes immutable task material. A PID is not a
         // durable unique identifier: Windows can reuse it between sequential
         // bundled-runtime smokes in the same candidate closeout.
@@ -361,5 +375,6 @@ try {
   }, null, 2));
   process.exitCode = 1;
 } finally {
+  rmSync(evaluationRepo, { recursive: true, force: true });
   await client.close();
 }
