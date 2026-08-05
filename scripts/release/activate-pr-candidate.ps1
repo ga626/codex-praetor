@@ -6,6 +6,7 @@ param(
     [string]$CodexCommand = "codex",
     [string]$DownloadRoot = "",
     [switch]$SkipMaintenance,
+    [switch]$DeferPluginCacheRefresh,
     [switch]$SkipAttestationVerification,
     [switch]$Json
 )
@@ -53,6 +54,7 @@ $activationArguments = @(
     "-Json"
 )
 if ($SkipMaintenance) { $activationArguments += "-SkipMaintenance" }
+if ($DeferPluginCacheRefresh) { $activationArguments += "-DeferPluginCacheRefresh" }
 $activation = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1") @activationArguments
 if ($LASTEXITCODE -ne 0) { throw "Verified candidate activation failed." }
 $payload = $activation | Out-String | ConvertFrom-Json

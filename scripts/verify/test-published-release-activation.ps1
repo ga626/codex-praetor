@@ -11,6 +11,7 @@ $candidateReceiptWriter = Join-Path $root "scripts\release\write-release-candida
 $userPathEvidenceWriter = Join-Path $root "scripts\release\write-candidate-user-path-evidence.ps1"
 $hostReceiptWriter = Join-Path $root "scripts\release\write-candidate-host-receipt.ps1"
 $hostReceiptGate = Join-Path $root "scripts\verify\test-candidate-host-receipt.ps1"
+$deferredRefresh = Join-Path $root "scripts\release\refresh-codex-praetor-plugin-cache-after-exit.ps1"
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -62,6 +63,11 @@ exit /b 0
     $candidate = (& powershell -NoProfile -ExecutionPolicy Bypass -File $activation -Version $version -ReleaseZip $zip -ReleaseSha256 $sha -CandidateReceiptPath $candidateReceipt -UserProfileRoot $profile -CodexCommand $fakeCodex -SkipMaintenance -Json | Out-String | ConvertFrom-Json)
     Assert-True ([string]$candidate.source_kind -eq "verified_pr_candidate") "Candidate activation must remain distinguishable from a published Release."
     Assert-True ([string]$candidate.status -eq "needs_host_restart") "Candidate activation must stop before host evidence is claimed."
+    $deferredState = Join-Path $scratch "deferred-refresh.json"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $deferredRefresh -UserProfileRoot $profile -CodexCommand $fakeCodex -ExpectedVersion $version -StatusPath $deferredState -SkipHostExitWait
+    if ($LASTEXITCODE -ne 0) { throw "Deferred plugin-cache refresh fixture failed." }
+    $deferred = Get-Content -LiteralPath $deferredState -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([string]$deferred.status -eq "completed") "Deferred plugin-cache refresh did not confirm the official plugin install."
     $runtimeInfo = Join-Path $scratch "runtime-info.json"
     [ordered]@{ runtime_contract = [ordered]@{ version = $version }; runtime_identity = [ordered]@{ version = $version; generation_id = [string]$current.generation_id; runtime_contract_sha256 = [string]$current.runtime_contract_sha256 } } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $runtimeInfo -Encoding UTF8
     $executionRepo = Join-Path $scratch "execution-worktree"

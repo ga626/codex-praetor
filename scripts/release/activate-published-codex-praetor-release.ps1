@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "0.16.28-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
@@ -8,6 +8,8 @@ param(
     [string]$UserProfileRoot = $env:USERPROFILE,
     [string]$CodexCommand = "codex",
     [string]$HostRuntimeInfoPath = "",
+    [switch]$DeferPluginCacheRefresh,
+    [int]$DeferredCacheRefreshWaitSeconds = 900,
     [switch]$SkipMaintenance,
     [switch]$Json
 )
@@ -56,15 +58,21 @@ function Invoke-CodexCommandInProfile {
         $env:HOME = $profileRoot
         $env:CODEX_HOME = Join-Path $profileRoot ".codex"
         New-Item -ItemType Directory -Path $env:CODEX_HOME -Force | Out-Null
-        $output = & $CodexCommand @Arguments
-        $exitCode = $LASTEXITCODE
+        $stderrPath = [IO.Path]::GetTempFileName()
+        try {
+            $output = & $CodexCommand @Arguments 2> $stderrPath
+            $exitCode = $LASTEXITCODE
+            $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw -Encoding UTF8 } else { "" }
+        } finally {
+            if (Test-Path -LiteralPath $stderrPath) { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
+        }
     } finally {
         foreach ($name in $previous.Keys) {
             if ($null -eq $previous[$name]) { Remove-Item -LiteralPath ("Env:" + $name) -ErrorAction SilentlyContinue }
             else { Set-Item -LiteralPath ("Env:" + $name) -Value $previous[$name] }
         }
     }
-    return [pscustomobject]@{ output = @($output); exit_code = $exitCode }
+    return [pscustomobject]@{ output = @($output); stderr = $stderr; exit_code = $exitCode }
 }
 
 function Resolve-GitHubTagCommit([string]$Repo, [string]$ReleaseTag) {
@@ -137,7 +145,8 @@ try {
     $installScript = Join-Path $stage "scripts\install\install-user.ps1"
     $maintenanceScript = Join-Path $stage "scripts\install\install-codex-praetor-maintenance.ps1"
     $stateScript = Join-Path $stage "scripts\verify\get-codex-praetor-installation-state.ps1"
-    foreach ($path in @($installScript, $maintenanceScript, $stateScript)) {
+    $deferredRefreshSource = Join-Path $stage "scripts\release\refresh-codex-praetor-plugin-cache-after-exit.ps1"
+    foreach ($path in @($installScript, $maintenanceScript, $stateScript, $deferredRefreshSource)) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Release bundle is missing required activation script: $path" }
     }
 
@@ -150,9 +159,51 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Bundled user installer failed." }
     if (-not $Json -and -not [string]::IsNullOrWhiteSpace($installOutput)) { Write-Host $installOutput.TrimEnd() }
 
+    if (-not $SkipMaintenance) {
+        $maintenanceOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File $maintenanceScript -UserProfileRoot $profileRoot -SourceRoot $stage -Apply | Out-String)
+        if ($LASTEXITCODE -ne 0) { throw "Generation maintenance installation failed." }
+        if (-not $Json -and -not [string]::IsNullOrWhiteSpace($maintenanceOutput)) { Write-Host $maintenanceOutput.TrimEnd() }
+    }
+
     $pluginAdd = Invoke-CodexCommandInProfile -Arguments @("plugin", "add", "codex-praetor@personal")
-    $pluginAddOutput = $pluginAdd.output | Out-String
-    if ([int]$pluginAdd.exit_code -ne 0) { throw "Official 'codex plugin add codex-praetor@personal' failed." }
+    $pluginAddOutput = (($pluginAdd.output | Out-String) + [string]$pluginAdd.stderr)
+    if ([int]$pluginAdd.exit_code -ne 0) {
+        $cacheLock = $pluginAddOutput -match '(?i)failed to back up plugin cache entry|access is denied|拒绝访问'
+        if (-not $DeferPluginCacheRefresh -or -not $cacheLock) { throw "Official 'codex plugin add codex-praetor@personal' failed." }
+        $deferredRoot = Join-Path $profileRoot (".codex\codex-praetor-deferred-activation\" + [string]$generation.generation_id)
+        New-Item -ItemType Directory -Path $deferredRoot -Force | Out-Null
+        $deferredScript = Join-Path $deferredRoot "refresh-plugin-cache-after-exit.ps1"
+        $deferredState = Join-Path $deferredRoot "result.json"
+        $deferredStdout = Join-Path $deferredRoot "stdout.log"
+        $deferredStderr = Join-Path $deferredRoot "stderr.log"
+        Copy-Item -LiteralPath $deferredRefreshSource -Destination $deferredScript -Force
+        $processArguments = @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $deferredScript,
+            "-UserProfileRoot", $profileRoot, "-CodexCommand", $CodexCommand,
+            "-ExpectedVersion", $Version, "-StatusPath", $deferredState,
+            "-WaitTimeoutSeconds", [string]$DeferredCacheRefreshWaitSeconds
+        )
+        Start-Process -FilePath "powershell.exe" -ArgumentList $processArguments -WindowStyle Hidden -RedirectStandardOutput $deferredStdout -RedirectStandardError $deferredStderr
+        $payload = [ordered]@{
+            schema = "codex-praetor-published-activation/v1"
+            status = "awaiting_host_exit"
+            source_kind = $sourceKind
+            version = $Version
+            tag = $Tag
+            generation = $generation
+            release_sha256 = $actualHash
+            candidate_receipt_sha256 = if ($null -eq $candidateReceipt) { "" } else { (Get-Sha256 -Path $CandidateReceiptPath) }
+            deferred_refresh_state = $deferredState
+            next_action = '完全退出 Codex Desktop；后台 helper 会在宿主退出后运行官方 codex plugin add，随后重新打开 Codex。'
+        }
+        if ($Json) {
+            $payload | ConvertTo-Json -Depth 14
+        } else {
+            Write-Host ('Activation status: ' + [string]$payload.status)
+            Write-Host ('Next: ' + [string]$payload.next_action)
+        }
+        return
+    }
     if (-not $Json -and -not [string]::IsNullOrWhiteSpace($pluginAddOutput)) { Write-Host $pluginAddOutput.TrimEnd() }
     $pluginListResult = Invoke-CodexCommandInProfile -Arguments @("plugin", "list")
     $pluginList = $pluginListResult.output | Out-String
@@ -160,11 +211,6 @@ try {
     $pluginListPattern = "(?m)^\s*" + [regex]::Escape("codex-praetor@personal") + "\s+.*?\s+" + [regex]::Escape($Version) + "(?:\s|$)"
     if ($pluginList -notmatch $pluginListPattern) { throw "codex plugin list does not show an installed codex-praetor@personal $Version row." }
 
-    if (-not $SkipMaintenance) {
-        $maintenanceOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File $maintenanceScript -UserProfileRoot $profileRoot -SourceRoot $stage -Apply | Out-String)
-        if ($LASTEXITCODE -ne 0) { throw "Generation maintenance installation failed." }
-        if (-not $Json -and -not [string]::IsNullOrWhiteSpace($maintenanceOutput)) { Write-Host $maintenanceOutput.TrimEnd() }
-    }
     $stateArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $stateScript, "-ExpectedGenerationPath", $generationPath, "-InstallRoot", $installRoot, "-MarketplacePath", $marketplacePath, "-Json")
     if (-not [string]::IsNullOrWhiteSpace($HostRuntimeInfoPath)) { $stateArgs += @("-HostRuntimeInfoPath", [System.IO.Path]::GetFullPath($HostRuntimeInfoPath)) }
     $state = (& powershell @stateArgs | Out-String | ConvertFrom-Json)
