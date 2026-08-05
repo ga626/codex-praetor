@@ -9,7 +9,7 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "gh is required
 $ReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
 if (-not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) { throw "Candidate host receipt is missing: $ReceiptPath" }
 $receipt = Get-Content -LiteralPath $ReceiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ([string]$receipt.schema -ne "codex-praetor-candidate-host-receipt/v1" -or [string]$receipt.status -ne "accepted" -or [int]$receipt.pull_request.number -ne $PullRequestNumber) { throw "Receipt is not an accepted candidate host receipt for this PR." }
+if ([string]$receipt.schema -ne "codex-praetor-candidate-host-receipt/v2" -or [string]$receipt.status -ne "accepted" -or [int]$receipt.pull_request.number -ne $PullRequestNumber) { throw "Receipt is not an accepted candidate host receipt for this PR." }
 $body = (& gh pr view $PullRequestNumber --repo $Repository --json body --jq .body | Out-String).TrimEnd()
 $marker = "<!-- codex-praetor-candidate-host-receipt -->"
 $block = $marker + [Environment]::NewLine + '```json' + [Environment]::NewLine + ((Get-Content -LiteralPath $ReceiptPath -Raw -Encoding UTF8).Trim()) + [Environment]::NewLine + '```'

@@ -230,52 +230,54 @@ export async function dispatchDryRunTool(input: {
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
   task_kind?: WorkerTaskKind;
+  task_family?: CapabilityTaskFamily;
   research_contract?: ResearchContract;
+  plan_id?: string;
+  task_id?: string;
+  depends_on?: string;
+  acceptance?: string;
+  worktree_name?: string;
+  max_turns?: number;
+  max_stall_seconds?: number;
+  timeout_seconds?: number;
+  allowed_paths?: string[];
+  forbidden_paths?: string[];
+  required_checks?: string[];
+  budget?: Record<string, unknown>;
+  failure_injection?: string;
+  sensitivity?: string;
+  real_worktree?: boolean;
+  base_commit?: string;
+  immutable_paths?: string[];
 }) {
   const repo = resolveExistingRepo(input.repo);
   assertResearchContract(input);
-  const args = [
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-File",
-    getInvokeScriptPath(),
-    "-Provider",
-    input.provider,
-    "-Repo",
-    repo,
-    "-Task",
-    appendResearchContract(input.task, input.research_contract),
-    "-Mode",
-    input.mode ?? "readonly",
-    "-RunMode",
-    input.run_mode ?? "blocking",
-    "-DryRun",
-    "-NoNotify"
-  ];
-
-  if (input.task_kind) {
-    args.push("-TaskKind", input.task_kind === "external_research_support" ? "external_research" : input.task_kind);
-  }
-  if (input.task_kind === "external_research_support") {
-    args.push("-AllowWorkerNetwork");
-    args.push("-ResearchContractJson", JSON.stringify(input.research_contract));
-  }
-
-  if (input.tier?.trim()) {
-    args.push("-Tier", input.tier.trim());
-  }
-
-  const result = await runPowerShell(args, { timeoutMs: 120_000 });
+  const realWorktree = input.real_worktree ?? input.task_kind === "code_change";
+  const isCodeChangePreflight = input.task_kind === "code_change" && realWorktree;
+  const result = await runPowerShell(
+    buildDispatchArgs({
+      ...input,
+      repo,
+      task: appendResearchContract(input.task, input.research_contract),
+      mode: input.mode ?? (isCodeChangePreflight ? "edit" : "readonly"),
+      run_mode: input.run_mode ?? "blocking",
+      real_worktree: realWorktree,
+      dry_run: true,
+      no_notify: true
+    }),
+    { timeoutMs: 120_000 }
+  );
   const fields = parseKeyValueOutput(result.stdout);
   return {
     display: {
-      阶段: "派工预演",
-      状态: result.exitCode === 0 ? "可继续" : "失败",
+      阶段: isCodeChangePreflight ? "真实代码任务合同预检" : "派工预演",
+      状态: result.exitCode === 0 ? "可继续，未启动 worker" : "未启动 worker，预检失败",
       执行者: providerDisplayName(fields.provider ?? input.provider),
       模型: String(fields.model ?? ""),
       连接: connectionDisplayName(fields.connection_mode ?? ""),
-      下一步: result.exitCode === 0 ? "Codex 检查合同、范围和 readiness 后，才可决定是否真实派工。" : "读取失败分类并处理，不要把预演失败当作真实派工。"
+      下一步: result.exitCode === 0
+        ? "合同已检查；Codex 仍需决定是否启动真实 worker。"
+        : "修复任务合同、基线或范围后重试；此结果不代表 worker 已启动或 provider 已失败。"
     },
     ok: result.exitCode === 0,
     exit_code: result.exitCode,
@@ -287,8 +289,14 @@ export async function dispatchDryRunTool(input: {
     model: fields.model ?? "",
     connection_mode: fields.connection_mode ?? "",
     model_policy: fields.model_policy ?? "",
-    mode: input.mode ?? "readonly",
+    mode: input.mode ?? (isCodeChangePreflight ? "edit" : "readonly"),
     run_mode: fields.run_mode ?? input.run_mode ?? "blocking",
+    preflight_kind: isCodeChangePreflight ? "real_code_change" : "standard",
+    // This is the wrapper-validated contract, not evidence that a worktree
+    // exists. A dry-run must never be represented as a real dispatch.
+    real_worktree: realWorktree,
+    base_commit: input.base_commit ?? "",
+    immutable_paths: input.immutable_paths ?? [],
     project_artifact_root: fields.project_artifact_root ?? "",
     job_root: fields.job_root ?? "",
     lock_root: fields.lock_root ?? "",

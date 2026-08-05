@@ -8,6 +8,7 @@ $build = Join-Path $root "scripts\release\build-codex-praetor-release.ps1"
 $generation = Join-Path $root "scripts\release\get-codex-praetor-generation.ps1"
 $activation = Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1"
 $candidateReceiptWriter = Join-Path $root "scripts\release\write-release-candidate-receipt.ps1"
+$userPathEvidenceWriter = Join-Path $root "scripts\release\write-candidate-user-path-evidence.ps1"
 $hostReceiptWriter = Join-Path $root "scripts\release\write-candidate-host-receipt.ps1"
 $hostReceiptGate = Join-Path $root "scripts\verify\test-candidate-host-receipt.ps1"
 
@@ -63,8 +64,28 @@ exit /b 0
     Assert-True ([string]$candidate.status -eq "needs_host_restart") "Candidate activation must stop before host evidence is claimed."
     $runtimeInfo = Join-Path $scratch "runtime-info.json"
     [ordered]@{ runtime_contract = [ordered]@{ version = $version }; runtime_identity = [ordered]@{ version = $version; generation_id = [string]$current.generation_id; runtime_contract_sha256 = [string]$current.runtime_contract_sha256 } } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $runtimeInfo -Encoding UTF8
+    $executionRepo = Join-Path $scratch "execution-worktree"
+    New-Item -ItemType Directory -Path $executionRepo -Force | Out-Null
+    & git -C $executionRepo init | Out-Null
+    & git -C $executionRepo config user.email "release-user-path-test@example.invalid"
+    & git -C $executionRepo config user.name "Release User Path Test"
+    Set-Content -LiteralPath (Join-Path $executionRepo "README.md") -Value "fixture" -Encoding ASCII
+    & git -C $executionRepo add README.md
+    & git -C $executionRepo commit -m "fixture" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "User-path fixture worktree commit failed." }
+    $executionBase = ((& git -C $executionRepo rev-parse HEAD | Out-String).Trim()).ToLowerInvariant()
+    $jobDir = Join-Path $scratch "user-path-job"
+    New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
+    $jobId = "candidate-user-path-fixture"
+    [ordered]@{ job_id = $jobId; task_kind = "code_change"; base_commit = $executionBase; execution_repo = $executionRepo; provider = "qoder"; model = "fixture-model"; connection_mode = "qoder_agent_sdk" } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
+    [ordered]@{ job_id = $jobId; task_kind = "code_change"; status = "process_exited"; exit_code = 0; failure_class = ""; base_commit = $executionBase; worktree_head = $executionBase } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $jobDir "completion.json") -Encoding UTF8
+    $planPath = Join-Path $scratch "user-path-plan.json"
+    [ordered]@{ tasks = @([ordered]@{ task_id = "candidate-code-change"; task_kind = "code_change"; mode = "edit"; status = "completed"; governance_state = "accepted"; verification_verdict = "accepted"; task_family = "bounded_code_change"; base_commit = $executionBase; immutable_paths = @("README.md"); completion_definition = [ordered]@{ required_checks = @("git diff --check") }; job_id = $jobId; job_dir = $jobDir; completion = (Join-Path $jobDir "completion.json") }) } | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $planPath -Encoding UTF8
+    $userPathEvidence = Join-Path $scratch "candidate-user-path.json"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $userPathEvidenceWriter -CandidateReceiptPath $candidateReceipt -HostRuntimeInfoPath $runtimeInfo -PlanPath $planPath -TaskId "candidate-code-change" -SkillPath (Join-Path $root "plugin\skills\codex-praetor\SKILL.md") -OutputPath $userPathEvidence
+    if ($LASTEXITCODE -ne 0) { throw "Candidate user-path evidence writing failed." }
     $hostReceipt = Join-Path $scratch "candidate-host.json"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $hostReceiptWriter -CandidateReceiptPath $candidateReceipt -HostRuntimeInfoPath $runtimeInfo -PullRequestNumber 123 -OutputPath $hostReceipt -ProjectRoot $root
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $hostReceiptWriter -CandidateReceiptPath $candidateReceipt -HostRuntimeInfoPath $runtimeInfo -UserPathEvidencePath $userPathEvidence -PullRequestNumber 123 -OutputPath $hostReceipt -ProjectRoot $root
     if ($LASTEXITCODE -ne 0) { throw "Candidate host receipt writing failed." }
     & powershell -NoProfile -ExecutionPolicy Bypass -File $hostReceiptGate -ReceiptPath $hostReceipt -ArtifactManifestPath $artifactManifest -ProjectRoot $root
     if ($LASTEXITCODE -ne 0) { throw "Candidate host receipt acceptance gate failed." }

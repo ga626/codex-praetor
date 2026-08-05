@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.28-alpha
+
+- Fixed the real code-change first entry: public preflight now carries the frozen worktree contract instead of blocking code work before a worker can start.
+- Made the execution-mode Skill distinguish read-only preview, code-change contract preflight and an actually started worker.
+- Made candidate host acceptance require one same-artifact, accepted code-change user-path receipt: route, preflight, job, isolated worktree, completion and Codex acceptance are now separately bound and cannot substitute for a ready health card.
+
 ## 0.16.27-alpha
 
 - Fixed the shared CI pipeline so dependency-manifest-only changes run deterministic MCP installation and tests instead of failing before test execution for missing release-only PR evidence.

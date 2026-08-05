@@ -30,15 +30,15 @@
 ### 1. 下载并解压
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.27-alpha/codex-praetor-setup-0.16.27-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.27-alpha.zip"
-Expand-Archive .\codex-praetor-setup-0.16.27-alpha.zip .\codex-praetor-setup-0.16.27-alpha
-cd .\codex-praetor-setup-0.16.27-alpha
+Invoke-WebRequest -Uri "https://github.com/ga626/codex-praetor/releases/download/v0.16.28-alpha/codex-praetor-setup-0.16.28-alpha.zip" -OutFile ".\codex-praetor-setup-0.16.28-alpha.zip"
+Expand-Archive .\codex-praetor-setup-0.16.28-alpha.zip .\codex-praetor-setup-0.16.28-alpha
+cd .\codex-praetor-setup-0.16.28-alpha
 ```
 
 也可以手动打开 Release 页面下载：
 
 ```text
-https://github.com/ga626/codex-praetor/releases/tag/v0.16.27-alpha
+https://github.com/ga626/codex-praetor/releases/tag/v0.16.28-alpha
 ```
 
 ### 2. 双击安装向导
@@ -196,7 +196,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Apply
 
 ## 配置真实派工
 
-真实派工前，你需要至少一个外部 CLI 已安装并按 provider 官方方式完成授权。`0.16.27-alpha` 使用 Qoder Agent SDK 或 CodeBuddy ACP 获取结构化进展；你不需要手工选择连接协议，也不需要为了首次使用手动跑内部 canary。
+真实派工前，你需要至少一个外部 CLI 已安装并按 provider 官方方式完成授权。`0.16.28-alpha` 使用 Qoder Agent SDK 或 CodeBuddy ACP 获取结构化进展；你不需要手工选择连接协议，也不需要为了首次使用手动跑内部 canary。
 
 第一次真实任务也不是直接跳过保护。Codex 会先把你的真实请求写成可追溯计划，明确允许路径、禁止路径、检查和验收；只有这些信息齐全，才会创建受控的首次证据。首次任务成功后，系统自动把同一 provider、模型、连接方式、权限和任务类型记录为 readiness；之后的普通派工复用这条证据，只有真正的身份或合同变化才需要重新验证。
 

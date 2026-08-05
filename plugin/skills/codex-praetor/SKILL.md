@@ -11,7 +11,7 @@ Codex 是规划者、监督者、整合者和最终验收者。Qoder 与 CodeBud
 
 - 用户直接说“开启/打开/进入 Codex 执行官模式”或“开启执行官模式”时，本对话从下一项实质任务开始按本 Skill 的外派规范工作。讨论“执行官模式是什么”不触发开启。
 - 已开启时，每个实质任务先调用 `codex_praetor_route_intent`，传入当前项目。它返回的是“先评估外派”还是“Codex 保留处理”；不是自动派工承诺。
-- 可外派阶段仍须由 Codex 写出单一结果、范围、禁止路径、检查和验收标准，随后依次执行 dry-run、真实派工、终态读取、diff/检查和 Codex 验收。
+- 可外派阶段仍须由 Codex 写出单一结果、范围、禁止路径、检查和验收标准。只读任务可执行普通 dry-run；代码修改任务必须先创建带冻结 `base_commit` 与 `immutable_paths` 的持久计划，再用 `codex_praetor_dispatch_plan_task(dry_run=true)` 做真实代码任务合同预检。预检只检查合同，不启动 worker。预检通过后才可真实派工、读取终态、检查 diff/检查并由 Codex 验收。
 - 不能外派的阶段由 Codex 自己完成，并说明原因；不要停住，也不要用原生 Codex subagent 冒充 Qoder 或 CodeBuddy。
 - 用户直接说“关闭/退出/停止 Codex 执行官模式”或简称“关闭执行官模式”时，本对话不再为后续任务主动外派。已经派出的 worker 不会被猜测归属或批量取消；若用户要停止某个已知 worker，Codex 必须用该 `job_id` 调用 `codex_praetor_cancel_job` 并读取终态回执。
 - 关键阶段用中文短回执说明当前动作、执行者、模型、连接和下一步；不展示隐藏思维链，不猜测 Codex 宿主模型。
@@ -20,10 +20,10 @@ Codex 是规划者、监督者、整合者和最终验收者。Qoder 与 CodeBud
 ## 派工合同
 
 1. 先定义一个可检查结果、明确仓库范围、允许路径、禁止路径、必需检查和验收证据。
-2. 先使用项目 wrapper 的 `-DryRun`。明确选择 Qoder 或 CodeBuddy；不允许 provider auto model。
+2. 明确选择 Qoder 或 CodeBuddy；不允许 provider auto model。只读任务使用 `codex_praetor_dispatch_dry_run`。代码修改任务不能先走缺少基线字段的旧式预演：先创建计划并冻结 `base_commit`、`immutable_paths`，再使用计划任务的 `dry_run=true` 做合同预检。
 3. 真实 worker 在一次性 Git worktree 中工作；改代码任务取得仓库编辑锁。
 4. 使用 blocking completion 或 wrapper 的后台 completion 记录；不要实时轮询 worker。
-5. 由 Codex 检查 completion、日志、worktree diff 和必需检查。进程退出永远不等于验收通过。
+5. 只有返回 `job_id`、`execution_worktree` 和已启动状态才可说“已派工”。合同预检或模式开启都不等于 worker 已启动。由 Codex 检查 completion、日志、worktree diff 和必需检查。进程退出永远不等于验收通过。
 
 ## 安全边界
 

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { dispatchPlanTaskTool } from "./tools.js";
+import { dispatchDryRunTool, dispatchPlanTaskTool } from "./tools.js";
 
 const projectRoot = path.resolve(process.cwd(), "..");
 const root = path.join(os.tmpdir(), `codex-praetor-evaluation-dispatch-${process.pid}-${Date.now()}`);
@@ -39,6 +39,43 @@ try {
   writeFileSync(configPath, `${JSON.stringify(config)}\n`, "utf8");
   process.env.CODEX_PRAETOR_CONFIG = configPath;
   process.env.CODEX_PRAETOR_FORCE_PORTABLE_FILE_HASH = "1";
+
+  const baseCommit = run("git", ["-C", repo, "rev-parse", "HEAD"]).trim();
+  const realCodePreflight = await dispatchDryRunTool({
+    repo,
+    task: "Contract-only preflight. Do not start a worker or edit files.",
+    provider: "qoder",
+    tier: "qoder-day-cheap",
+    mode: "edit",
+    run_mode: "blocking",
+    task_kind: "code_change",
+    task_family: "bounded_code_change",
+    acceptance: "The exact frozen source contract is accepted for a later real dispatch.",
+    worktree_name: "contract-preflight",
+    base_commit: baseCommit,
+    immutable_paths: ["README.md"],
+    allowed_paths: ["README.md"],
+    forbidden_paths: [".git", "**/*auth*"],
+    required_checks: ["git diff --exit-code"],
+    budget: { max_wall_seconds: 300 }
+  });
+  assert.equal(realCodePreflight.ok, true, String((realCodePreflight as Record<string, unknown>).stderr ?? ""));
+  const realCodePreflightRecord = realCodePreflight as {
+    display: { 阶段: string; 状态: string };
+    stdout: string;
+    job_id?: string;
+    preflight_kind: string;
+    real_worktree: boolean;
+    base_commit: string;
+    immutable_paths: string[];
+  };
+  assert.equal(realCodePreflightRecord.display.阶段, "真实代码任务合同预检");
+  assert.equal(realCodePreflightRecord.display.状态, "可继续，未启动 worker");
+  assert.equal(realCodePreflightRecord.job_id ?? "", "", "A contract preflight must not create a worker job.");
+  assert.equal(realCodePreflightRecord.preflight_kind, "real_code_change");
+  assert.equal(realCodePreflightRecord.real_worktree, true);
+  assert.equal(realCodePreflightRecord.base_commit, baseCommit);
+  assert.deepEqual(realCodePreflightRecord.immutable_paths, ["README.md"]);
 
   const planRoot = path.join(repo, ".codex-praetor", "plans");
   const preparation = run("powershell.exe", [

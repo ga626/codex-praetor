@@ -86,7 +86,7 @@ jobs:
             $null = $json | ConvertFrom-Json
             Set-Content -LiteralPath $Path -Value ($json + [Environment]::NewLine) -Encoding UTF8
           }
-          Materialize-JsonMarker '<!-- codex-praetor-provider-release-evidence -->' '.codex-praetor/provider-release-evidence.json' $true
+          Materialize-JsonMarker '<!-- codex-praetor-provider-release-evidence -->' '.codex-praetor/provider-release-evidence.json' $publish
           Materialize-JsonMarker '<!-- codex-praetor-candidate-host-receipt -->' '.codex-praetor/candidate-host-receipt.json' $publish
           Write-Host '[PASS] Release PR evidence materialized.'
 
@@ -98,6 +98,7 @@ jobs:
         run: |
           $arguments = @('-BaseRef', '${{ inputs.base_ref }}', '-CheckRemote')
           if ('${{ inputs.publish }}' -ne 'true') { $arguments += '-AllowDraftMetadataPlaceholders' }
+          if ('${{ inputs.publish }}' -ne 'true') { $arguments += '-SkipProviderEvidence' }
           & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\invoke-release-candidate-preflight.ps1 @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

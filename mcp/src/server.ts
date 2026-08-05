@@ -114,7 +114,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.27-alpha",
+    version: "0.16.28-alpha",
     description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执行官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
   });
 
@@ -259,8 +259,8 @@ export function createServer(): McpServer {
   server.registerTool(
     "codex_praetor_dispatch_dry_run",
     {
-      title: "预演 Codex Praetor 派工",
-      description: "以 dry-run 调用现有 PowerShell wrapper，返回选定 worker 命令与运行态路径。",
+      title: "预演或预检 Codex Praetor 派工合同",
+      description: "只读任务返回普通派工预演；代码修改任务可验证完整的真实 worktree 合同。两者都不会启动 worker。",
       annotations: readOnlyClosedWorld,
       outputSchema: structuredToolOutputSchema,
       inputSchema: {
@@ -271,7 +271,25 @@ export function createServer(): McpServer {
         mode: z.enum(["readonly", "edit"]).optional(),
         run_mode: z.enum(["blocking", "background"]).optional(),
         task_kind: z.enum(["local_audit", "test_execution", "code_change", "external_research_support"]).optional(),
-        research_contract: researchContractSchema.optional()
+        task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]).optional(),
+        research_contract: researchContractSchema.optional(),
+        plan_id: z.string().optional(),
+        task_id: z.string().optional(),
+        depends_on: z.string().optional(),
+        acceptance: z.string().optional(),
+        worktree_name: z.string().optional(),
+        real_worktree: z.boolean().optional(),
+        base_commit: z.string().regex(/^[0-9a-f]{40}$/i).optional(),
+        immutable_paths: z.array(z.string().min(1)).optional(),
+        allowed_paths: z.array(z.string().min(1)).min(1).optional(),
+        forbidden_paths: z.array(z.string().min(1)).min(1).optional(),
+        required_checks: z.array(z.string().min(1)).min(1).optional(),
+        budget: boundedTaskBudgetSchema.optional(),
+        failure_injection: z.string().optional(),
+        sensitivity: z.string().optional(),
+        max_turns: z.number().int().positive().max(80).optional(),
+        max_stall_seconds: z.number().int().min(30).max(86400).optional(),
+        timeout_seconds: z.number().int().min(30).max(86400).optional()
       }
     },
     async (input) => asJsonContent(await dispatchDryRunTool(input))
