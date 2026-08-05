@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.26-alpha",
-    "previous_version":  "0.16.25-alpha",
-    "tag":  "v0.16.26-alpha",
+    "version":  "0.16.27-alpha",
+    "previous_version":  "0.16.26-alpha",
+    "tag":  "v0.16.27-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.26-alpha.zip",
-    "reason":  "将发布链改为候选制品先经真实 Codex Desktop 验收、main 只提升同一 ZIP，并在 GitHub draft 下载复验后才公开；保留 Qoder Agent SDK 与 CodeBuddy ACP 的既有 structured progress 和 formal cancellation 合同，本次不改变它们的执行语义。"
+    "artifact":  "codex-praetor-setup-0.16.27-alpha.zip",
+    "reason":  "修复普通 MCP 依赖更新被错误送入发布证据门禁的问题：依赖清单专用更新改走确定性安装与 MCP 测试，真正的产品发布仍保持候选 ZIP、Desktop host 验收和同一制品提升；同时升级 Hono、ip-address、MCP TypeScript SDK 与 Qoder Agent SDK，并保持 CodeBuddy ACP 的既有 structured progress 与 formal cancellation 合同。"
 }

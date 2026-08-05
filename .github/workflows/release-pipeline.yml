@@ -43,7 +43,19 @@ jobs:
           cache: npm
           cache-dependency-path: mcp/package-lock.json
 
+      - name: Classify release impact
+        id: release_impact
+        shell: pwsh
+        run: |
+          $classification = & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent.ps1 `
+            -BaseRef '${{ inputs.base_ref }}' `
+            -RequireReleaseImpact
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $releaseImpact = (($classification | Out-String) -match 'Pipeline classification: release_impact')
+          "release_impact=$($releaseImpact.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
       - name: Materialize release PR evidence
+        if: ${{ steps.release_impact.outputs.release_impact == 'true' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,7 +91,7 @@ jobs:
           Write-Host '[PASS] Release PR evidence materialized.'
 
       - name: Candidate preflight
-        if: ${{ !inputs.publish }}
+        if: ${{ !inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -90,7 +102,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Write verified candidate receipt
-        if: ${{ !inputs.publish }}
+        if: ${{ !inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         shell: pwsh
         run: |
           $intent = Get-Content .\config\release-intent.json -Raw | ConvertFrom-Json
@@ -101,7 +113,7 @@ jobs:
             -BaseSha "${{ github.event.pull_request.base.sha }}"
 
       - name: Upload verified candidate artifact
-        if: ${{ !inputs.publish }}
+        if: ${{ !inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         id: candidate_artifact
         shell: pwsh
         run: |
@@ -114,7 +126,7 @@ jobs:
           "name=$name" >> $env:GITHUB_OUTPUT
 
       - name: Upload verified candidate artifact files
-        if: ${{ !inputs.publish }}
+        if: ${{ !inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ steps.candidate_artifact.outputs.name }}
@@ -127,30 +139,31 @@ jobs:
             .codex-praetor/releases/codex-praetor-setup-*.candidate.json
 
       - name: Attest verified candidate ZIP
-        if: ${{ !inputs.publish }}
+        if: ${{ !inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
         with:
           subject-path: .codex-praetor/releases/codex-praetor-setup-*.zip
 
-      - name: Classify mainline publication
-        id: release_impact
-        if: ${{ inputs.publish }}
+      - name: Validate non-release MCP dependency update
+        if: ${{ !inputs.publish && steps.release_impact.outputs.release_impact != 'true' }}
         shell: pwsh
         run: |
-          $classification = & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\test-release-intent.ps1 -BaseRef '${{ inputs.base_ref }}'
+          git diff --check '${{ inputs.base_ref }}...HEAD'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $shouldPublish = (($classification | Out-String) -match 'Pipeline classification: release_impact')
-          "publish=$($shouldPublish.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\mcp\scripts\install-mcp-dependencies.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix .\mcp test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install MCP dependencies for promoted artifact verification
-        if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
+        if: ${{ inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         shell: pwsh
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\mcp\scripts\install-mcp-dependencies.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Validate release control plane on main
-        if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
+        if: ${{ inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -159,7 +172,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Resolve and verify PR candidate artifact
-        if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
+        if: ${{ inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -188,7 +201,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Publish immutable Release from this exact main commit
-        if: ${{ inputs.publish && steps.release_impact.outputs.publish == 'true' }}
+        if: ${{ inputs.publish && steps.release_impact.outputs.release_impact == 'true' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

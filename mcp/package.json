@@ -1,6 +1,6 @@
 {
     "name":  "codex-praetor-mcp",
-    "version":  "0.16.26-alpha",
+    "version":  "0.16.27-alpha",
     "description":  "Thin MCP wrapper for Codex Praetor dry-run dispatch and job state.",
     "type":  "module",
     "main":  "dist/server.js",
@@ -22,8 +22,8 @@
     "author":  "Codex Praetor",
     "license":  "MIT",
     "dependencies":  {
-                         "@qoder-ai/qoder-agent-sdk":  "1.0.15",
-                         "@modelcontextprotocol/sdk":  "^1.29.0",
+                         "@qoder-ai/qoder-agent-sdk":  "1.0.17",
+                         "@modelcontextprotocol/sdk":  "^1.30.0",
                          "zod":  "^4.4.3"
                      },
     "devDependencies":  {
@@ -33,6 +33,6 @@
                         },
     "overrides":  {
                       "@hono/node-server":  "2.0.11",
-                      "fast-uri":  "3.1.4"
+                      "fast-uri":  "3.1.5"
                   }
 }

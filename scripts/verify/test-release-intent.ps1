@@ -51,20 +51,15 @@ $releaseImpact = $true
 if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and $BaseRef -notmatch '^0+$') {
     $changed = @(& git -C $root diff --name-only "$BaseRef...HEAD")
     if ($LASTEXITCODE -ne 0) { throw "Unable to inspect changed files against base ref $BaseRef." }
-    # Dependabot's TypeScript/tooling bumps change the lockfile but do not
-    # change the bundled runtime. They must still run CI, but must not force a
-    # fake product version/tag release.
+    # Dependency-manifest-only changes still run their deterministic MCP CI,
+    # but they do not create a product release on their own. In particular,
+    # Dependabot cannot supply a maintainer's candidate-host or provider
+    # evidence, so treating a package-only update as a release candidate makes
+    # the CI fail before it even installs or tests the updated dependency.
     $nonReleaseDependencyOnly = $false
     $dependencyFiles = @("mcp/package.json", "mcp/package-lock.json")
-    if ($changed.Count -gt 0 -and @($changed | Where-Object { $_ -notin $dependencyFiles }).Count -eq 0 -and @($changed | Where-Object { $_ -eq "mcp/package.json" }).Count -eq 1) {
-        $basePackageText = & git -C $root show "$BaseRef`:mcp/package.json"
-        if ($LASTEXITCODE -eq 0) {
-            $basePackage = ($basePackageText -join [Environment]::NewLine) | ConvertFrom-Json
-            $currentPackage = Get-Content -LiteralPath (Join-Path $root "mcp\package.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-            $baseRuntime = ($basePackage.dependencies | ConvertTo-Json -Compress)
-            $currentRuntime = ($currentPackage.dependencies | ConvertTo-Json -Compress)
-            $nonReleaseDependencyOnly = $baseRuntime -eq $currentRuntime
-        }
+    if ($changed.Count -gt 0 -and @($changed | Where-Object { $_ -notin $dependencyFiles }).Count -eq 0) {
+        $nonReleaseDependencyOnly = $true
     }
     $impactPatterns = @(
         '^plugin/', '^skill/', '^mcp/', '^scripts/(dispatch|install|maintenance|release)/',
