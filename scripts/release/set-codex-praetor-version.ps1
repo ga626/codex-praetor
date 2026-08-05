@@ -60,6 +60,18 @@ $runtimeDataSources = @(
     "config\provider-adapters\qoder.json",
     "config\provider-adapters\codebuddy.json"
 )
+$mirroredExecutionSources = @(
+    # Keep the isolated version-updater fixture capable of exercising every
+    # source copied by sync-codex-praetor-runtime-contract.ps1. Otherwise a
+    # newly mirrored runtime script fails only after the PR reaches CI.
+    "scripts\dispatch\invoke-codex-praetor.ps1",
+    "scripts\dispatch\record-codex-praetor-readiness.ps1",
+    "scripts\dispatch\watch-codex-praetor-job.ps1",
+    "scripts\dispatch\test-codex-praetor-capability-evidence.ps1",
+    "scripts\verify\resolve-codex-praetor-readiness.ps1",
+    "scripts\verify\test-provider-capability-canary.ps1",
+    "scripts\verify\get-codex-praetor-runtime-inventory.ps1"
+)
 
 if ($ListSourcePaths) {
     @(
@@ -67,6 +79,7 @@ if ($ListSourcePaths) {
         $jsonFiles,
         $textFiles,
         $runtimeDataSources,
+        $mirroredExecutionSources,
         "scripts\shared\ensure-file-hash.ps1",
         "scripts\release\set-codex-praetor-version.ps1"
     ) | Select-Object -Unique | ForEach-Object { $_ }
