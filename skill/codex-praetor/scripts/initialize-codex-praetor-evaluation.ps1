@@ -80,11 +80,14 @@ if ($Action -eq "Prepare") {
     if (-not $Apply) { $summary.next_action = "Re-run with -Action Prepare -Apply to create the project-local plan ledger." }
     else {
         Assert-True (Test-Path -LiteralPath $PlanScript -PathType Leaf) "Evaluation plan script is missing: $PlanScript"
+        $baseCommit = (& git -C $ProjectRoot rev-parse --verify "HEAD^{commit}" | Out-String).Trim().ToLowerInvariant()
+        Assert-True ($LASTEXITCODE -eq 0 -and $baseCommit -match '^[0-9a-f]{40}$') "Evaluation plan cannot freeze the repository base commit."
         & $PlanScript -Action Init -PlanId $resolvedPlanId -PlanRoot $PlanRoot -Title "Evaluation $($suite.suite_id)" -Repo $ProjectRoot | Out-Null
         foreach ($task in $tasks) {
             $budgetJson = $task.budget | ConvertTo-Json -Compress
             $planDir = Join-Path $PlanRoot $resolvedPlanId; $material = New-TaskMaterial -Task $task -PlanDirectory $planDir
-            $planArgs = @{ Action='UpsertTask'; PlanId=$resolvedPlanId; PlanRoot=$PlanRoot; TaskId=[string]$task.task_id; TaskTitle=[string]$task.goal; TaskFamily=[string]$task.task_family; TaskKind=[string]$task.task_kind; Status='pending'; Mode=[string]$task.mode; AllowedPath=@($task.allowed_paths); ForbiddenPath=@($task.forbidden_paths); RequiredCheck=@($task.required_checks); BudgetJson=$budgetJson; FailureInjection=[string]$task.failure_injection; Sensitivity=[string]$task.sensitivity; Acceptance=[string]$task.acceptance; Summary=('required_checks=' + (@($task.required_checks) -join ' | ')) }
+            $planArgs = @{ Action='UpsertTask'; PlanId=$resolvedPlanId; PlanRoot=$PlanRoot; TaskId=[string]$task.task_id; TaskTitle=[string]$task.goal; TaskFamily=[string]$task.task_family; TaskKind=[string]$task.task_kind; Status='pending'; Mode=[string]$task.mode; AllowedPath=@($task.allowed_paths); ForbiddenPath=@($task.forbidden_paths); RequiredCheck=@($task.required_checks); BudgetJson=$budgetJson; FailureInjection=[string]$task.failure_injection; Sensitivity=[string]$task.sensitivity; Acceptance=[string]$task.acceptance; Summary=('required_checks=' + (@($task.required_checks) -join ' | ')); BaseCommit=$baseCommit }
+            if ($null -ne $material) { $planArgs.ImmutablePath = @($material.immutable_paths) }
             if ($null -ne $material) { $planArgs.TaskMaterialJson = ($material | ConvertTo-Json -Compress -Depth 8) }; & $PlanScript @planArgs | Out-Null
         }
         $summary.plan_path = Join-Path (Join-Path $PlanRoot $resolvedPlanId) "plan.json"
