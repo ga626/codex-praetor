@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { dispatchDryRunTool, dispatchPlanTaskTool } from "./tools.js";
+import { dispatchDryRunTool, dispatchPlanTaskTool, verifyEvaluationTaskTool } from "./tools.js";
 
 const projectRoot = path.resolve(process.cwd(), "..");
 const root = path.join(os.tmpdir(), `codex-praetor-evaluation-dispatch-${process.pid}-${Date.now()}`);
@@ -80,26 +80,41 @@ try {
   const planRoot = path.join(repo, ".codex-praetor", "plans");
   const preparation = run("powershell.exe", [
     "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(projectRoot, "scripts", "evaluation", "initialize-codex-praetor-evaluation.ps1"),
-    "-ProjectRoot", projectRoot, "-Action", "Prepare", "-PlanRoot", planRoot, "-PlanId", planId, "-Apply"
+    // The plan's frozen base must name the repository that will receive the
+    // disposable worktree, not the Praetor source repository which supplies
+    // the suite and immutable templates.
+    "-ProjectRoot", repo,
+    "-SuitePath", path.join(projectRoot, "config", "evaluation-suite.json"),
+    "-TemplateRoot", path.join(projectRoot, "config", "evaluation-task-templates"),
+    "-PlanScript", path.join(projectRoot, "scripts", "dispatch", "manage-codex-praetor-plan.ps1"),
+    "-Action", "Prepare", "-PlanRoot", planRoot, "-PlanId", planId, "-Apply"
   ]);
   assert.match(preparation, /plan_path/);
 
   const bounded = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "bounded-test-fix", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
   const boundedRecord = bounded as Record<string, unknown>;
-  assert.equal(bounded.ok, false);
-  assert.match(String(boundedRecord.message ?? ""), /frozen base commit or immutable paths/);
-
+  assert.equal(bounded.ok, true, String(boundedRecord.stderr ?? boundedRecord.message ?? ""));
   const preparedPlanPath = path.join(planRoot, planId, "plan.json");
   const boundedPlan = JSON.parse(readFileSync(preparedPlanPath, "utf8").replace(/^\uFEFF/, ""));
   const boundedTask = boundedPlan.tasks.find((task: { task_id: string }) => task.task_id === "bounded-test-fix");
+  assert.match(String(boundedTask.base_commit ?? ""), /^[0-9a-f]{40}$/i);
+  assert.notEqual(String(boundedTask.base_commit ?? ""), baseCommit, "The evaluation baseline must be a disposable fixture commit, not the source checkout HEAD.");
+  assert.equal(String(boundedRecord.base_commit ?? ""), String(boundedTask.base_commit));
+  assert.deepEqual(boundedRecord.immutable_paths, [
+    ".codex-praetor/evaluation/bounded-test-fix/test.ps1",
+    ".codex-praetor/evaluation/bounded-test-fix/task.json"
+  ]);
+  for (const immutablePath of boundedRecord.immutable_paths as string[]) {
+    assert.match(run("git", ["-C", repo, "rev-parse", "--verify", `${String(boundedTask.base_commit)}:${immutablePath}`]).trim(), /^[0-9a-f]{40}$/i);
+  }
   assert.ok(existsSync(path.join(String(boundedTask.task_material.source_root), "task-material.json")), "Prepared material needs a durable dispatch contract file.");
   assert.equal(typeof boundedTask.task_material, "object", "Copied material remains available only for regression fixtures.");
   delete boundedTask.task_material;
   writeFileSync(preparedPlanPath, `${JSON.stringify(boundedPlan, null, 2)}\n`, "utf8");
-  const missingMaterial = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "bounded-test-fix", provider: "qoder", dry_run: true });
+  const missingMaterial = await verifyEvaluationTaskTool({ repo, plan_id: planId, task_id: "bounded-test-fix", worktree: repo });
   const missingMaterialRecord = missingMaterial as Record<string, unknown>;
   assert.equal(missingMaterial.ok, false);
-  assert.match(String(missingMaterialRecord.message ?? ""), /frozen base commit or immutable paths/);
+  assert.match(String(missingMaterialRecord.message ?? ""), /(immutable material|task-material)/);
 
   const dispatched = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "fixed-profile-regression", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
   const dispatchedRecord = dispatched as Record<string, unknown>;

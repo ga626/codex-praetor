@@ -1,13 +1,19 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Worktree,
-    [Parameter(Mandatory = $true)]
     [string]$TaskMaterialJson,
+    [string]$TaskMaterialPath = "",
     [string[]]$RequiredCheck = @(),
     [string]$RequiredChecksJson = ""
 )
 
 $ErrorActionPreference = "Stop"
+if (-not [string]::IsNullOrWhiteSpace($TaskMaterialJson) -and -not [string]::IsNullOrWhiteSpace($TaskMaterialPath)) { throw "Specify either TaskMaterialJson or TaskMaterialPath, not both." }
+if (-not [string]::IsNullOrWhiteSpace($TaskMaterialPath)) {
+    if (-not (Test-Path -LiteralPath $TaskMaterialPath -PathType Leaf)) { throw "TaskMaterialPath does not exist: $TaskMaterialPath" }
+    $TaskMaterialJson = Get-Content -LiteralPath $TaskMaterialPath -Raw -Encoding UTF8
+}
+if ([string]::IsNullOrWhiteSpace($TaskMaterialJson)) { throw "TaskMaterialJson or TaskMaterialPath is required." }
 if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { $RequiredCheck = @($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
 
 function Get-FileSha256 {
@@ -69,6 +75,8 @@ $violations = @()
 $checks = @()
 $expectedFiles = @($material.files)
 $expectedPaths = @($expectedFiles | ForEach-Object { (Get-SafeRelativePath -PathValue ([string]$_.path)).Replace('\\', '/') })
+$baselineCommit = if ($material.PSObject.Properties.Name -contains 'baseline_commit') { ([string]$material.baseline_commit).Trim().ToLowerInvariant() } else { '' }
+if (-not [string]::IsNullOrWhiteSpace($baselineCommit) -and $baselineCommit -notmatch '^[0-9a-f]{40}$') { throw "Task material baseline_commit is not a resolved Git commit." }
 
 if (-not (Test-Path -LiteralPath $destinationRoot -PathType Container)) {
     $violations += "material_destination_missing"
@@ -93,6 +101,14 @@ foreach ($immutablePath in @($material.immutable_paths)) {
     $target = Join-CheckedChildPath -Root $destinationRoot -RelativePath $materialRelative
     if ($null -eq $entry -or -not (Test-Path -LiteralPath $target -PathType Leaf)) {
         $violations += "immutable_file_missing:$fullRelative"
+    } elseif (-not [string]::IsNullOrWhiteSpace($baselineCommit)) {
+        # A real worker checks out the frozen Git baseline. Git may normalize
+        # CRLF on Windows, so filesystem hashes are not a reliable immutability
+        # test here. Compare the complete index/worktree state to the frozen
+        # commit instead; this catches both staged and unstaged edits.
+        & git -C $Worktree diff --quiet $baselineCommit -- $fullRelative
+        if ($LASTEXITCODE -eq 1) { $violations += "immutable_file_changed:$fullRelative" }
+        elseif ($LASTEXITCODE -ne 0) { throw "git diff could not inspect immutable path against the frozen baseline: $fullRelative" }
     } elseif ((Get-FileSha256 -Path $target) -ne [string]$entry.sha256) {
         $violations += "immutable_file_changed:$fullRelative"
     }

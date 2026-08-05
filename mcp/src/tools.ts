@@ -661,6 +661,9 @@ export async function dispatchTool(input: {
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
     task_kind: fields.task_kind ?? input.task_kind ?? "",
+    real_worktree: input.real_worktree ?? false,
+    base_commit: fields.base_commit ?? input.base_commit ?? "",
+    immutable_paths: input.immutable_paths ?? [],
     research_contract: input.research_contract ?? null,
     job_id: fields.job_id ?? "",
     job_dir: fields.job_dir ?? "",
@@ -1476,6 +1479,11 @@ export async function dispatchPlanTaskTool(input: {
     budget,
     failure_injection: String(task.failure_injection ?? ""),
     sensitivity: String(task.sensitivity ?? ""),
+    // Evaluation material is already committed into the task's disposable
+    // baseline. Real worktrees must never receive copied material after their
+    // base commit has been frozen; doing so would make immutable-file checks
+    // impossible to reproduce.
+    task_material: taskKind === "code_change" ? undefined : taskMaterial,
     real_worktree: taskKind === "code_change",
     base_commit: baseCommit || undefined,
     immutable_paths: immutablePaths,

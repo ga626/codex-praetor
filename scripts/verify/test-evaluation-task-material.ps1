@@ -34,13 +34,17 @@ function New-FixtureRepo {
 function Prepare-Task {
     param([string]$Repo, [string]$PlanId)
     $planRoot = Join-Path $Repo '.codex-praetor\plans'
-    & $initializer -ProjectRoot $ProjectRoot -Action Prepare -PlanRoot $planRoot -PlanId $PlanId -Apply | Out-Null
+    & $initializer -ProjectRoot $Repo -SuitePath (Join-Path $ProjectRoot 'config\evaluation-suite.json') -TemplateRoot (Join-Path $ProjectRoot 'config\evaluation-task-templates') -PlanScript (Join-Path $ProjectRoot 'scripts\dispatch\manage-codex-praetor-plan.ps1') -Action Prepare -PlanRoot $planRoot -PlanId $PlanId -Apply | Out-Null
     $plan = Get-Content -LiteralPath (Join-Path $planRoot "$PlanId\plan.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $task = @($plan.tasks | Where-Object { $_.task_id -eq 'bounded-test-fix' })[0]
-    $expectedBase = (& git -C $ProjectRoot rev-parse --verify "HEAD^{commit}" | Out-String).Trim().ToLowerInvariant()
-    Assert-True ([string]$task.base_commit -eq $expectedBase) 'Prepared code-change task must freeze the source base commit.'
+    Assert-True ([string]$task.base_commit -eq [string]$task.task_material.baseline_commit) 'Prepared code-change task must use its disposable fixture baseline commit.'
+    Assert-True ([string]$task.task_material.baseline_ref -match '^refs/codex-praetor/evaluation/') 'Prepared code-change task must retain the fixture baseline ref.'
     Assert-True (@($task.immutable_paths).Count -eq @($task.task_material.immutable_paths).Count) 'Prepared code-change task must copy immutable paths from task material.'
-    foreach ($immutablePath in @($task.task_material.immutable_paths)) { Assert-True ($immutablePath -in @($task.immutable_paths)) "Prepared code-change task is missing immutable path: $immutablePath" }
+    foreach ($immutablePath in @($task.task_material.immutable_paths)) {
+        Assert-True ($immutablePath -in @($task.immutable_paths)) "Prepared code-change task is missing immutable path: $immutablePath"
+        & git -C $Repo rev-parse --verify ("$($task.base_commit):$immutablePath") | Out-Null
+        Assert-True ($LASTEXITCODE -eq 0) "Prepared immutable path is not tracked at the frozen fixture baseline: $immutablePath"
+    }
     return $task
 }
 function Preflight-Task {
@@ -49,7 +53,7 @@ function Preflight-Task {
         Provider = 'qoder'; Tier = 'qoder-day-cheap'; Repo = $Repo; Task = [string]$Task.title; Mode = 'edit'; TaskKind = 'code_change'; RunMode = 'blocking';
         AllowedPathsJson = ($Task.allowed_paths | ConvertTo-Json -Compress); ForbiddenPathsJson = ($Task.forbidden_paths | ConvertTo-Json -Compress);
         RequiredChecksJson = ($Task.completion_definition.required_checks | ConvertTo-Json -Compress); BudgetJson = ($Task.budget | ConvertTo-Json -Compress);
-        TaskMaterialJson = ($Task.task_material | ConvertTo-Json -Compress -Depth 12); CapabilityCanary = $true; PreflightOnly = $true; NoNotify = $true
+        RealWorktree = $true; BaseCommit = [string]$Task.base_commit; ImmutablePathsJson = ($Task.immutable_paths | ConvertTo-Json -Compress); CapabilityCanary = $true; PreflightOnly = $true; NoNotify = $true
     }
     $lines = @(& $invoker @arguments)
     Assert-True ($LASTEXITCODE -eq 0) 'Preflight should not start a provider and must succeed with a failing baseline.'
@@ -59,7 +63,8 @@ function Preflight-Task {
 }
 function Verify-Task {
     param([string]$Worktree, [object]$Task)
-    $result = & $verifier -Worktree $Worktree -TaskMaterialJson ($Task.task_material | ConvertTo-Json -Compress -Depth 12) -RequiredChecksJson ($Task.completion_definition.required_checks | ConvertTo-Json -Compress)
+    $materialPath = Join-Path ([string]$Task.task_material.source_root) 'task-material.json'
+    $result = & $verifier -Worktree $Worktree -TaskMaterialPath $materialPath -RequiredCheck @($Task.completion_definition.required_checks)
     Assert-True ($LASTEXITCODE -eq 0) 'Independent verifier failed to return machine-readable evidence.'
     return ($result | ConvertFrom-Json)
 }
