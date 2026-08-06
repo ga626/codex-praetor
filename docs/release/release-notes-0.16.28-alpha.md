@@ -6,6 +6,7 @@
 - The execution-mode Skill now distinguishes a harmless read-only preview from a real code-change contract preflight. A preflight explicitly says that no worker has started; only a returned job ID and execution worktree count as a dispatched worker.
 - Strengthened release acceptance. A release candidate now needs evidence from one accepted real code-change path in a freshly refreshed Desktop host: route, non-starting contract preflight, started worker, isolated worktree, successful completion and Codex acceptance must all bind to the same candidate ZIP and host generation.
 - If Codex Desktop is holding its managed plugin cache during an update, activation records a deferred helper. After the normal Desktop exit, that helper calls the official `codex plugin add` command and the following refresh loads the exact candidate generation. It never removes or edits Codex cache files directly.
+- Qoder China code-change workers now use Qoder's `accept_edits` permission mode inside the already isolated worktree; read-only and test tasks remain fail-closed with `dont_ask`.
 
 ## User impact
 

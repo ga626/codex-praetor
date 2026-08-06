@@ -7,6 +7,7 @@
 - Made candidate host acceptance require one same-artifact, accepted code-change user-path receipt: route, preflight, job, isolated worktree, completion and Codex acceptance are now separately bound and cannot substitute for a ready health card.
 - Separated the Qoder China CLI `stream-json` transport from the global Qoder Agent SDK: the China CLI can no longer be silently used as an SDK runtime, and its parseable stdout, controlled cancellation, provider distribution and terminal evidence are recorded explicitly.
 - Made candidate activation safe when Codex Desktop holds its managed plugin cache: it waits for a normal host exit, then uses the official `codex plugin add` command before the next refresh. It never deletes or hand-edits cache files.
+- Made Qoder China edit dispatch use the documented `accept_edits` mode while retaining `dont_ask` for read-only and test tasks, so isolated code changes are not rejected by the non-interactive permission boundary.
 - Moved new worker worktrees to the project-local `.codex\worktrees` root and made fast health inventory ignore historical worktree roots by default.
 - Disabled Dependabot version-update and automated security-fix PR creation while preserving Dependabot Alerts; provider-critical dependency upgrades are now explicit, reviewed release work.
 

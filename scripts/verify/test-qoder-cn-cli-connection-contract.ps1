@@ -22,7 +22,7 @@ Assert-Contains $dispatcher 'distribution qoder_cn must use connectionMode=super
 Assert-Contains $dispatcher 'distribution qoder_global requires explicit connectionMode=qoder_agent_sdk' "Global Qoder must require an explicit SDK opt-in."
 Assert-Contains $dispatcher '"supervised_cli_stream_json"' "Qoder CN must use a distinct stream-json connection identity."
 Assert-Contains $dispatcher '"--output-format", "stream-json"' "Qoder CN dispatch must request structured CLI output."
-Assert-Contains $dispatcher '"--permission-mode", "dont_ask"' "Qoder CN headless dispatch must use the documented non-interactive permission mode."
+Assert-Contains $dispatcher '$qoderPermissionMode = if ($TaskKind -eq "code_change") { "accept_edits" } else { "dont_ask" }' "Qoder CN dispatch must select edit permissions only for bounded code changes."
 Assert-Contains $dispatcher '"--disallowed-tools", "WebFetch,WebSearch,Agent,AskUserQuestion,Skill,TodoWrite"' "Qoder CN dispatch must explicitly exclude network and delegation tools."
 Assert-Contains $dispatcher '"qoder_agent_sdk"' "Compatible global Qoder CLI must retain the official SDK route."
 Assert-Contains $config '"distribution": "qoder_cn"' "Example configuration must explicitly pin the Qoder CN distribution."

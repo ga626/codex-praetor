@@ -1754,15 +1754,13 @@ $networkRule
             # Qoder CN's documented headless interface is its own CLI protocol.
             # Keep the worker in the isolated worktree and validate its diff after
             # exit; do not force the unrelated global Agent SDK protocol onto it.
+            $qoderPermissionMode = if ($TaskKind -eq "code_change") { "accept_edits" } else { "dont_ask" }
             $directCliArgs = @(
                 "--print",
                 "--output-format", "stream-json",
-                # QoderWork CN's automatic classifier is an external service.
-                # If it is unavailable, it can deny a deterministic local
-                # check after edits have already been made.  The supervisor
-                # has already bounded tools and paths, so use the documented
-                # non-interactive mode consistently and validate the result.
-                "--permission-mode", "dont_ask",
+            # Read-only and test tasks must fail closed without prompts;
+            # bounded edits need Qoder's explicit non-interactive edit mode.
+                "--permission-mode", $qoderPermissionMode,
                 "--model", $model,
                 "--tools", ($allowedTools -join ","),
                 "--allowed-tools", ($allowedTools -join ","),
