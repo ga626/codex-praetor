@@ -31,7 +31,7 @@ try {
 
     $powershellPath = (Get-Command powershell.exe -ErrorAction Stop).Source
     $configPath = Join-Path $scratch "providers.json"
-    [ordered]@{ providers = [ordered]@{ qoder = [ordered]@{ cliPath = $powershellPath } } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding UTF8
+    [ordered]@{ providers = [ordered]@{ qoder = [ordered]@{ cliPath = $powershellPath; distribution = "qoder_cn"; connectionMode = "supervised_cli_stream_json" } } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding UTF8
     $readinessPath = Join-Path $scratch "readiness.json"
     $driftPath = Join-Path $repo "external-drift.txt"
     $workerRepo = Join-Path $scratch "worker-repo"
@@ -69,6 +69,7 @@ New-Item -ItemType Directory -Path $jobDir -Force | Out-Null
 $stdoutPath = Join-Path $jobDir "stdout.log"
 $completionPath = Join-Path $jobDir "completion.json"
 $failure = $env:CODEX_PRAETOR_CANARY_FAKE_FAILURE -eq "1"
+$classifierUnavailable = $env:CODEX_PRAETOR_CANARY_FAKE_CLASSIFIER_UNAVAILABLE -eq "1"
 $permission = if ($taskKind -eq "code_change") { "edit_worktree" } elseif ($taskKind -eq "test_execution") { "test-execution-v1" } else { "readonly_read_grep_glob" }
 $material = $null
 $taskContractPath = Join-Path $jobDir "task-contract.json"
@@ -85,7 +86,7 @@ if ($taskKind -eq "code_change") {
     if ($normalizedAllowedPaths -notcontains $normalizedDestination -or $requiredChecks -notcontains [string]$material.baseline_command) { throw "Fake code-change canary received an incomplete material contract. allowed=$($normalizedAllowedPaths -join ','); destination=$normalizedDestination; checks=$($requiredChecks -join '|'); baseline=$($material.baseline_command)" }
 }
 [ordered]@{ schema = "codex-praetor-task-contract/v5"; task_material = $material } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $taskContractPath -Encoding UTF8
-[ordered]@{ job_id = "fake-canary-$taskKind"; execution_repo = $workerRepo; stdout = $stdoutPath; completion = $completionPath; task_contract = $taskContractPath; provider_tuple = [ordered]@{ provider = "qoder"; cli_path = "C:\\fake\\qodercli.exe"; cli_hash = ("a" * 64); model = "Qwen3.7-Plus"; permission_profile = $permission } } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
+  [ordered]@{ job_id = "fake-canary-$taskKind"; execution_repo = $workerRepo; stdout = $stdoutPath; completion = $completionPath; task_contract = $taskContractPath; provider_tuple = [ordered]@{ provider = "qoder"; distribution = "qoder_cn"; cli_path = "C:\\fake\\qodercli.exe"; cli_hash = ("a" * 64); model = "Qwen3.7-Plus"; permission_profile = $permission; task_kind = $taskKind; connection_mode = "supervised_cli_stream_json"; runner_identity = "supervised_cli_stream_json:fixture" } } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
 if ($failure) {
     Set-Content -LiteralPath $stdoutPath -Value "Request blocked by risk control" -Encoding UTF8
     [ordered]@{ status = "process_exited"; exit_code = 0; failure_class = "provider_output_unparseable" } | ConvertTo-Json | Set-Content -LiteralPath $completionPath -Encoding UTF8
@@ -93,6 +94,15 @@ if ($failure) {
     Write-Output "job_dir=$jobDir"
     Write-Output "model=Qwen3.7-Plus"
     Write-Output "permission_profile=$permission"
+    exit 0
+}
+if ($classifierUnavailable) {
+    Set-Content -LiteralPath $stdoutPath -Value "CODEX_PRAETOR_CAPABILITY_CANARY_OK`nError: Auto mode: classifier unavailable, cannot approve Bash." -Encoding UTF8
+    [ordered]@{ status = "process_exited"; exit_code = 0; failure_class = "" } | ConvertTo-Json | Set-Content -LiteralPath $completionPath -Encoding UTF8
+    Write-Output "job_dir=$jobDir"
+    Write-Output "model=Qwen3.7-Plus"
+    Write-Output "permission_profile=$permission"
+    Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     exit 0
 }
 Set-Content -LiteralPath $stdoutPath -Value "CODEX_PRAETOR_CAPABILITY_CANARY_OK" -Encoding UTF8
@@ -198,6 +208,19 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     $afterFailureState = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True (@($afterFailureState.entries).Count -eq $beforeFailureEntries) "Rejected worker output must not mutate readiness."
 
+    $env:CODEX_PRAETOR_CANARY_FAKE_CLASSIFIER_UNAVAILABLE = "1"
+    try {
+        $ErrorActionPreference = "Continue"
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $canary -Repo $repo -Provider qoder -ConfigPath $configPath -ReadinessPath $readinessPath -WrapperPath $wrapperPath -Apply 1>$failureStdoutPath 2>$failureStderrPath
+        $classifierExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousFailureErrorAction
+        Remove-Item Env:CODEX_PRAETOR_CANARY_FAKE_CLASSIFIER_UNAVAILABLE -ErrorAction SilentlyContinue
+    }
+    Assert-True ($classifierExitCode -ne 0) "A self-asserted marker after classifier failure must not create readiness."
+    $afterClassifierState = Get-Content -LiteralPath $readinessPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True (@($afterClassifierState.entries).Count -eq $beforeFailureEntries) "Classifier failure must not mutate readiness."
+
     Set-Content -LiteralPath (Join-Path $repo "dirty-before.txt") -Value "dirty" -Encoding UTF8
     $dirtyStdoutPath = Join-Path $scratch "dirty-stdout.txt"
     $dirtyStderrPath = Join-Path $scratch "dirty-stderr.txt"
@@ -223,6 +246,7 @@ Write-Output "CODEX_PRAETOR_CAPABILITY_CANARY_OK"
     Remove-Item Env:CODEX_PRAETOR_CANARY_WORKER_JOB_DIR -ErrorAction SilentlyContinue
     Remove-Item Env:CODEX_PRAETOR_CANARY_ARGUMENTS_PATH -ErrorAction SilentlyContinue
     Remove-Item Env:CODEX_PRAETOR_CANARY_FAKE_FAILURE -ErrorAction SilentlyContinue
+    Remove-Item Env:CODEX_PRAETOR_CANARY_FAKE_CLASSIFIER_UNAVAILABLE -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
 }
 

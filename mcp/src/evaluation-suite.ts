@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { getEvaluationInitializerPath, getEvaluationVerifierPath, getPlanRoot, getPlanScriptPath, getRuntimeDataPath, resolveExistingRepo } from "./paths.js";
 import { runPowerShell } from "./powershell.js";
 
@@ -95,12 +95,21 @@ export async function verifyEvaluationTaskTool(input: { repo: string; plan_id: s
   if (Object.keys(material).length === 0 || checks.length === 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: input.task_id, message: "Prepared task lacks immutable material or required checks." };
   }
-  const result = await runPowerShell([
+  const sourceRoot = String(material.source_root ?? "").trim();
+  const materialPath = sourceRoot ? `${sourceRoot}\\task-material.json` : "";
+  if (!materialPath || !existsSync(materialPath)) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: input.task_id, message: "Prepared task lacks its durable task-material.json contract." };
+  }
+  const args = [
     "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getEvaluationVerifierPath(),
     "-Worktree", input.worktree,
-    "-TaskMaterialJson", JSON.stringify(material),
-    "-RequiredChecksJson", JSON.stringify(checks)
-  ], { timeoutMs: 120_000 });
+    "-TaskMaterialPath", materialPath
+  ];
+  // Passing a one-item JSON array through Windows native argument parsing can
+  // lose its quotes. The verifier already accepts repeatable string arguments,
+  // so use that lossless transport for declared checks.
+  for (const check of checks) args.push("-RequiredCheck", check);
+  const result = await runPowerShell(args, { timeoutMs: 120_000 });
   if (result.exitCode !== 0) {
     return { ok: false, repo, plan_id: input.plan_id, task_id: input.task_id, exit_code: result.exitCode, stdout: result.stdout, stderr: result.stderr };
   }

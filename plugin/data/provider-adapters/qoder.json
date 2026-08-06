@@ -5,11 +5,11 @@
   "cli": {
     "discovery": "Read cliPath and versionCommand from the local Codex Praetor configuration; never commit a machine-specific path.",
     "version_command": ["--version"],
-    "identity_fields": ["cli_path", "cli_hash", "version"]
+    "identity_fields": ["distribution", "cli_path", "cli_hash", "version", "connection_mode", "runner_identity"]
   },
   "models": {
     "allowed": ["Qwen3.7-Plus", "Qwen3.7-Max"],
-    "not_default": ["Qwen3.6-Flash", "DeepSeek-V4-Pro", "DeepSeek-V4-Flash", "GLM-5.2", "Kimi-K2.7-Code", "MiniMax-M2.7"]
+    "not_default": ["Qwen3.8-Max", "Qwen3.6-Flash", "DeepSeek-V4-Pro", "DeepSeek-V4-Flash", "GLM-5.2", "Kimi-K2.7-Code", "MiniMax-M2.7"]
   },
   "permissions": {
     "mappings": [
@@ -20,10 +20,10 @@
     "minimum_canaries": ["local_audit", "test_execution", "code_change"]
   },
   "lifecycle": {
-    "launch": "invoke-codex-praetor.ps1 starts the bundled Node runner, which uses the Qoder Agent SDK with qodercliAuth() and a fixed tool/path contract.",
-    "parse_terminal_state": "watch-codex-praetor-job.ps1 records process state, normalized failure class and evidence state; a Qoder cancellation is accepted only after the SDK runner records AbortController session termination.",
-    "cleanup": "The watcher closes the job lifecycle; Qoder cancellation ends its SDK session and cold recovery starts a new session from Codex ledger state. Retained worktrees are reclaimed only by the controlled cleanup path.",
-    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable", "cancelled_session_terminated", "progress_saturated"]
+    "launch": "qoder_cn explicitly starts the configured QoderWork CN CLI with print/stream-json; qoder_global is a separately opted-in Agent SDK route and is never selected by PATH or filename fallback.",
+    "parse_terminal_state": "watch-codex-praetor-job.ps1 records process state, normalized failure class and evidence state. qoder_cn parses its documented stream-json stdout and treats exit code 0 with no parseable event as provider_output_unparseable; qoder_global may use the separately opted-in SDK event stream.",
+    "cleanup": "The watcher closes the job lifecycle. qoder_cn uses controlled process cancellation and terminal stdout/stderr evidence; qoder_global may use the SDK session cancellation contract. Cold recovery always starts a new task from Codex ledger state. Retained worktrees are reclaimed only by the controlled cleanup path.",
+    "failure_normalization": ["provider_cli_missing", "provider_auth_required", "provider_rejected", "worker_process_failed", "worker_exit_code_unavailable", "permission_denied", "worker_timed_out", "provider_unavailable", "cancelled_session_terminated", "progress_saturated", "provider_output_unparseable"]
   },
   "evidence": {
     "fixture": "scripts/verify/test-provider-canary-evidence.ps1",

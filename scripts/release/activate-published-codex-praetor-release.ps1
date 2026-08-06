@@ -1,5 +1,5 @@
-param(
-    [string]$Version = "0.16.27-alpha",
+﻿param(
+    [string]$Version = "0.16.29-alpha",
     [string]$Tag = "",
     [string]$Repository = "ga626/codex-praetor",
     [string]$ReleaseZip = "",
@@ -8,11 +8,19 @@ param(
     [string]$UserProfileRoot = $env:USERPROFILE,
     [string]$CodexCommand = "codex",
     [string]$HostRuntimeInfoPath = "",
+    [switch]$AllowExplicitFixture,
+    [switch]$DeferPluginCacheRefresh,
+    # Default to a durable wait. The helper must not miss a legitimate host
+    # restart merely because the maintainer did not exit within 15 minutes.
+    [int]$DeferredCacheRefreshWaitSeconds = 0,
     [switch]$SkipMaintenance,
     [switch]$Json
 )
 
 $ErrorActionPreference = "Stop"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+    $global:PSNativeCommandUseErrorActionPreference = $false
+}
 . (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\ensure-file-hash.ps1")
 if ([string]::IsNullOrWhiteSpace($Tag)) { $Tag = "v$Version" }
 $releaseName = "codex-praetor-setup-$Version"
@@ -56,15 +64,30 @@ function Invoke-CodexCommandInProfile {
         $env:HOME = $profileRoot
         $env:CODEX_HOME = Join-Path $profileRoot ".codex"
         New-Item -ItemType Directory -Path $env:CODEX_HOME -Force | Out-Null
-        $output = & $CodexCommand @Arguments
-        $exitCode = $LASTEXITCODE
+        $stderrPath = [IO.Path]::GetTempFileName()
+        try {
+            # A nonzero CLI exit is evidence we must classify below.  The
+            # PowerShell shim can otherwise turn its stderr into a terminating
+            # NativeCommandError before we can recognize a cache lock.
+            $previousErrorActionPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                $output = & $CodexCommand @Arguments 2> $stderrPath
+                $exitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousErrorActionPreference
+            }
+            $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw -Encoding UTF8 } else { "" }
+        } finally {
+            if (Test-Path -LiteralPath $stderrPath) { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
+        }
     } finally {
         foreach ($name in $previous.Keys) {
             if ($null -eq $previous[$name]) { Remove-Item -LiteralPath ("Env:" + $name) -ErrorAction SilentlyContinue }
             else { Set-Item -LiteralPath ("Env:" + $name) -Value $previous[$name] }
         }
     }
-    return [pscustomobject]@{ output = @($output); exit_code = $exitCode }
+    return [pscustomobject]@{ output = @($output); stderr = $stderr; exit_code = $exitCode }
 }
 
 function Resolve-GitHubTagCommit([string]$Repo, [string]$ReleaseTag) {
@@ -86,6 +109,9 @@ try {
     $shaPath = ""
     $sourceKind = "published_release"
     if (-not [string]::IsNullOrWhiteSpace($ReleaseZip)) {
+        if ([string]::IsNullOrWhiteSpace($CandidateReceiptPath) -and -not $AllowExplicitFixture) {
+            throw "Explicit local ZIP activation is blocked. Use activate-pr-candidate.ps1 with a PR CI candidate receipt, or pass -AllowExplicitFixture only from a deterministic test fixture."
+        }
         $zipPath = [System.IO.Path]::GetFullPath($ReleaseZip)
         $shaPath = if ([string]::IsNullOrWhiteSpace($ReleaseSha256)) { "$zipPath.sha256" } else { [System.IO.Path]::GetFullPath($ReleaseSha256) }
         $sourceKind = "explicit_release_fixture"
@@ -137,7 +163,8 @@ try {
     $installScript = Join-Path $stage "scripts\install\install-user.ps1"
     $maintenanceScript = Join-Path $stage "scripts\install\install-codex-praetor-maintenance.ps1"
     $stateScript = Join-Path $stage "scripts\verify\get-codex-praetor-installation-state.ps1"
-    foreach ($path in @($installScript, $maintenanceScript, $stateScript)) {
+    $deferredRefreshSource = Join-Path $stage "scripts\release\refresh-codex-praetor-plugin-cache-after-exit.ps1"
+    foreach ($path in @($installScript, $maintenanceScript, $stateScript, $deferredRefreshSource)) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Release bundle is missing required activation script: $path" }
     }
 
@@ -145,14 +172,137 @@ try {
     $installRoot = Join-Path $profileRoot "plugins\codex-praetor"
     $marketplacePath = Join-Path $profileRoot ".agents\plugins\marketplace.json"
     $backupRoot = Join-Path (Split-Path -Parent $installRoot) ".codex-praetor-backups"
+    $codexHomeRoot = Join-Path $profileRoot ".codex"
+    $cachedGenerationPath = Join-Path $codexHomeRoot (Join-Path "plugins" (Join-Path "cache" (Join-Path "personal" (Join-Path "codex-praetor" (Join-Path $Version "release-generation.json")))))
+    if (Test-Path -LiteralPath $cachedGenerationPath -PathType Leaf) {
+        try { $cachedGeneration = Get-Content -LiteralPath $cachedGenerationPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { throw "Existing Codex plugin cache generation is unreadable: $cachedGenerationPath" }
+        if ([string]$cachedGeneration.generation_id -and [string]$cachedGeneration.generation_id -ne [string]$generation.generation_id) {
+            throw "Plugin version $Version already has a different cached generation. Bump the product version before activating new content."
+        }
+    }
     $backupsBefore = if (Test-Path -LiteralPath $backupRoot) { @(Get-ChildItem -LiteralPath $backupRoot -Directory | Select-Object -ExpandProperty FullName) } else { @() }
     $installOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File $installScript -SourcePlugin (Join-Path $stage "plugin") -ExpectedGenerationPath $generationPath -InstallRoot $installRoot -MarketplacePath $marketplacePath -Apply | Out-String)
     if ($LASTEXITCODE -ne 0) { throw "Bundled user installer failed." }
     if (-not $Json -and -not [string]::IsNullOrWhiteSpace($installOutput)) { Write-Host $installOutput.TrimEnd() }
 
-    $pluginAdd = Invoke-CodexCommandInProfile -Arguments @("plugin", "add", "codex-praetor@personal")
-    $pluginAddOutput = $pluginAdd.output | Out-String
-    if ([int]$pluginAdd.exit_code -ne 0) { throw "Official 'codex plugin add codex-praetor@personal' failed." }
+    if (-not $SkipMaintenance) {
+        $maintenanceOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File $maintenanceScript -UserProfileRoot $profileRoot -SourceRoot $stage -Apply | Out-String)
+        if ($LASTEXITCODE -ne 0) { throw "Generation maintenance installation failed." }
+        if (-not $Json -and -not [string]::IsNullOrWhiteSpace($maintenanceOutput)) { Write-Host $maintenanceOutput.TrimEnd() }
+    }
+
+    $stableProfile = ([IO.Path]::GetFullPath($profileRoot) -eq [IO.Path]::GetFullPath($env:USERPROFILE))
+    $hostProcessesBeforeActivation = @(Get-Process -Name "codex" -ErrorAction SilentlyContinue | ForEach-Object {
+        [ordered]@{ id = [int]$_.Id; started_at = $_.StartTime.ToUniversalTime().ToString("o") }
+    })
+    if ($stableProfile -and $hostProcessesBeforeActivation.Count -gt 0) {
+        # The managed cache is known to be locked while Desktop is alive. Enter
+        # the durable wait state directly instead of performing a doomed add.
+        $DeferPluginCacheRefresh = $true
+        $pluginAdd = [pscustomobject]@{ output = @(); stderr = "codex Desktop is still running; defer plugin cache refresh."; exit_code = 1 }
+    } else {
+        $pluginAdd = Invoke-CodexCommandInProfile -Arguments @("plugin", "add", "codex-praetor@personal")
+    }
+    $pluginAddOutput = (($pluginAdd.output | Out-String) + [string]$pluginAdd.stderr)
+    if ([int]$pluginAdd.exit_code -ne 0) {
+        $cacheLock = ($hostProcessesBeforeActivation.Count -gt 0 -and $stableProfile) -or ($pluginAddOutput -match '(?i)failed to back up plugin cache entry|access is denied|拒绝访问')
+        if (-not $DeferPluginCacheRefresh -or -not $cacheLock) { throw "Official 'codex plugin add codex-praetor@personal' failed." }
+        $deferredRoot = Join-Path $profileRoot (".codex\codex-praetor-deferred-activation\" + [string]$generation.generation_id)
+        New-Item -ItemType Directory -Path $deferredRoot -Force | Out-Null
+        $deferredScript = Join-Path $deferredRoot "refresh-plugin-cache-after-exit.ps1"
+        $deferredState = Join-Path $deferredRoot "result.json"
+        $deferredPendingState = Join-Path $deferredRoot "pending.json"
+        $deferredStdout = Join-Path $deferredRoot "stdout.log"
+        $deferredStderr = Join-Path $deferredRoot "stderr.log"
+        if (Test-Path -LiteralPath $deferredState -PathType Leaf) {
+            $existingState = Get-Content -LiteralPath $deferredState -Raw -Encoding UTF8 | ConvertFrom-Json
+            $existingStatus = [string]$existingState.status
+            if ($existingStatus -eq "completed") {
+                $payload = [ordered]@{
+                    schema = "codex-praetor-published-activation/v1"
+                    status = "needs_host_restart"
+                    source_kind = $sourceKind
+                    version = $Version
+                    tag = $Tag
+                    generation = $generation
+                    release_sha256 = $actualHash
+                    candidate_receipt_sha256 = if ($null -eq $candidateReceipt) { "" } else { (Get-Sha256 -Path $CandidateReceiptPath) }
+                    deferred_refresh_state = $deferredState
+                    deferred_pending_state = $deferredPendingState
+                    next_action = "helper 已完成缓存刷新；完全退出并重新打开 Codex Desktop，然后在新任务中核对 runtime_info。"
+                }
+                if ($Json) { $payload | ConvertTo-Json -Depth 14 } else { Write-Host ('Activation status: ' + [string]$payload.status); Write-Host ('Next: ' + [string]$payload.next_action) }
+                return
+            }
+            if ($existingStatus -eq "failed") { throw "Deferred plugin cache refresh already failed: $($existingState.reason). Inspect $deferredState before retrying." }
+        }
+        if ((Test-Path -LiteralPath $deferredPendingState -PathType Leaf) -and -not (Test-Path -LiteralPath $deferredState -PathType Leaf)) {
+            $payload = [ordered]@{
+                schema = "codex-praetor-published-activation/v1"
+                status = "awaiting_host_exit"
+                source_kind = $sourceKind
+                version = $Version
+                tag = $Tag
+                generation = $generation
+                release_sha256 = $actualHash
+                candidate_receipt_sha256 = if ($null -eq $candidateReceipt) { "" } else { (Get-Sha256 -Path $CandidateReceiptPath) }
+                deferred_refresh_state = $deferredState
+                deferred_pending_state = $deferredPendingState
+                observed_host_processes = $hostProcessesBeforeActivation
+                next_action = "该候选已有 helper 在等待宿主退出；不要重复启动或重复重启。状态完成后再核对 runtime_info。"
+            }
+            if ($Json) { $payload | ConvertTo-Json -Depth 14 } else { Write-Host ('Activation status: ' + [string]$payload.status); Write-Host ('Next: ' + [string]$payload.next_action) }
+            return
+        }
+        $pendingPayload = [ordered]@{
+            schema = "codex-praetor-deferred-plugin-cache-refresh/v1"
+            status = "pending"
+            reason = "waiting_for_host_exit"
+            expected_version = $Version
+            expected_generation_id = [string]$generation.generation_id
+            expected_runtime_contract_sha256 = [string]$generation.runtime_contract_sha256
+            expected_zip_sha256 = $actualHash
+            observed_host_processes = $hostProcessesBeforeActivation
+            updated_at = [DateTime]::UtcNow.ToString("o")
+            next_action = "等待 Codex Desktop 完全退出；不要重复启动 helper 或重复请求刷新。"
+        }
+        $pendingTemporaryPath = "$deferredPendingState.$([Guid]::NewGuid().ToString('N')).tmp"
+        [IO.File]::WriteAllText($pendingTemporaryPath, (($pendingPayload | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
+        Move-Item -LiteralPath $pendingTemporaryPath -Destination $deferredPendingState -Force
+        Copy-Item -LiteralPath $deferredRefreshSource -Destination $deferredScript -Force
+        $processArguments = @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $deferredScript,
+            "-UserProfileRoot", $profileRoot, "-CodexCommand", $CodexCommand,
+            "-ExpectedVersion", $Version, "-StatusPath", $deferredState,
+            "-PendingStatusPath", $deferredPendingState,
+            "-ExpectedGenerationId", [string]$generation.generation_id,
+            "-ExpectedRuntimeContractSha256", [string]$generation.runtime_contract_sha256,
+            "-ExpectedZipSha256", $actualHash,
+            "-WaitTimeoutSeconds", [string]$DeferredCacheRefreshWaitSeconds
+        )
+        Start-Process -FilePath "powershell.exe" -ArgumentList $processArguments -WindowStyle Hidden -RedirectStandardOutput $deferredStdout -RedirectStandardError $deferredStderr
+        $payload = [ordered]@{
+            schema = "codex-praetor-published-activation/v1"
+            status = "awaiting_host_exit"
+            source_kind = $sourceKind
+            version = $Version
+            tag = $Tag
+            generation = $generation
+            release_sha256 = $actualHash
+            candidate_receipt_sha256 = if ($null -eq $candidateReceipt) { "" } else { (Get-Sha256 -Path $CandidateReceiptPath) }
+             deferred_refresh_state = $deferredState
+             deferred_pending_state = $deferredPendingState
+             observed_host_processes = $hostProcessesBeforeActivation
+            next_action = '完全退出 Codex Desktop；后台 helper 会在宿主退出后运行官方 codex plugin add，随后重新打开 Codex。'
+        }
+        if ($Json) {
+            $payload | ConvertTo-Json -Depth 14
+        } else {
+            Write-Host ('Activation status: ' + [string]$payload.status)
+            Write-Host ('Next: ' + [string]$payload.next_action)
+        }
+        return
+    }
     if (-not $Json -and -not [string]::IsNullOrWhiteSpace($pluginAddOutput)) { Write-Host $pluginAddOutput.TrimEnd() }
     $pluginListResult = Invoke-CodexCommandInProfile -Arguments @("plugin", "list")
     $pluginList = $pluginListResult.output | Out-String
@@ -160,11 +310,6 @@ try {
     $pluginListPattern = "(?m)^\s*" + [regex]::Escape("codex-praetor@personal") + "\s+.*?\s+" + [regex]::Escape($Version) + "(?:\s|$)"
     if ($pluginList -notmatch $pluginListPattern) { throw "codex plugin list does not show an installed codex-praetor@personal $Version row." }
 
-    if (-not $SkipMaintenance) {
-        $maintenanceOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File $maintenanceScript -UserProfileRoot $profileRoot -SourceRoot $stage -Apply | Out-String)
-        if ($LASTEXITCODE -ne 0) { throw "Generation maintenance installation failed." }
-        if (-not $Json -and -not [string]::IsNullOrWhiteSpace($maintenanceOutput)) { Write-Host $maintenanceOutput.TrimEnd() }
-    }
     $stateArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $stateScript, "-ExpectedGenerationPath", $generationPath, "-InstallRoot", $installRoot, "-MarketplacePath", $marketplacePath, "-Json")
     if (-not [string]::IsNullOrWhiteSpace($HostRuntimeInfoPath)) { $stateArgs += @("-HostRuntimeInfoPath", [System.IO.Path]::GetFullPath($HostRuntimeInfoPath)) }
     $state = (& powershell @stateArgs | Out-String | ConvertFrom-Json)

@@ -28,9 +28,10 @@
     },
     "provider_tuple": {
       "type": "object",
-      "required": ["provider", "model", "permission_profile", "task_kind"],
+      "required": ["provider", "distribution", "model", "permission_profile", "task_kind"],
       "properties": {
         "provider": { "type": "string" },
+        "distribution": { "type": "string" },
         "cli_path": { "type": "string" },
         "cli_hash": { "type": "string" },
         "model": { "type": "string" },

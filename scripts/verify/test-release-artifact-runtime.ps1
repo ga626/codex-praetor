@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.27-alpha",
+    [string]$Version = "0.16.29-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [string]$ArtifactManifestPath = "",
     [string]$ObservedToolsPath = "",
@@ -41,6 +41,19 @@ try {
     if (-not (Test-Path -LiteralPath $qoderRunner -PathType Leaf)) { throw "Artifact does not contain plugin/mcp/dist/qoder-sdk-runner.js." }
     if (-not (Test-Path -LiteralPath $generation -PathType Leaf)) { throw "Artifact does not contain release generation manifest." }
     if (-not (Test-Path -LiteralPath $contract -PathType Leaf)) { throw "Artifact does not contain canonical runtime contract." }
+    $packagedSkill = Join-Path $tmp "plugin\skills\codex-praetor\SKILL.md"
+    $packagedDispatcher = Join-Path $tmp "plugin\skills\codex-praetor\scripts\invoke-codex-praetor.ps1"
+    if (-not (Test-Path -LiteralPath $packagedSkill -PathType Leaf)) { throw "Artifact does not contain the execution-mode Skill." }
+    if (-not (Test-Path -LiteralPath $packagedDispatcher -PathType Leaf)) { throw "Artifact does not contain the execution-mode dispatcher." }
+    $skillText = Get-Content -LiteralPath $packagedSkill -Raw -Encoding UTF8
+    $dispatcherText = Get-Content -LiteralPath $packagedDispatcher -Raw -Encoding UTF8
+    if ($skillText -notmatch "codex_praetor_dispatch_plan_task" -or $skillText -notmatch "base_commit" -or $skillText -notmatch "immutable_paths") {
+        throw "Artifact Skill does not direct code changes through the real-task contract preflight."
+    }
+    if ($dispatcherText -notmatch "RealWorktree" -or $dispatcherText -notmatch "BaseCommit") {
+        throw "Artifact dispatcher does not retain the real-worktree boundary."
+    }
+    Write-Host "[PASS] Final release zip contains the matching execution-mode Skill and real-worktree dispatcher boundary."
     $observedArgument = @()
     if (-not [string]::IsNullOrWhiteSpace($ObservedToolsPath)) { $observedArgument = @("--observed-tools-output", [IO.Path]::GetFullPath($ObservedToolsPath)) }
     & node $smoke $runtime $tmp --skip-dry-run --expected-version $Version --expected-contract $contract --expected-generation $generation @observedArgument

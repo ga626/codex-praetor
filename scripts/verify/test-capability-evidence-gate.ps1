@@ -20,6 +20,7 @@ function Write-Receipt {
         task_family = "bounded_code_change"
         provider_tuple = [ordered]@{
             provider = "fixture"
+            distribution = "fixture_distribution"
             cli_path = "C:\fixture\worker.exe"
             cli_hash = "a" * 64
             model = $Model
@@ -37,7 +38,7 @@ function Write-Receipt {
 }
 
 function Invoke-Gate {
-    $raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $gateScript -TaskFamily bounded_code_change -Provider fixture -CliPath "C:\fixture\worker.exe" -CliHash ("a" * 64) -Model fixture-model -PermissionProfile fixture-edit-v1 -TaskKind code_change -ConnectionMode codebuddy_acp -RunnerIdentity codebuddy_acp:fixture-runner-v1 -EvidenceRoot $evidenceRoot
+    $raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $gateScript -TaskFamily bounded_code_change -Provider fixture -Distribution fixture_distribution -CliPath "C:\fixture\worker.exe" -CliHash ("a" * 64) -Model fixture-model -PermissionProfile fixture-edit-v1 -TaskKind code_change -ConnectionMode codebuddy_acp -RunnerIdentity codebuddy_acp:fixture-runner-v1 -EvidenceRoot $evidenceRoot
     if ($LASTEXITCODE -ne 0) { throw "Capability evidence gate failed: $($raw -join ' ')" }
     return ($raw -join "`n") | ConvertFrom-Json
 }

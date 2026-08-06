@@ -25,7 +25,7 @@ try {
         stdout = $stdout
         completion = $completion
         readiness_path = $readiness
-        provider_tuple = [ordered]@{ provider = "codebuddy"; cli_path = $cli; cli_hash = (Get-FileHash -LiteralPath $cli -Algorithm SHA256).Hash.ToLowerInvariant(); model = "fixture-model"; permission_profile = "local-audit-v1"; task_kind = "local_audit"; connection_mode = "codebuddy_acp"; runner_identity = "fixture-runner" }
+        provider_tuple = [ordered]@{ provider = "codebuddy"; distribution = "codebuddy_cn"; cli_path = $cli; cli_hash = (Get-FileHash -LiteralPath $cli -Algorithm SHA256).Hash.ToLowerInvariant(); model = "fixture-model"; permission_profile = "local-audit-v1"; task_kind = "local_audit"; connection_mode = "codebuddy_acp"; runner_identity = "fixture-runner" }
     }
     $job | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $jobDir "job.json") -Encoding UTF8
     "fixture worker output" | Set-Content -LiteralPath $stdout -Encoding UTF8
@@ -34,11 +34,12 @@ try {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $recorder -JobDir $jobDir -ReadinessPath $readiness | Out-Null
     Assert-True ($LASTEXITCODE -eq 0) "Readiness recorder failed."
     $state = Get-Content -LiteralPath $readiness -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-True ([string]$state.schema -eq "codex-praetor-generation-readiness/v4") "Unexpected readiness schema."
+    Assert-True ([string]$state.schema -eq "codex-praetor-generation-readiness/v5") "Unexpected readiness schema."
     Assert-True ([string]$state.entries[0].provider_compatibility_fingerprint -match '^[0-9a-f]{64}$') "Readiness must persist its provider compatibility fingerprint."
     Assert-True (@($state.entries).Count -eq 1) "Readiness entry was not recorded."
     Assert-True ([string]$state.entries[0].provider_source -eq "real_user_task_bootstrap") "Readiness source was not recorded."
     Assert-True ([string]$state.entries[0].connection_mode -eq "codebuddy_acp") "Connection mode was not recorded."
+    Assert-True ([string]$state.entries[0].distribution -eq "codebuddy_cn") "Distribution was not recorded."
 
     $failed = Join-Path $root "failed-completion.json"
     [ordered]@{ schema = "codex-praetor-job-completion/v2"; job_id = "bootstrap-fixture"; status = "process_exited"; exit_code = 1; failure_class = "worker_process_failed" } | ConvertTo-Json | Set-Content -LiteralPath $completion -Encoding UTF8

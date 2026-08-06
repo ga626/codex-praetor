@@ -14,7 +14,7 @@ const profileEvidenceMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 const transientCooldownMs = 60 * 60 * 1000;
 // This is the worker identity, not the controller release identity.  A normal
 // product release must not erase otherwise applicable worker experience.
-const requiredTupleFields = ["provider", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "connection_mode", "runner_identity"];
+const requiredTupleFields = ["provider", "distribution", "cli_path", "cli_hash", "model", "permission_profile", "task_kind", "connection_mode", "runner_identity"];
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
@@ -32,6 +32,7 @@ function tupleFrom(attempt: JsonRecord, task: JsonRecord): JsonRecord {
   const tuple = asRecord(attempt.provider_tuple);
   return {
     provider: asString(tuple.provider) || asString(attempt.provider) || asString(task.provider),
+    distribution: asString(tuple.distribution),
     cli_path: asString(tuple.cli_path),
     cli_hash: asString(tuple.cli_hash),
     model: asString(tuple.model) || asString(attempt.model) || asString(task.model),

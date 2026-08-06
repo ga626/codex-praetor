@@ -5,6 +5,7 @@ type FailureClass = "provider_risk_control" | "provider_auth_required" | "provid
 
 export type ExplainableRouteCandidate = {
   provider: string;
+  distribution: string;
   model: string;
   cli_path: string;
   cli_hash: string;
@@ -32,7 +33,7 @@ function asString(value: unknown): string {
 }
 
 function sameTuple(left: Record<string, unknown>, right: ExplainableRouteCandidate): boolean {
-  return ["provider", "model", "cli_path", "cli_hash", "permission_profile", "task_kind", "connection_mode", "runner_identity"]
+  return ["provider", "distribution", "model", "cli_path", "cli_hash", "permission_profile", "task_kind", "connection_mode", "runner_identity"]
     .every((key) => asString(left[key]) === right[key as keyof ExplainableRouteCandidate]);
 }
 

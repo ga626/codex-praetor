@@ -26,6 +26,7 @@ function Get-CodexPraetorProviderCompatibilityFingerprint {
         [string]$ModelName,
         [string]$Permission,
         [string]$Kind,
+        [string]$Distribution,
         [string]$ConnectionMode,
         [string]$RunnerIdentity,
         [string]$TaskContractSchema
@@ -42,6 +43,7 @@ function Get-CodexPraetorProviderCompatibilityFingerprint {
         "model=$ModelName",
         "permission=$Permission",
         "task_kind=$Kind",
+        "distribution=$Distribution",
         "connection_mode=$ConnectionMode",
         "runner_identity=$RunnerIdentity",
         "task_contract_schema=$TaskContractSchema"
@@ -61,7 +63,7 @@ function Test-CodexPraetorReadinessEvidence {
     # without this shape may be historical, but cannot authorize a new task.
     $evidence = $Entry.evidence
     if ($null -eq $evidence) { return $false }
-    return (
+    $basicEvidence = (
         [string]$evidence.schema -eq "codex-praetor-canary-evidence/v1" -and
         -not [string]::IsNullOrWhiteSpace([string]$evidence.job_id) -and
         -not [string]::IsNullOrWhiteSpace([string]$evidence.worker_stdout_sha256) -and
@@ -69,8 +71,21 @@ function Test-CodexPraetorReadinessEvidence {
         [string]$evidence.completion_status -eq "process_exited" -and
         [int]$evidence.worker_exit_code -eq 0 -and
         [string]$evidence.failure_class -eq "" -and
+        -not [string]::IsNullOrWhiteSpace([string]$Entry.distribution) -and
         -not [string]::IsNullOrWhiteSpace([string]$Entry.connection_mode)
     )
+    if (-not $basicEvidence) { return $false }
+
+    # A prior canary may have recorded a marker even though the provider said
+    # its permission classifier could not run a required check.  Readiness is
+    # an authorization decision, so such a receipt must fail closed whenever
+    # its retained stdout is still available.
+    $stdoutPath = [string]$evidence.stdout_path
+    if (-not [string]::IsNullOrWhiteSpace($stdoutPath) -and (Test-Path -LiteralPath $stdoutPath -PathType Leaf)) {
+        $stdout = Get-Content -LiteralPath $stdoutPath -Raw -Encoding UTF8
+        if ($stdout -match '(?i)classifier unavailable|cannot approve bash') { return $false }
+    }
+    return $true
 }
 
 function Test-CodexPraetorProviderReadiness {
@@ -84,6 +99,7 @@ function Test-CodexPraetorProviderReadiness {
         [string]$ExpectedGeneration,
         [string]$ExpectedRuntimeContract,
         [string]$ExpectedTaskContract,
+        [string]$ExpectedDistribution = "",
         [string]$ExpectedConnectionMode = "",
         [string]$ExpectedRunnerIdentity = "",
         [string]$ExpectedCompatibilityFingerprint = ""
@@ -93,11 +109,11 @@ function Test-CodexPraetorProviderReadiness {
     $cliHash = Get-CodexPraetorFileSha256 -Path $Cli
     $result = [ordered]@{
         ok = $false; reason = ""; readiness_path = $Path; provider = $ProviderName; model = $ModelName
-        permission_profile = $Permission; task_kind = $Kind; cli_path = $Cli; cli_hash = $cliHash
+        permission_profile = $Permission; task_kind = $Kind; distribution = $ExpectedDistribution; cli_path = $Cli; cli_hash = $cliHash
         generation_id = $ExpectedGeneration; runtime_contract_sha256 = $ExpectedRuntimeContract
         task_contract_schema = $ExpectedTaskContract; checked_at = (Get-Date).ToString("o")
     }
-    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2", "codex-praetor-provider-readiness/v3", "codex-praetor-generation-readiness/v3", "codex-praetor-provider-readiness/v4", "codex-praetor-generation-readiness/v4") -or $null -eq $state.entries) {
+    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2", "codex-praetor-provider-readiness/v3", "codex-praetor-generation-readiness/v3", "codex-praetor-provider-readiness/v4", "codex-praetor-generation-readiness/v4", "codex-praetor-provider-readiness/v5", "codex-praetor-generation-readiness/v5") -or $null -eq $state.entries) {
         $result.reason = "缺少可解析的 readiness canary。"
         return [pscustomobject]$result
     }
@@ -108,17 +124,18 @@ function Test-CodexPraetorProviderReadiness {
         if (-not (Test-CodexPraetorReadinessEvidence -Entry $entry)) { continue }
         if ([string]$entry.provider -ne $ProviderName -or [string]$entry.cli_path -ne $Cli -or [string]$entry.cli_hash -ne $cliHash) { continue }
         if ([string]$entry.model -ne $ModelName -or [string]$entry.permission_profile -ne $Permission -or [string]$entry.task_kind -ne $Kind) { continue }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedDistribution) -and [string]$entry.distribution -ne $ExpectedDistribution) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedConnectionMode) -and [string]$entry.connection_mode -ne $ExpectedConnectionMode) { continue }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedRunnerIdentity) -and [string]$entry.runner_identity -ne $ExpectedRunnerIdentity) { continue }
         $entryFingerprint = [string]$entry.provider_compatibility_fingerprint
         if ([string]::IsNullOrWhiteSpace($entryFingerprint)) {
             # Migration read: v2/v3 records remain usable only after their
             # complete tuple is recomputed.  There is no generation fallback.
-            $entryFingerprint = Get-CodexPraetorProviderCompatibilityFingerprint -ProviderName ([string]$entry.provider) -CliHash ([string]$entry.cli_hash) -ModelName ([string]$entry.model) -Permission ([string]$entry.permission_profile) -Kind ([string]$entry.task_kind) -ConnectionMode ([string]$entry.connection_mode) -RunnerIdentity ([string]$entry.runner_identity) -TaskContractSchema ([string]$entry.task_contract_schema)
+            $entryFingerprint = Get-CodexPraetorProviderCompatibilityFingerprint -ProviderName ([string]$entry.provider) -CliHash ([string]$entry.cli_hash) -ModelName ([string]$entry.model) -Permission ([string]$entry.permission_profile) -Kind ([string]$entry.task_kind) -Distribution ([string]$entry.distribution) -ConnectionMode ([string]$entry.connection_mode) -RunnerIdentity ([string]$entry.runner_identity) -TaskContractSchema ([string]$entry.task_contract_schema)
         }
         $expectedFingerprint = $ExpectedCompatibilityFingerprint
         if ([string]::IsNullOrWhiteSpace($expectedFingerprint)) {
-            $expectedFingerprint = Get-CodexPraetorProviderCompatibilityFingerprint -ProviderName $ProviderName -CliHash $cliHash -ModelName $ModelName -Permission $Permission -Kind $Kind -ConnectionMode $ExpectedConnectionMode -RunnerIdentity $ExpectedRunnerIdentity -TaskContractSchema $ExpectedTaskContract
+            $expectedFingerprint = Get-CodexPraetorProviderCompatibilityFingerprint -ProviderName $ProviderName -CliHash $cliHash -ModelName $ModelName -Permission $Permission -Kind $Kind -Distribution $ExpectedDistribution -ConnectionMode $ExpectedConnectionMode -RunnerIdentity $ExpectedRunnerIdentity -TaskContractSchema $ExpectedTaskContract
         }
         if ($entryFingerprint -ne $expectedFingerprint) { continue }
         try { $expires = [DateTime]::Parse([string]$entry.expires_at) } catch { continue }
@@ -144,7 +161,7 @@ function Get-CodexPraetorCurrentReadinessEntries {
         generation_id = $ExpectedGeneration; runtime_contract_sha256 = $ExpectedRuntimeContract
         task_contract_schema = $ExpectedTaskContract; entries = @(); checked_at = (Get-Date).ToString("o")
     }
-    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2", "codex-praetor-provider-readiness/v3", "codex-praetor-generation-readiness/v3", "codex-praetor-provider-readiness/v4", "codex-praetor-generation-readiness/v4") -or $null -eq $state.entries) {
+    if ($null -eq $state -or [string]$state.schema -notin @("codex-praetor-provider-readiness/v2", "codex-praetor-generation-readiness/v2", "codex-praetor-provider-readiness/v3", "codex-praetor-generation-readiness/v3", "codex-praetor-provider-readiness/v4", "codex-praetor-generation-readiness/v4", "codex-praetor-provider-readiness/v5", "codex-praetor-generation-readiness/v5") -or $null -eq $state.entries) {
         $result.reason = "缺少可解析的 readiness canary。"
         return [pscustomobject]$result
     }

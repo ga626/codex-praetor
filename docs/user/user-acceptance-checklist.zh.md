@@ -9,11 +9,11 @@
 - [ ] 能看到安装、排错、隐私和路线图入口。
 - [ ] 能看懂没有 Qoder、CodeBuddy 时仍然可以 dry-run。
 - [ ] 能看懂真实派工前需要自己安装并登录至少一个 provider。
-- [ ] 能看懂 Qoder Agent SDK 与 CodeBuddy ACP 都由 Codex 监督，且首次真实任务与后续普通派工的证据门槛不同。
+- [ ] 能看懂中国版 Qoder CLI `stream-json` 与 CodeBuddy ACP 都由 Codex 监督，且首次真实任务与后续普通派工的证据门槛不同；全球 Qoder Agent SDK 不是中国版 CLI 的自动替代品。
 
 ## 2. Release 包
 
-- [ ] 从 `v0.16.27-alpha` Release 下载 `codex-praetor-setup-0.16.27-alpha.zip`。
+- [ ] 从 `v0.16.29-alpha` Release 下载 `codex-praetor-setup-0.16.29-alpha.zip`。
 - [ ] 校验 SHA256 文件和 zip 匹配。
 - [ ] 解压后根目录能看到 `setup.cmd` 和 `setup.ps1`。
 - [ ] 解压后能看到 `README.md`、`README.en.md`、`docs/user/installation.zh.md`、`docs/user/troubleshooting.zh.md`。

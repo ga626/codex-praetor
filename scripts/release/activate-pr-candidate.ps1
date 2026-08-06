@@ -6,6 +6,7 @@ param(
     [string]$CodexCommand = "codex",
     [string]$DownloadRoot = "",
     [switch]$SkipMaintenance,
+    [switch]$DeferPluginCacheRefresh,
     [switch]$SkipAttestationVerification,
     [switch]$Json
 )
@@ -20,16 +21,43 @@ $artifactName = (& (Join-Path $root "scripts\release\get-release-candidate-artif
 $artifactPage = & gh api "repos/$Repository/actions/artifacts?name=$artifactName&per_page=100" | ConvertFrom-Json
 $artifact = @($artifactPage.artifacts | Where-Object { -not $_.expired }) | Sort-Object created_at -Descending | Select-Object -First 1
 if ($null -eq $artifact) { throw "No retained candidate artifact exists for PR #$PullRequestNumber. Wait for PR CI to pass first." }
+$releaseName = "codex-praetor-setup-$Version"
 if ([string]::IsNullOrWhiteSpace($DownloadRoot)) { $DownloadRoot = Join-Path $UserProfileRoot ("plugins\.codex-praetor-candidates\" + $artifactName) }
 $DownloadRoot = [IO.Path]::GetFullPath($DownloadRoot)
-New-Item -ItemType Directory -Path $DownloadRoot -Force | Out-Null
-& gh run download ([int64]$artifact.workflow_run.id) --repo $Repository --name $artifactName --dir $DownloadRoot
-if ($LASTEXITCODE -ne 0) { throw "Unable to download verified candidate artifact from workflow run $($artifact.workflow_run.id)." }
-$releaseName = "codex-praetor-setup-$Version"
 $zip = Join-Path $DownloadRoot "$releaseName.zip"
 $sha = Join-Path $DownloadRoot "$releaseName.zip.sha256"
 $manifestPath = Join-Path $DownloadRoot "$releaseName.artifact.json"
 $receipt = Join-Path $DownloadRoot "$releaseName.candidate.json"
+function Test-ExistingCandidateArtifact {
+    param([string]$Directory)
+    $paths = @(
+        (Join-Path $Directory "$releaseName.zip"),
+        (Join-Path $Directory "$releaseName.zip.sha256"),
+        (Join-Path $Directory "$releaseName.artifact.json"),
+        (Join-Path $Directory "$releaseName.candidate.json")
+    )
+    if (@($paths | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) }).Count -gt 0) { return $false }
+    try {
+        $existingReceipt = Get-Content -LiteralPath (Join-Path $Directory "$releaseName.candidate.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+        $existingManifest = Get-Content -LiteralPath (Join-Path $Directory "$releaseName.artifact.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([int]$existingReceipt.pull_request.number -ne $PullRequestNumber -or ([string]$existingReceipt.pull_request.head_sha).ToLowerInvariant() -ne $head) { return $false }
+        if ([string]$existingManifest.status -ne "artifact_verified" -or [string]$existingManifest.verification.status -ne "passed") { return $false }
+        $existingHash = (Get-FileHash -LiteralPath (Join-Path $Directory "$releaseName.zip") -Algorithm SHA256).Hash.ToLowerInvariant()
+        return ($existingHash -eq ([string]$existingReceipt.artifact.zip_sha256).ToLowerInvariant() -and $existingHash -eq ([string]$existingManifest.artifact.sha256).ToLowerInvariant())
+    } catch { return $false }
+}
+$artifactReused = Test-ExistingCandidateArtifact -Directory $DownloadRoot
+if (-not $artifactReused) {
+    $existingEntries = if (Test-Path -LiteralPath $DownloadRoot -PathType Container) { @(Get-ChildItem -LiteralPath $DownloadRoot -Force -ErrorAction SilentlyContinue) } else { @() }
+    if ($existingEntries.Count -gt 0) { $DownloadRoot = "$DownloadRoot-retry-$([Guid]::NewGuid().ToString('N'))" }
+    New-Item -ItemType Directory -Path $DownloadRoot -Force | Out-Null
+    $zip = Join-Path $DownloadRoot "$releaseName.zip"
+    $sha = Join-Path $DownloadRoot "$releaseName.zip.sha256"
+    $manifestPath = Join-Path $DownloadRoot "$releaseName.artifact.json"
+    $receipt = Join-Path $DownloadRoot "$releaseName.candidate.json"
+    & gh run download ([int64]$artifact.workflow_run.id) --repo $Repository --name $artifactName --dir $DownloadRoot
+    if ($LASTEXITCODE -ne 0) { throw "Unable to download verified candidate artifact from workflow run $($artifact.workflow_run.id)." }
+}
 foreach ($path in @($zip, $sha, $manifestPath, $receipt)) { if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Downloaded candidate artifact is incomplete: $path" } }
 $candidate = Get-Content -LiteralPath $receipt -Raw -Encoding UTF8 | ConvertFrom-Json
 if ([int]$candidate.pull_request.number -ne $PullRequestNumber -or ([string]$candidate.pull_request.head_sha).ToLowerInvariant() -ne $head) { throw "Downloaded candidate receipt is not bound to PR #$PullRequestNumber at $head." }
@@ -53,10 +81,12 @@ $activationArguments = @(
     "-Json"
 )
 if ($SkipMaintenance) { $activationArguments += "-SkipMaintenance" }
+if ($DeferPluginCacheRefresh) { $activationArguments += "-DeferPluginCacheRefresh" }
 $activation = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1") @activationArguments
 if ($LASTEXITCODE -ne 0) { throw "Verified candidate activation failed." }
 $payload = $activation | Out-String | ConvertFrom-Json
 $payload | Add-Member -NotePropertyName candidate_artifact_directory -NotePropertyValue $DownloadRoot
+$payload | Add-Member -NotePropertyName candidate_artifact_reused -NotePropertyValue $artifactReused
 $payload | Add-Member -NotePropertyName candidate_receipt_path -NotePropertyValue $receipt
 $payload | Add-Member -NotePropertyName workflow_run_id -NotePropertyValue ([int64]$artifact.workflow_run.id)
 if ($Json) { $payload | ConvertTo-Json -Depth 16 } else { Write-Host "Candidate activation status: $($payload.status)"; Write-Host "Next: $($payload.next_action)" }

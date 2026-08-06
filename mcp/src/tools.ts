@@ -39,6 +39,7 @@ function providerDisplayName(value: unknown): string {
 function connectionDisplayName(value: unknown): string {
   const connection = String(value ?? "").trim();
   if (connection === "qoder_agent_sdk") return "Qoder Agent SDK";
+  if (connection === "supervised_cli_stream_json") return "Qoder CLI（stream-json）";
   if (connection === "codebuddy_acp") return "ACP";
   return connection;
 }
@@ -230,52 +231,54 @@ export async function dispatchDryRunTool(input: {
   mode?: "readonly" | "edit";
   run_mode?: "blocking" | "background";
   task_kind?: WorkerTaskKind;
+  task_family?: CapabilityTaskFamily;
   research_contract?: ResearchContract;
+  plan_id?: string;
+  task_id?: string;
+  depends_on?: string;
+  acceptance?: string;
+  worktree_name?: string;
+  max_turns?: number;
+  max_stall_seconds?: number;
+  timeout_seconds?: number;
+  allowed_paths?: string[];
+  forbidden_paths?: string[];
+  required_checks?: string[];
+  budget?: Record<string, unknown>;
+  failure_injection?: string;
+  sensitivity?: string;
+  real_worktree?: boolean;
+  base_commit?: string;
+  immutable_paths?: string[];
 }) {
   const repo = resolveExistingRepo(input.repo);
   assertResearchContract(input);
-  const args = [
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-File",
-    getInvokeScriptPath(),
-    "-Provider",
-    input.provider,
-    "-Repo",
-    repo,
-    "-Task",
-    appendResearchContract(input.task, input.research_contract),
-    "-Mode",
-    input.mode ?? "readonly",
-    "-RunMode",
-    input.run_mode ?? "blocking",
-    "-DryRun",
-    "-NoNotify"
-  ];
-
-  if (input.task_kind) {
-    args.push("-TaskKind", input.task_kind === "external_research_support" ? "external_research" : input.task_kind);
-  }
-  if (input.task_kind === "external_research_support") {
-    args.push("-AllowWorkerNetwork");
-    args.push("-ResearchContractJson", JSON.stringify(input.research_contract));
-  }
-
-  if (input.tier?.trim()) {
-    args.push("-Tier", input.tier.trim());
-  }
-
-  const result = await runPowerShell(args, { timeoutMs: 120_000 });
+  const realWorktree = input.real_worktree ?? input.task_kind === "code_change";
+  const isCodeChangePreflight = input.task_kind === "code_change" && realWorktree;
+  const result = await runPowerShell(
+    buildDispatchArgs({
+      ...input,
+      repo,
+      task: appendResearchContract(input.task, input.research_contract),
+      mode: input.mode ?? (isCodeChangePreflight ? "edit" : "readonly"),
+      run_mode: input.run_mode ?? "blocking",
+      real_worktree: realWorktree,
+      dry_run: true,
+      no_notify: true
+    }),
+    { timeoutMs: 120_000 }
+  );
   const fields = parseKeyValueOutput(result.stdout);
   return {
     display: {
-      阶段: "派工预演",
-      状态: result.exitCode === 0 ? "可继续" : "失败",
+      阶段: isCodeChangePreflight ? "真实代码任务合同预检" : "派工预演",
+      状态: result.exitCode === 0 ? "可继续，未启动 worker" : "未启动 worker，预检失败",
       执行者: providerDisplayName(fields.provider ?? input.provider),
       模型: String(fields.model ?? ""),
       连接: connectionDisplayName(fields.connection_mode ?? ""),
-      下一步: result.exitCode === 0 ? "Codex 检查合同、范围和 readiness 后，才可决定是否真实派工。" : "读取失败分类并处理，不要把预演失败当作真实派工。"
+      下一步: result.exitCode === 0
+        ? "合同已检查；Codex 仍需决定是否启动真实 worker。"
+        : "修复任务合同、基线或范围后重试；此结果不代表 worker 已启动或 provider 已失败。"
     },
     ok: result.exitCode === 0,
     exit_code: result.exitCode,
@@ -287,8 +290,14 @@ export async function dispatchDryRunTool(input: {
     model: fields.model ?? "",
     connection_mode: fields.connection_mode ?? "",
     model_policy: fields.model_policy ?? "",
-    mode: input.mode ?? "readonly",
+    mode: input.mode ?? (isCodeChangePreflight ? "edit" : "readonly"),
     run_mode: fields.run_mode ?? input.run_mode ?? "blocking",
+    preflight_kind: isCodeChangePreflight ? "real_code_change" : "standard",
+    // This is the wrapper-validated contract, not evidence that a worktree
+    // exists. A dry-run must never be represented as a real dispatch.
+    real_worktree: realWorktree,
+    base_commit: input.base_commit ?? "",
+    immutable_paths: input.immutable_paths ?? [],
     project_artifact_root: fields.project_artifact_root ?? "",
     job_root: fields.job_root ?? "",
     lock_root: fields.lock_root ?? "",
@@ -652,6 +661,9 @@ export async function dispatchTool(input: {
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
     task_kind: fields.task_kind ?? input.task_kind ?? "",
+    real_worktree: input.real_worktree ?? false,
+    base_commit: fields.base_commit ?? input.base_commit ?? "",
+    immutable_paths: input.immutable_paths ?? [],
     research_contract: input.research_contract ?? null,
     job_id: fields.job_id ?? "",
     job_dir: fields.job_dir ?? "",
@@ -1421,12 +1433,12 @@ export async function dispatchPlanTaskTool(input: {
   let evidenceBootstrap = !!existingEvidenceContext
     && !requiredEvidenceContext.some((field) => !String(existingEvidenceContext[field] ?? "").trim())
     && ["real_historical_issue", "real_user_request"].includes(String(existingEvidenceContext?.source_category))
-    && ["supervised_cli_text", "qoder_agent_sdk", "codebuddy_acp"].includes(String(existingEvidenceContext?.connection_mode));
+    && ["supervised_cli_text", "supervised_cli_stream_json", "qoder_agent_sdk", "codebuddy_acp"].includes(String(existingEvidenceContext?.connection_mode));
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
   }
   if (!input.dry_run && !evidenceContext) {
-    const bootstrapConnection = input.provider === "qoder" ? "qoder_agent_sdk" : input.provider === "codebuddy" ? "codebuddy_acp" : "supervised_cli_text";
+    const bootstrapConnection = input.provider === "qoder" ? "supervised_cli_stream_json" : input.provider === "codebuddy" ? "codebuddy_acp" : "supervised_cli_text";
     evidenceContext = automaticUserRequestEvidenceContext({
       repo,
       planId: input.plan_id,
@@ -1467,6 +1479,11 @@ export async function dispatchPlanTaskTool(input: {
     budget,
     failure_injection: String(task.failure_injection ?? ""),
     sensitivity: String(task.sensitivity ?? ""),
+    // Evaluation material is already committed into the task's disposable
+    // baseline. Real worktrees must never receive copied material after their
+    // base commit has been frozen; doing so would make immutable-file checks
+    // impossible to reproduce.
+    task_material: taskKind === "code_change" ? undefined : taskMaterial,
     real_worktree: taskKind === "code_change",
     base_commit: baseCommit || undefined,
     immutable_paths: immutablePaths,
@@ -1474,7 +1491,7 @@ export async function dispatchPlanTaskTool(input: {
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });
-  if (dispatched.ok && !input.dry_run && evidenceContext && String(evidenceContext.connection_mode) === "supervised_cli_text" && dispatched.job_id) {
+  if (dispatched.ok && !input.dry_run && evidenceContext && dispatched.job_id && String(dispatched.connection_mode ?? "") && String(evidenceContext.connection_mode ?? "") !== String(dispatched.connection_mode)) {
     const context = automaticUserRequestEvidenceContext({
       repo,
       planId: input.plan_id,

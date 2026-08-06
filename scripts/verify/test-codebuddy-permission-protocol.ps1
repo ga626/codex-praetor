@@ -87,7 +87,10 @@ try {
     $planRoot = Join-Path $scratch "plans"
     $scratchRoot = Join-Path $scratch "worker-scratch"
     $initializer = Join-Path $root "scripts\evaluation\initialize-codex-praetor-evaluation.ps1"
-    & $initializer -ProjectRoot $root -Action Prepare -PlanRoot $planRoot -PlanId "permission-protocol" -Apply | Out-Null
+    # Keep generated baseline refs and disposable staging worktrees inside the
+    # fixture repository. This protocol test must not mutate the product
+    # checkout merely to obtain evaluation material.
+    & $initializer -ProjectRoot $repo -SuitePath (Join-Path $root 'config\evaluation-suite.json') -TemplateRoot (Join-Path $root 'config\evaluation-task-templates') -PlanScript (Join-Path $root 'scripts\dispatch\manage-codex-praetor-plan.ps1') -Action Prepare -PlanRoot $planRoot -PlanId "permission-protocol" -Apply | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Unable to prepare immutable task material for the CodeBuddy permission fixture." }
     $preparedPlan = Get-Content -LiteralPath (Join-Path $planRoot "permission-protocol\plan.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $codeChangeTask = @($preparedPlan.tasks | Where-Object { $_.task_id -eq "bounded-test-fix" })[0]

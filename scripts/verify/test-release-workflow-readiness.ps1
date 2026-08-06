@@ -20,7 +20,10 @@ $candidateArtifactNamePath = Join-Path $root "scripts\release\get-release-candid
 $resolverPath = Join-Path $root "scripts\release\resolve-release-promotion-artifact.ps1"
 $candidateHostReceiptGatePath = Join-Path $root "scripts\verify\test-candidate-host-receipt.ps1"
 $candidateHostReceiptWriterPath = Join-Path $root "scripts\release\write-candidate-host-receipt.ps1"
+$candidateUserPathEvidenceWriterPath = Join-Path $root "scripts\release\write-candidate-user-path-evidence.ps1"
 $candidateActivationPath = Join-Path $root "scripts\release\activate-pr-candidate.ps1"
+$publishedActivationPath = Join-Path $root "scripts\release\activate-published-codex-praetor-release.ps1"
+$deferredRefreshPath = Join-Path $root "scripts\release\refresh-codex-praetor-plugin-cache-after-exit.ps1"
 $intentGatePath = Join-Path $root "scripts\verify\test-release-intent.ps1"
 $preflightPath = Join-Path $root "scripts\verify\invoke-release-candidate-preflight.ps1"
 $preCommitHookPath = Join-Path $root ".githooks\pre-commit"
@@ -59,7 +62,10 @@ Assert-True (Test-Path -LiteralPath $candidateArtifactNamePath -PathType Leaf) "
 Assert-True (Test-Path -LiteralPath $resolverPath -PathType Leaf) "Release promotion resolver is missing: $resolverPath"
 Assert-True (Test-Path -LiteralPath $candidateHostReceiptGatePath -PathType Leaf) "Candidate host receipt gate is missing: $candidateHostReceiptGatePath"
 Assert-True (Test-Path -LiteralPath $candidateHostReceiptWriterPath -PathType Leaf) "Candidate host receipt writer is missing: $candidateHostReceiptWriterPath"
+Assert-True (Test-Path -LiteralPath $candidateUserPathEvidenceWriterPath -PathType Leaf) "Candidate user-path evidence writer is missing: $candidateUserPathEvidenceWriterPath"
 Assert-True (Test-Path -LiteralPath $candidateActivationPath -PathType Leaf) "Candidate activation entry is missing: $candidateActivationPath"
+Assert-True (Test-Path -LiteralPath $publishedActivationPath -PathType Leaf) "Published activation entry is missing: $publishedActivationPath"
+Assert-True (Test-Path -LiteralPath $deferredRefreshPath -PathType Leaf) "Deferred refresh helper is missing: $deferredRefreshPath"
 Assert-True (Test-Path -LiteralPath $intentGatePath -PathType Leaf) "Release intent gate is missing: $intentGatePath"
 Assert-True (Test-Path -LiteralPath $preflightPath -PathType Leaf) "Candidate preflight is missing: $preflightPath"
 Assert-True (Test-Path -LiteralPath $preCommitHookPath -PathType Leaf) "Fast pre-commit hook is missing: $preCommitHookPath"
@@ -72,11 +78,18 @@ $publisherText = Get-Content -LiteralPath $publisherPath -Raw -Encoding UTF8
 $resolverText = Get-Content -LiteralPath $resolverPath -Raw -Encoding UTF8
 $intentGateText = Get-Content -LiteralPath $intentGatePath -Raw -Encoding UTF8
 $preflightText = Get-Content -LiteralPath $preflightPath -Raw -Encoding UTF8
+$candidateActivationText = Get-Content -LiteralPath $candidateActivationPath -Raw -Encoding UTF8
+$publishedActivationText = Get-Content -LiteralPath $publishedActivationPath -Raw -Encoding UTF8
+$deferredRefreshText = Get-Content -LiteralPath $deferredRefreshPath -Raw -Encoding UTF8
 $preCommitHookText = Get-Content -LiteralPath $preCommitHookPath -Raw -Encoding UTF8
 $prePushHookText = Get-Content -LiteralPath $prePushHookPath -Raw -Encoding UTF8
 
 $candidateArtifactName = (& $candidateArtifactNamePath -Version "0.16.16-alpha" -PullRequestNumber 74 -HeadSha "0123456789abcdef0123456789abcdef01234567" | Out-String).Trim()
 Assert-True ($candidateArtifactName -eq "codex-praetor-candidate-0.16.16-alpha-pr74-0123456789abcdef0123456789abcdef01234567") "Candidate artifact naming helper must produce the canonical version, PR, and full-SHA name."
+Assert-True ($candidateActivationText -match 'Test-ExistingCandidateArtifact' -and $candidateActivationText -match 'candidate_artifact_reused') "Candidate activation must reuse a SHA-verified artifact instead of redownloading into an occupied directory."
+Assert-True ($publishedActivationText -match '\[switch\]\$AllowExplicitFixture' -and $publishedActivationText -match 'Explicit local ZIP activation is blocked') "Explicit local ZIP activation must be blocked outside deterministic fixtures."
+Assert-True ($publishedActivationText -match 'PendingStatusPath' -and $publishedActivationText -match 'ExpectedGenerationId' -and $publishedActivationText -match 'different cached generation') "Published activation must persist the wait state and reject same-version generation collisions."
+Assert-True ($deferredRefreshText -match 'Write-State' -and $deferredRefreshText -match 'candidate_cache_generation_mismatch') "Deferred refresh must expose durable pending state and verify the cached candidate generation."
 
 Assert-True ($ciText -match 'uses:\s*\./\.github/workflows/release-pipeline\.yml') "PR CI must call the shared release pipeline."
 Assert-True ($ciText -match 'publish:\s*false') "PR CI must run the shared pipeline in candidate-only mode."
@@ -96,6 +109,7 @@ Assert-True ($releaseText -notmatch '!mcp/package\.json' -and $releaseText -notm
 Assert-True ($pipelineText -match '(?ms)on:\s*\r?\n\s+workflow_call:') "Shared release pipeline must be reusable through workflow_call."
 Assert-True ($pipelineText -match 'invoke-release-candidate-preflight\.ps1\s+@arguments') "Shared pipeline must use the one candidate preflight entry."
 Assert-True ($pipelineText -match 'write-release-candidate-receipt\.ps1') "PR CI must bind its artifact to the PR candidate receipt."
+Assert-True ($pipelineText -match 'SkipProviderEvidence') "PR CI must build and attest the candidate before host/provider evidence can bind to its ZIP."
 Assert-True ($pipelineText -match 'actions/upload-artifact@[0-9a-f]{40}') "PR CI must upload the verified candidate artifact with a pinned action."
 Assert-True ($pipelineText -match 'get-release-candidate-artifact-name\.ps1') "PR CI must derive its retained candidate artifact name from the shared helper."
 Assert-True ($pipelineText -match 'steps\.candidate_artifact\.outputs\.name') "PR CI upload must use the shared candidate artifact name output."

@@ -19,14 +19,15 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["provider", "job_id", "task_id", "evidence_kind", "model", "connection_mode", "cli_hash", "provider_compatibility_fingerprint", "completion_status", "exit_code", "evidence_state", "artifact_state", "governance_state", "repository_clean", "accepted"],
+        "required": ["provider", "distribution", "job_id", "task_id", "evidence_kind", "model", "connection_mode", "cli_hash", "provider_compatibility_fingerprint", "completion_status", "exit_code", "evidence_state", "artifact_state", "governance_state", "repository_clean", "accepted"],
         "properties": {
           "provider": { "enum": ["qoder", "codebuddy"] },
+          "distribution": { "enum": ["qoder_cn", "qoder_global", "codebuddy_cn"] },
           "job_id": { "type": "string", "minLength": 1 },
           "task_id": { "type": "string", "minLength": 1 },
           "evidence_kind": { "const": "real_task" },
           "model": { "type": "string", "minLength": 1 },
-          "connection_mode": { "enum": ["qoder_agent_sdk", "codebuddy_acp"] },
+          "connection_mode": { "enum": ["supervised_cli_stream_json", "qoder_agent_sdk", "codebuddy_acp"] },
           "cli_hash": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
           "provider_compatibility_fingerprint": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
           "completion_status": { "const": "process_exited" },

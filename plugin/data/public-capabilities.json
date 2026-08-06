@@ -67,6 +67,14 @@
       "risk_tier": "external_provider"
     },
     {
+      "id": "provider.code-change-user-path",
+      "audience": "installed_plugin",
+      "entry": { "kind": "skill", "path": "plugin/skills/codex-praetor/SKILL.md" },
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/SKILL.md", "plugin/skills/codex-praetor/scripts/invoke-codex-praetor.ps1", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1"],
+      "scenario": "code_change_user_path",
+      "risk_tier": "external_provider"
+    },
+    {
       "id": "release.activation",
       "audience": "release_bundle",
       "entry": { "kind": "release_installer", "path": "scripts/release/activate-published-codex-praetor-release.ps1" },

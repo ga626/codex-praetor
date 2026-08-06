@@ -3,7 +3,10 @@ param(
     [string]$BaseRef = "origin/main",
     [string]$ReceiptPath = "",
     [switch]$CheckRemote,
-    [switch]$AllowDraftMetadataPlaceholders
+    [switch]$AllowDraftMetadataPlaceholders,
+    # PR CI must publish the immutable candidate before a real Desktop can
+    # install it and create provider/host evidence bound to its ZIP SHA.
+    [switch]$SkipProviderEvidence
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +42,7 @@ try {
 
     Write-Host "[RUN] MCP dependencies and tests"
     Invoke-Check "Qoder SDK install bootstrap" (Join-Path $verify "test-qoder-sdk-install-bootstrap.ps1")
+    Invoke-Check "Qoder CN CLI connection contract" (Join-Path $verify "test-qoder-cn-cli-connection-contract.ps1")
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "mcp\scripts\install-mcp-dependencies.ps1")
     if ($LASTEXITCODE -ne 0) { throw "Candidate preflight failed: MCP dependency installation." }
     & npm --prefix (Join-Path $root "mcp") test
@@ -66,8 +70,12 @@ try {
     Invoke-Check "release package determinism" (Join-Path $verify "test-release-package-determinism.ps1") @("-Version", [string]$intent.version)
     Invoke-Check "final artifact runtime" (Join-Path $verify "test-release-artifact-runtime.ps1") @("-Version", [string]$intent.version, "-MarkVerified")
     $artifactPath = Join-Path $root (".codex-praetor\releases\codex-praetor-setup-" + [string]$intent.version + ".artifact.json")
-    Invoke-Check "provider evidence artifact binding" (Join-Path $release "bind-provider-release-evidence.ps1") @("-EvidencePath", (Join-Path $root ".codex-praetor\provider-release-evidence.json"), "-ArtifactManifestPath", $artifactPath)
-    Invoke-Check "provider release evidence gate" (Join-Path $verify "test-provider-release-evidence.ps1") @("-EvidencePath", (Join-Path $root ".codex-praetor\provider-release-evidence.json"), "-ArtifactManifestPath", $artifactPath, "-BaseRef", $BaseRef)
+    if ($SkipProviderEvidence) {
+        Write-Host "[SKIP] Provider evidence acceptance waits for the uploaded candidate ZIP and candidate-host receipt."
+    } else {
+        Invoke-Check "provider evidence artifact binding" (Join-Path $release "bind-provider-release-evidence.ps1") @("-EvidencePath", (Join-Path $root ".codex-praetor\provider-release-evidence.json"), "-ArtifactManifestPath", $artifactPath)
+        Invoke-Check "provider release evidence gate" (Join-Path $verify "test-provider-release-evidence.ps1") @("-EvidencePath", (Join-Path $root ".codex-praetor\provider-release-evidence.json"), "-ArtifactManifestPath", $artifactPath, "-BaseRef", $BaseRef)
+    }
     Invoke-Check "historical release mutations" (Join-Path $verify "test-runtime-contract-mutations.ps1")
     Invoke-Check "isolated release closeout" (Join-Path $verify "test-release-closeout.ps1")
     Invoke-Check "candidate activation and host receipt" (Join-Path $verify "test-published-release-activation.ps1")

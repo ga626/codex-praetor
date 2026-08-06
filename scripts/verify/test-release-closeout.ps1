@@ -31,7 +31,7 @@ try {
     Assert-True (Test-Path -LiteralPath $zip -PathType Leaf) "Release zip is missing."
     Assert-True (Test-Path -LiteralPath (Join-Path $stage "plugin\skills\codex-praetor\SKILL.md") -PathType Leaf) "Bundled Skill is missing."
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $stage "skill\codex-praetor\SKILL.md"))) "Release must not contain a second root Skill."
-    foreach ($relative in @("scripts\release\activate-pr-candidate.ps1", "scripts\release\write-candidate-host-receipt.ps1", "scripts\release\publish-candidate-host-receipt.ps1", "scripts\release\restore-candidate-stable-backup.ps1", "scripts\verify\test-candidate-host-receipt.ps1")) {
+    foreach ($relative in @("scripts\release\activate-pr-candidate.ps1", "scripts\release\write-candidate-user-path-evidence.ps1", "scripts\release\write-candidate-host-receipt.ps1", "scripts\release\publish-candidate-host-receipt.ps1", "scripts\release\restore-candidate-stable-backup.ps1", "scripts\verify\test-candidate-host-receipt.ps1")) {
         Assert-True (Test-Path -LiteralPath (Join-Path $stage $relative) -PathType Leaf) "Release bundle is missing candidate-release control: $relative"
     }
 

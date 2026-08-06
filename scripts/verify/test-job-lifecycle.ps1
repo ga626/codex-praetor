@@ -79,6 +79,12 @@ try {
     Assert-True ([int]$boundedAcp.evidence_observation.boundary_denials_observed -eq 2) "Boundary denials must remain visible in the durable completion evidence."
     $report = Invoke-WatchedCase -Name "report-evidence" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'worker report'; exit 0") -TimeoutSeconds 30
     Assert-True ([string]$report.evidence_state -eq "report_valid") "A successful worker report must be recorded as report evidence while awaiting supervisor verification."
+    $streamJson = Invoke-WatchedCase -Name "qoder-stream-json" -WorkerArguments @("-NoProfile", "-Command", 'Write-Output ''{"type":"assistant"}''; Write-Output ''{"type":"result"}''; exit 0') -TimeoutSeconds 30 -Provider "qoder" -ConnectionMode "supervised_cli_stream_json"
+    Assert-True ([string]$streamJson.failure_class -eq "") "A parseable Qoder stream-json result must remain available for Codex verification."
+    Assert-True ([int]$streamJson.evidence_observation.stream_json.parsed_events -eq 2) "Watcher did not record the Qoder stream-json event count."
+    $invalidStream = Invoke-WatchedCase -Name "qoder-invalid-stream-json" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'not-json'; exit 0") -TimeoutSeconds 30 -Provider "qoder" -ConnectionMode "supervised_cli_stream_json"
+    Assert-True ([string]$invalidStream.failure_class -eq "provider_output_unparseable") "Unparseable Qoder stream-json must fail closed."
+    Assert-True ([string]$invalidStream.governance_state -eq "rejected") "Unparseable Qoder stream-json must not await acceptance."
     $unicodeReport = Invoke-WatchedCase -Name "utf8-report-evidence" -WorkerArguments @("-NoProfile", "-Command", "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding(`$false); Write-Output '中文验收报告'; exit 0") -TimeoutSeconds 30
     $unicodeText = Get-Content -LiteralPath (Join-Path $testRoot "utf8-report-evidence\stdout.log") -Raw -Encoding UTF8
     Assert-True ($unicodeText -match "中文验收报告") "Watcher must preserve UTF-8 worker reports for Codex acceptance."
