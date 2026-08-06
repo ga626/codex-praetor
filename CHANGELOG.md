@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.29-alpha
+
+- Hardened candidate activation with durable host-exit state, exact cache-generation checks, and idempotent reuse of the verified artifact.
+- Documented the Qoder China `stream-json` transport and controlled process cancellation contract.
+
 ## 0.16.28-alpha
 
 - Fixed the real code-change first entry: public preflight now carries the frozen worktree contract instead of blocking code work before a worker can start.

@@ -1,9 +1,9 @@
 # GitHub Publish Runbook
 
 Date: 2026-07-19
-Target release: `0.16.28-alpha`
+Target release: `0.16.29-alpha`
 
-Status: `v0.16.14-alpha` stopped before creating a tag, Release, or public download. It must not be backfilled or overwritten. `v0.16.28-alpha` is the next immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
+Status: `v0.16.14-alpha` stopped before creating a tag, Release, or public download. It must not be backfilled or overwritten. `v0.16.29-alpha` is the next immutable recovery release and is published automatically by `Release On Main` after this PR reaches `main`.
 
 This runbook defines the single merge-to-release pipeline. A release-impacting PR is not merge-ready until it contains the version surface, `config/release-intent.json`, release notes, and passing candidate gates. After merge, GitHub Actions builds the exact merge commit, creates a draft Release, uploads all assets, publishes it, and verifies the remote download. There is no manual post-merge publish step.
 
@@ -110,7 +110,7 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
 8. 远端下载复验通过后，Codex 在本机执行同一 Release 的自动激活：
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.16.28-alpha -Json
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\activate-published-codex-praetor-release.ps1 -Version 0.16.29-alpha -Json
    ```
 
    它不手改 cache 或用户 readiness；会停在 `needs_host_restart` 或 `needs_first_use_bootstrap`。前者只需要一次受支持的 Desktop 刷新，之后必须用 `runtime_info` 验明运行身份。后者不是发布失败：用户完成 provider 官方登录后，第一次真实计划任务会在隔离 worktree 中自动记录首用 readiness；不要求用户手动运行内部 canary。
@@ -118,6 +118,8 @@ After `gh auth status` succeeds and the user confirms the final owner/repo:
    发布维护者先完成最终 artifact 和隔离用户目录的零积分验证。只有 provider compatibility fingerprint 变化时，才对受影响 provider 各完成一条经 Codex 验收的真实只读任务；canary 仅用于排障，不重复计作发布前置。维护者证据证明发布包能走通，不冒充普通用户的账号 readiness。
 
 9. 已公开 Release 只能下载复验，不能替换资产或修改说明。源代码、合同或 artifact 有缺陷时，必须使用递增版本的恢复 PR。
+
+候选硬门：`build-codex-praetor-release.ps1 -Apply` 只能从干净提交运行；维护者不得用本地脏工作树 ZIP 代替 PR CI artifact。`activate-pr-candidate.ps1` 是候选安装唯一入口，显式 ZIP 没有 `codex-praetor-release-candidate/v1` receipt 时会被阻断。重启前先确认目标 generation 已安装，重启后第一步用新任务读取 `runtime_info`。
 
 ## Blockers That Stop Publication
 

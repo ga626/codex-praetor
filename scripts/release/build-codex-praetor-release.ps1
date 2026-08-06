@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.16.28-alpha",
+    [string]$Version = "0.16.29-alpha",
     [string]$OutputRoot = ".codex-praetor\releases",
     [switch]$Apply,
     [switch]$AllowDraftMetadataPlaceholders
@@ -126,6 +126,17 @@ function Assert-PublicReleaseTree {
     }
     if ($secretHits.Count -gt 0) {
         throw "Release package contains token-shaped secrets: $($secretHits -join '; ')"
+    }
+}
+
+function Assert-CleanSourceTree {
+    $statusText = (& git -C $projectRoot status --porcelain=v1 --untracked-files=all 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to inspect the source Git worktree before release packaging."
+    }
+    if (-not [string]::IsNullOrWhiteSpace($statusText)) {
+        $sample = ($statusText -split "`r?`n" | Select-Object -First 12) -join "; "
+        throw "Release packaging requires a clean committed source tree. Commit or remove local differences before -Apply. Differences: $sample"
     }
 }
 
@@ -490,10 +501,12 @@ if (-not $Apply) {
     exit 0
 }
 
+Assert-CleanSourceTree
 Build-PackagedMcpRuntime
 
 & (Join-Path $projectRoot "scripts\release\sync-codex-praetor-runtime-contract.ps1") -ProjectRoot $projectRoot -Apply
 if ($LASTEXITCODE -ne 0) { throw "Canonical runtime contract generation failed." }
+Assert-CleanSourceTree
 
 Assert-UnderProject -Path $outputRootPath
 Assert-UnderProject -Path $stagePath

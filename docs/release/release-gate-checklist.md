@@ -48,7 +48,7 @@ Include:
 - User installation and troubleshooting docs: `docs/user/installation.zh.md` and `docs/user/troubleshooting.zh.md`.
 - A minimal `examples/` folder with dry-run and readonly canary examples.
 - Repository marketplace entry: `.agents/plugins/marketplace.json`.
-- Current release notes: `docs/release/release-notes-0.16.28-alpha.md`.
+- Current release notes: `docs/release/release-notes-0.16.29-alpha.md`.
 - Local release package builder: `scripts/release/build-codex-praetor-release.ps1`.
 - User installer: `scripts/install/install-user.ps1`.
   Draft CI checks may use `-AllowDraftMetadataPlaceholders`; final public builds must omit it so placeholder metadata URLs fail the gate.
@@ -141,6 +141,8 @@ Stop before irreversible public release steps and ask for confirmation when:
 # Candidate-first public release rule
 
 For every release-impact PR, PR CI first builds and attests one candidate ZIP. It intentionally does not demand provider or host evidence before that ZIP exists. Before merging, install that exact ZIP into the maintainer stable entry with the bundled transactional installer, refresh Codex Desktop once, and record a candidate-host receipt. The receipt must match the candidate ZIP SHA, generation, runtime-contract SHA and PR source tree, and must include the accepted real code-change path from the installed Skill: route, non-starting contract preflight, worker job, isolated worktree, completion and Codex acceptance. The main workflow refuses promotion unless the PR then supplies the provider evidence and candidate-host receipt for that same ZIP.
+
+The local release builder now refuses `-Apply` from a dirty source tree. Candidate activation refuses an explicit local ZIP unless it carries the PR CI candidate receipt; deterministic tests must opt into the separate fixture flag. A restart is never evidence of installation: verify the installed/cache generation first, then open a new task and compare `runtime_info` to the candidate receipt.
 
 Provider credit is not a per-version tax: rerun a minimal real provider task only when the affected provider's adapter, identity, permission, connection, task contract, dispatch, or recovery semantics changed. Documentation, release metadata, and release-control-only changes use deterministic checks plus the host receipt.
 

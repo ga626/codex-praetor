@@ -29,6 +29,7 @@ if ($zipHash -ne [string]$manifest.artifact.sha256) { throw "Candidate zip hash 
 $head = ((& git -C $ProjectRoot rev-parse HEAD 2>$null) | Out-String).Trim().ToLowerInvariant()
 $tree = ((& git -C $ProjectRoot rev-parse "HEAD^{tree}" 2>$null) | Out-String).Trim().ToLowerInvariant()
 if ($head -notmatch "^[0-9a-f]{40}$" -or $tree -notmatch "^[0-9a-f]{40}$") { throw "Candidate checkout does not expose a commit and content tree." }
+if ($HeadSha.ToLowerInvariant() -ne $head) { throw "Candidate receipt PR head does not match the checked-out commit." }
 if ([string]$manifest.generation.commit -ne $head -or [string]$manifest.generation.source_tree -ne $tree) { throw "Artifact generation is not bound to this candidate checkout." }
 
 $receipt = [ordered]@{
