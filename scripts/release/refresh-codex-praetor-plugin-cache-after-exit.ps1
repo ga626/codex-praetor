@@ -4,7 +4,9 @@ param(
     [string]$PluginSelector = "codex-praetor@personal",
     [Parameter(Mandatory = $true)][string]$ExpectedVersion,
     [Parameter(Mandatory = $true)][string]$StatusPath,
-    [int]$WaitTimeoutSeconds = 900,
+    # Zero means keep waiting for the supported Desktop exit. A finite value is
+    # reserved for tests or an explicitly bounded maintenance invocation.
+    [int]$WaitTimeoutSeconds = 0,
     [switch]$SkipHostExitWait
 )
 
@@ -30,14 +32,14 @@ function Write-Status {
 
 $profileRoot = [IO.Path]::GetFullPath($UserProfileRoot)
 $StatusPath = [IO.Path]::GetFullPath($StatusPath)
-if ($WaitTimeoutSeconds -lt 1) { throw "WaitTimeoutSeconds must be positive." }
+if ($WaitTimeoutSeconds -lt 0) { throw "WaitTimeoutSeconds must be zero (unbounded) or positive." }
 
 if (-not $SkipHostExitWait) {
-    $deadline = (Get-Date).AddSeconds($WaitTimeoutSeconds)
+    $deadline = if ($WaitTimeoutSeconds -gt 0) { (Get-Date).AddSeconds($WaitTimeoutSeconds) } else { $null }
     while ($true) {
         $hostProcesses = @(Get-Process -Name "codex" -ErrorAction SilentlyContinue)
         if ($hostProcesses.Count -eq 0) { break }
-        if ((Get-Date) -ge $deadline) {
+        if ($null -ne $deadline -and (Get-Date) -ge $deadline) {
             Write-Status -Status "timed_out" -Reason "codex_desktop_still_running" -ExitCode 2
             exit 2
         }

@@ -17,6 +17,11 @@ function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
 }
 
+$deferredRefreshSource = Get-Content -LiteralPath $deferredRefresh -Raw -Encoding UTF8
+Assert-True ($deferredRefreshSource -match '\[int\]\$WaitTimeoutSeconds = 0') "Deferred cache refresh must default to an unbounded host-exit wait."
+$activationSource = Get-Content -LiteralPath $activation -Raw -Encoding UTF8
+Assert-True ($activationSource -match '\[int\]\$DeferredCacheRefreshWaitSeconds = 0') "Release activation must pass the durable deferred-refresh default through to its helper."
+
 try {
     New-Item -ItemType Directory -Path $scratch -Force | Out-Null
     $current = (& $generation -ProjectRoot $root -Json | ConvertFrom-Json)

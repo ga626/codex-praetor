@@ -9,7 +9,9 @@
     [string]$CodexCommand = "codex",
     [string]$HostRuntimeInfoPath = "",
     [switch]$DeferPluginCacheRefresh,
-    [int]$DeferredCacheRefreshWaitSeconds = 900,
+    # Default to a durable wait. The helper must not miss a legitimate host
+    # restart merely because the maintainer did not exit within 15 minutes.
+    [int]$DeferredCacheRefreshWaitSeconds = 0,
     [switch]$SkipMaintenance,
     [switch]$Json
 )
