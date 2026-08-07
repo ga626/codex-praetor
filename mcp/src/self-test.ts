@@ -34,8 +34,14 @@ assert.deepEqual(
   "PowerShell JSON with leading whitespace and a BOM must remain parseable."
 );
 
-assert.equal(routeIntentTool({ request: "把这个任务拆一下，分配给其他 agent 做" }).route, "codex_praetor_external_worker");
-assert.equal(routeIntentTool({ request: "拆分一下任务，分配给其他 agent 做只读验收" }).route, "codex_praetor_external_worker");
+const delegatedRoute = routeIntentTool({ request: "把这个任务拆一下，分配给其他 agent 做" });
+assert.equal(delegatedRoute.route, "codex_praetor_external_worker");
+assert.equal(delegatedRoute.dispatch_required, true);
+assert.equal(delegatedRoute.next_required_tool, "codex_praetor_plan");
+assert.ok(delegatedRoute.delegable_subtasks.length > 0);
+assert.ok(delegatedRoute.codex_reserved_tasks.length > 0);
+assert.equal(delegatedRoute.blocking_reason, undefined);
+assert.equal(routeIntentTool({ request: "拆分一下任务，分配给其他 agent 做只读验收" }).dispatch_required, true);
 assert.equal(
   routeIntentTool({ request: "拆分一下任务，分配给其他 agent 做只读验收，不要创建 Codex subagent。" }).route,
   "codex_praetor_external_worker"
@@ -47,6 +53,8 @@ assert.equal(
 const researchRoute = routeIntentTool({ request: "拆分外部调研，分配给其他 agent 找官方资料" });
 assert.equal(researchRoute.worker_research_eligible, true);
 assert.equal(researchRoute.research_authority, "codex_kr_primary");
+assert.equal(researchRoute.dispatch_required, true);
+assert.equal(researchRoute.next_required_tool, "codex_kr_primary_research");
 const runtimeInfo = runtimeInfoTool();
 assert.equal(runtimeInfo.runtime_contract !== null, true);
 assert.match(runtimeInfo.runtime_identity.runtime_contract_sha256, /^[0-9a-f]{64}$/);
@@ -58,6 +66,13 @@ assert.equal(
   "native_codex_subagent"
 );
 assert.equal(routeIntentTool({ request: "Use Codex subagent for parallel review" }).route, "needs_clarification");
+assert.equal(routeIntentTool({ request: "普通本地检查" }).dispatch_required, false);
+assert.equal(routeIntentTool({ request: "普通本地检查" }).next_required_tool, "codex_direct");
+const retainedRoute = routeIntentTool({ request: "这个任务不要外派，Codex 自己做" });
+assert.equal(retainedRoute.route, "codex_retains_ineligible_work");
+assert.equal(retainedRoute.dispatch_required, false);
+assert.equal(retainedRoute.blocking_reason, "user_requested_codex_only");
+assert.equal(routeIntentTool({ request: "开启执政官模式后拆分这个任务" }).dispatch_required, true);
 
 assert.ok(existsSync(getInvokeScriptPath()), "invoke script should exist");
 

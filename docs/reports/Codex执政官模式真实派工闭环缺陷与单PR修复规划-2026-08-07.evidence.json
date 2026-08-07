@@ -1,0 +1,99 @@
+{
+  "schema": "codex-praetor-research-evidence/v1",
+  "report": "Codex执政官模式真实派工闭环缺陷与单PR修复规划-2026-08-07.md",
+  "date": "2026-08-07",
+  "research_task_id": "kr-research-57d20cc6fc3a0781",
+  "research_closeout": {
+    "status": "accepted_for_decision",
+    "quality_status": "pass",
+    "source_ecologies": {
+      "generic_web_ecology": "used",
+      "github_repository_ecology": "used",
+      "academic_literature_ecology": "used",
+      "wechat_public_article_ecology": "not_relevant",
+      "bilibili_video_ecology": "not_relevant",
+      "youtube_video_ecology": "not_relevant",
+      "zhihu_discussion_ecology": "not_relevant",
+      "xiaohongshu_experience_ecology": "not_relevant"
+    },
+    "gap_review": "no_unrecorded_gap_detected",
+    "host_boundary": "Native KnowledgeRadar tool calls were available in this turn; standard MCP does not expose Codex host call IDs to the research server."
+  },
+  "local_evidence": [
+    {
+      "id": "L1",
+      "path": "mcp/src/route-intent.ts",
+      "anchors": ["14-25", "134", "171"],
+      "fact": "route_intent returns a route and suggested next action; it does not dispatch."
+    },
+    {
+      "id": "L2",
+      "path": "mcp/src/tools.ts",
+      "anchors": ["56-64", "1187-1244"],
+      "fact": "dispatchPlanTaskTool starts only when explicitly called with a valid pending plan task."
+    },
+    {
+      "id": "L3",
+      "path": "mcp/src/server.ts",
+      "anchors": ["164-219", "415-432"],
+      "fact": "route, dry-run and plan dispatch are separate MCP tools with no automatic continuation link."
+    },
+    {
+      "id": "L4",
+      "path": "docs/reports/Codex执行官-首次真实派工门禁根因与可用性修复方案-2026-08-02.md",
+      "anchors": ["26-38", "137-157"],
+      "fact": "prior archaeology recorded evidence_context and three-success gates blocking first real work and recommended observation-only semantics."
+    },
+    {
+      "id": "L5",
+      "path": "C:\\Users\\ga990\\.codex\\plugins\\cache\\personal\\codex-praetor\\0.16.29-alpha\\skills\\codex-praetor\\SKILL.md",
+      "fact": "installed Skill cache still uses the legacy execution-officer trigger and differs from source SHA."
+    }
+  ],
+  "external_evidence": [
+    {
+      "id": "E1",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://docs.openhands.dev/sdk/arch/overview",
+      "fact": "OpenHands separates agent, conversation, tools, workspaces, events, security and lifecycle, with local and remote/sandbox modes."
+    },
+    {
+      "id": "E2",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://developers.openai.com/codex/concepts/subagents",
+      "fact": "Codex subagent workflows split independent work, expose child activity/results, and warn about extra token cost and parallel write conflicts."
+    },
+    {
+      "id": "E3",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://docs.crewai.com/en/concepts/flows",
+      "fact": "CrewAI Flows provide start/listen/router steps, state IDs, persistence, resume and aggregate usage metrics."
+    },
+    {
+      "id": "E4",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/swarm.html",
+      "fact": "AutoGen uses structured HandoffMessage and termination conditions; tool-calling and parallel handoff have explicit limits."
+    },
+    {
+      "id": "E5",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://www.codebuddy.ai/docs/zh/cli/installation",
+      "fact": "CodeBuddy documents multiple install paths, version checks, Windows support, auto-update controls and stale executable path risks."
+    },
+    {
+      "id": "E6",
+      "tool": "mcp__knowledgeradar__extract_web_page",
+      "url": "https://docs.qoder.com/en/cli/quick-start",
+      "fact": "The current extraction resolved to a compatibility/index page; no strong claim about Qoder CLI invocation is made."
+    }
+  ],
+  "target_thread_observation": {
+    "thread_id": "019fb1d6-fd7c-7532-9a7e-307ac7d914f9",
+    "trigger_turn": "019fda3d-08ff-7ec1-ad92-9199eb6aefe3",
+    "route_intent_calls": 7,
+    "dispatch_calls": 0,
+    "job_ids": 0,
+    "execution_worktrees": 0
+  }
+}

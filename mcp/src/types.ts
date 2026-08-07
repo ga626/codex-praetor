@@ -11,6 +11,17 @@ export interface RouteDecision {
   confidence: "high" | "medium" | "low";
   reason: string;
   suggested_next_action: string;
+  /** Structured continuation contract: route is never the terminal state. */
+  dispatch_required: boolean;
+  next_required_tool:
+    | "codex_praetor_plan"
+    | "codex_praetor_dispatch_dry_run"
+    | "codex_kr_primary_research"
+    | "codex_direct"
+    | "clarify";
+  delegable_subtasks: string[];
+  codex_reserved_tasks: string[];
+  blocking_reason?: string;
   matched_terms: string[];
   native_codex_subagents_allowed: boolean;
   mode_context?: "inactive" | "active" | "unavailable";

@@ -1,51 +1,38 @@
 ---
 name: codex-praetor
-description: 使用 Qoder 或 CodeBuddy CLI worker 完成受 Codex 监督的边界清楚任务。用户说“开启 Codex 执行官模式”或“开启执行官模式”后，后续实质任务持续先评估是否适合外派。
+description: 当用户说“开启执政官模式”或要求拆分、派发边界清楚的任务时，使用本机 Qoder 或 CodeBuddy CLI；Codex 负责规划、整合与验收。
 ---
 
-# Codex Praetor / Codex 执行官
+# Codex Praetor
 
-Codex 是规划者、监督者、整合者和最终验收者。Qoder 与 CodeBuddy 是受边界约束的外部 worker，不是原生 Codex subagent，也不拥有最终决定权。
+## 执政官模式（正式触发词）
 
-## Codex 执行官模式
+- 用户说“开启执政官模式”时，从下一项实质任务开始持续使用本 Skill；“打开执政官模式”“进入执政官模式”是同义触发。旧称“执行官模式”只作为历史兼容别名，不作为新的用户口径。
+- 开启后，每项实质任务仍必须先调用 route，但 route 只是分类，不是流程终点。若结果指向外部 worker，且任务存在可独立验收的子结果，Codex 必须继续完成 `plan → dry-run → dispatch`；不能因为 route 已完成、尚未有 evidence 或任务整体较大就直接回退而不检查可拆分部分。
+- 只有存在可核实的阻断（认证/隐私、生产或不可逆外部动作、缺少 provider/连接/权限、无法形成明确验收合同、或任务必须由 Codex 作最终裁决）时，才可由 Codex 接管。接管时必须向用户说明具体阻断和保留的可外派子任务。
+- 大任务默认拆成“Codex 保留的规划/敏感操作/整合验收”与“worker 执行的只读、确定性或局部修改”两部分；不能以整体复杂为由把所有工作留给 Codex。
+- `route_intent` 完成不等于已派工；真实派工只有在返回 `job_id`、`execution_worktree` 和 started 状态后才能确认。合同预检通过也不等于 worker 已启动。
 
-- 用户直接说“开启/打开/进入 Codex 执行官模式”或“开启执行官模式”时，本对话从下一项实质任务开始按本 Skill 的外派规范工作。讨论“执行官模式是什么”不触发开启。
-- 已开启时，每个实质任务先调用 `codex_praetor_route_intent`，传入当前项目。它返回的是“先评估外派”还是“Codex 保留处理”；不是自动派工承诺。
-- 可外派阶段仍须由 Codex 写出单一结果、范围、禁止路径、检查和验收标准。只读任务可执行普通 dry-run；代码修改任务必须先创建带冻结 `base_commit` 与 `immutable_paths` 的持久计划，再用 `codex_praetor_dispatch_plan_task(dry_run=true)` 做真实代码任务合同预检。预检只检查合同，不启动 worker。预检通过后才可真实派工、读取终态、检查 diff/检查并由 Codex 验收。
-- 不能外派的阶段由 Codex 自己完成，并说明原因；不要停住，也不要用原生 Codex subagent 冒充 Qoder 或 CodeBuddy。
-- 用户直接说“关闭/退出/停止 Codex 执行官模式”或简称“关闭执行官模式”时，本对话不再为后续任务主动外派。已经派出的 worker 不会被猜测归属或批量取消；若用户要停止某个已知 worker，Codex 必须用该 `job_id` 调用 `codex_praetor_cancel_job` 并读取终态回执。
-- 关键阶段用中文短回执说明当前动作、执行者、模型、连接和下一步；不展示隐藏思维链，不猜测 Codex 宿主模型。
-- 模式是当前对话上下文，不写进 MCP、项目文件、ledger 或共享数据库；新对话不会继承。MCP 不承诺识别“本对话是否已开启”。
+## 适用与边界
 
-## 派工合同
+- “拆分任务”“派给其他 agent”“交给 Qoder/CodeBuddy”默认指外部 worker，不创建原生 Codex subagent；只有用户明确指定或接受时才走原生路线。
+- 只派发边界清楚、可独立验收的只读、研究辅助或小型代码任务；无法检查、涉及认证/隐私或改变公开承诺的工作由 Codex 自己处理。Codex 保留目标、拆分、研究结论、整合和最终验收；worker 的退出码、报告和 completion 只是候选结果。
+- 只用当前本机配置允许、且已有同任务族证据的 Qoder/CodeBuddy 路由与固定模型，不默认 `auto`、付费预览或旧会话。编辑任务必须使用隔离 git worktree，候选运行时另用隔离 `UserProfileRoot`；可用网络、登录态和用户授权额度，但不得读取、输出、复制或迁移 token、cookie、认证文件、provider 数据库、缓存或 Desktop 运行时。worktree 不是 OS 沙箱。
 
-1. 先定义一个可检查结果、明确仓库范围、允许路径、禁止路径、必需检查和验收证据。
-2. 明确选择 Qoder 或 CodeBuddy；不允许 provider auto model。只读任务使用 `codex_praetor_dispatch_dry_run`。代码修改任务不能先走缺少基线字段的旧式预演：先创建计划并冻结 `base_commit`、`immutable_paths`，再使用计划任务的 `dry_run=true` 做合同预检。
-3. 真实 worker 在一次性 Git worktree 中工作；改代码任务取得仓库编辑锁。
-4. 使用 blocking completion 或 wrapper 的后台 completion 记录；不要实时轮询 worker。
-5. 只有返回 `job_id`、`execution_worktree` 和已启动状态才可说“已派工”。合同预检或模式开启都不等于 worker 已启动。由 Codex 检查 completion、日志、worktree diff 和必需检查。进程退出永远不等于验收通过。
+## 派工与验收
 
-## 安全边界
+1. 定义任务包：一件可验收的结果、允许/禁止路径、预算、所需检查和回传证据，并说明派发理由、provider、隔离范围及 Codex 保留的工作。测试任务必须声明精确检查；由 supervisor 准备依赖，worker 不得 `install`/`update` 依赖。真实代码修改必须通过 `codex_praetor_dispatch_plan_task` 的计划合同，冻结 `base_commit` 和 `immutable_paths`。
+2. 从项目根目录依次执行 route、plan、dry-run；dry-run 通过后必须继续真实 dispatch，除非记录了可核实阻断。真实编辑用 disposable worktree，多步任务写 durable plan，后台任务等 completion 事件，不高频轮询。
+3. Codex 顺序检查 `completion.json`、stdout/stderr、worktree diff/status、允许范围、成功 marker 和独立复跑，才记录 `accepted`；只有 `accepted` 可解锁依赖。拒绝、超时、无输出或遗留部分差异均为失败证据，不静默重试、合并或当作成功。
+4. 用户说“停”时，走正式取消并读取 `completion.json` 终态。共享根因修复后重跑受影响能力；发布影响 PR 必须从最终候选 artifact 重跑受影响场景和全量确定性矩阵，生成绑定 `HEAD` 与 artifact SHA 的回执，CI 只作独立复核。
 
-- 只使用官方 CLI 和现有登录状态。绝不读取、复制、输出或更改认证文件、cookie、token、provider 数据库或缓存。
-- worktree 保护项目检出，不是操作系统沙箱；只给 worker 必需的任务范围。
-- 外部调研仍由 Codex + KnowledgeRadar 主导。worker 只能在明确只读合同下提供可追溯、需监督复核的候选证据。
-- provider 拒绝、超时、超轮、没有可用输出或留下半成品 diff 时，记录终态并停止；不静默重试，也不称为成功。
-
-## 路由
-
-- During Beijing daytime, use CodeBuddy `codebuddy-free` with model `hy3` for normal bounded work.
-- During Beijing off-peak, prefer Qoder `qoder-night-cheap`; use `qoder-day-cheap` only when deliberately selected.
-- Qoder models are limited to `Qwen3.7-Plus` and `Qwen3.7-Max`; CodeBuddy models are limited to `hy3`, `deepseek-v4-flash` and `deepseek-v4-pro`.
-
-## 必需 worker packet
+## 任务提示词
 
 ```text
-Role: supervised worker.
-Scope: <repository and allowed paths>
-Task: <one concrete outcome>
-Forbidden: auth, caches, unrelated files, generated reports.
-Return: summary, files read/changed, checks run, risks or unknowns.
+你是受 Codex 监督的 worker。
+目标：<一件可验收的事>
+范围：<仓库和允许路径>；禁止：<明确禁止项>。
+完成后说明：做了什么、读/改了哪些文件、跑了什么检查、遗留风险。
 ```
 
-多步骤工作使用持久计划文件；只有 Codex 明确记录 `accepted` 才会解锁依赖任务。
+项目内的产品边界、发布流程和验收命令，以该项目的 `AGENTS.md`、能力清单和当前计划为准；不要把本 Skill 当作业务项目的额外事实源。

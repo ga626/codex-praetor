@@ -114,7 +114,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.29-alpha",
+    version: "0.16.30-alpha",
     description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执行官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
   });
 
@@ -219,7 +219,7 @@ export function createServer(): McpServer {
     "codex_praetor_route_intent",
     {
       title: "路由 Codex Praetor 任务意图",
-      description: "判断任务应先评估 Codex Praetor 外部 worker，还是由 Codex 保留处理；会读取当前执行官模式。",
+      description: "判断任务意图并返回结构化继续合同。外部 worker 路由不是终点：除非存在明确 blocking_reason，否则必须按 next_required_tool 继续计划、预演和派工。",
       annotations: readOnlyClosedWorld,
       outputSchema: structuredToolOutputSchema,
       inputSchema: {

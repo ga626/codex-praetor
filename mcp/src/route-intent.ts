@@ -13,6 +13,8 @@ const codexSubagentTerms = [
 
 const codexPraetorTerms = [
   "codex praetor",
+  "执政官模式",
+  "执政官",
   "codex 执政官",
   "codex 执行官",
   "codex-praetor",
@@ -109,6 +111,11 @@ export function routeIntent(
       confidence: "high",
       reason: "The request is empty, so no delegation intent can be classified.",
       suggested_next_action: "Ask for the task and delegation goal.",
+      dispatch_required: false,
+      next_required_tool: "clarify",
+      delegable_subtasks: [],
+      codex_reserved_tasks: [],
+      blocking_reason: "empty_request",
       matched_terms: [],
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
@@ -120,8 +127,25 @@ export function routeIntent(
   const delegationMatches = collectMatches(trimmed, delegationTerms);
   const researchMatches = collectMatches(trimmed, externalResearchTerms);
   const retainMatches = collectMatches(trimmed, codexRetainTerms);
-  const allMatches = [...new Set([...subagentMatches, ...praetorMatches, ...delegationMatches, ...researchMatches])];
+  const allMatches = [...new Set([...subagentMatches, ...praetorMatches, ...delegationMatches, ...researchMatches, ...retainMatches])];
   const rejectsNative = subagentMatches.length > 0 && rejectsNativeCodexSubagents(trimmed);
+
+  if (retainMatches.length > 0 && praetorMatches.length === 0 && delegationMatches.length === 0 && researchMatches.length === 0) {
+    return {
+      route: "codex_retains_ineligible_work",
+      confidence: "high",
+      reason: "The request explicitly keeps the work in Codex, so Codex Praetor must not create a worker.",
+      suggested_next_action: "Handle the task directly in Codex and do not call a dispatch tool.",
+      dispatch_required: false,
+      next_required_tool: "codex_direct",
+      delegable_subtasks: [],
+      codex_reserved_tasks: ["用户明确要求由 Codex 自己处理"],
+      blocking_reason: "user_requested_codex_only",
+      matched_terms: allMatches,
+      native_codex_subagents_allowed: allowNativeCodexSubagents,
+      mode_context: modeContext
+    };
+  }
 
   if (researchMatches.length > 0) {
     const workerEligible = delegationMatches.length > 0 || praetorMatches.length > 0;
@@ -133,6 +157,11 @@ export function routeIntent(
       suggested_next_action: workerEligible
         ? "Create a Codex/KR research route first, then dispatch only a readonly worker research-support contract with supervisor-verified evidence acceptance."
         : "Use KnowledgeRadar from Codex to establish the primary evidence route before considering any worker support.",
+      dispatch_required: workerEligible,
+      next_required_tool: "codex_kr_primary_research",
+      delegable_subtasks: workerEligible ? ["只读候选来源发现或独立复核"] : [],
+      codex_reserved_tasks: ["主证据检索、证据核验、冲突裁决和最终结论"],
+      ...(workerEligible ? {} : { blocking_reason: "research_authority_must_remain_with_codex_kr" }),
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext,
@@ -149,6 +178,10 @@ export function routeIntent(
       reason:
         "The request asks for delegation while explicitly rejecting native Codex subagents, so Codex Praetor external workers are the intended route.",
       suggested_next_action: "Run codex_praetor_dispatch_dry_run before any real worker dispatch.",
+      dispatch_required: true,
+      next_required_tool: "codex_praetor_plan",
+      delegable_subtasks: ["只读考古、固定测试、局部代码修改或受监督的研究辅助"],
+      codex_reserved_tasks: ["任务拆分、敏感操作、结果整合和最终验收"],
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
@@ -161,6 +194,11 @@ export function routeIntent(
       confidence: "high",
       reason: "The user explicitly mentioned native Codex subagents and allowed that route.",
       suggested_next_action: "Use native Codex subagents only if the task benefits from Codex-token parallelism.",
+      dispatch_required: false,
+      next_required_tool: "codex_direct",
+      delegable_subtasks: [],
+      codex_reserved_tasks: ["原生 Codex subagent 路线不由 Codex Praetor MCP 启动"],
+      blocking_reason: "native_codex_subagent_is_outside_codex_praetor",
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
@@ -173,6 +211,11 @@ export function routeIntent(
       confidence: "medium",
       reason: "The request mentions Codex subagents, but this tool does not dispatch native Codex subagents.",
       suggested_next_action: "Ask whether the user wants native Codex subagents or Codex Praetor external CLI workers.",
+      dispatch_required: false,
+      next_required_tool: "clarify",
+      delegable_subtasks: [],
+      codex_reserved_tasks: [],
+      blocking_reason: "native_route_not_authorized",
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
@@ -189,6 +232,10 @@ export function routeIntent(
           ? "The request contains Codex Praetor, cost-saving, provider, or external-worker terms."
           : "The request asks for delegation to other agents; without explicit native Codex subagent wording, Codex Praetor is the safer cost-control route.",
       suggested_next_action: "Run codex_praetor_dispatch_dry_run before any real worker dispatch.",
+      dispatch_required: true,
+      next_required_tool: "codex_praetor_plan",
+      delegable_subtasks: ["只读考古、固定测试、局部代码修改或受监督的研究辅助"],
+      codex_reserved_tasks: ["任务拆分、敏感操作、结果整合和最终验收"],
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
@@ -200,6 +247,11 @@ export function routeIntent(
     confidence: "medium",
     reason: "No cost-saving, external-worker, or delegation terms were detected.",
     suggested_next_action: "Handle the task directly, or ask whether the user wants Codex Praetor delegation.",
+    dispatch_required: false,
+    next_required_tool: "codex_direct",
+    delegable_subtasks: [],
+    codex_reserved_tasks: ["当前请求未表达外派意图"],
+    blocking_reason: "no_delegation_intent",
     matched_terms: allMatches,
     native_codex_subagents_allowed: allowNativeCodexSubagents,
     mode_context: modeContext
