@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.30-alpha
+
+- Added a structured route continuation contract so external-worker routing cannot be mistaken for a completed dispatch: `dispatch_required`, `next_required_tool`, delegable subtasks, Codex-reserved work, and explicit blocking reasons are returned and covered by regression tests.
+- Standardized the user-facing Skill trigger on “执政官模式” while retaining the supervised route → plan → dry-run → dispatch contract.
+- Kept the candidate activation, Qoder China `stream-json`, and CodeBuddy ACP delivery guarantees from 0.16.29-alpha.
+
 ## 0.16.29-alpha
 
 - Hardened candidate activation with durable host-exit state, exact cache-generation checks, and idempotent reuse of the verified artifact.
