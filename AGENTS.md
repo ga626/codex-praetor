@@ -8,6 +8,13 @@
 - 每项派工先有单一结果、允许/禁止路径、所需检查和验收标准；provider 只接已获同任务族证据的任务。completion、stdout/stderr、worktree、独立复跑和 readiness 一致才可 accepted；拒绝、超时、无输出或遗留差异均为失败证据，不静默重试或合并。
 - 发布制品硬门：发布构建只能从干净提交生成；工作树有已跟踪或未跟踪差异时，`-Apply` 构建必须失败。候选激活只能走 `activate-pr-candidate.ps1` 下载并校验 PR CI 保留的 artifact；本地 ZIP、未提交版本或没有 `codex-praetor-release-candidate/v1` receipt 的制品不得进入 stable、宿主缓存或任何发布证据。
 
+## 主目录与 worktree 收口
+
+- 主目录只承载当前 `main` 或一个正在准备的 `codex/<topic>` PR；开始普通开发前先从 `main` 建分支。合并完成后，收口硬门是 `fetch origin main --prune`、切回 `main`、快进到 `origin/main`、核对 `HEAD == origin/main`，再报告工作树状态。远端已删除的候选分支不能继续作为主目录的日常基线。
+- `.codex/` 与 `Microsoft/` 是本机 Codex/PowerShell 运行产物，不是产品源码、候选制品或发布输入，必须保持 Git 忽略；不得把它们加入 PR。`docs/reports/` 下未跟踪的报告属于用户本地材料，若与远端同名，先做内容哈希比较并归档副本，禁止静默覆盖或删除。
+- 仅当 worktree 有匹配的项目 ownership 记录、关联任务已终态、无进程占用、工作树干净且分支已进入 `origin/main` 时，才可由 `scripts/maintenance/clean-codex-praetor-runtime.ps1 -Apply` 退役。未登记、未合并或有差异的 worktree 必须保留并列为待审计；需要回收差异时，先把差异与 completion 回执归档到项目运行根，再单独删除。
+- 每次 PR 收口后运行一次 cleanup dry-run 并记录候选数；只对已审阅的 eligible 项执行 `-Apply`，随后执行 `git worktree prune`。这一步回收派工副本，不得触碰 Codex Desktop 管理的认证、插件缓存或其他项目目录。
+
 ## 发布影响 PR
 
 - 改 `plugin/`、`mcp/`、`skill/`、安装/排错/发布路径、版本、用户体验或公开能力即为发布影响 PR；同一 PR 更新版本面、changelog、release notes、`config/release-intent.json` 和能力清单。

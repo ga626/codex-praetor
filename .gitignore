@@ -3,6 +3,12 @@
 *.worktrees/
 .codex-praetor/
 
+# Local Codex Desktop and PowerShell runtime artifacts
+# These are project-local evidence, caches, and disposable worktrees. They are
+# never product source or a release input.
+.codex/
+Microsoft/
+
 # Logs and temporary outputs
 *.log
 *.tmp
