@@ -27,10 +27,12 @@ function run(file: string, args: string[]) {
 try {
   mkdirSync(repo, { recursive: true });
   writeFileSync(path.join(repo, "README.md"), "fixture\n", "utf8");
+  mkdirSync(path.join(repo, "baseline-directory"), { recursive: true });
+  writeFileSync(path.join(repo, "baseline-directory", "immutable.txt"), "fixture\n", "utf8");
   run("git", ["-C", repo, "init", "-q"]);
   run("git", ["-C", repo, "config", "user.email", "evaluation-dispatch@example.invalid"]);
   run("git", ["-C", repo, "config", "user.name", "Codex Praetor test"]);
-  run("git", ["-C", repo, "add", "README.md"]);
+  run("git", ["-C", repo, "add", "README.md", "baseline-directory/immutable.txt"]);
   run("git", ["-C", repo, "commit", "-qm", "fixture"]);
 
   const config = JSON.parse(readFileSync(path.join(projectRoot, "config", "codex-praetor-tiers.example.json"), "utf8").replace(/^\uFEFF/, ""));
@@ -76,6 +78,48 @@ try {
   assert.equal(realCodePreflightRecord.real_worktree, true);
   assert.equal(realCodePreflightRecord.base_commit, baseCommit);
   assert.deepEqual(realCodePreflightRecord.immutable_paths, ["README.md"]);
+
+  const unknownTier = await dispatchDryRunTool({
+    repo,
+    task: "Reject an unknown tier before a worker starts.",
+    provider: "qoder",
+    tier: "conservative",
+    task_kind: "test_execution",
+    allowed_paths: ["README.md"],
+    forbidden_paths: [".git", "**/*auth*"],
+    required_checks: ["git diff --exit-code"],
+    budget: { max_wall_seconds: 300 }
+  });
+  assert.equal(unknownTier.ok, false);
+  assert.equal((unknownTier as Record<string, unknown>).failure_class, "unknown_tier");
+  assert.equal((unknownTier as Record<string, unknown>).field, "tier");
+  assert.equal((unknownTier as Record<string, unknown>).retryable_without_worker, true);
+
+  const absoluteImmutable = await dispatchDryRunTool({
+    repo,
+    task: "Reject absolute immutable paths before a worker starts.",
+    provider: "qoder",
+    tier: "qoder-day-cheap",
+    task_kind: "code_change",
+    mode: "edit",
+    base_commit: baseCommit,
+    immutable_paths: [path.join(repo, "README.md")]
+  });
+  assert.equal(absoluteImmutable.ok, false);
+  assert.equal((absoluteImmutable as Record<string, unknown>).failure_class, "invalid_immutable_path");
+
+  const directoryImmutable = await dispatchDryRunTool({
+    repo,
+    task: "Reject directory immutable paths before a worker starts.",
+    provider: "qoder",
+    tier: "qoder-day-cheap",
+    task_kind: "code_change",
+    mode: "edit",
+    base_commit: baseCommit,
+    immutable_paths: ["baseline-directory"]
+  });
+  assert.equal(directoryImmutable.ok, false);
+  assert.equal((directoryImmutable as Record<string, unknown>).failure_class, "immutable_path_not_file");
 
   const planRoot = path.join(repo, ".codex-praetor", "plans");
   const preparation = run("powershell.exe", [

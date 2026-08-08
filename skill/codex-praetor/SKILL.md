@@ -22,7 +22,7 @@ description: 当用户说“开启执政官模式”或要求拆分、派发边�
 ## 派工与验收
 
 1. 定义任务包：一件可验收的结果、允许/禁止路径、预算、所需检查和回传证据，并说明派发理由、provider、隔离范围及 Codex 保留的工作。测试任务必须声明精确检查；由 supervisor 准备依赖，worker 不得 `install`/`update` 依赖。真实代码修改必须通过 `codex_praetor_dispatch_plan_task` 的计划合同，冻结 `base_commit` 和 `immutable_paths`。
-2. 从项目根目录依次执行 route、plan、dry-run；dry-run 通过后必须继续真实 dispatch，除非记录了可核实阻断。真实编辑用 disposable worktree，多步任务写 durable plan，后台任务等 completion 事件，不高频轮询。
+2. 从项目根目录依次执行 route、plan、dry-run；dry-run 通过后必须继续真实 dispatch，除非记录了可核实阻断。dry-run 失败先读取结构化 `failure_class`、`field`、`next_action`，修正合同后再预演；不得把合同失败归因于 provider，也不得直接把可拆任务收回 Codex。真实编辑用 disposable worktree，多步任务写 durable plan，后台任务等 completion 事件，不高频轮询。
 3. Codex 顺序检查 `completion.json`、stdout/stderr、worktree diff/status、允许范围、成功 marker 和独立复跑，才记录 `accepted`；只有 `accepted` 可解锁依赖。拒绝、超时、无输出或遗留部分差异均为失败证据，不静默重试、合并或当作成功。
 4. 用户说“停”时，走正式取消并读取 `completion.json` 终态。共享根因修复后重跑受影响能力；发布影响 PR 必须从最终候选 artifact 重跑受影响场景和全量确定性矩阵，生成绑定 `HEAD` 与 artifact SHA 的回执，CI 只作独立复核。
 
