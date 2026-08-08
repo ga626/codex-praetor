@@ -242,9 +242,16 @@ function ConvertTo-TaskMaterial {
     if ([string]::IsNullOrWhiteSpace([string]$material.baseline_command) -or [int]$material.baseline_exit_code -lt 1) { throw "Task material baseline contract is invalid." }
     if (@($material.files).Count -eq 0 -or @($material.write_set).Count -eq 0 -or @($material.immutable_paths).Count -eq 0) { throw "Task material file, write-set, or immutable-path contract is empty." }
     $destination = Get-SafeRelativePath -PathValue ([string]$material.destination)
+    $declaredFiles = @{}
+    foreach ($entry in @($material.files)) {
+        if (-not ($entry.PSObject.Properties.Name -contains 'path')) { throw "Task material file manifest is missing path." }
+        $entryPath = Get-SafeRelativePath -PathValue ([string]$entry.path)
+        $declaredFiles[(Join-Path $destination $entryPath).Replace('\\', '/').ToLowerInvariant()] = $true
+    }
     foreach ($pathValue in @($material.write_set) + @($material.immutable_paths)) {
         $relative = Get-SafeRelativePath -PathValue ([string]$pathValue)
         if (-not $relative.StartsWith($destination + '\\', [StringComparison]::OrdinalIgnoreCase)) { throw "Task material path is outside its destination: $pathValue" }
+        if (-not $declaredFiles.ContainsKey($relative.Replace('\\', '/').ToLowerInvariant())) { throw "Task material path must name a declared leaf file, not a directory or undeclared path: $pathValue" }
     }
     return $material
 }

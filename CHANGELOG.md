@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.31-alpha
+
+- 修复派工合同预检失败缺少结构化恢复信息的问题，并拒绝绝对路径、目录路径和未声明材料。
+- 补充未知 tier、路径合同和无 worker 启动回归测试。
+
 ## 0.16.30-alpha
 
 - Added a structured route continuation contract so external-worker routing cannot be mistaken for a completed dispatch: `dispatch_required`, `next_required_tool`, delegable subtasks, Codex-reserved work, and explicit blocking reasons are returned and covered by regression tests.

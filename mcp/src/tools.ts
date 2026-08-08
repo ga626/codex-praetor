@@ -71,6 +71,126 @@ function appendResearchContract(task: string, contract?: ResearchContract): stri
   return `${task}\n\nResearch authority: Codex/KR is primary. You are a bounded supporting worker.\nMode: ${contract.worker_research_mode}\nClaims: ${contract.claim_scope.join("; ")}\nSource scope: ${contract.source_scope.join("; ")}\nEvidence acceptance: supervisor verified only.\nOutput every candidate with URL, retrieval time, excerpt, claim, and uncertainty. Do not present final conclusions.`;
 }
 
+type DispatchPreflightFailure = {
+  failure_class: string;
+  field: string;
+  expected: string | string[];
+  observed: string;
+  next_action: string;
+  retryable_without_worker: boolean;
+};
+
+function preflightFailure(input: {
+  repo: string;
+  baseCommit?: string;
+  taskKind?: WorkerTaskKind;
+  immutablePaths?: string[];
+}): DispatchPreflightFailure | undefined {
+  const immutablePaths = input.immutablePaths ?? [];
+  if (input.taskKind !== "code_change") {
+    if (immutablePaths.length > 0) {
+      return {
+        failure_class: "immutable_paths_not_applicable",
+        field: "immutable_paths",
+        expected: "local_audit and test_execution omit immutable_paths; reserve them for frozen code_change contracts.",
+        observed: immutablePaths.join(", "),
+        next_action: "Remove immutable_paths and rerun the dry-run. No worker was started.",
+        retryable_without_worker: true
+      };
+    }
+    return undefined;
+  }
+
+  if (!/^[0-9a-f]{40}$/i.test(input.baseCommit ?? "")) {
+    return {
+      failure_class: "missing_frozen_base_commit",
+      field: "base_commit",
+      expected: "a 40-character git commit for every code_change contract",
+      observed: String(input.baseCommit ?? ""),
+      next_action: "Create the plan from the target repository HEAD, freeze base_commit, then rerun the dry-run.",
+      retryable_without_worker: true
+    };
+  }
+  if (immutablePaths.length === 0) {
+    return {
+      failure_class: "missing_immutable_paths",
+      field: "immutable_paths",
+      expected: "one or more repository-relative files that must not change",
+      observed: "",
+      next_action: "Declare only individual baseline files in immutable_paths, then rerun the dry-run.",
+      retryable_without_worker: true
+    };
+  }
+
+  for (const immutablePath of immutablePaths) {
+    const value = immutablePath.trim().replace(/\\/g, "/");
+    if (!value || path.isAbsolute(value) || value === "." || value.startsWith("../") || value.includes("/../")) {
+      return {
+        failure_class: "invalid_immutable_path",
+        field: "immutable_paths",
+        expected: "a repository-relative file path, never an absolute or parent path",
+        observed: immutablePath,
+        next_action: "Keep authentication and other forbidden paths in forbidden_paths; list only a relative file that exists at base_commit here.",
+        retryable_without_worker: true
+      };
+    }
+    try {
+      const objectType = execFileSync("git", ["-C", input.repo, "cat-file", "-t", `${input.baseCommit}:${value}`], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"]
+      }).trim();
+      if (objectType !== "blob") {
+        return {
+          failure_class: "immutable_path_not_file",
+          field: "immutable_paths",
+          expected: "a repository-relative file (git blob), not a directory",
+          observed: immutablePath,
+          next_action: "Replace the directory with the specific baseline files that must remain unchanged, then rerun the dry-run.",
+          retryable_without_worker: true
+        };
+      }
+    } catch {
+      return {
+        failure_class: "immutable_path_missing_at_base",
+        field: "immutable_paths",
+        expected: `a file present at ${input.baseCommit}`,
+        observed: immutablePath,
+        next_action: "Correct the path or refresh the frozen base_commit, then rerun the dry-run.",
+        retryable_without_worker: true
+      };
+    }
+  }
+  return undefined;
+}
+
+function classifyDispatchFailure(stderr: string): DispatchPreflightFailure | undefined {
+  const text = stderr.trim();
+  const unknownTier = /Unknown tier '([^']+)'\. Known tiers:\s*([^\r\n]+)/i.exec(text);
+  if (unknownTier) {
+    const candidates = unknownTier[2].split(",").map((value) => value.trim()).filter(Boolean);
+    return {
+      failure_class: "unknown_tier",
+      field: "tier",
+      expected: candidates,
+      observed: unknownTier[1],
+      next_action: `Choose one of the configured tiers (${candidates.join(", ")}) or omit tier to use the configured default, then rerun the dry-run.`,
+      retryable_without_worker: true
+    };
+  }
+  const materialPath = /Task material path is outside its destination:\s*([^\r\n]+)/i.exec(text);
+  if (materialPath) {
+    return {
+      failure_class: "task_material_path_outside_destination",
+      field: "task_material",
+      expected: "only declared relative files under task_material.destination",
+      observed: materialPath[1].trim(),
+      next_action: "Keep protected directories and authentication paths in forbidden_paths; regenerate code-change task material before retrying.",
+      retryable_without_worker: true
+    };
+  }
+  return undefined;
+}
+
 export function routeIntentTool(input: {
   request: string;
   repo?: string;
@@ -253,6 +373,30 @@ export async function dispatchDryRunTool(input: {
 }) {
   const repo = resolveExistingRepo(input.repo);
   assertResearchContract(input);
+  const contractFailure = preflightFailure({
+    repo,
+    baseCommit: input.base_commit,
+    taskKind: input.task_kind,
+    immutablePaths: input.immutable_paths
+  });
+  if (contractFailure) {
+    return {
+      display: {
+        阶段: "派工合同预检",
+        状态: "未启动 worker，合同需要修正",
+        原因: contractFailure.failure_class,
+        下一步: contractFailure.next_action
+      },
+      ok: false,
+      exit_code: 2,
+      repo,
+      task: input.task,
+      failure: contractFailure,
+      ...contractFailure,
+      stdout: "",
+      stderr: ""
+    };
+  }
   const realWorktree = input.real_worktree ?? input.task_kind === "code_change";
   const isCodeChangePreflight = input.task_kind === "code_change" && realWorktree;
   const result = await runPowerShell(
@@ -269,6 +413,7 @@ export async function dispatchDryRunTool(input: {
     { timeoutMs: 120_000 }
   );
   const fields = parseKeyValueOutput(result.stdout);
+  const failure = result.exitCode === 0 ? undefined : classifyDispatchFailure(`${result.stderr}\n${result.stdout}`);
   return {
     display: {
       阶段: isCodeChangePreflight ? "真实代码任务合同预检" : "派工预演",
@@ -278,7 +423,7 @@ export async function dispatchDryRunTool(input: {
       连接: connectionDisplayName(fields.connection_mode ?? ""),
       下一步: result.exitCode === 0
         ? "合同已检查；Codex 仍需决定是否启动真实 worker。"
-        : "修复任务合同、基线或范围后重试；此结果不代表 worker 已启动或 provider 已失败。"
+        : failure?.next_action ?? "修复任务合同、基线或范围后重试；此结果不代表 worker 已启动或 provider 已失败。"
     },
     ok: result.exitCode === 0,
     exit_code: result.exitCode,
@@ -304,6 +449,13 @@ export async function dispatchDryRunTool(input: {
     plan_root: fields.plan_root ?? "",
     scratch_root: fields.scratch_root ?? "",
     command: fields.command ?? "",
+    failure,
+    failure_class: failure?.failure_class ?? "",
+    field: failure?.field ?? "",
+    expected: failure?.expected ?? "",
+    observed: failure?.observed ?? "",
+    next_action: failure?.next_action ?? "",
+    retryable_without_worker: failure?.retryable_without_worker ?? false,
     stdout: result.stdout,
     stderr: result.stderr
   };

@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.30-alpha",
-    "previous_version":  "0.16.29-alpha",
-    "tag":  "v0.16.30-alpha",
+    "version":  "0.16.31-alpha",
+    "previous_version":  "0.16.30-alpha",
+    "tag":  "v0.16.31-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.30-alpha.zip",
-    "reason":  "修复执政官模式只完成 route_intent、没有继续计划预演和真实派工的控制面缺陷：Skill 明确 route→plan→dry-run→dispatch 连续推进，RouteDecision 返回 dispatch_required、next_required_tool、可拆子任务、Codex 保留项和阻断原因；发布候选继续绑定同一 ZIP、Desktop host、真实 worker job、隔离 worktree、completion 和 Codex 验收，不能把 route、runtime_info 或 health 误当成已派工。中国版 Qoder 仍使用官方 stream-json 路线，CodeBuddy ACP 仍是既定连接路线。"
+    "artifact":  "codex-praetor-setup-0.16.31-alpha.zip",
+    "reason":  "修复执政官模式首次派工的合同恢复缺陷：未知 tier、绝对路径和目录型 immutable_paths 会在 worker 启动前返回结构化失败、候选值和下一步动作；代码修改只接受冻结 base_commit 中存在的相对文件，认证和受保护目录继续仅由 forbidden_paths 表达。Qoder 中国版仍使用官方 stream-json，CodeBuddy ACP 仍是既定连接路线；本次不改变 provider、模型或认证边界。"
 }
