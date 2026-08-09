@@ -51,6 +51,7 @@ import {
   evaluationSuiteTool,
   explainableRouteTool,
   providerOperationsTool,
+  dispatchReadinessTool,
   dispatchPlanTaskTool,
   dispatchDryRunTool,
   dispatchTool,
@@ -114,7 +115,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.31-alpha",
+    version: "0.16.32-alpha",
     description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执行官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
   });
 
@@ -297,10 +298,37 @@ export function createServer(): McpServer {
   );
 
   server.registerTool(
+    "codex_praetor_dispatch_readiness",
+    {
+      title: "检查本任务的精确派工就绪状态",
+      description: "解析本次任务实际会使用的 provider、模型和连接，并只读判断它可直接派工、可由同一真实任务建立首用证据，还是被合同、认证或传输问题阻断；不会创建 job、worktree 或 worker。",
+      annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: {
+        repo: z.string().min(1),
+        task: z.string().min(1),
+        provider: z.enum(["auto", "qoder", "codebuddy"]).optional(),
+        tier: z.string().optional(),
+        mode: z.enum(["readonly", "edit"]),
+        task_kind: z.enum(["local_audit", "test_execution", "code_change", "external_research_support"]),
+        task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
+        acceptance: z.string().min(1),
+        allowed_paths: z.array(z.string().min(1)).min(1),
+        forbidden_paths: z.array(z.string().min(1)).min(1),
+        required_checks: z.array(z.string().min(1)).min(1),
+        budget: boundedTaskBudgetSchema,
+        base_commit: z.string().regex(/^[0-9a-f]{40}$/i).optional(),
+        immutable_paths: z.array(z.string().min(1)).optional()
+      }
+    },
+    async (input) => asJsonContent(await dispatchReadinessTool(input))
+  );
+
+  server.registerTool(
     "codex_praetor_dispatch",
     {
       title: "派发 Codex Praetor worker",
-      description: "仅在精确任务族已有合格能力证据时启动真实 worker，并返回供 Codex 后续验收的任务元数据。",
+      description: "兼容的低层派工入口：真实 worker 必须已绑定 durable plan task。未绑定计划的调用会返回 use_dispatch_plan_task，绝不会把模式首用任务卡在通用 readiness gate。",
       annotations: additiveProjectLocalWrite,
       outputSchema: structuredToolOutputSchema,
       inputSchema: {

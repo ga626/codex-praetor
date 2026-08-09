@@ -40,8 +40,8 @@ function statusFor(profile: RecordValue | undefined, readiness: RecordValue[]) {
   if (profileStatus === "blocked") return { status: "暂不可派", next_action: "先处理最近的明确阻断原因，再重新 canary；不得自动重试。" };
   if (profileStatus === "cooling_down") return { status: "冷却中", next_action: "等待冷却结束；仅对短暂故障执行有界重试，不能改为无限重派。" };
   if (profileStatus === "stale") return { status: "证据过期", next_action: "重新运行当前 generation 的 canary 和小型同任务族验证。" };
-  if (currentReadiness) return { status: "能派", next_action: "可直接派发完整、受控的真实用户任务；仍须逐项检查范围、预算、权限和验收。" };
-  return { status: "待就绪", next_action: "先完成当前 worker 身份的无付费 readiness 检查；不要为凑历史记录创建额外真实任务。" };
+  if (currentReadiness) return { status: "有当前回执", next_action: "这是 provider 库存，不代表任意任务可派；对本次任务调用 codex_praetor_dispatch_readiness，再通过计划任务派发。" };
+  return { status: "没有当前回执", next_action: "对本次任务调用 codex_praetor_dispatch_readiness；若为 bootstrap_eligible，只能由同一真实用户计划任务建立证据，不能创建额外热身任务。" };
 }
 
 export function providerOperationsTool(input: { repo: string; task_family?: TaskFamily; readiness_entries?: RecordValue[] }) {
@@ -62,6 +62,8 @@ export function providerOperationsTool(input: { repo: string; task_family?: Task
       display_name: asString(adapter.display_name) || provider,
       user_status: status.status,
       next_action: status.next_action,
+      readiness_inventory: matchingReadiness.length > 0 ? "current_receipts_present" : "no_current_receipts",
+      dispatch_readiness: "requires_exact_task_preflight",
       task_family: input.task_family ?? "all",
       current_readiness_count: matchingReadiness.length,
       evidence_status: asString(profile?.status) || "unknown",

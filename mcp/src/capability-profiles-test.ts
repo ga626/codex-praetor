@@ -156,6 +156,8 @@ try {
   assert.equal(legacyReadiness.providers.find((item) => item.provider === "qoder")?.current_readiness_count, 0, "legacy readiness without a worker receipt must not authorize a provider");
   const evidencedReadiness = providerOperationsTool({ repo: root, readiness_entries: [{ provider: "qoder", status: "passed", runtime_contract_sha256: contractHash, evidence: { schema: "codex-praetor-canary-evidence/v1", job_id: "fixture", worker_stdout_sha256: "a", completion_sha256: "b", completion_status: "process_exited", worker_exit_code: 0, failure_class: "" } }] });
   assert.equal(evidencedReadiness.providers.find((item) => item.provider === "qoder")?.current_readiness_count, 1, "a complete canary receipt must remain observable");
+  assert.equal(evidencedReadiness.providers.find((item) => item.provider === "qoder")?.user_status, "有当前回执", "provider inventory must not overclaim that an arbitrary task is dispatch-ready");
+  assert.equal(evidencedReadiness.providers.find((item) => item.provider === "qoder")?.dispatch_readiness, "requires_exact_task_preflight");
   for (const name of ["qoder", "codebuddy"]) {
     const adapter = JSON.parse(readFileSync(path.join(projectRoot, "config", "provider-adapters", `${name}.json`), "utf8"));
     assert.equal(adapter.schema, "codex-praetor-provider-adapter/v1");
