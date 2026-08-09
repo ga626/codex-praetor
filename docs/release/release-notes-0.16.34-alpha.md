@@ -7,3 +7,5 @@
 - 对已证明“拒绝前无 diff、无副作用”的同一计划任务，新增一次透明的 `codex_praetor_recover_plan_task` 受控转交：CodeBuddy `hy3` 与当前时段的 Qoder `Qwen3.7-Plus` 可互为一次备选。超时、网络状态未知、已有改动、检查失败和第二次失败不会自动重派。
 
 本版本不自动更新模型、不选择 Auto/全球版/未验证候选模型，也不读取账号、积分或认证数据。
+
+Qoder 中国版仍使用既定的 `stream-json` 连接层，CodeBuddy 仍使用 ACP；既有的受控进程取消（controlled process cancellation）、终态回执与隔离 worktree 边界保持不变。
