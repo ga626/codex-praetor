@@ -39,6 +39,7 @@ const requiredTools = [
   "codex_praetor_route_intent",
   "codex_praetor_runtime_info",
   "codex_praetor_dispatch_dry_run",
+  "codex_praetor_dispatch_readiness",
   "codex_praetor_dispatch",
   "codex_praetor_plan",
   "codex_praetor_list_jobs",
@@ -121,6 +122,7 @@ function readPublicCapabilities() {
 const expectedReadOnlyTools = [
   "codex_praetor_route_intent",
   "codex_praetor_dispatch_dry_run",
+  "codex_praetor_dispatch_readiness",
   "codex_praetor_list_jobs",
   "codex_praetor_list_lanes",
   "codex_praetor_get_lane",

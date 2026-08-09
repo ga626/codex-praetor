@@ -61,10 +61,18 @@
     {
       "id": "provider.dispatch",
       "audience": "installed_plugin",
-      "entry": { "kind": "mcp_tool", "name": "codex_praetor_dispatch" },
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_dispatch_plan_task" },
       "package_requirements": ["plugin/mcp/dist/server.js", "plugin/mcp/dist/qoder-sdk-runner.js", "plugin/mcp/dist/codebuddy-acp-runner.js", "plugin/skills/codex-praetor/scripts/invoke-codex-praetor.ps1", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1", "plugin/skills/codex-praetor/scripts/test-codex-praetor-capability-evidence.ps1", "plugin/skills/codex-praetor/scripts/record-codex-praetor-readiness.ps1"],
       "scenario": "provider_contract",
       "risk_tier": "external_provider"
+    },
+    {
+      "id": "provider.dispatch-readiness",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_dispatch_readiness" },
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/scripts/invoke-codex-praetor.ps1", "plugin/skills/codex-praetor/scripts/resolve-codex-praetor-readiness.ps1"],
+      "scenario": "provider_contract",
+      "risk_tier": "deterministic_artifact"
     },
     {
       "id": "provider.code-change-user-path",

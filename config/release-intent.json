@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.31-alpha",
-    "previous_version":  "0.16.30-alpha",
-    "tag":  "v0.16.31-alpha",
+    "version":  "0.16.32-alpha",
+    "previous_version":  "0.16.31-alpha",
+    "tag":  "v0.16.32-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.31-alpha.zip",
-    "reason":  "修复执政官模式首次派工的合同恢复缺陷：未知 tier、绝对路径和目录型 immutable_paths 会在 worker 启动前返回结构化失败、候选值和下一步动作；代码修改只接受冻结 base_commit 中存在的相对文件，认证和受保护目录继续仅由 forbidden_paths 表达。Qoder 中国版仍使用官方 stream-json，CodeBuddy ACP 仍是既定连接路线；本次不改变 provider、模型或认证边界。"
+    "artifact":  "codex-praetor-setup-0.16.32-alpha.zip",
+    "reason":  "修复执政官模式被识别后仍可能从通用派工入口停在 readiness gate 的控制面缺陷：真实派工统一绑定 durable plan task，新增 exact tuple readiness 预检和计划账本状态，并让首用 bootstrap 使用同一真实用户任务已解析的 provider、模型、分发与连接。Qoder 中国版仍使用官方 stream-json，Qoder Agent SDK 与 CodeBuddy ACP 仍是既定连接路线；本次不改变模型、认证边界或自动 fallback 策略。"
 }

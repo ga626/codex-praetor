@@ -188,6 +188,36 @@ function classifyDispatchFailure(stderr: string): DispatchPreflightFailure | und
       retryable_without_worker: true
     };
   }
+  if (/Provider readiness gate blocked/i.test(text)) {
+    return {
+      failure_class: "exact_tuple_bootstrap_required",
+      field: "provider_readiness",
+      expected: "a matching exact tuple receipt, or one durable real-user plan task eligible to bootstrap that same tuple",
+      observed: text,
+      next_action: "Use codex_praetor_dispatch_plan_task for the same durable task. Do not create a separate warm-up worker or retry the generic dispatch.",
+      retryable_without_worker: true
+    };
+  }
+  if (/(login required|not logged in|unauthorized|authentication required|authentication failed|authorization required|auth required|invalid token|token expired)/i.test(text)) {
+    return {
+      failure_class: "provider_auth_required",
+      field: "provider_authentication",
+      expected: "an existing provider login or authorization in the user's own provider client",
+      observed: text,
+      next_action: "Stop dispatching. Complete the provider's official login or authorization flow; do not copy credentials into the plan or switch providers silently.",
+      retryable_without_worker: false
+    };
+  }
+  if (/(network timeout|timed out|connection reset|connection refused|dns|tls|econnreset|econnrefused)/i.test(text)) {
+    return {
+      failure_class: "network_timeout",
+      field: "transport",
+      expected: "a working provider transport under the current configured route",
+      observed: text,
+      next_action: "Keep the same plan task pending, diagnose the configured transport, then retry only after the transport check succeeds.",
+      retryable_without_worker: false
+    };
+  }
   return undefined;
 }
 
@@ -503,6 +533,7 @@ function buildDispatchArgs(input: {
   base_commit?: string;
   immutable_paths?: string[];
   evidence_bootstrap?: boolean;
+  readiness_probe?: boolean;
   no_notify?: boolean;
 }) {
   const args = [
@@ -561,6 +592,9 @@ function buildDispatchArgs(input: {
   }
   if (input.evidence_bootstrap) {
     args.push("-EvidenceBootstrap");
+  }
+  if (input.readiness_probe) {
+    args.push("-ReadinessProbe");
   }
 
   if (input.dry_run) {
@@ -776,6 +810,27 @@ export async function dispatchTool(input: {
   const repo = resolveExistingRepo(input.repo);
   const isDryRun = input.dry_run === true;
   assertResearchContract(input);
+  if (!isDryRun && (!input.plan_id?.trim() || !input.task_id?.trim())) {
+    return {
+      ok: false,
+      exit_code: 2,
+      repo,
+      task: input.task,
+      job_id: "",
+      job_created: false,
+      worker_started: false,
+      failure_class: "use_dispatch_plan_task",
+      next_action: "先用 codex_praetor_plan 创建带范围、预算和验收标准的 durable task，再调用 codex_praetor_dispatch_plan_task。通用派工入口不能启动首用或执政官模式任务。",
+      display: {
+        阶段: "派工入口收敛",
+        状态: "未启动 worker",
+        原因: "真实派工必须绑定 durable plan task",
+        下一步: "调用 codex_praetor_plan → codex_praetor_dispatch_plan_task；不要把本结果说成已尝试派工。"
+      },
+      stdout: "",
+      stderr: ""
+    };
+  }
   const runMode = input.run_mode ?? "background";
   const result = await runPowerShell(
     buildDispatchArgs({
@@ -793,6 +848,7 @@ export async function dispatchTool(input: {
   const completion =
     completionPath && existsSync(completionPath) ? (readJsonFile(completionPath) as Record<string, unknown>) : null;
 
+  const failure = result.exitCode === 0 ? undefined : classifyDispatchFailure(`${result.stderr}\n${result.stdout}`);
   return {
     display: {
       阶段: isDryRun ? "预演 worker 派工" : "已派发 worker",
@@ -800,7 +856,7 @@ export async function dispatchTool(input: {
       执行者: providerDisplayName(fields.provider ?? input.provider ?? "auto"),
       模型: String(fields.model ?? ""),
       连接: connectionDisplayName(fields.connection_mode ?? ""),
-      下一步: result.exitCode === 0 ? (isDryRun ? "未创建 job；Codex 可据此决定是否真实派工。" : "worker 终态后由 Codex 检查 diff、范围和测试。") : "读取失败分类后决定恢复、改派或由 Codex 接管。"
+      下一步: result.exitCode === 0 ? (isDryRun ? "未创建 job；Codex 可据此决定是否真实派工。" : "worker 终态后由 Codex 检查 diff、范围和测试。") : failure?.next_action ?? "读取失败分类后决定恢复、改派或由 Codex 接管。"
     },
     ok: result.exitCode === 0,
     exit_code: result.exitCode,
@@ -832,7 +888,93 @@ export async function dispatchTool(input: {
         : "blocking worker 已退出；仍需 Codex 验收输出和改动。",
     job_created: !isDryRun && Boolean(fields.job_id),
     worker_started: !isDryRun && fields.pid !== "pending" && Boolean(fields.pid),
+    failure,
+    failure_class: failure?.failure_class ?? "",
+    next_action: failure?.next_action ?? "",
     transport_recovery: !isDryRun && Boolean(fields.job_id) ? `宿主断线时调用 codex_praetor_job_timeline，job_id=${fields.job_id}；不要重复创建任务。` : "",
+    stdout: result.stdout,
+    stderr: result.stderr
+  };
+}
+
+type DispatchReadinessInput = {
+  repo: string;
+  task: string;
+  provider?: "auto" | "qoder" | "codebuddy";
+  tier?: string;
+  mode: "readonly" | "edit";
+  task_kind: WorkerTaskKind;
+  task_family: CapabilityTaskFamily;
+  acceptance: string;
+  allowed_paths: string[];
+  forbidden_paths: string[];
+  required_checks: string[];
+  budget: Record<string, unknown>;
+  base_commit?: string;
+  immutable_paths?: string[];
+};
+
+export async function dispatchReadinessTool(input: DispatchReadinessInput) {
+  const repo = resolveExistingRepo(input.repo);
+  const contractFailure = preflightFailure({ repo, baseCommit: input.base_commit, taskKind: input.task_kind, immutablePaths: input.immutable_paths });
+  if (contractFailure) {
+    return {
+      ok: false,
+      repo,
+      dispatch_readiness: "blocked_contract",
+      failure: contractFailure,
+      failure_class: contractFailure.failure_class,
+      next_action: contractFailure.next_action,
+      display: { 阶段: "精确派工就绪预检", 状态: "合同阻断，未启动 worker", 原因: contractFailure.failure_class, 下一步: contractFailure.next_action }
+    };
+  }
+  const result = await runPowerShell(
+    buildDispatchArgs({
+      ...input,
+      repo,
+      provider: input.provider ?? "auto",
+      run_mode: "blocking",
+      real_worktree: input.task_kind === "code_change",
+      readiness_probe: true,
+      no_notify: true
+    }),
+    { timeoutMs: 120_000 }
+  );
+  const fields = parseKeyValueOutput(result.stdout);
+  const failure = result.exitCode === 0 ? undefined : classifyDispatchFailure(`${result.stderr}\n${result.stdout}`);
+  const state = fields.readiness_state === "direct_ready" || fields.readiness_state === "bootstrap_eligible"
+    ? fields.readiness_state
+    : failure?.failure_class === "provider_auth_required"
+      ? "blocked_auth"
+      : failure?.failure_class === "network_timeout"
+        ? "blocked_transport"
+        : "blocked_contract";
+  const nextAction = state === "direct_ready"
+    ? "此 exact tuple 已有匹配回执；用同一计划任务直接派发。"
+    : state === "bootstrap_eligible"
+      ? "此 exact tuple 尚无匹配回执；只可由同一真实用户计划任务进行一次受控 bootstrap。"
+      : failure?.next_action ?? "先处理预检阻断，不启动 worker。";
+  return {
+    ok: result.exitCode === 0 && (state === "direct_ready" || state === "bootstrap_eligible"),
+    repo,
+    dispatch_readiness: state,
+    provider: fields.provider ?? input.provider ?? "auto",
+    model: fields.model ?? "",
+    connection_mode: fields.connection_mode ?? "",
+    distribution: fields.distribution ?? "",
+    runner_identity: fields.runner_identity ?? "",
+    readiness_reason: fields.readiness_reason ?? "",
+    failure,
+    failure_class: failure?.failure_class ?? "",
+    next_action: nextAction,
+    display: {
+      阶段: "精确派工就绪预检",
+      状态: state === "direct_ready" ? "可直接派工，未启动 worker" : state === "bootstrap_eligible" ? "可用同一任务建立首用证据，未启动 worker" : "阻断，未启动 worker",
+      执行者: providerDisplayName(fields.provider ?? input.provider ?? "auto"),
+      模型: String(fields.model ?? ""),
+      连接: connectionDisplayName(fields.connection_mode ?? ""),
+      下一步: nextAction
+    },
     stdout: result.stdout,
     stderr: result.stderr
   };
@@ -1525,6 +1667,20 @@ function automaticUserRequestEvidenceContext(input: { repo: string; planId: stri
   };
 }
 
+async function recordPlanDispatchState(input: { repo: string; planId: string; taskId: string; state: "preflight_ready" | "bootstrap_eligible" | "bootstrap_started" | "worker_started" | "dispatch_blocked" | "awaiting_codex_verification"; nextAction: string }) {
+  const result = await runPowerShell(
+    [
+      "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(),
+      "-Action", "SetDispatchState", "-PlanId", input.planId, "-PlanRoot", getPlanRoot(input.repo),
+      "-TaskId", input.taskId, "-DispatchState", input.state, "-NextAction", input.nextAction, "-OutputJson"
+    ],
+    { timeoutMs: 30_000 }
+  );
+  if (result.exitCode !== 0) {
+    throw new Error(`Unable to persist plan dispatch state: ${result.stderr || result.stdout}`);
+  }
+}
+
 export async function dispatchPlanTaskTool(input: {
   repo: string;
   plan_id: string;
@@ -1581,16 +1737,47 @@ export async function dispatchPlanTaskTool(input: {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "This task is marked validation_only and cannot spend provider credits through normal plan dispatch. Use local fixtures or explicitly create a user task instead." };
   }
   const requiredEvidenceContext = ["source_category", "source_ref", "source_commit", "input_sha256", "connection_mode", "verifier_id", "verifier_version", "verifier_sha256"];
-  const existingEvidenceContext = evidenceContext;
-  let evidenceBootstrap = !!existingEvidenceContext
-    && !requiredEvidenceContext.some((field) => !String(existingEvidenceContext[field] ?? "").trim())
-    && ["real_historical_issue", "real_user_request"].includes(String(existingEvidenceContext?.source_category))
-    && ["supervised_cli_text", "supervised_cli_stream_json", "qoder_agent_sdk", "codebuddy_acp"].includes(String(existingEvidenceContext?.connection_mode));
   if (String(task.task_family ?? "") === "fixed_test_execution" && taskKind !== "test_execution") {
     return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "A fixed-test task was downgraded to local_audit; dispatch is blocked before worker launch." };
   }
-  if (!input.dry_run && !evidenceContext) {
-    const bootstrapConnection = input.provider === "qoder" ? "supervised_cli_stream_json" : input.provider === "codebuddy" ? "codebuddy_acp" : "supervised_cli_text";
+  const readiness = input.dry_run
+    ? null
+    : await dispatchReadinessTool({
+      repo,
+      task: title,
+      provider: input.provider,
+      tier: input.tier,
+      mode: mode as "readonly" | "edit",
+      task_kind: taskKind,
+      task_family: taskFamily,
+      acceptance,
+      allowed_paths: allowedPaths,
+      forbidden_paths: forbiddenPaths,
+      required_checks: requiredChecks,
+      budget,
+      base_commit: baseCommit || undefined,
+      immutable_paths: immutablePaths
+    });
+  if (readiness && !readiness.ok) {
+    await recordPlanDispatchState({ repo, planId: input.plan_id, taskId, state: "dispatch_blocked", nextAction: readiness.next_action });
+    return { ...readiness, plan_id: input.plan_id, task_id: taskId, status: "pending", message: "Exact tuple preflight blocked this plan task before worker launch." };
+  }
+  if (readiness) {
+    await recordPlanDispatchState({
+      repo,
+      planId: input.plan_id,
+      taskId,
+      state: readiness.dispatch_readiness === "direct_ready" ? "preflight_ready" : "bootstrap_eligible",
+      nextAction: readiness.next_action
+    });
+  }
+  const selectedConnection = String(readiness?.connection_mode ?? "");
+  const hasAlignedEvidenceContext = !!evidenceContext
+    && !requiredEvidenceContext.some((field) => !String(evidenceContext?.[field] ?? "").trim())
+    && ["real_historical_issue", "real_user_request"].includes(String(evidenceContext?.source_category))
+    && String(evidenceContext?.connection_mode ?? "") === selectedConnection;
+  const evidenceBootstrap = !input.dry_run && readiness?.dispatch_readiness === "bootstrap_eligible";
+  if (evidenceBootstrap && !hasAlignedEvidenceContext) {
     evidenceContext = automaticUserRequestEvidenceContext({
       repo,
       planId: input.plan_id,
@@ -1598,7 +1785,7 @@ export async function dispatchPlanTaskTool(input: {
       title,
       acceptance,
       requiredChecks,
-      connectionMode: bootstrapConnection
+      connectionMode: selectedConnection
     });
     const contextResult = await runPowerShell(
       ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "SetEvidenceContext", "-PlanId", input.plan_id, "-PlanRoot", getPlanRoot(repo), "-TaskId", taskId, "-EvidenceContextJson", JSON.stringify(evidenceContext), "-OutputJson"],
@@ -1607,7 +1794,9 @@ export async function dispatchPlanTaskTool(input: {
     if (contextResult.exitCode !== 0) {
       return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, status, message: "无法为真实用户任务记录首用 evidence context，worker 尚未启动。", stderr: contextResult.stderr };
     }
-    evidenceBootstrap = true;
+  }
+  if (evidenceBootstrap) {
+    await recordPlanDispatchState({ repo, planId: input.plan_id, taskId, state: "bootstrap_started", nextAction: "同一真实用户任务正在建立该 exact tuple 的首用证据。" });
   }
   const dispatched = await dispatchTool({
     repo,
@@ -1643,22 +1832,11 @@ export async function dispatchPlanTaskTool(input: {
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });
-  if (dispatched.ok && !input.dry_run && evidenceContext && dispatched.job_id && String(dispatched.connection_mode ?? "") && String(evidenceContext.connection_mode ?? "") !== String(dispatched.connection_mode)) {
-    const context = automaticUserRequestEvidenceContext({
-      repo,
-      planId: input.plan_id,
-      taskId,
-      title,
-      acceptance,
-      requiredChecks,
-      connectionMode: dispatched.connection_mode || (dispatched.provider === "qoder" ? "qoder_agent_sdk" : "codebuddy_acp")
-    });
-    const contextResult = await runPowerShell(
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "SetEvidenceContext", "-PlanId", input.plan_id, "-PlanRoot", getPlanRoot(repo), "-TaskId", taskId, "-EvidenceContextJson", JSON.stringify(context), "-OutputJson"],
-      { timeoutMs: 30_000 }
-    );
-    if (contextResult.exitCode !== 0) {
-      return { ...dispatched, ok: false, message: "Worker started but its automatic evidence context could not be recorded; do not accept this task until the ledger is repaired.", stderr: `${dispatched.stderr}\n${contextResult.stderr}` };
+  if (!input.dry_run) {
+    if (dispatched.ok && dispatched.job_id) {
+      await recordPlanDispatchState({ repo, planId: input.plan_id, taskId, state: dispatched.worker_started ? "worker_started" : "awaiting_codex_verification", nextAction: dispatched.worker_started ? "等待 completion，再由 Codex 验收；宿主断线时用同一 job_id 恢复。" : "读取 completion 并由 Codex 验收。" });
+    } else {
+      await recordPlanDispatchState({ repo, planId: input.plan_id, taskId, state: "dispatch_blocked", nextAction: dispatched.next_action || "读取结构化失败后恢复同一计划任务；不要创建额外热身任务。" });
     }
   }
   return dispatched;

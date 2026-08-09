@@ -25,6 +25,12 @@
 
     [switch]$PreflightOnly,
 
+    # Resolve the provider's complete runtime tuple and inspect its exact
+    # readiness receipt without creating a job, worktree, or project state.
+    # This is the control-plane probe used before a plan task decides whether
+    # it may dispatch directly or must bootstrap the same real user task.
+    [switch]$ReadinessProbe,
+
     [switch]$PreferQoder,
 
     # Retained only so legacy callers do not break. The selected Qoder SDK and
@@ -1396,7 +1402,7 @@ if ($TaskKind -eq "test_execution" -and -not $CapabilityCanary -and @($RequiredC
 }
 
 $ProjectArtifactRoot = Get-ProjectArtifactRoot -RepoPath $Repo
-if (-not $DryRun) {
+if (-not $DryRun -and -not $ReadinessProbe) {
     Initialize-ProjectArtifactOwnership -RepoPath $Repo | Out-Null
 }
 if ([string]::IsNullOrWhiteSpace($JobRoot)) {
@@ -1416,7 +1422,7 @@ if ($EvidenceBootstrap) {
     Assert-RealTaskEvidenceBootstrap
 }
 
-if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not $EvidenceBootstrap) {
+if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not $EvidenceBootstrap -and -not $ReadinessProbe) {
     $healthScript = Join-Path $scriptDir "get-codex-praetor-health.ps1"
     if (-not (Test-Path -LiteralPath $healthScript -PathType Leaf)) {
         $healthScript = Join-Path $scriptParent "verify\get-codex-praetor-health.ps1"
@@ -1584,6 +1590,16 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not 
     $expectedConnection = if ($resolvedProvider -eq "qoder") { $qoderConnectionMode } elseif ($resolvedProvider -eq "codebuddy") { "codebuddy_acp" } else { "" }
     $expectedRunnerIdentity = if ($expectedConnection -eq "supervised_cli_stream_json") { "${expectedConnection}:" + (Get-FileSha256OrEmpty -Path $providerCliPath) } else { "" }
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind -ConnectionModeName $expectedConnection -DistributionName $providerDistribution -RunnerIdentity $expectedRunnerIdentity
+    if ($ReadinessProbe) {
+        Write-Output "provider=$resolvedProvider"
+        Write-Output "model=$model"
+        Write-Output "connection_mode=$expectedConnection"
+        Write-Output "distribution=$providerDistribution"
+        Write-Output "runner_identity=$expectedRunnerIdentity"
+        Write-Output "readiness_state=$(if ($readiness.ok) { 'direct_ready' } else { 'bootstrap_eligible' })"
+        Write-Output "readiness_reason=$($readiness.reason)"
+        exit 0
+    }
     if (-not $readiness.ok) {
         throw "Provider readiness gate blocked '$resolvedProvider': $($readiness.reason) Use a durable real-task evidence bootstrap or run the provider canary."
     }
@@ -1591,6 +1607,10 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not 
     if ([string]::IsNullOrWhiteSpace($TaskFamily)) { throw "Dispatch requires an explicit task family. Use a durable plan task; do not infer a family from free-form task text." }
     # Capability history is a routing signal only.  It must not block a
     # complete, user-requested task merely because a release changed.
+}
+
+if ($ReadinessProbe) {
+    throw "Readiness probe did not resolve an exact provider tuple."
 }
 
 $dispatchJobId = New-WorkerJobId -ProviderName $resolvedProvider -TierName $Tier

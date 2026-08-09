@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
+    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "SetDispatchState", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
     [string]$Action,
 
     [Parameter(Mandatory = $true)]
@@ -44,6 +44,8 @@ param(
     [string]$ImmutablePathsJson = "",
     [string]$EvidenceContextJson = "",
     [string]$EvidenceContextPath = "",
+    [ValidateSet("", "preflight_ready", "bootstrap_eligible", "bootstrap_started", "worker_started", "dispatch_blocked", "awaiting_codex_verification")]
+    [string]$DispatchState = "",
     [switch]$ValidationOnly,
     [string]$ValidationReason = "",
     [string]$InterventionKind = "",
@@ -727,6 +729,14 @@ if ($Action -eq "Init") {
         }
     }
     Add-PlanEvent -Plan $plan -Type "outcome_recorded" -Message "Outcome $($outcome.outcome_id) recorded." -Data @{ task_id = $TaskId; outcome_id = $outcome.outcome_id; verdict = $outcome.verdict }
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "SetDispatchState") {
+    if ([string]::IsNullOrWhiteSpace($TaskId) -or [string]::IsNullOrWhiteSpace($DispatchState)) { throw "TaskId and DispatchState are required." }
+    $target = @($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1)
+    if ($target.Count -ne 1) { throw "Task not found: $TaskId" }
+    Set-DynamicProperty -Target $target[0] -Name "dispatch_state" -Value $DispatchState
+    if (-not [string]::IsNullOrWhiteSpace($NextAction)) { Set-DynamicProperty -Target $target[0] -Name "next_action" -Value $NextAction }
+    Add-PlanEvent -Plan $plan -Type "dispatch_state" -Message "Task $TaskId dispatch state: $DispatchState." -Data @{ task_id = $TaskId; dispatch_state = $DispatchState; next_action = $NextAction }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "AppendEvent") {
     Add-PlanEvent -Plan $plan -Type $EventType -Message $EventMessage
