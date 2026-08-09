@@ -641,6 +641,14 @@ if (Test-Path -LiteralPath $planAcceptanceTest -PathType Leaf) {
     } catch { Add-Fail "Supervisor acceptance gate regression failed: $($_.Exception.Message)" }
 } else { Add-Fail "Supervisor acceptance gate script missing: $planAcceptanceTest" }
 
+$providerRefusalRecoveryTest = Join-Path $projectRoot "scripts\verify\test-provider-refusal-recovery.ps1"
+if (Test-Path -LiteralPath $providerRefusalRecoveryTest -PathType Leaf) {
+    try {
+        $providerRefusalRecoveryOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $providerRefusalRecoveryTest -ProjectRoot $projectRoot
+        if ($LASTEXITCODE -eq 0 -and (($providerRefusalRecoveryOutput | Out-String) -match "ACP refusal")) { Add-Pass "ACP refusal controlled recovery regression passes" } else { Add-Fail "ACP refusal controlled recovery regression failed: $($providerRefusalRecoveryOutput | Out-String)" }
+    } catch { Add-Fail "ACP refusal controlled recovery regression failed: $($_.Exception.Message)" }
+} else { Add-Fail "ACP refusal controlled recovery script missing: $providerRefusalRecoveryTest" }
+
 $planConcurrencyTest = Join-Path $projectRoot "scripts\verify\test-plan-concurrency.ps1"
 if (Test-Path -LiteralPath $planConcurrencyTest -PathType Leaf) {
     try {

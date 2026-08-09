@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.34-alpha
+
+- 将展示标题与实际 worker 任务合同分离；Qoder 和 CodeBuddy 现在接收同一份可审计的完整任务包。
+- 把 CodeBuddy ACP 的 `refusal` 归一为 provider 失败，并只在无 diff 的明确拒绝时允许一次受控 alternate-provider 转交。
+
 ## 0.16.33-alpha
 
 - 将执政官模式的 `active` 状态、模型路由选择与未派工边界写入可持久化的任务决策回执，避免 route/dry-run 被误解为真实派工。

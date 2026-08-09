@@ -64,6 +64,7 @@ import {
   providerOperationsTool,
   dispatchReadinessTool,
   dispatchPlanTaskTool,
+  recoverPlanTaskWithAlternateProviderTool,
   dispatchDryRunTool,
   dispatchTool,
   getLaneTool,
@@ -128,7 +129,7 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.33-alpha",
+    version: "0.16.34-alpha",
     description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执政官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
   });
 
@@ -631,6 +632,26 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(await dispatchPlanTaskTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_recover_plan_task",
+    {
+      title: "受控转交 Codex Praetor 计划任务",
+      description: "仅对无 diff、无副作用且已记录为 provider_refusal_before_tool_use 的任务，透明记录一次 alternate-provider 转交；超时、网络不明或已有改动绝不自动重放。",
+      annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: {
+        repo: z.string().min(1),
+        plan_id: z.string().min(1),
+        task_id: z.string().min(1),
+        run_mode: z.enum(["blocking", "background"]).optional(),
+        max_turns: z.number().int().positive().max(80).optional(),
+        max_stall_seconds: z.number().int().min(30).max(86400).optional(),
+        no_notify: z.boolean().optional()
+      }
+    },
+    async (input) => asJsonContent(await recoverPlanTaskWithAlternateProviderTool(input))
   );
 
   server.registerTool(

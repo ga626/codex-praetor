@@ -50,6 +50,7 @@ const requiredTools = [
   "codex_praetor_status",
   "codex_praetor_next_ready",
   "codex_praetor_dispatch_plan_task",
+  "codex_praetor_recover_plan_task",
   "codex_praetor_verify_task"
 ];
 
@@ -175,7 +176,7 @@ try {
   if (planTool?.annotations?.readOnlyHint !== false || planTool.annotations.destructiveHint !== false) {
     throw new Error("Missing additive non-destructive annotations on MCP tool: codex_praetor_plan");
   }
-  for (const toolName of ["codex_praetor_dispatch", "codex_praetor_dispatch_plan_task", "codex_praetor_prepare_plan_task", "codex_praetor_verify_task"]) {
+  for (const toolName of ["codex_praetor_dispatch", "codex_praetor_dispatch_plan_task", "codex_praetor_recover_plan_task", "codex_praetor_prepare_plan_task", "codex_praetor_verify_task"]) {
     const tool = tools.tools.find((candidate) => candidate.name === toolName);
     if (tool?.annotations?.readOnlyHint !== false || tool.annotations.destructiveHint !== false) {
       throw new Error(`Missing additive non-destructive annotations on MCP tool: ${toolName}`);

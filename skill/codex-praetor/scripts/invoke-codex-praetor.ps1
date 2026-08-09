@@ -1686,6 +1686,10 @@ try {
         evidence_bootstrap = [bool]$EvidenceBootstrap
         worker_network = if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }
         research_contract = $researchContract
+        # The rendered worker packet is immutable input to every connection
+        # layer.  Persist it with the task contract so a completion can be
+        # audited without relying on a UI title or untrusted worker output.
+        worker_task_packet = $Task
         acceptance = $Acceptance
         timeout_seconds = $TimeoutSeconds
         supervision = [ordered]@{

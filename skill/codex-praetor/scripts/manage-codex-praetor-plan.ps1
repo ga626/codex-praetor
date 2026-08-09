@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "SetDecisionReceipt", "SetDispatchState", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
+    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "SetDecisionReceipt", "SetDispatchState", "PrepareProviderFallback", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
     [string]$Action,
 
     [Parameter(Mandatory = $true)]
@@ -677,7 +677,7 @@ if ($Action -eq "Init") {
     }
     $completion = Get-Content -LiteralPath $completionFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $recordTaskId = if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $TaskId } else { [string]$completion.task_id }
-    $recordStatus = if ($completion.status -eq "process_exited" -and [string]::IsNullOrWhiteSpace([string]$completion.failure_class) -and $null -ne $completion.exit_code -and [int]$completion.exit_code -eq 0) { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } else { "failed" }
+    $recordStatus = if ($completion.status -eq "process_exited" -and [string]::IsNullOrWhiteSpace([string]$completion.failure_class) -and $null -ne $completion.exit_code -and [int]$completion.exit_code -eq 0) { "awaiting_verification" } elseif ($completion.status -eq "cancelled") { "blocked" } elseif ([string]$completion.failure_class -eq "provider_rejected" -and [bool]$completion.safe_provider_fallback) { "retryable" } else { "failed" }
     $existingAttempts = @($plan.tasks | ForEach-Object { @($_.attempts) } | Where-Object { [string]$_.attempt_id -eq [string]$completion.job_id })
     if ($existingAttempts.Count -gt 1) {
         throw "Ledger integrity failure: job $([string]$completion.job_id) has multiple immutable attempts."
@@ -695,9 +695,9 @@ if ($Action -eq "Init") {
         $workerFinishedAt = [string]$completion.exited_at
         $attemptWriteSet = [object[]]@()
         if ($null -ne $completion.write_set) { $attemptWriteSet = @($completion.write_set) }
-        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; worktree_head = [string]$completion.worktree_head; contract_sha256 = Get-CompletionContractSha256 -Completion $completion; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = $attemptWriteSet; execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
+        $attempt = [ordered]@{ attempt_id = [string]$completion.job_id; base_commit = [string]$completion.base_commit; worktree_head = [string]$completion.worktree_head; contract_sha256 = Get-CompletionContractSha256 -Completion $completion; task_family = [string]$recordTask[0].task_family; provider_tuple = $completion.provider_tuple; provider = [string]$completion.provider; model = [string]$completion.model; task_kind = [string]$completion.task_kind; write_set = $attemptWriteSet; execution_state = [string]$completion.process_state; evidence_state = [string]$completion.evidence_state; evidence_observation = $completion.evidence_observation; artifacts = @(); completion = $completionFile; exit_code = $completion.exit_code; failure_class = [string]$completion.failure_class; failure_subclass = [string]$completion.failure_subclass; safe_provider_fallback = [bool]$completion.safe_provider_fallback; supervisor_verdict = if ($recordStatus -eq "awaiting_verification") { "" } elseif ($recordStatus -eq "blocked") { "blocked" } elseif ($recordStatus -eq "retryable") { "retryable" } else { "rejected" }; timeline = [ordered]@{ submitted_at = $submittedAt; worker_started_at = $workerStartedAt; worker_finished_at = $workerFinishedAt; worker_elapsed_ms = Get-ElapsedMilliseconds -StartedAt $workerStartedAt -FinishedAt $workerFinishedAt }; created_at = $submittedAt; finished_at = $workerFinishedAt }
         $recordTask[0].attempts = @($recordTask[0].attempts) + $attempt
-        $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } else { "rejected" }
+        $recordTask[0].governance_state = if ($recordStatus -eq "awaiting_verification") { "awaiting_supervisor" } elseif ($recordStatus -eq "blocked") { "blocked" } elseif ($recordStatus -eq "retryable") { "retryable" } else { "rejected" }
         Add-PlanEvent -Plan $plan -Type "job_recorded" -Message "Job $($completion.job_id) recorded for task $recordTaskId as $recordStatus." -Data @{ task_id = $recordTaskId; job_id = $completion.job_id; status = $completion.status; exit_code = $completion.exit_code }
     }
     Save-Plan -Plan $plan
@@ -754,6 +754,23 @@ if ($Action -eq "Init") {
     Set-DynamicProperty -Target $target[0] -Name "dispatch_state" -Value $DispatchState
     if (-not [string]::IsNullOrWhiteSpace($NextAction)) { Set-DynamicProperty -Target $target[0] -Name "next_action" -Value $NextAction }
     Add-PlanEvent -Plan $plan -Type "dispatch_state" -Message "Task $TaskId dispatch state: $DispatchState." -Data @{ task_id = $TaskId; dispatch_state = $DispatchState; next_action = $NextAction }
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "PrepareProviderFallback") {
+    if ([string]::IsNullOrWhiteSpace($TaskId)) { throw "TaskId is required for PrepareProviderFallback." }
+    $target = @($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1)
+    if ($target.Count -ne 1) { throw "Task not found: $TaskId" }
+    if ([string]$target[0].status -ne "retryable" -or [string]$target[0].governance_state -ne "retryable") {
+        throw "Provider fallback is only allowed from an explicitly retryable task."
+    }
+    $attempts = @($target[0].attempts)
+    if ($attempts.Count -ne 1 -or -not [bool]$attempts[0].safe_provider_fallback) {
+        throw "Provider fallback requires exactly one recorded no-diff provider refusal."
+    }
+    Set-DynamicProperty -Target $target[0] -Name "status" -Value "pending"
+    Set-DynamicProperty -Target $target[0] -Name "governance_state" -Value "awaiting_supervisor"
+    Set-DynamicProperty -Target $target[0] -Name "dispatch_state" -Value "provider_fallback_prepared"
+    Set-DynamicProperty -Target $target[0] -Name "next_action" -Value "Dispatch the one recorded alternate provider; do not replay the original provider."
+    Add-PlanEvent -Plan $plan -Type "provider_fallback_prepared" -Actor "codex" -Message "Task $TaskId was reset for one controlled alternate-provider attempt." -Data @{ task_id = $TaskId; previous_provider = [string]$attempts[0].provider; failure_class = [string]$attempts[0].failure_class; failure_subclass = [string]$attempts[0].failure_subclass }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "AppendEvent") {
     Add-PlanEvent -Plan $plan -Type $EventType -Message $EventMessage

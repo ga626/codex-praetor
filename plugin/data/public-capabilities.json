@@ -83,6 +83,14 @@
       "risk_tier": "external_provider"
     },
     {
+      "id": "provider.controlled-recovery",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_recover_plan_task" },
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/scripts/watch-codex-praetor-job.ps1", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1"],
+      "scenario": "provider_contract",
+      "risk_tier": "external_provider"
+    },
+    {
       "id": "provider.dispatch-readiness",
       "audience": "installed_plugin",
       "entry": { "kind": "mcp_tool", "name": "codex_praetor_dispatch_readiness" },

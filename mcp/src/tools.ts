@@ -1031,6 +1031,82 @@ export type PlannedTaskContract = {
   validation_reason?: string;
 };
 
+export type WorkerTaskEnvelope = {
+  schema: "codex-praetor-worker-task-envelope/v1";
+  idempotency_key: string;
+  task_id: string;
+  title: string;
+  objective: string;
+  task_family: CapabilityTaskFamily;
+  task_kind: WorkerTaskKind;
+  mode: "readonly" | "edit";
+  acceptance: string;
+  allowed_paths: string[];
+  forbidden_paths: string[];
+  required_checks: string[];
+  depends_on: string[];
+  base_commit: string;
+  immutable_paths: string[];
+  budget: Record<string, unknown>;
+  sha256: string;
+};
+
+// Titles are useful in the UI, but are frequently labels such as "candidate
+// acceptance".  A worker must receive the complete, frozen task contract, not
+// merely that label.  This envelope is intentionally text-rendered before it
+// crosses every connection layer, so Qoder stream-json, Qoder SDK and
+// CodeBuddy ACP consume the same auditable instruction.
+export function buildWorkerTaskEnvelope(input: Omit<WorkerTaskEnvelope, "schema" | "idempotency_key" | "sha256">): WorkerTaskEnvelope {
+  const stable = {
+    task_id: input.task_id,
+    title: input.title,
+    objective: input.objective,
+    task_family: input.task_family,
+    task_kind: input.task_kind,
+    mode: input.mode,
+    acceptance: input.acceptance,
+    allowed_paths: input.allowed_paths,
+    forbidden_paths: input.forbidden_paths,
+    required_checks: input.required_checks,
+    depends_on: input.depends_on,
+    base_commit: input.base_commit,
+    immutable_paths: input.immutable_paths,
+    budget: input.budget
+  };
+  const idempotency_key = createHash("sha256").update(JSON.stringify({ task_id: input.task_id, contract: stable })).digest("hex");
+  const sha256 = createHash("sha256").update(JSON.stringify({ schema: "codex-praetor-worker-task-envelope/v1", idempotency_key, ...stable })).digest("hex");
+  return { schema: "codex-praetor-worker-task-envelope/v1", idempotency_key, ...stable, sha256 };
+}
+
+export function renderWorkerTaskEnvelope(envelope: WorkerTaskEnvelope): string {
+  return [
+    `WORKER_TASK_ENVELOPE: ${envelope.schema}`,
+    `Envelope SHA-256: ${envelope.sha256}`,
+    `Idempotency key: ${envelope.idempotency_key}`,
+    "",
+    "OBJECTIVE:",
+    envelope.objective,
+    "",
+    "DISPLAY TITLE (not a substitute for the objective):",
+    envelope.title,
+    "",
+    "ACCEPTANCE:",
+    envelope.acceptance,
+    "",
+    `TASK FAMILY: ${envelope.task_family}`,
+    `TASK KIND: ${envelope.task_kind}`,
+    `MODE: ${envelope.mode}`,
+    `DEPENDS ON: ${envelope.depends_on.join(", ") || "none"}`,
+    `BASE COMMIT: ${envelope.base_commit || "not applicable"}`,
+    `IMMUTABLE PATHS: ${envelope.immutable_paths.join(", ") || "none"}`,
+    `ALLOWED PATHS: ${envelope.allowed_paths.join(", ")}`,
+    `FORBIDDEN PATHS: ${envelope.forbidden_paths.join(", ")}`,
+    `REQUIRED CHECKS: ${envelope.required_checks.join(" | ")}`,
+    "",
+    "Complete the objective and acceptance above. Do not treat the display title as the whole task."
+  ].join("\n");
+}
+
 export async function preparePlanTaskTool(input: {
   repo: string;
   title: string;
@@ -1960,9 +2036,29 @@ export async function dispatchPlanTaskTool(input: {
   if (evidenceBootstrap) {
     await recordPlanDispatchState({ repo, planId: input.plan_id, taskId, state: "bootstrap_started", nextAction: "同一真实用户任务正在建立该 exact tuple 的首用证据。" });
   }
+  const envelope = buildWorkerTaskEnvelope({
+    task_id: taskId,
+    title,
+    // The task title is presentation metadata.  The acceptance contract is
+    // the minimum executable objective when a plan does not carry a separate
+    // objective field; including both prevents label-only dispatches.
+    objective: acceptance,
+    task_family: taskFamily,
+    task_kind: taskKind,
+    mode: mode as "readonly" | "edit",
+    acceptance,
+    allowed_paths: allowedPaths,
+    forbidden_paths: forbiddenPaths,
+    required_checks: requiredChecks,
+    depends_on: Array.isArray(task.depends_on) ? task.depends_on.map(String) : [],
+    base_commit: baseCommit,
+    immutable_paths: immutablePaths,
+    budget
+  });
+  const workerTask = renderWorkerTaskEnvelope(envelope);
   const dispatched = await dispatchTool({
     repo,
-    task: title,
+    task: workerTask,
     provider: input.provider ?? "auto",
     tier: input.tier,
     mode: mode as "readonly" | "edit",
@@ -2004,7 +2100,79 @@ export async function dispatchPlanTaskTool(input: {
       await recordPlanDispatchState({ repo, planId: input.plan_id, taskId, state: "dispatch_blocked", nextAction: dispatched.next_action || "读取结构化失败后恢复同一计划任务；不要创建额外热身任务。" });
     }
   }
-  return dispatched;
+  return { ...dispatched, worker_task_envelope: envelope };
+}
+
+function qoderCheapTierForCurrentChinaTime(): "qoder-day-cheap" | "qoder-night-cheap" {
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Shanghai", hour: "2-digit", hourCycle: "h23" }).format(new Date()));
+  return hour >= 22 || hour < 8 ? "qoder-night-cheap" : "qoder-day-cheap";
+}
+
+// This is intentionally a single, visible recovery action rather than a
+// watcher-side replay.  The immutable first attempt and the transition are
+// recorded in the ledger before the alternate worker can start.
+export async function recoverPlanTaskWithAlternateProviderTool(input: {
+  repo: string;
+  plan_id: string;
+  task_id: string;
+  run_mode?: "blocking" | "background";
+  max_turns?: number;
+  max_stall_seconds?: number;
+  no_notify?: boolean;
+}) {
+  const repo = resolveExistingRepo(input.repo);
+  const taskId = input.task_id.trim();
+  const { task } = getPlanTask(repo, input.plan_id, taskId);
+  const attempts = Array.isArray(task.attempts) ? task.attempts as Record<string, unknown>[] : [];
+  const previous = attempts.length === 1 ? attempts[0] : undefined;
+  const previousProvider = String(previous?.provider ?? "");
+  if (String(task.status ?? "") !== "retryable" || String(task.governance_state ?? "") !== "retryable" || !previous || previousProvider === "" || previous?.safe_provider_fallback !== true) {
+    return {
+      ok: false,
+      repo,
+      plan_id: input.plan_id,
+      task_id: taskId,
+      message: "当前任务不满足受控转交条件。只有已记录的、无 diff 的 provider_refusal_before_tool_use 才能切换一次 provider；超时、网络不明、已有改动或检查失败必须交回 Codex。"
+    };
+  }
+  const alternate = previousProvider === "codebuddy"
+    ? { provider: "qoder" as const, tier: qoderCheapTierForCurrentChinaTime() }
+    : previousProvider === "qoder"
+      ? { provider: "codebuddy" as const, tier: "codebuddy-free" }
+      : null;
+  if (!alternate) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, message: `Provider '${previousProvider}' has no approved alternate route.` };
+  }
+  const prepared = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "PrepareProviderFallback", "-PlanId", input.plan_id, "-PlanRoot", getPlanRoot(repo), "-TaskId", taskId, "-OutputJson"],
+    { timeoutMs: 30_000 }
+  );
+  if (prepared.exitCode !== 0) {
+    return { ok: false, repo, plan_id: input.plan_id, task_id: taskId, message: "无法将任务转换为 alternate-provider 重试。", stderr: prepared.stderr || prepared.stdout };
+  }
+  const dispatched = await dispatchPlanTaskTool({
+    repo,
+    plan_id: input.plan_id,
+    task_id: taskId,
+    provider: alternate.provider,
+    tier: alternate.tier,
+    run_mode: input.run_mode,
+    max_turns: input.max_turns,
+    max_stall_seconds: input.max_stall_seconds,
+    no_notify: input.no_notify
+  });
+  const dispatchedRecord = dispatched as Record<string, unknown>;
+  const dispatchedEnvelope = dispatchedRecord.worker_task_envelope;
+  return {
+    ...dispatched,
+    controlled_provider_handoff: {
+      previous_provider: previousProvider,
+      previous_attempt_id: String(previous.attempt_id ?? ""),
+      alternate_provider: alternate.provider,
+      alternate_tier: alternate.tier,
+      idempotency_key: String(dispatchedEnvelope && typeof dispatchedEnvelope === "object" ? (dispatchedEnvelope as Record<string, unknown>).idempotency_key ?? "" : "")
+    }
+  };
 }
 
 export async function verifyTaskTool(input: {

@@ -1,6 +1,6 @@
 {
     "name":  "codex-praetor-mcp",
-    "version":  "0.16.33-alpha",
+    "version":  "0.16.34-alpha",
     "description":  "Thin MCP wrapper for Codex Praetor dry-run dispatch and job state.",
     "type":  "module",
     "main":  "dist/server.js",
@@ -11,7 +11,7 @@
                     "build":  "tsc -p tsconfig.json",
                     "build:plugin":  "node scripts/package-plugin-mcp.js",
                     "start":  "node dist/server.js",
-                    "test":  "tsc -p tsconfig.json \u0026\u0026 npm run build:plugin \u0026\u0026 node dist/self-test.js \u0026\u0026 node dist/powershell-timeout-contract-test.js \u0026\u0026 node dist/capability-profiles-test.js \u0026\u0026 node dist/executive-dispatch-control-test.js \u0026\u0026 node dist/executive-mode-receipt-test.js \u0026\u0026 node dist/evaluation-dispatch-contract-test.js \u0026\u0026 node dist/linked-plan-root-contract-test.js \u0026\u0026 node dist/qoder-sdk-runner-contract-test.js \u0026\u0026 node dist/qoder-sdk-state-test.js \u0026\u0026 node dist/codebuddy-acp-terminal-protocol-test.js \u0026\u0026 node dist/codebuddy-acp-runner-contract-test.js"
+                    "test":  "tsc -p tsconfig.json \u0026\u0026 npm run build:plugin \u0026\u0026 node dist/self-test.js \u0026\u0026 node dist/powershell-timeout-contract-test.js \u0026\u0026 node dist/capability-profiles-test.js \u0026\u0026 node dist/worker-task-envelope-contract-test.js \u0026\u0026 node dist/executive-dispatch-control-test.js \u0026\u0026 node dist/executive-mode-receipt-test.js \u0026\u0026 node dist/evaluation-dispatch-contract-test.js \u0026\u0026 node dist/linked-plan-root-contract-test.js \u0026\u0026 node dist/qoder-sdk-runner-contract-test.js \u0026\u0026 node dist/qoder-sdk-state-test.js \u0026\u0026 node dist/codebuddy-acp-terminal-protocol-test.js \u0026\u0026 node dist/codebuddy-acp-runner-contract-test.js"
                 },
     "keywords":  [
                      "codex",
