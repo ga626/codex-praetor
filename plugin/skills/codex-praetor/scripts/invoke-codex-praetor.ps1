@@ -428,7 +428,10 @@ function Assert-RealTaskEvidenceBootstrap {
     if ($matches.Count -ne 1) { throw "Evidence bootstrap task is missing or ambiguous: $TaskId" }
     $planTask = $matches[0]
     if ([string]$planTask.status -ne "pending") { throw "Evidence bootstrap requires a pending plan task." }
-    if ([string]::IsNullOrWhiteSpace($TaskTitle) -or [string]$planTask.title -ne $TaskTitle -or [string]$planTask.acceptance -ne $Acceptance -or [string]$planTask.task_family -ne $TaskFamily -or [string]$planTask.task_kind -ne $TaskKind -or [string]$planTask.mode -ne $Mode) {
+    # Keep direct legacy callers compatible when -Task itself is the title;
+    # MCP plan dispatch passes the separate title alongside the full packet.
+    $effectiveTaskTitle = if ([string]::IsNullOrWhiteSpace($TaskTitle)) { $Task } else { $TaskTitle }
+    if ([string]$planTask.title -ne $effectiveTaskTitle -or [string]$planTask.acceptance -ne $Acceptance -or [string]$planTask.task_family -ne $TaskFamily -or [string]$planTask.task_kind -ne $TaskKind -or [string]$planTask.mode -ne $Mode) {
         throw "Evidence bootstrap dispatch arguments do not match the durable plan task."
     }
     $context = $planTask.evidence_context
@@ -1693,7 +1696,7 @@ try {
         # The rendered worker packet is immutable input to every connection
         # layer.  Persist it with the task contract so a completion can be
         # audited without relying on a UI title or untrusted worker output.
-        task_title = $TaskTitle
+        task_title = $effectiveTaskTitle
         worker_task_packet = $Task
         acceptance = $Acceptance
         timeout_seconds = $TimeoutSeconds
