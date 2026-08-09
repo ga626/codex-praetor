@@ -64,7 +64,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-if (-not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)) { try { [string[]]$ImmutablePath = ($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
+$hasImmutablePathsJson = -not [string]::IsNullOrWhiteSpace($ImmutablePathsJson)
+if ($hasImmutablePathsJson) { try { [string[]]$ImmutablePath = ($ImmutablePathsJson | ConvertFrom-Json) } catch { throw "ImmutablePathsJson is not valid JSON." } }
+$hasExplicitImmutablePaths = $hasImmutablePathsJson -or $ImmutablePath.Count -gt 0
 if (-not [string]::IsNullOrWhiteSpace($AllowedPathsJson)) { try { [string[]]$AllowedPath = ($AllowedPathsJson | ConvertFrom-Json) } catch { throw "AllowedPathsJson is not valid JSON." } }
 if (-not [string]::IsNullOrWhiteSpace($ForbiddenPathsJson)) { try { [string[]]$ForbiddenPath = ($ForbiddenPathsJson | ConvertFrom-Json) } catch { throw "ForbiddenPathsJson is not valid JSON." } }
 if (-not [string]::IsNullOrWhiteSpace($RequiredChecksJson)) { try { [string[]]$RequiredCheck = ($RequiredChecksJson | ConvertFrom-Json) } catch { throw "RequiredChecksJson is not valid JSON." } }
@@ -423,7 +425,11 @@ function Upsert-Task {
     if (-not [string]::IsNullOrWhiteSpace($Sensitivity)) { Set-DynamicProperty -Target $existing -Name "sensitivity" -Value $Sensitivity }
     if (-not [string]::IsNullOrWhiteSpace($TaskMaterialJson)) { try { Set-DynamicProperty -Target $existing -Name "task_material" -Value ($TaskMaterialJson | ConvertFrom-Json) } catch { throw "TaskMaterialJson is not valid JSON." } }
     if (-not [string]::IsNullOrWhiteSpace($BaseCommit)) { Set-DynamicProperty -Target $existing -Name "base_commit" -Value $BaseCommit }
-    if ($ImmutablePath.Count -gt 0) { Set-DynamicProperty -Target $existing -Name "immutable_paths" -Value @($ImmutablePath) }
+    # An explicit [] is a contract update: clear a previous code-change
+    # baseline when the same durable task is corrected to a readonly task.
+    # Checking Count alone preserves stale paths and makes the next dispatch
+    # fail before a worker can start.
+    if ($hasExplicitImmutablePaths) { Set-DynamicProperty -Target $existing -Name "immutable_paths" -Value @($ImmutablePath) }
     if ($ValidationOnly) { Set-DynamicProperty -Target $existing -Name "validation_only" -Value $true; Set-DynamicProperty -Target $existing -Name "validation_reason" -Value $ValidationReason }
     if (-not [string]::IsNullOrWhiteSpace($CompletionValue)) { $existing.completion = $CompletionValue }
     if (-not [string]::IsNullOrWhiteSpace($SummaryValue)) { $existing.summary = $SummaryValue }

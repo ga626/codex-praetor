@@ -217,6 +217,34 @@ assert.deepEqual(persistedTask.depends_on, []);
 assert.deepEqual(dependentTask.depends_on, ["contract-scope-round-trip"]);
 assert.deepEqual(dependentTask.immutable_paths, []);
 
+const clearedPlan = await planTool({
+  repo,
+  title: "MCP self-test plan",
+  plan_id: planId,
+  tasks: [{
+    task_id: "contract-scope-round-trip",
+    title: "Readonly contract clears obsolete immutable paths.",
+    task_family: "read_only_diagnosis",
+    task_kind: "local_audit",
+    mode: "readonly",
+    acceptance: "The refreshed readonly task has no immutable paths.",
+    allowed_paths: ["README.md"],
+    forbidden_paths: [".git"],
+    required_checks: ["git status --short"],
+    immutable_paths: [],
+    budget: { max_wall_seconds: 300 }
+  }]
+});
+assert.equal(clearedPlan.ok, true);
+const clearedPersistedPlan = parseJsonDocument(readFileSync(String(clearedPlan.plan_path), "utf8"), "Cleared immutable paths fixture") as {
+  tasks: Array<{ task_id: string; immutable_paths: string[] }>;
+};
+assert.deepEqual(
+  clearedPersistedPlan.tasks.find((task) => task.task_id === "contract-scope-round-trip")?.immutable_paths,
+  [],
+  "An explicit empty immutable_paths array must clear a stale code-change baseline."
+);
+
 const planDispatchPreview = await dispatchPlanTaskTool({ repo, plan_id: planId, task_id: "contract-scope-round-trip", provider: "qoder", tier: "qoder-day-cheap", dry_run: true });
 assert.equal(planDispatchPreview.ok, true, String((planDispatchPreview as Record<string, unknown>).stderr ?? (planDispatchPreview as Record<string, unknown>).message ?? ""));
 const planPreviewRecord = planDispatchPreview as { display: { 阶段: string; 状态: string }; job_id: string };
