@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.34-alpha",
+    "version":  "0.16.35-alpha",
     "previous_version":  "0.16.32-alpha",
-    "tag":  "v0.16.34-alpha",
+    "tag":  "v0.16.35-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.34-alpha.zip",
+    "artifact":  "codex-praetor-setup-0.16.35-alpha.zip",
     "reason":  "修复执政官计划任务只把展示标题传给 worker 的合同缺陷：Qoder stream-json、Qoder SDK 和 CodeBuddy ACP 统一消费可哈希的完整任务包。CodeBuddy ACP refusal 现在明确记为 provider_rejected/provider_refusal_before_tool_use；仅在无 diff、无副作用的已记录拒绝下，允许同一 durable task 透明切换一次到既定的另一条固定 provider 路线。Qwen3.7-Plus/Hy3 保持既有路线，Qwen3.8、DeepSeek 保持候选，Auto 与全球版不路由；不读取认证、余额或账号配置，也不自动更新模型。"
 }
