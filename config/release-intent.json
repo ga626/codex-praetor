@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.32-alpha",
-    "previous_version":  "0.16.31-alpha",
-    "tag":  "v0.16.32-alpha",
+    "version":  "0.16.33-alpha",
+    "previous_version":  "0.16.32-alpha",
+    "tag":  "v0.16.33-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.32-alpha.zip",
-    "reason":  "修复执政官模式被识别后仍可能从通用派工入口停在 readiness gate 的控制面缺陷：真实派工统一绑定 durable plan task，新增 exact tuple readiness 预检和计划账本状态，并让首用 bootstrap 使用同一真实用户任务已解析的 provider、模型、分发与连接。Qoder 中国版仍使用官方 stream-json，Qoder Agent SDK 与 CodeBuddy ACP 仍是既定连接路线；本次不改变模型、认证边界或自动 fallback 策略。"
+    "artifact":  "codex-praetor-setup-0.16.33-alpha.zip",
+    "reason":  "修复执政官模式只有 route 而没有派工的控制面缺陷：每项 active-mode 任务显式携带模式、生成并持久化 decision receipt，再按 prepare-plan、exact tuple readiness、dry-run、dispatch-plan-task 的链路执行。新增带日期的固定模型与价格目录，Qwen3.7-Plus/Hy3 保持既有路线，Qwen3.7-Max 仅显式选择，Qwen3.8、DeepSeek 保持候选，Auto 与历史 MiMo 不路由。Qoder 中国版仍使用官方 stream-json，Qoder Agent SDK 与 CodeBuddy ACP 仍是既定连接路线；本次不读取认证、余额或账号配置，也不引入自动模型/提供方 fallback。"
 }

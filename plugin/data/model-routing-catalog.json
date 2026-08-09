@@ -1,0 +1,113 @@
+{
+  "schema": "codex-praetor-model-routing-catalog/v1",
+  "catalog_date": "2026-08-09",
+  "price_snapshot_valid_until": "2026-08-16",
+  "policy": {
+    "automatic_model_updates": false,
+    "auto_model_blocked": true,
+    "account_price_conflict_blocks_cost_ranking": true,
+    "legacy_configuration_policy": "preserve_without_routing"
+  },
+  "models": [
+    {
+      "provider": "qoder",
+      "distribution": "qoder_cn",
+      "connection_mode": "supervised_cli_stream_json",
+      "tier": "qoder-day-cheap",
+      "model": "Qwen3.7-Plus",
+      "status": "default",
+      "selection_reason": "当前唯一同时具备固定 Qoder CN 连接层与公开低成本快照的日间档。",
+      "price": { "state": "confirmed", "day_multiplier": "0.1x", "off_peak_multiplier": "0.04x", "off_peak_window": "22:00-08:00 UTC+8", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "qoder",
+      "distribution": "qoder_cn",
+      "connection_mode": "supervised_cli_stream_json",
+      "tier": "qoder-night-cheap",
+      "model": "Qwen3.7-Plus",
+      "status": "default",
+      "selection_reason": "当前唯一同时具备固定 Qoder CN 连接层与公开低成本快照的低峰档。",
+      "price": { "state": "confirmed", "day_multiplier": "0.1x", "off_peak_multiplier": "0.04x", "off_peak_window": "22:00-08:00 UTC+8", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "qoder",
+      "distribution": "qoder_cn",
+      "connection_mode": "supervised_cli_stream_json",
+      "tier": "qoder-day-strong",
+      "model": "Qwen3.7-Max",
+      "status": "explicit",
+      "selection_reason": "强推理任务只能由 Codex 明确选择，不能依据旧的 0.25x 快照自动路由。",
+      "price": { "state": "confirmed", "day_multiplier": "0.5x", "off_peak_multiplier": "0.1x", "off_peak_window": "22:00-08:00 UTC+8", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "qoder",
+      "distribution": "qoder_cn",
+      "connection_mode": "supervised_cli_stream_json",
+      "tier": "qoder-night-strong",
+      "model": "Qwen3.7-Max",
+      "status": "explicit",
+      "selection_reason": "强推理任务只能由 Codex 明确选择。",
+      "price": { "state": "confirmed", "day_multiplier": "0.5x", "off_peak_multiplier": "0.1x", "off_peak_window": "22:00-08:00 UTC+8", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "qoder",
+      "distribution": "qoder_cn",
+      "connection_mode": "supervised_cli_stream_json",
+      "tier": "",
+      "model": "Qwen3.8-Max",
+      "status": "candidate",
+      "selection_reason": "需先确认账号价格、模型接受握手和同合同最小任务；不能自动进入默认路线。",
+      "price": { "state": "account_price_confirmation_required", "public_day_multiplier": "1x", "account_observed_day_multiplier": "0.5x", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "codebuddy",
+      "distribution": "codebuddy_cn",
+      "connection_mode": "codebuddy_acp",
+      "tier": "codebuddy-free",
+      "model": "hy3",
+      "status": "default",
+      "selection_reason": "已有 ACP 路线成功证据；当前价格资格未经本轮账号复核，不把免费承诺写入路由。",
+      "price": { "state": "account_price_confirmation_required", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "codebuddy",
+      "distribution": "codebuddy_cn",
+      "connection_mode": "codebuddy_acp",
+      "tier": "",
+      "model": "deepseek-v4-flash",
+      "status": "candidate",
+      "selection_reason": "需当前 ACP 模型握手与账号资格证据后才可新增 tier。",
+      "price": { "state": "unknown", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "codebuddy",
+      "distribution": "codebuddy_cn",
+      "connection_mode": "codebuddy_acp",
+      "tier": "",
+      "model": "deepseek-v4-pro",
+      "status": "candidate",
+      "selection_reason": "需当前 ACP 模型握手与账号资格证据后才可新增 tier。",
+      "price": { "state": "unknown", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "qoder",
+      "distribution": "qoder_cn",
+      "connection_mode": "supervised_cli_stream_json",
+      "tier": "",
+      "model": "Auto",
+      "status": "blocked",
+      "selection_reason": "Auto 会让 provider 代替产品选择模型，无法生成可审计的固定 tuple。",
+      "price": { "state": "not_applicable", "source_date": "2026-08-09" }
+    },
+    {
+      "provider": "legacy",
+      "distribution": "historical_local_config",
+      "connection_mode": "none",
+      "tier": "mimo-auto-readonly,mimo-auto-edit",
+      "model": "mimo-auto",
+      "status": "legacy_unsupported",
+      "selection_reason": "保留用户本地历史配置供迁移预览，但不得参与路由或公开能力说明。",
+      "price": { "state": "not_applicable", "source_date": "2026-08-09" }
+    }
+  ]
+}

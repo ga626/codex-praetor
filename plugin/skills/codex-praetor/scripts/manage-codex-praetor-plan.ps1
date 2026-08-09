@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "SetDispatchState", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
+    [ValidateSet("Init", "UpsertTask", "SetEvidenceContext", "SetDecisionReceipt", "SetDispatchState", "RecordIntervention", "RecordJob", "VerifyTask", "RecordSelection", "RecordOutcome", "NextReady", "Summary", "Get", "AppendEvent")]
     [string]$Action,
 
     [Parameter(Mandatory = $true)]
@@ -44,6 +44,7 @@ param(
     [string]$ImmutablePathsJson = "",
     [string]$EvidenceContextJson = "",
     [string]$EvidenceContextPath = "",
+    [string]$DecisionReceiptJson = "",
     [ValidateSet("", "preflight_ready", "bootstrap_eligible", "bootstrap_started", "worker_started", "dispatch_blocked", "awaiting_codex_verification")]
     [string]$DispatchState = "",
     [switch]$ValidationOnly,
@@ -583,6 +584,18 @@ function Set-TaskEvidenceContext {
     Set-DynamicProperty -Target $target[0] -Name "evidence_context" -Value $context
 }
 
+function Set-TaskDecisionReceipt {
+    param([object]$Plan, [string]$Id, [string]$ReceiptJson)
+    if ([string]::IsNullOrWhiteSpace($Id) -or [string]::IsNullOrWhiteSpace($ReceiptJson)) { throw "TaskId and DecisionReceiptJson are required." }
+    try { $receipt = $ReceiptJson | ConvertFrom-Json } catch { throw "DecisionReceiptJson is not valid JSON." }
+    if ([string]$receipt.schema -ne "codex-praetor-decision-receipt/v1") { throw "DecisionReceiptJson has an unsupported schema." }
+    if ([string]::IsNullOrWhiteSpace([string]$receipt.decision_receipt_id)) { throw "DecisionReceiptJson lacks decision_receipt_id." }
+    if ([string]$receipt.executive_mode -notin @("active", "inactive")) { throw "DecisionReceiptJson has an invalid executive_mode." }
+    $target = @($Plan.tasks | Where-Object { $_.task_id -eq $Id } | Select-Object -First 1)
+    if ($target.Count -ne 1) { throw "Task not found for decision receipt: $Id" }
+    Set-DynamicProperty -Target $target[0] -Name "decision_receipt" -Value $receipt
+}
+
 function Record-TaskIntervention {
     param([object]$Plan, [string]$Id, [string]$Kind, [string]$SummaryValue)
     if ([string]::IsNullOrWhiteSpace($Id) -or [string]::IsNullOrWhiteSpace($Kind)) { throw "TaskId and InterventionKind are required." }
@@ -701,6 +714,10 @@ if ($Action -eq "Init") {
     }
     Set-TaskEvidenceContext -Plan $plan -Id $TaskId -ContextJson $contextJson
     Add-PlanEvent -Plan $plan -Type "evidence_context_set" -Actor "codex" -Message "Evidence context recorded for task $TaskId." -Data @{ task_id = $TaskId; source_category = ($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1).evidence_context.source_category }
+    Save-Plan -Plan $plan
+} elseif ($Action -eq "SetDecisionReceipt") {
+    Set-TaskDecisionReceipt -Plan $plan -Id $TaskId -ReceiptJson $DecisionReceiptJson
+    Add-PlanEvent -Plan $plan -Type "decision_receipt_set" -Actor "codex" -Message "Decision receipt recorded for task $TaskId." -Data @{ task_id = $TaskId; decision_receipt_id = ($plan.tasks | Where-Object { $_.task_id -eq $TaskId } | Select-Object -First 1).decision_receipt.decision_receipt_id }
     Save-Plan -Plan $plan
 } elseif ($Action -eq "RecordIntervention") {
     Record-TaskIntervention -Plan $plan -Id $TaskId -Kind $InterventionKind -SummaryValue $InterventionSummary

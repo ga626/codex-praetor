@@ -6,6 +6,16 @@ export type RouteKind =
   | "no_delegation"
   | "needs_clarification";
 
+export interface DecisionReceipt {
+  schema: "codex-praetor-decision-receipt/v1";
+  decision_receipt_id: string;
+  executive_mode: "active" | "inactive";
+  dispatch_state: "not_required" | "not_dispatched";
+  selection_reason: string;
+  next_required_tool: RouteDecision["next_required_tool"];
+  blocking_reason?: string;
+}
+
 export interface RouteDecision {
   route: RouteKind;
   confidence: "high" | "medium" | "low";
@@ -25,6 +35,12 @@ export interface RouteDecision {
   matched_terms: string[];
   native_codex_subagents_allowed: boolean;
   mode_context?: "inactive" | "active" | "unavailable";
+  /**
+   * A route receipt is deliberately transportable: the caller persists it in
+   * the durable plan instead of pretending that an MCP stdio process has
+   * access to the host conversation's memory.
+   */
+  decision_receipt: DecisionReceipt;
   research_authority?: "codex_kr_primary";
   worker_research_eligible?: boolean;
   suggested_worker_research_mode?: "none" | "candidate_discovery" | "independent_replication";

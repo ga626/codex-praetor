@@ -24,7 +24,8 @@ import { capabilityProfilesTool as buildCapabilityProfiles } from "./capability-
 import { evaluationSuiteTool as buildEvaluationSuite, prepareEvaluationTool as buildPrepareEvaluation, verifyEvaluationTaskTool as buildVerifyEvaluationTask } from "./evaluation-suite.js";
 import { explainableRouteTool as buildExplainableRoute } from "./explainable-routing.js";
 import { providerOperationsTool as buildProviderOperations } from "./provider-operations.js";
-import type { JobSummary, LaneSummary, ResearchContract } from "./types.js";
+import { modelRoutingCatalogTool as buildModelRoutingCatalog, modelSelection } from "./model-routing-catalog.js";
+import type { DecisionReceipt, JobSummary, LaneSummary, ResearchContract } from "./types.js";
 
 type WorkerTaskKind = "local_audit" | "test_execution" | "code_change" | "external_research_support";
 type CapabilityTaskFamily = "read_only_diagnosis" | "bounded_code_change" | "fixed_test_execution" | "failure_recovery";
@@ -225,13 +226,18 @@ export function routeIntentTool(input: {
   request: string;
   repo?: string;
   allow_native_codex_subagents?: boolean;
+  executive_mode?: "active" | "inactive";
 }) {
   const repo = input.repo ? resolveExistingRepo(input.repo) : "";
-  const decision = routeIntent(input.request, input.allow_native_codex_subagents ?? false);
+  const decision = routeIntent(input.request, input.allow_native_codex_subagents ?? false, input.executive_mode ?? "inactive");
   return {
     ...decision,
     repo
   };
+}
+
+export function modelRoutingCatalogTool() {
+  return buildModelRoutingCatalog();
 }
 
 export function runtimeInfoTool() {
@@ -332,6 +338,12 @@ export function jobTimelineTool(input: { repo: string; job_id: string }) {
         : "";
   const connectionState = sessionPath && existsSync(sessionPath) ? readJsonFile(sessionPath) : null;
   const connectionStage = String(connectionState?.state ?? meta.status ?? "unknown");
+  const selection = modelSelection({
+    provider: String(meta.provider ?? ""),
+    tier: String(meta.tier ?? ""),
+    model: String(meta.model ?? ""),
+    connection_mode: connectionMode
+  });
   return {
     found: true,
     display: {
@@ -339,6 +351,7 @@ export function jobTimelineTool(input: { repo: string; job_id: string }) {
       执行者: providerDisplayName(meta.provider),
       模型: String(meta.model ?? ""),
       连接: connectionDisplayName(connectionMode),
+      模型依据: selection.selection_reason,
       任务类别: String(meta.task_kind ?? ""),
       下一步: completion ? "由 Codex 读取结果并记录验收结论；宿主断线后可用同一 job_id 重新读取。" : "等待 worker 到达终态；宿主断线后用同一 job_id 重新读取，不要重派。"
     },
@@ -346,6 +359,7 @@ export function jobTimelineTool(input: { repo: string; job_id: string }) {
     contract_hash: String(meta.contract_hash ?? ""),
     events: Array.isArray(meta.events) ? meta.events : [],
     connection_state: connectionState,
+    model_selection: selection,
     meta: redactJobMeta(meta),
     completion
   };
@@ -849,6 +863,12 @@ export async function dispatchTool(input: {
     completionPath && existsSync(completionPath) ? (readJsonFile(completionPath) as Record<string, unknown>) : null;
 
   const failure = result.exitCode === 0 ? undefined : classifyDispatchFailure(`${result.stderr}\n${result.stdout}`);
+  const selection = modelSelection({
+    provider: String(fields.provider ?? input.provider ?? ""),
+    tier: String(fields.tier ?? input.tier ?? ""),
+    model: String(fields.model ?? ""),
+    connection_mode: String(fields.connection_mode ?? "")
+  });
   return {
     display: {
       阶段: isDryRun ? "预演 worker 派工" : "已派发 worker",
@@ -856,6 +876,7 @@ export async function dispatchTool(input: {
       执行者: providerDisplayName(fields.provider ?? input.provider ?? "auto"),
       模型: String(fields.model ?? ""),
       连接: connectionDisplayName(fields.connection_mode ?? ""),
+      模型依据: selection.selection_reason,
       下一步: result.exitCode === 0 ? (isDryRun ? "未创建 job；Codex 可据此决定是否真实派工。" : "worker 终态后由 Codex 检查 diff、范围和测试。") : failure?.next_action ?? "读取失败分类后决定恢复、改派或由 Codex 接管。"
     },
     ok: result.exitCode === 0,
@@ -866,6 +887,7 @@ export async function dispatchTool(input: {
     tier: fields.tier ?? input.tier ?? "",
     model: fields.model ?? "",
     connection_mode: fields.connection_mode ?? "",
+    model_selection: selection,
     mode: input.mode ?? "readonly",
     run_mode: fields.run_mode ?? runMode,
     task_kind: fields.task_kind ?? input.task_kind ?? "",
@@ -954,6 +976,12 @@ export async function dispatchReadinessTool(input: DispatchReadinessInput) {
     : state === "bootstrap_eligible"
       ? "此 exact tuple 尚无匹配回执；只可由同一真实用户计划任务进行一次受控 bootstrap。"
       : failure?.next_action ?? "先处理预检阻断，不启动 worker。";
+  const selection = modelSelection({
+    provider: String(fields.provider ?? input.provider ?? ""),
+    tier: String(input.tier ?? ""),
+    model: String(fields.model ?? ""),
+    connection_mode: String(fields.connection_mode ?? "")
+  });
   return {
     ok: result.exitCode === 0 && (state === "direct_ready" || state === "bootstrap_eligible"),
     repo,
@@ -961,6 +989,7 @@ export async function dispatchReadinessTool(input: DispatchReadinessInput) {
     provider: fields.provider ?? input.provider ?? "auto",
     model: fields.model ?? "",
     connection_mode: fields.connection_mode ?? "",
+    model_selection: selection,
     distribution: fields.distribution ?? "",
     runner_identity: fields.runner_identity ?? "",
     readiness_reason: fields.readiness_reason ?? "",
@@ -973,6 +1002,7 @@ export async function dispatchReadinessTool(input: DispatchReadinessInput) {
       执行者: providerDisplayName(fields.provider ?? input.provider ?? "auto"),
       模型: String(fields.model ?? ""),
       连接: connectionDisplayName(fields.connection_mode ?? ""),
+      模型依据: selection.selection_reason,
       下一步: nextAction
     },
     stdout: result.stdout,
@@ -1000,6 +1030,77 @@ export type PlannedTaskContract = {
   validation_only?: boolean;
   validation_reason?: string;
 };
+
+export async function preparePlanTaskTool(input: {
+  repo: string;
+  title: string;
+  task_id?: string;
+  task_family: CapabilityTaskFamily;
+  task_kind: WorkerTaskKind;
+  mode: "readonly" | "edit";
+  acceptance: string;
+  allowed_paths: string[];
+  forbidden_paths: string[];
+  required_checks: string[];
+  budget: Record<string, unknown>;
+  base_commit?: string;
+  immutable_paths?: string[];
+  failure_injection?: string;
+  sensitivity?: string;
+  decision_receipt: DecisionReceipt;
+  plan_id?: string;
+}) {
+  const receipt = input.decision_receipt;
+  if (receipt.schema !== "codex-praetor-decision-receipt/v1" || !receipt.decision_receipt_id.trim()) {
+    return { ok: false, message: "decision_receipt 必须来自 codex_praetor_route_intent，且包含 decision_receipt_id。" };
+  }
+  if (receipt.executive_mode === "active" && receipt.dispatch_state !== "not_dispatched") {
+    return { ok: false, message: "执政官模式的计划只能引用尚未派工的 route receipt。" };
+  }
+  const planId = input.plan_id?.trim() || `executive-${receipt.decision_receipt_id}`;
+  const prepared = await planTool({
+    repo: input.repo,
+    title: input.title,
+    plan_id: planId,
+    tasks: [{
+      task_id: input.task_id,
+      title: input.title,
+      task_family: input.task_family,
+      task_kind: input.task_kind,
+      mode: input.mode,
+      acceptance: input.acceptance,
+      allowed_paths: input.allowed_paths,
+      forbidden_paths: input.forbidden_paths,
+      required_checks: input.required_checks,
+      budget: input.budget,
+      base_commit: input.base_commit,
+      immutable_paths: input.immutable_paths,
+      failure_injection: input.failure_injection,
+      sensitivity: input.sensitivity,
+      evidence_context: undefined
+    }]
+  });
+  if (prepared.ok) {
+    const taskId = String(prepared.task_ids?.[0] ?? input.task_id ?? "task-01");
+    const receiptResult = await runPowerShell(
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "SetDecisionReceipt", "-PlanId", planId, "-PlanRoot", getPlanRoot(input.repo), "-TaskId", taskId, "-DecisionReceiptJson", JSON.stringify(receipt), "-OutputJson"],
+      { timeoutMs: 30_000 }
+    );
+    if (receiptResult.exitCode !== 0) {
+      return { ok: false, repo: input.repo, plan_id: planId, message: `计划已创建，但未能写入 route receipt: ${receiptResult.stderr || receiptResult.stdout}` };
+    }
+  }
+  return {
+    ...prepared,
+    decision_receipt_id: receipt.decision_receipt_id,
+    dispatch_state: prepared.ok ? "plan_created_not_dispatched" : "plan_rejected_not_dispatched",
+    display: {
+      阶段: "准备执政官派工计划",
+      状态: prepared.ok ? "计划已创建，尚未启动 worker" : "计划合同被拒绝，未启动 worker",
+      下一步: prepared.ok ? "调用 dispatch_readiness → dispatch_dry_run → dispatch_plan_task。" : "修正返回的合同字段后重新准备；不要直接把工作收回 Codex。"
+    }
+  };
+}
 
 function validatePlannedTaskContract(task: PlannedTaskContract, taskId: string): string | undefined {
   if (!task.title.trim() || !task.acceptance.trim()) return `Task '${taskId}' needs both title and acceptance.`;
@@ -1500,6 +1601,51 @@ export function statusTool(input: {
   };
 }
 
+export function executiveModeStatusTool(input: { repo: string; decision_receipt: DecisionReceipt; plan_id?: string; task_id?: string }) {
+  const repo = resolveExistingRepo(input.repo);
+  const receipt = input.decision_receipt;
+  if (receipt.schema !== "codex-praetor-decision-receipt/v1") {
+    return { ok: false, repo, message: "Unsupported decision receipt schema." };
+  }
+  if (!input.plan_id?.trim()) {
+    return {
+      ok: true,
+      repo,
+      decision_receipt_id: receipt.decision_receipt_id,
+      executive_mode: receipt.executive_mode,
+      dispatch_state: receipt.dispatch_state,
+      status: receipt.executive_mode === "active" && receipt.dispatch_state === "not_dispatched" ? "incomplete_before_dispatch" : "no_dispatch_required",
+      display: {
+        阶段: "执政官模式回执",
+        状态: receipt.executive_mode === "active" && receipt.dispatch_state === "not_dispatched" ? "模式已开启，但尚未创建计划或派工" : "本次 route 不要求派工",
+        下一步: receipt.executive_mode === "active" && receipt.dispatch_state === "not_dispatched" ? "准备计划后继续 readiness、dry-run 和 dispatch；没有 job_id 不能称为已派工。" : "按 route receipt 的下一工具继续。"
+      }
+    };
+  }
+  const { task } = getPlanTask(repo, input.plan_id, input.task_id?.trim() || "task-01");
+  const planReceipt = task.decision_receipt && typeof task.decision_receipt === "object" ? task.decision_receipt as Record<string, unknown> : {};
+  const receiptMatches = String(planReceipt.decision_receipt_id ?? "") === receipt.decision_receipt_id;
+  const jobId = String(task.job_id ?? "");
+  const dispatchState = String(task.dispatch_state ?? "plan_created_not_dispatched");
+  const completed = ["awaiting_codex_verification", "accepted"].includes(String(task.governance_state ?? ""));
+  const status = !receiptMatches ? "receipt_mismatch" : jobId ? completed ? "worker_completed_pending_or_accepted" : "worker_started" : "incomplete_before_dispatch";
+  return {
+    ok: receiptMatches,
+    repo,
+    plan_id: input.plan_id,
+    task_id: String(task.task_id ?? ""),
+    decision_receipt_id: receipt.decision_receipt_id,
+    dispatch_state: dispatchState,
+    job_id: jobId,
+    status,
+    display: {
+      阶段: "执政官模式回执",
+      状态: status === "incomplete_before_dispatch" ? "计划存在，但尚未真实派工" : status === "worker_started" ? "worker 已启动" : status === "worker_completed_pending_or_accepted" ? "worker 已完成，等待或已通过 Codex 验收" : "计划与 route receipt 不一致",
+      下一步: status === "incomplete_before_dispatch" ? "继续 readiness、dry-run 和 dispatch_plan_task。" : status === "worker_started" ? "等待 completion 后由 Codex 验收。" : status === "worker_completed_pending_or_accepted" ? "读取 completion、diff 与独立复跑结果。" : "停止派工，重新用同一 route receipt 创建合法计划。"
+    }
+  };
+}
+
 export function governanceSummaryTool(input: { repo: string; plan_id: string }) {
   const repo = resolveExistingRepo(input.repo);
   const planPath = path.join(getPlanRoot(repo), input.plan_id.trim(), "plan.json");
@@ -1566,6 +1712,12 @@ export function resultTool(input: {
     stdout_tail: stdoutTail,
     stderr_tail: stderrTail
   });
+  const selection = modelSelection({
+    provider: String(meta.provider ?? ""),
+    tier: String(meta.tier ?? ""),
+    model: String(meta.model ?? ""),
+    connection_mode: String(meta.connection_mode ?? "")
+  });
 
   return {
     found: true,
@@ -1575,6 +1727,7 @@ export function resultTool(input: {
     meta: redactJobMeta(meta),
     completion,
     classification,
+    model_selection: selection,
     log_paths: {
       stdout: stdoutPath,
       stderr: stderrPath,
@@ -1679,6 +1832,15 @@ async function recordPlanDispatchState(input: { repo: string; planId: string; ta
   if (result.exitCode !== 0) {
     throw new Error(`Unable to persist plan dispatch state: ${result.stderr || result.stdout}`);
   }
+}
+
+async function recordPlanModelSelection(input: { repo: string; planId: string; taskId: string; selection: Record<string, unknown> }) {
+  const selectionId = `model-${createHash("sha256").update(JSON.stringify({ plan: input.planId, task: input.taskId, selection: input.selection })).digest("hex").slice(0, 16)}`;
+  const result = await runPowerShell(
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", getPlanScriptPath(), "-Action", "RecordSelection", "-PlanId", input.planId, "-PlanRoot", getPlanRoot(input.repo), "-TaskId", input.taskId, "-SelectionJson", JSON.stringify({ selection_id: selectionId, ...input.selection }), "-OutputJson"],
+    { timeoutMs: 30_000 }
+  );
+  if (result.exitCode !== 0) throw new Error(`Unable to persist model selection: ${result.stderr || result.stdout}`);
 }
 
 export async function dispatchPlanTaskTool(input: {
@@ -1832,6 +1994,9 @@ export async function dispatchPlanTaskTool(input: {
     no_notify: input.no_notify ?? true,
     dry_run: input.dry_run ?? false
   });
+  if (dispatched.model_selection && typeof dispatched.model_selection === "object") {
+    await recordPlanModelSelection({ repo, planId: input.plan_id, taskId, selection: dispatched.model_selection as Record<string, unknown> });
+  }
   if (!input.dry_run) {
     if (dispatched.ok && dispatched.job_id) {
       await recordPlanDispatchState({ repo, planId: input.plan_id, taskId, state: dispatched.worker_started ? "worker_started" : "awaiting_codex_verification", nextAction: dispatched.worker_started ? "等待 completion，再由 Codex 验收；宿主断线时用同一 job_id 恢复。" : "读取 completion 并由 Codex 验收。" });

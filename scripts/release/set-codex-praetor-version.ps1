@@ -58,7 +58,8 @@ $runtimeDataSources = @(
     "config\public-capabilities.json",
     "config\provider-onboarding-checklist.json",
     "config\provider-adapters\qoder.json",
-    "config\provider-adapters\codebuddy.json"
+    "config\provider-adapters\codebuddy.json",
+    "config\model-routing-catalog.json"
 )
 $mirroredExecutionSources = @(
     # Keep the isolated version-updater fixture capable of exercising every

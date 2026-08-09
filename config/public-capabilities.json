@@ -27,6 +27,22 @@
       "risk_tier": "deterministic_artifact"
     },
     {
+      "id": "routing.model-catalog",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_model_routing_catalog" },
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/data/model-routing-catalog.json"],
+      "scenario": "model_routing_catalog",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
+      "id": "routing.executive-receipt",
+      "audience": "installed_plugin",
+      "entry": { "kind": "mcp_tool", "name": "codex_praetor_prepare_plan_task" },
+      "package_requirements": ["plugin/mcp/dist/server.js", "plugin/skills/codex-praetor/SKILL.md", "plugin/skills/codex-praetor/scripts/manage-codex-praetor-plan.ps1"],
+      "scenario": "executive_dispatch_receipt",
+      "risk_tier": "deterministic_artifact"
+    },
+    {
       "id": "provider.operations",
       "audience": "installed_plugin",
       "entry": { "kind": "mcp_tool", "name": "codex_praetor_provider_operations" },

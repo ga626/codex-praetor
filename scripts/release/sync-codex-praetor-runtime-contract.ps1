@@ -22,6 +22,7 @@ $runtimeData = @(
     [ordered]@{ source = "config\provider-onboarding-checklist.json"; target = "plugin\data\provider-onboarding-checklist.json" },
     [ordered]@{ source = "config\provider-adapters\qoder.json"; target = "plugin\data\provider-adapters\qoder.json" },
     [ordered]@{ source = "config\provider-adapters\codebuddy.json"; target = "plugin\data\provider-adapters\codebuddy.json" },
+    [ordered]@{ source = "config\model-routing-catalog.json"; target = "plugin\data\model-routing-catalog.json" },
     # The installed product executes these scripts under plugin/ rather than
     # their source locations. Keep the execution chain generated from one
     # canonical source so a source-only fix cannot ship an older protocol.
