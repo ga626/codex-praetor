@@ -1,10 +1,11 @@
 # Changelog
 
-## 0.16.35-alpha
+## 0.16.36-alpha
 
 - 将展示标题与实际 worker 任务合同分离；Qoder 和 CodeBuddy 现在接收同一份可审计的完整任务包。
 - 把 CodeBuddy ACP 的 `refusal` 归一为 provider 失败，并只在无 diff 的明确拒绝时允许一次受控 alternate-provider 转交。
 - 同一 durable plan 由编辑任务更正为只读任务时，显式空 `immutable_paths` 会清除旧的冻结路径，不再在 worker 启动前被历史编辑基线错误阻断。
+- 首用 exact-tuple bootstrap 现在把 durable plan 标题作为独立字段传给 PowerShell；完整 worker 任务包仍作为任务正文传递，不会再因标题与正文混用而在 worker 启动前误拒绝。
 
 ## 0.16.33-alpha
 

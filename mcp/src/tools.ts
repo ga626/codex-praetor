@@ -520,6 +520,7 @@ function appendOptionalNumberArg(args: string[], name: string, value?: number) {
 function buildDispatchArgs(input: {
   repo: string;
   task: string;
+  task_title?: string;
   provider: "auto" | "qoder" | "codebuddy";
   tier?: string;
   mode?: "readonly" | "edit";
@@ -567,6 +568,8 @@ function buildDispatchArgs(input: {
     "-RunMode",
     input.run_mode ?? "background"
   ];
+
+  appendOptionalStringArg(args, "-TaskTitle", input.task_title);
 
   if (input.task_kind) {
     args.push("-TaskKind", input.task_kind === "external_research_support" ? "external_research" : input.task_kind);
@@ -792,6 +795,7 @@ export function classifyWorkerOutcome(input: {
 export async function dispatchTool(input: {
   repo: string;
   task: string;
+  task_title?: string;
   provider?: "auto" | "qoder" | "codebuddy";
   tier?: string;
   mode?: "readonly" | "edit";
@@ -2059,6 +2063,7 @@ export async function dispatchPlanTaskTool(input: {
   const dispatched = await dispatchTool({
     repo,
     task: workerTask,
+    task_title: title,
     provider: input.provider ?? "auto",
     tier: input.tier,
     mode: mode as "readonly" | "edit",
