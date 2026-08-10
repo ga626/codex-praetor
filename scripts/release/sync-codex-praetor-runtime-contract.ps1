@@ -27,6 +27,7 @@ $runtimeData = @(
     # their source locations. Keep the execution chain generated from one
     # canonical source so a source-only fix cannot ship an older protocol.
     [ordered]@{ source = "scripts\dispatch\invoke-codex-praetor.ps1"; target = "plugin\skills\codex-praetor\scripts\invoke-codex-praetor.ps1" },
+    [ordered]@{ source = "scripts\dispatch\resolve-codebuddy-admission.ps1"; target = "plugin\skills\codex-praetor\scripts\resolve-codebuddy-admission.ps1" },
     [ordered]@{ source = "scripts\dispatch\manage-codex-praetor-plan.ps1"; target = "plugin\skills\codex-praetor\scripts\manage-codex-praetor-plan.ps1" },
     [ordered]@{ source = "scripts\dispatch\record-codex-praetor-readiness.ps1"; target = "plugin\skills\codex-praetor\scripts\record-codex-praetor-readiness.ps1" },
     [ordered]@{ source = "scripts\dispatch\watch-codex-praetor-job.ps1"; target = "plugin\skills\codex-praetor\scripts\watch-codex-praetor-job.ps1" },

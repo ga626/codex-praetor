@@ -66,6 +66,7 @@ $mirroredExecutionSources = @(
     # source copied by sync-codex-praetor-runtime-contract.ps1. Otherwise a
     # newly mirrored runtime script fails only after the PR reaches CI.
     "scripts\dispatch\invoke-codex-praetor.ps1",
+    "scripts\dispatch\resolve-codebuddy-admission.ps1",
     "scripts\dispatch\manage-codex-praetor-plan.ps1",
     "scripts\dispatch\record-codex-praetor-readiness.ps1",
     "scripts\dispatch\watch-codex-praetor-job.ps1",

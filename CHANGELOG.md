@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.38-alpha
+
+- CodeBuddy ACP 在创建付费 job 或隔离 worktree 前执行短时、只读的准入探测；登录过期、启动失败或探测超时会在控制面明确阻断并给出下一步，而不是消耗 worker 额度。
+- 固定 `hy3` 未出现在静态模型目录时仅记录为建议，不再误判为不可用；是否可用仍由冻结 ACP 真实任务、trace 与独立验收决定，绝不自动切换到 Auto、DeepSeek 或其他路线。
+- 候选版本夹具覆盖新增镜像运行时脚本，源码扫描忽略项目自有 `.codex/` 历史运行目录；保留既有 controlled process cancellation 与终态证据链。
+
 ## 0.16.37-alpha
 
 - Qoder stream-json 以事件驱动方式识别纯模型排队，并用单独队列上限和 `provider_queue_timeout / model_queue_saturated` 回执代替消耗完整任务超时。

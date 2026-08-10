@@ -206,6 +206,9 @@ $runtimeContractCandidates = @(
 )
 $runtimeContractPath = @($runtimeContractCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 if (@($runtimeContractPath).Count -ne 1) { throw "Codex Praetor runtime contract is missing." }
+$codeBuddyAdmissionHelper = Join-Path $scriptDir "resolve-codebuddy-admission.ps1"
+if (-not (Test-Path -LiteralPath $codeBuddyAdmissionHelper -PathType Leaf)) { throw "CodeBuddy admission helper is missing from this runtime." }
+. $codeBuddyAdmissionHelper
 function Get-FileSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
     $stream = [System.IO.File]::OpenRead($Path)
@@ -1610,6 +1613,23 @@ $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
 if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not $EvidenceBootstrap) {
     $expectedConnection = if ($resolvedProvider -eq "qoder") { $qoderConnectionMode } elseif ($resolvedProvider -eq "codebuddy") { "codebuddy_acp" } else { "" }
     $expectedRunnerIdentity = if ($expectedConnection -eq "supervised_cli_stream_json") { "${expectedConnection}:" + (Get-FileSha256OrEmpty -Path $providerCliPath) } else { "" }
+    $admission = $null
+    if ($resolvedProvider -eq "codebuddy") {
+        $admission = Invoke-CodexPraetorCodeBuddyAdmissionProbe -LauncherPath ([string]$config.providers.codebuddy.nodePath) -CliPath $providerCliPath -ModelName $model
+        if ([string]$admission.status -ne "ready") {
+            if ($ReadinessProbe) {
+                Write-Output "provider=$resolvedProvider"
+                Write-Output "model=$model"
+                Write-Output "connection_mode=$expectedConnection"
+                Write-Output "distribution=$providerDistribution"
+                Write-Output "readiness_state=blocked"
+                Write-Output "failure_class=$($admission.failure_class)"
+                Write-Output "next_action=$($admission.next_action)"
+                exit 0
+            }
+            throw "CodeBuddy admission blocked '$resolvedProvider': $($admission.failure_class). $($admission.next_action)"
+        }
+    }
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind -ConnectionModeName $expectedConnection -DistributionName $providerDistribution -RunnerIdentity $expectedRunnerIdentity
     if ($ReadinessProbe) {
         Write-Output "provider=$resolvedProvider"
@@ -1619,6 +1639,10 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not 
         Write-Output "runner_identity=$expectedRunnerIdentity"
         Write-Output "readiness_state=$(if ($readiness.ok) { 'direct_ready' } else { 'bootstrap_eligible' })"
         Write-Output "readiness_reason=$($readiness.reason)"
+        if ($null -ne $admission) {
+            Write-Output "admission_state=$($admission.status)"
+            if (-not [string]::IsNullOrWhiteSpace([string]$admission.advisory_class)) { Write-Output "admission_advisory=$($admission.advisory_class)" }
+        }
         exit 0
     }
     if (-not $readiness.ok) {
