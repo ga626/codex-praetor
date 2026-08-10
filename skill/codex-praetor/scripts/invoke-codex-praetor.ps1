@@ -1804,7 +1804,7 @@ $networkRule
 - For a real code_change, make a minimal, reviewable Git diff only in the declared allowlist. Do not alter immutable files, tests outside the allowlist, or create a separate answer/material directory.
 - For a legacy code_change canary, repair the supplied material only. It is regression evidence, not proof of real source editing.
 - For test_execution, run only the declared required checks. Do not run npm install/update, edit or create source files; the supervisor prepares dependencies with npm ci. Report each check's exit code exactly.
-- For a non-canary test_execution, reply exactly CODEX_PRAETOR_REQUIRED_CHECKS_OK only if every declared required check exits 0; otherwise report the failed command and exit code.
+- For a non-canary test_execution, reply exactly CODEX_PRAETOR_REQUIRED_CHECKS_OK only if every declared required check exits 0; otherwise report the failed command and exit code. For readonly tasks where Bash is not in the declared tool list, do not claim to have run a required check; Codex independently runs the declared check after the worker exits.
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the project artifact root unless Codex explicitly allowed another path. Do not leave scratch or generated files in the Git worktree.
 - Do not pause for progress reports. Work autonomously until this task is complete, blocked, or unsafe.
@@ -1862,7 +1862,13 @@ $networkRule
                 throw "Qoder stream-json runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
             }
             $streamRunnerPath = [string]$streamRunner[0]
-            $streamQueueSeconds = [Math]::Min($MaxStallSeconds, 180)
+            # A Qoder model_queue_status event is a provider liveness signal.
+            # MaxStallSeconds governs missing progress on other adapters; it
+            # must not cancel a healthy Qoder queue.  Keep queue wait bounded
+            # by this task's wall-clock budget, with a short margin so the
+            # stream runner can persist a classified queue receipt before the
+            # outer watcher reaches the same deadline.
+            $streamQueueSeconds = [Math]::Max(1, $TimeoutSeconds - 15)
             $streamRunnerOptions = [ordered]@{
                 schema = "codex-praetor-qoder-stream-json-runner/v1"
                 cwd = $executionRepo

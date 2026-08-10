@@ -13,13 +13,19 @@ const mode = process.env.CP_FAKE_QODER_MODE;
 if (mode === "queue") {
   let count = 101;
   setInterval(() => process.stdout.write(JSON.stringify({ type: "system", subtype: "model_queue_status", status: "queued", queue_type: "slow", queue_count: count++, queue_wait_elapsed_ms: 100, queue_max_wait_ms: 3600000, service_available: true }) + "\n"), 25);
+} else if (mode === "queue_then_complete") {
+  process.stdout.write(JSON.stringify({ type: "system", subtype: "model_queue_status", status: "queued", queue_type: "slow", queue_count: 101, queue_wait_elapsed_ms: 25, queue_max_wait_ms: 3600000, service_available: true }) + "\n");
+  setTimeout(() => {
+    process.stdout.write(JSON.stringify({ type: "assistant" }) + "\n");
+    process.stdout.write(JSON.stringify({ type: "result" }) + "\n");
+  }, 25);
 } else {
   process.stdout.write(JSON.stringify({ type: "assistant" }) + "\n");
   process.stdout.write(JSON.stringify({ type: "result" }) + "\n");
 }
 `;
 
-function run(mode: "queue" | "complete") {
+function run(mode: "queue" | "queue_then_complete" | "complete") {
   const job = path.join(root, mode);
   mkdirSync(job, { recursive: true });
   const statePath = path.join(job, "session.json");
@@ -49,12 +55,21 @@ try {
   assert.equal(complete.state.state, "completed");
   assert.equal(complete.state.progress_observed, true);
   assert.match(complete.stdout, /"type":"result"/);
+  const queuedThenComplete = await run("queue_then_complete");
+  assert.equal(queuedThenComplete.exitCode, 0);
+  assert.equal(queuedThenComplete.state.state, "completed", "Queue heartbeats must not be treated as a max-stall timeout.");
+  assert.equal(queuedThenComplete.state.queue_observed, true);
+  assert.equal(queuedThenComplete.state.progress_observed, true);
+  assert.equal(queuedThenComplete.state.queue_local_budget_ms, 1000);
+  assert.equal(queuedThenComplete.state.queue_effective_limit_ms, 1000, "The local task wall budget must cap Qoder's advertised queue maximum.");
   const queued = await run("queue");
   assert.equal(queued.exitCode, 2, "A queue-only stream must stop at the queue bound instead of the generic job timeout.");
   assert.equal(queued.state.state, "provider_queue_timeout");
   assert.equal(queued.state.queue_observed, true);
   assert.equal(queued.state.queue_type, "slow");
   assert.equal(queued.state.progress_observed, false);
+  assert.equal(queued.state.queue_local_budget_ms, 1000);
+  assert.equal(queued.state.queue_effective_limit_ms, 1000);
   console.log("Qoder stream-json queue contract regression ok");
 } finally {
   rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });

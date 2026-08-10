@@ -587,6 +587,20 @@ if (Test-Path -LiteralPath $codeBuddyPermissionTest -PathType Leaf) {
     Add-Fail "CodeBuddy permission protocol regression script missing: $codeBuddyPermissionTest"
 }
 
+$qoderPermissionBoundaryTest = Join-Path $projectRoot "scripts\verify\test-qoder-stream-json-permission-boundary.ps1"
+if (Test-Path -LiteralPath $qoderPermissionBoundaryTest -PathType Leaf) {
+    try {
+        $qoderBoundaryOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $qoderPermissionBoundaryTest -ProjectRoot $projectRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($qoderBoundaryOutput | Out-String) -match "Qoder stream-json readonly check boundary")) {
+            Add-Pass "Qoder stream-json readonly permission boundary regression passes"
+        } else {
+            Add-Fail "Qoder stream-json readonly permission boundary regression failed: $($qoderBoundaryOutput | Out-String)"
+        }
+    } catch { Add-Fail "Qoder stream-json readonly permission boundary regression failed: $($_.Exception.Message)" }
+} else {
+    Add-Fail "Qoder stream-json readonly permission boundary regression script missing: $qoderPermissionBoundaryTest"
+}
+
 $publishedActivationTest = Join-Path $projectRoot "scripts\verify\test-published-release-activation.ps1"
 if (Test-Path -LiteralPath $publishedActivationTest -PathType Leaf) {
     $trackedDiff = @(& git -C $projectRoot status --porcelain --untracked-files=no 2>$null)

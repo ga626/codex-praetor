@@ -28,6 +28,11 @@ type State = {
   queue_count?: number;
   queue_wait_elapsed_ms?: number;
   queue_max_wait_ms?: number;
+  // The upstream service may advertise its own queue lifetime.  This is kept
+  // separate from the task's local wall-clock budget so diagnosis can show
+  // which bound ended the wait.
+  queue_local_budget_ms: number;
+  queue_effective_limit_ms?: number;
   service_available?: boolean;
   progress_observed: boolean;
   cancelled: boolean;
@@ -67,6 +72,7 @@ async function main() {
   let progressObserved = false;
   let cancelled = false;
   let queueTimedOut = false;
+  let queueEffectiveLimitMs: number | undefined;
   let queueTimer: ReturnType<typeof setTimeout> | undefined;
   let cancellationWatcher: ReturnType<typeof watch> | undefined;
   const child = spawn(options.cli_path, options.args, { cwd: options.cwd, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
@@ -86,6 +92,8 @@ async function main() {
       queue_count: queueCount,
       queue_wait_elapsed_ms: queueWaitElapsedMs,
       queue_max_wait_ms: queueMaxWaitMs,
+      queue_local_budget_ms: options.max_queue_seconds * 1000,
+      queue_effective_limit_ms: queueEffectiveLimitMs,
       service_available: serviceAvailable,
       progress_observed: progressObserved,
       cancelled,
@@ -103,11 +111,18 @@ async function main() {
   };
   const armQueueTimer = () => {
     if (queueTimer || progressObserved || cancelled) return;
+    // Qoder's queue events are structured liveness heartbeats, not an absent
+    // progress signal.  The local queue bound is therefore the remaining
+    // worker wall-clock budget, capped by an explicit upstream queue limit
+    // when one is supplied.  Do not reuse max_stall_seconds here: doing so
+    // killed healthy Qoder queues after 120 seconds.
+    const upstreamLimitMs = queueMaxWaitMs && queueMaxWaitMs > 0 ? queueMaxWaitMs : undefined;
+    queueEffectiveLimitMs = Math.min(options.max_queue_seconds * 1000, upstreamLimitMs ?? Number.MAX_SAFE_INTEGER);
     queueTimer = setTimeout(() => {
-      queueWaitElapsedMs = Math.max(queueWaitElapsedMs ?? 0, options.max_queue_seconds * 1000);
+      queueWaitElapsedMs = Math.max(queueWaitElapsedMs ?? 0, queueEffectiveLimitMs ?? options.max_queue_seconds * 1000);
       writeState("provider_queue_timeout", "queue_wait_limit_exceeded");
       stop("queue");
-    }, options.max_queue_seconds * 1000);
+    }, queueEffectiveLimitMs);
   };
   const markProgress = () => {
     progressObserved = true;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.39-alpha
+
+- Qoder 中国版 `stream-json` 将结构化 `model_queue_status` 视为 provider 存活队列，不再把持续排队误判为无心跳停滞；等待受任务总时限与上游队列上限共同约束。
+- 队列回执新增本地等待预算与实际生效上限，能明确区分 provider 排队超时和真正的无心跳卡死。
+- Qoder 只读 worker 即使存在需要验收的命令也保持关闭 Bash；Codex 在 worker 结束后独立执行确定性检查，避免 stream-json shell 命令被拼接扩大权限。
+
 ## 0.16.38-alpha
 
 - CodeBuddy ACP 在创建付费 job 或隔离 worktree 前执行短时、只读的准入探测；登录过期、启动失败或探测超时会在控制面明确阻断并给出下一步，而不是消耗 worker 额度。
