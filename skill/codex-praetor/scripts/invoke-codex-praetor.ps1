@@ -1112,6 +1112,7 @@ function Invoke-Or-StartWorker {
         [string]$RunnerIdentity = "",
         [object]$SdkRunnerOptions = $null,
         [object]$AcpRunnerOptions = $null,
+        [object]$StreamJsonRunnerOptions = $null,
         [string]$ProviderCliPath = ""
     )
 
@@ -1166,6 +1167,7 @@ function Invoke-Or-StartWorker {
     $argumentListPath = Join-Path $jobDir "worker-args.json"
     $sdkSessionStatePath = ""
     $acpSessionStatePath = ""
+    $streamJsonSessionStatePath = ""
     if ($null -ne $SdkRunnerOptions) {
         $sdkOptionsPath = Join-Path $jobDir "qoder-sdk-options.json"
         $sdkSessionStatePath = Join-Path $jobDir "qoder-sdk-session.json"
@@ -1186,6 +1188,17 @@ function Invoke-Or-StartWorker {
         [IO.File]::WriteAllText($acpOptionsPath, (($AcpRunnerOptions | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
         $ArgumentList = @($ArgumentList | ForEach-Object {
             if ([string]$_ -eq "__CODEX_PRAETOR_CODEBUDDY_ACP_OPTIONS__") { $acpOptionsPath } else { $_ }
+        })
+        $commandLine = Join-CommandLine $Exe $ArgumentList
+    }
+    if ($null -ne $StreamJsonRunnerOptions) {
+        $streamJsonOptionsPath = Join-Path $jobDir "qoder-stream-json-options.json"
+        $streamJsonSessionStatePath = Join-Path $jobDir "qoder-stream-json-session.json"
+        $StreamJsonRunnerOptions["job_id"] = $jobId
+        $StreamJsonRunnerOptions["state_path"] = $streamJsonSessionStatePath
+        [IO.File]::WriteAllText($streamJsonOptionsPath, (($StreamJsonRunnerOptions | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
+        $ArgumentList = @($ArgumentList | ForEach-Object {
+            if ([string]$_ -eq "__CODEX_PRAETOR_QODER_STREAM_JSON_OPTIONS__") { $streamJsonOptionsPath } else { $_ }
         })
         $commandLine = Join-CommandLine $Exe $ArgumentList
     }
@@ -1229,6 +1242,7 @@ function Invoke-Or-StartWorker {
         evidence_bootstrap = [bool]$EvidenceBootstrap
         readiness_path = $providerReadinessPath
         qoder_sdk_session = $sdkSessionStatePath
+        qoder_stream_json_session = $streamJsonSessionStatePath
         codebuddy_acp_session = $acpSessionStatePath
         task_contract = $ContractPath
         task_contract_schema = [string]$runtimeContract.taskContractSchema
@@ -1255,7 +1269,7 @@ function Invoke-Or-StartWorker {
         argument_list = $argumentListPath
         command = $commandLine
         events = @()
-        status_note = "Durable job created. The watcher starts the worker and waits for process exit without log polling."
+        status_note = "Durable job created. Connection runners expose structured terminal state; the watcher waits for process exit without log polling."
     }
 
     $meta | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metaPath -Encoding UTF8
@@ -1814,7 +1828,26 @@ $networkRule
             if ($effectiveContextWindow -gt 0) {
                 $directCliArgs = @("--context-window", "$effectiveContextWindow") + $directCliArgs
             }
-            Invoke-Or-StartWorker -Exe $resolvedQoder -ArgumentList $directCliArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -ProviderDistribution $providerDistribution -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "stream-json" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "supervised_cli_stream_json" -RunnerIdentity ("supervised_cli_stream_json:" + (Get-FileSha256OrEmpty -Path $resolvedQoder)) -ProviderCliPath $resolvedQoder
+            $streamRunnerCandidates = @(
+                (Join-Path $scriptGrandparent "mcp\dist\qoder-stream-json-runner.js"),
+                (Join-Path $scriptGrandparent "plugin\mcp\dist\qoder-stream-json-runner.js"),
+                (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-stream-json-runner.js")
+            )
+            $streamRunner = @($streamRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+            if (@($streamRunner).Count -ne 1) {
+                throw "Qoder stream-json runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
+            }
+            $streamRunnerPath = [string]$streamRunner[0]
+            $streamQueueSeconds = [Math]::Min($MaxStallSeconds, 180)
+            $streamRunnerOptions = [ordered]@{
+                schema = "codex-praetor-qoder-stream-json-runner/v1"
+                cwd = $executionRepo
+                cli_path = $resolvedQoder
+                args = @($directCliArgs)
+                max_queue_seconds = $streamQueueSeconds
+            }
+            $cmdArgs = @($streamRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_STREAM_JSON_OPTIONS__")
+            Invoke-Or-StartWorker -Exe "node" -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -ProviderDistribution $providerDistribution -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "stream-json" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "supervised_cli_stream_json" -RunnerIdentity ("supervised_cli_stream_json:" + (Get-FileSha256OrEmpty -Path $streamRunnerPath) + ":" + (Get-FileSha256OrEmpty -Path $resolvedQoder)) -StreamJsonRunnerOptions $streamRunnerOptions -ProviderCliPath $resolvedQoder
         } else {
             $sdkRunnerCandidates = @(
                 (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.37-alpha
+
+- Qoder stream-json 以事件驱动方式识别纯模型排队，并用单独队列上限和 `provider_queue_timeout / model_queue_saturated` 回执代替消耗完整任务超时。
+- CodeBuddy ACP refusal 回执新增严格白名单诊断；保留安全错误码而不持久化自由文本、任务内容或账号资料。
+- 新增 Qoder queue 与 CodeBuddy refusal 诊断回归测试。
+
 ## 0.16.36-alpha
 
 - 将展示标题与实际 worker 任务合同分离；Qoder 和 CodeBuddy 现在接收同一份可审计的完整任务包。

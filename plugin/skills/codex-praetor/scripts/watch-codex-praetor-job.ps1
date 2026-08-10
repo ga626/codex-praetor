@@ -281,6 +281,11 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($sdkSessionPath)) {
         try { $sdkSession = Read-JsonWithRetry -Path $sdkSessionPath } catch { $sdkSession = $null }
     }
+    $streamJsonSession = $null
+    $streamJsonSessionPath = if ($null -ne $latestMeta) { [string]$latestMeta.qoder_stream_json_session } else { "" }
+    if (-not [string]::IsNullOrWhiteSpace($streamJsonSessionPath)) {
+        try { $streamJsonSession = Read-JsonWithRetry -Path $streamJsonSessionPath } catch { $streamJsonSession = $null }
+    }
     $acpSession = $null
     $acpSessionPath = if ($null -ne $latestMeta) { [string]$latestMeta.codebuddy_acp_session } else { "" }
     if (-not [string]::IsNullOrWhiteSpace($acpSessionPath)) {
@@ -321,6 +326,13 @@ try {
     } elseif ([string]$latestMeta.connection_mode -eq "qoder_agent_sdk" -and $null -ne $sdkSession -and [string]$sdkSession.state -eq "progress_saturated" -and [string]$sdkSession.stop_reason -eq "progress_saturated") {
         $status = "process_exited"
         $semanticFailure = "progress_saturated"
+    } elseif ([string]$latestMeta.connection_mode -eq "supervised_cli_stream_json" -and $null -ne $streamJsonSession -and [string]$streamJsonSession.state -eq "provider_queue_timeout" -and [bool]$streamJsonSession.queue_observed) {
+        # Qoder emits queue heartbeats before a model begins meaningful work.
+        # They prove upstream admission, but are not task progress; terminate at
+        # the declared queue bound and preserve the provider-side queue facts.
+        $status = "timed_out"
+        $semanticFailure = "provider_queue_timeout"
+        $failureSubClass = "model_queue_saturated"
     } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.state -eq "progress_saturated" -and [string]$acpSession.stop_reason -eq "progress_saturated") {
         $status = "process_exited"
         $semanticFailure = "progress_saturated"
@@ -384,7 +396,9 @@ try {
         worktree_status = $worktreeStatus
         boundary_denials_observed = if ($null -ne $acpSession) { [int]$acpSession.boundary_denials } else { 0 }
         acp_terminal_stop_reason = if ($null -ne $acpSession) { [string]$acpSession.terminal_stop_reason } else { "" }
+        acp_terminal_diagnostic = if ($null -ne $acpSession) { $acpSession.terminal_diagnostic } else { $null }
         stream_json = $streamJsonObservation
+        qoder_stream_json_session = $streamJsonSession
         observed_at = (Get-Date).ToString("o")
     }
     # A provider handoff is safe only for an explicit refusal before a material
@@ -441,6 +455,7 @@ try {
         provider_tuple = $meta.provider_tuple
         connection_mode = $meta.connection_mode
         qoder_sdk_session = $sdkSession
+        qoder_stream_json_session = $streamJsonSession
         codebuddy_acp_session = $acpSession
         recovery_mode = if ([string]$meta.connection_mode -in @("qoder_agent_sdk", "codebuddy_acp") -and $semanticFailure -eq "cancelled_session_terminated") { "cold_resume_from_codex_ledger" } else { "" }
         terminal_state = $status

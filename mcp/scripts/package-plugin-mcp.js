@@ -18,6 +18,7 @@ await mkdir(outdir, { recursive: true });
 for (const [entry, destination] of [
   ["server.ts", outfile],
   ["qoder-sdk-runner.ts", path.join(outdir, "qoder-sdk-runner.js")],
+  ["qoder-stream-json-runner.ts", path.join(outdir, "qoder-stream-json-runner.js")],
   ["codebuddy-acp-runner.ts", path.join(outdir, "codebuddy-acp-runner.js")]
 ]) {
   await build({
