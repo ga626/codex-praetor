@@ -21,6 +21,7 @@ lines.on("line", (line) => {
   if (message.method === "session/new") { send({ id: message.id, result: { sessionId: "fixture-session" } }); return; }
   if (message.method === "session/prompt") {
     promptId = message.id;
+    if (mode === "refusal") { send({ id: promptId, result: { stopReason: "refusal", _meta: { "codebuddy.ai/errorCode": "MODEL_TEMPORARILY_UNAVAILABLE", message: "must never persist this text" } } }); return; }
     send({ method: "session/update", params: { sessionId: "fixture-session", update: { sessionUpdate: "tool_call_update" } } });
     const chunkCount = mode === "high_volume" ? 512 : 1;
     for (let index = 0; index < chunkCount; index += 1) send({ method: "session/update", params: { sessionId: "fixture-session", update: { sessionUpdate: "agent_message_chunk", messageId: "fixture-final", content: { type: "text", text: chunkCount === 1 ? "ACP fixture complete" : "x" } } } });
@@ -108,6 +109,16 @@ try {
   assert.ok(completeState.boundary_denials >= 1, "outside-worktree filesystem read must be denied by the client proxy.");
   assert.equal(readFileSync(inside, "utf8"), "changed", "a literal directory contract must allow its descendant file through the ACP proxy.");
   assert.match(completeOut, /ACP fixture complete/);
+
+  const refusal = options("refusal");
+  const refusalProcess = spawn(process.execPath, [runner, "--options-file", refusal.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "refusal", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });
+  const refusalExit = await waitForChildClose(refusalProcess);
+  assert.equal(refusalExit, 0, "A provider refusal is a completed ACP transport event; the watcher classifies it as rejected.");
+  const refusalState = JSON.parse(readFileSync(refusal.statePath, "utf8"));
+  assert.equal(refusalState.state, "completed");
+  assert.equal(refusalState.terminal_stop_reason, "refusal");
+  assert.equal(refusalState.terminal_diagnostic.code, "MODEL_TEMPORARILY_UNAVAILABLE");
+  assert.equal(Object.hasOwn(refusalState.terminal_diagnostic, "message"), false, "Free-form provider messages must never enter durable diagnostics.");
 
   const highVolume = options("high-volume");
   const highVolumeProcess = spawn(process.execPath, [runner, "--options-file", highVolume.optionsPath], { env: { ...process.env, CP_FAKE_ACP_MODE: "high_volume", CP_FAKE_INSIDE: inside, CP_FAKE_OUTSIDE: outside }, stdio: ["ignore", "pipe", "pipe"] });

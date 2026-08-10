@@ -23,6 +23,10 @@ try {
     & git -C $scratch init -q
     & git -C $scratch config user.email "release-intent-test@example.invalid"
     & git -C $scratch config user.name "Codex Praetor test"
+    # The fixture must be independent of the maintainer's global Git line-ending
+    # preference. Otherwise core.autocrlf=true emits a warning that the strict
+    # candidate-preflight wrapper correctly treats as a failed child command.
+    & git -C $scratch config core.autocrlf false
     & git -C $scratch add config mcp/package.json
     & git -C $scratch commit -qm "fixture"
     if ($LASTEXITCODE -ne 0) { throw "Unable to create the release-intent fixture repository." }

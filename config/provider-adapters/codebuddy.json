@@ -11,6 +11,11 @@
     "allowed": ["hy3"],
     "not_default": ["hy3-preview-agent", "deepseek-v4-flash", "deepseek-v4-pro"]
   },
+  "model_routing_catalog": {
+    "path": "config/model-routing-catalog.json",
+    "authority": "The catalog is authoritative for model status. Account price and entitlement remain unconfirmed until an exact CodeBuddy CN ACP probe records evidence.",
+    "automatic_model_updates": false
+  },
   "permissions": {
     "mappings": [
       { "profile": "local-audit-v1", "provider_semantics": "Use the verified ACP filesystem client proxy for a bounded audit inside the declared worktree." },

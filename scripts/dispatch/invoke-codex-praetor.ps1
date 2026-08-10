@@ -12,6 +12,10 @@
     [Parameter(Mandatory = $true)]
     [string]$Task,
 
+    # The rendered worker packet stays in -Task.  Plan bootstrap validation
+    # also needs the durable presentation title as a separate field.
+    [string]$TaskTitle = "",
+
     [ValidateSet("readonly", "edit")]
     [string]$Mode = "readonly",
 
@@ -202,6 +206,9 @@ $runtimeContractCandidates = @(
 )
 $runtimeContractPath = @($runtimeContractCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 if (@($runtimeContractPath).Count -ne 1) { throw "Codex Praetor runtime contract is missing." }
+$codeBuddyAdmissionHelper = Join-Path $scriptDir "resolve-codebuddy-admission.ps1"
+if (-not (Test-Path -LiteralPath $codeBuddyAdmissionHelper -PathType Leaf)) { throw "CodeBuddy admission helper is missing from this runtime." }
+. $codeBuddyAdmissionHelper
 function Get-FileSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
     $stream = [System.IO.File]::OpenRead($Path)
@@ -424,7 +431,10 @@ function Assert-RealTaskEvidenceBootstrap {
     if ($matches.Count -ne 1) { throw "Evidence bootstrap task is missing or ambiguous: $TaskId" }
     $planTask = $matches[0]
     if ([string]$planTask.status -ne "pending") { throw "Evidence bootstrap requires a pending plan task." }
-    if ([string]$planTask.title -ne $Task -or [string]$planTask.task_family -ne $TaskFamily -or [string]$planTask.task_kind -ne $TaskKind -or [string]$planTask.mode -ne $Mode) {
+    # Keep direct legacy callers compatible when -Task itself is the title;
+    # MCP plan dispatch passes the separate title alongside the full packet.
+    $effectiveTaskTitle = if ([string]::IsNullOrWhiteSpace($TaskTitle)) { $Task } else { $TaskTitle }
+    if ([string]$planTask.title -ne $effectiveTaskTitle -or [string]$planTask.acceptance -ne $Acceptance -or [string]$planTask.task_family -ne $TaskFamily -or [string]$planTask.task_kind -ne $TaskKind -or [string]$planTask.mode -ne $Mode) {
         throw "Evidence bootstrap dispatch arguments do not match the durable plan task."
     }
     $context = $planTask.evidence_context
@@ -1105,6 +1115,7 @@ function Invoke-Or-StartWorker {
         [string]$RunnerIdentity = "",
         [object]$SdkRunnerOptions = $null,
         [object]$AcpRunnerOptions = $null,
+        [object]$StreamJsonRunnerOptions = $null,
         [string]$ProviderCliPath = ""
     )
 
@@ -1159,6 +1170,7 @@ function Invoke-Or-StartWorker {
     $argumentListPath = Join-Path $jobDir "worker-args.json"
     $sdkSessionStatePath = ""
     $acpSessionStatePath = ""
+    $streamJsonSessionStatePath = ""
     if ($null -ne $SdkRunnerOptions) {
         $sdkOptionsPath = Join-Path $jobDir "qoder-sdk-options.json"
         $sdkSessionStatePath = Join-Path $jobDir "qoder-sdk-session.json"
@@ -1179,6 +1191,17 @@ function Invoke-Or-StartWorker {
         [IO.File]::WriteAllText($acpOptionsPath, (($AcpRunnerOptions | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
         $ArgumentList = @($ArgumentList | ForEach-Object {
             if ([string]$_ -eq "__CODEX_PRAETOR_CODEBUDDY_ACP_OPTIONS__") { $acpOptionsPath } else { $_ }
+        })
+        $commandLine = Join-CommandLine $Exe $ArgumentList
+    }
+    if ($null -ne $StreamJsonRunnerOptions) {
+        $streamJsonOptionsPath = Join-Path $jobDir "qoder-stream-json-options.json"
+        $streamJsonSessionStatePath = Join-Path $jobDir "qoder-stream-json-session.json"
+        $StreamJsonRunnerOptions["job_id"] = $jobId
+        $StreamJsonRunnerOptions["state_path"] = $streamJsonSessionStatePath
+        [IO.File]::WriteAllText($streamJsonOptionsPath, (($StreamJsonRunnerOptions | ConvertTo-Json -Depth 12) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
+        $ArgumentList = @($ArgumentList | ForEach-Object {
+            if ([string]$_ -eq "__CODEX_PRAETOR_QODER_STREAM_JSON_OPTIONS__") { $streamJsonOptionsPath } else { $_ }
         })
         $commandLine = Join-CommandLine $Exe $ArgumentList
     }
@@ -1222,6 +1245,7 @@ function Invoke-Or-StartWorker {
         evidence_bootstrap = [bool]$EvidenceBootstrap
         readiness_path = $providerReadinessPath
         qoder_sdk_session = $sdkSessionStatePath
+        qoder_stream_json_session = $streamJsonSessionStatePath
         codebuddy_acp_session = $acpSessionStatePath
         task_contract = $ContractPath
         task_contract_schema = [string]$runtimeContract.taskContractSchema
@@ -1248,7 +1272,7 @@ function Invoke-Or-StartWorker {
         argument_list = $argumentListPath
         command = $commandLine
         events = @()
-        status_note = "Durable job created. The watcher starts the worker and waits for process exit without log polling."
+        status_note = "Durable job created. Connection runners expose structured terminal state; the watcher waits for process exit without log polling."
     }
 
     $meta | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metaPath -Encoding UTF8
@@ -1589,6 +1613,23 @@ $providerReadinessPath = if ([string]::IsNullOrWhiteSpace($ReadinessPath)) {
 if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not $EvidenceBootstrap) {
     $expectedConnection = if ($resolvedProvider -eq "qoder") { $qoderConnectionMode } elseif ($resolvedProvider -eq "codebuddy") { "codebuddy_acp" } else { "" }
     $expectedRunnerIdentity = if ($expectedConnection -eq "supervised_cli_stream_json") { "${expectedConnection}:" + (Get-FileSha256OrEmpty -Path $providerCliPath) } else { "" }
+    $admission = $null
+    if ($resolvedProvider -eq "codebuddy") {
+        $admission = Invoke-CodexPraetorCodeBuddyAdmissionProbe -LauncherPath ([string]$config.providers.codebuddy.nodePath) -CliPath $providerCliPath -ModelName $model
+        if ([string]$admission.status -ne "ready") {
+            if ($ReadinessProbe) {
+                Write-Output "provider=$resolvedProvider"
+                Write-Output "model=$model"
+                Write-Output "connection_mode=$expectedConnection"
+                Write-Output "distribution=$providerDistribution"
+                Write-Output "readiness_state=blocked"
+                Write-Output "failure_class=$($admission.failure_class)"
+                Write-Output "next_action=$($admission.next_action)"
+                exit 0
+            }
+            throw "CodeBuddy admission blocked '$resolvedProvider': $($admission.failure_class). $($admission.next_action)"
+        }
+    }
     $readiness = Test-ProviderReadiness -ReadinessPath $providerReadinessPath -ProviderName $resolvedProvider -CliPath $providerCliPath -ModelName $model -PermissionProfileName $effectivePermissionProfile -TaskKindName $TaskKind -ConnectionModeName $expectedConnection -DistributionName $providerDistribution -RunnerIdentity $expectedRunnerIdentity
     if ($ReadinessProbe) {
         Write-Output "provider=$resolvedProvider"
@@ -1598,6 +1639,10 @@ if (-not $DryRun -and -not $CapabilityCanary -and -not $PreflightOnly -and -not 
         Write-Output "runner_identity=$expectedRunnerIdentity"
         Write-Output "readiness_state=$(if ($readiness.ok) { 'direct_ready' } else { 'bootstrap_eligible' })"
         Write-Output "readiness_reason=$($readiness.reason)"
+        if ($null -ne $admission) {
+            Write-Output "admission_state=$($admission.status)"
+            if (-not [string]::IsNullOrWhiteSpace([string]$admission.advisory_class)) { Write-Output "admission_advisory=$($admission.advisory_class)" }
+        }
         exit 0
     }
     if (-not $readiness.ok) {
@@ -1686,6 +1731,11 @@ try {
         evidence_bootstrap = [bool]$EvidenceBootstrap
         worker_network = if ($AllowWorkerNetwork) { "allowed_by_codex" } else { "forbidden" }
         research_contract = $researchContract
+        # The rendered worker packet is immutable input to every connection
+        # layer.  Persist it with the task contract so a completion can be
+        # audited without relying on a UI title or untrusted worker output.
+        task_title = $effectiveTaskTitle
+        worker_task_packet = $Task
         acceptance = $Acceptance
         timeout_seconds = $TimeoutSeconds
         supervision = [ordered]@{
@@ -1754,7 +1804,7 @@ $networkRule
 - For a real code_change, make a minimal, reviewable Git diff only in the declared allowlist. Do not alter immutable files, tests outside the allowlist, or create a separate answer/material directory.
 - For a legacy code_change canary, repair the supplied material only. It is regression evidence, not proof of real source editing.
 - For test_execution, run only the declared required checks. Do not run npm install/update, edit or create source files; the supervisor prepares dependencies with npm ci. Report each check's exit code exactly.
-- For a non-canary test_execution, reply exactly CODEX_PRAETOR_REQUIRED_CHECKS_OK only if every declared required check exits 0; otherwise report the failed command and exit code.
+- For a non-canary test_execution, reply exactly CODEX_PRAETOR_REQUIRED_CHECKS_OK only if every declared required check exits 0; otherwise report the failed command and exit code. For readonly tasks where Bash is not in the declared tool list, do not claim to have run a required check; Codex independently runs the declared check after the worker exits.
 - Do not touch auth files, application caches, internal databases, unrelated reports, or unrelated source files.
 - Put scratch files, downloaded references, generated plans, and temporary outputs only under the project artifact root unless Codex explicitly allowed another path. Do not leave scratch or generated files in the Git worktree.
 - Do not pause for progress reports. Work autonomously until this task is complete, blocked, or unsafe.
@@ -1802,7 +1852,32 @@ $networkRule
             if ($effectiveContextWindow -gt 0) {
                 $directCliArgs = @("--context-window", "$effectiveContextWindow") + $directCliArgs
             }
-            Invoke-Or-StartWorker -Exe $resolvedQoder -ArgumentList $directCliArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -ProviderDistribution $providerDistribution -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "stream-json" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "supervised_cli_stream_json" -RunnerIdentity ("supervised_cli_stream_json:" + (Get-FileSha256OrEmpty -Path $resolvedQoder)) -ProviderCliPath $resolvedQoder
+            $streamRunnerCandidates = @(
+                (Join-Path $scriptGrandparent "mcp\dist\qoder-stream-json-runner.js"),
+                (Join-Path $scriptGrandparent "plugin\mcp\dist\qoder-stream-json-runner.js"),
+                (Join-Path (Split-Path -Parent $scriptGrandparent) "mcp\dist\qoder-stream-json-runner.js")
+            )
+            $streamRunner = @($streamRunnerCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+            if (@($streamRunner).Count -ne 1) {
+                throw "Qoder stream-json runner is missing from this runtime. Rebuild the Codex Praetor MCP bundle before dispatch."
+            }
+            $streamRunnerPath = [string]$streamRunner[0]
+            # A Qoder model_queue_status event is a provider liveness signal.
+            # MaxStallSeconds governs missing progress on other adapters; it
+            # must not cancel a healthy Qoder queue.  Keep queue wait bounded
+            # by this task's wall-clock budget, with a short margin so the
+            # stream runner can persist a classified queue receipt before the
+            # outer watcher reaches the same deadline.
+            $streamQueueSeconds = [Math]::Max(1, $TimeoutSeconds - 15)
+            $streamRunnerOptions = [ordered]@{
+                schema = "codex-praetor-qoder-stream-json-runner/v1"
+                cwd = $executionRepo
+                cli_path = $resolvedQoder
+                args = @($directCliArgs)
+                max_queue_seconds = $streamQueueSeconds
+            }
+            $cmdArgs = @($streamRunnerPath, "--options-file", "__CODEX_PRAETOR_QODER_STREAM_JSON_OPTIONS__")
+            Invoke-Or-StartWorker -Exe "node" -ArgumentList $cmdArgs -WorkingDirectory $executionRepo -ProviderName "qoder" -ProviderDistribution $providerDistribution -TierName $Tier -ModelName $model -PriceNote $tierConfig.creditMultiplier -ReasoningEffortName $effectiveReasoningEffort -AgentName $effectiveAgent -ContextWindowSize $effectiveContextWindow -PermissionProfileName $effectivePermissionProfile -OutputFormatName "stream-json" -ModelPolicy $modelPolicy -TaskKindName $TaskKind -ContractPath $contractPath -ContractHash $contractHash -BaseCommitValue $resolvedBaseCommit -WorktreeHead $observedWorktreeHead -RequestedJobId $dispatchJobId -WorkerTimeoutSeconds $TimeoutSeconds -DependencyBootstrap $dependencyBootstrap -ConnectionMode "supervised_cli_stream_json" -RunnerIdentity ("supervised_cli_stream_json:" + (Get-FileSha256OrEmpty -Path $streamRunnerPath) + ":" + (Get-FileSha256OrEmpty -Path $resolvedQoder)) -StreamJsonRunnerOptions $streamRunnerOptions -ProviderCliPath $resolvedQoder
         } else {
             $sdkRunnerCandidates = @(
                 (Join-Path $scriptGrandparent "mcp\dist\qoder-sdk-runner.js"),

@@ -8,7 +8,8 @@ description: 当用户说“开启执政官模式”或要求拆分、派发边�
 ## 执政官模式（正式触发词）
 
 - 用户说“开启执政官模式”时，从下一项实质任务开始持续使用本 Skill；“打开执政官模式”“进入执政官模式”是同义触发。旧称“执行官模式”只作为历史兼容别名，不作为新的用户口径。
-- 开启后，每项实质任务仍必须先调用 route，但 route 只是分类，不是流程终点。若结果指向外部 worker，且任务存在可独立验收的子结果，Codex 必须继续完成 `plan → dry-run → dispatch`；不能因为 route 已完成、尚未有 evidence 或任务整体较大就直接回退而不检查可拆分部分。
+- 开启后，每项实质任务仍必须先调用 `codex_praetor_route_intent(executive_mode="active")`。MCP 不读取宿主对话状态，因此这个显式字段是唯一可信的连续性载体；切勿假定 route 自己会记住上一句触发词。
+- route 只是分类，不是流程终点。若结果指向外部 worker，且任务存在可独立验收的子结果，Codex 必须保存返回的 `decision_receipt`，并继续完成 `prepare_plan_task → dispatch_readiness → dry-run → dispatch_plan_task`；不能因为 route 已完成、尚未有 evidence 或任务整体较大就直接回退而不检查可拆分部分。
 - 只有存在可核实的阻断（认证/隐私、生产或不可逆外部动作、缺少 provider/连接/权限、无法形成明确验收合同、或任务必须由 Codex 作最终裁决）时，才可由 Codex 接管。接管时必须向用户说明具体阻断和保留的可外派子任务。
 - 大任务默认拆成“Codex 保留的规划/敏感操作/整合验收”与“worker 执行的只读、确定性或局部修改”两部分；不能以整体复杂为由把所有工作留给 Codex。
 - `route_intent` 完成不等于已派工；真实派工只有在返回 `job_id`、`execution_worktree` 和 started 状态后才能确认。合同预检通过也不等于 worker 已启动。
@@ -22,9 +23,10 @@ description: 当用户说“开启执政官模式”或要求拆分、派发边�
 ## 派工与验收
 
 1. 定义任务包：一件可验收的结果、允许/禁止路径、预算、所需检查和回传证据，并说明派发理由、provider、隔离范围及 Codex 保留的工作。测试任务必须声明精确检查；由 supervisor 准备依赖，worker 不得 `install`/`update` 依赖。真实代码修改必须通过 `codex_praetor_dispatch_plan_task` 的计划合同，冻结 `base_commit` 和 `immutable_paths`。
-2. 从项目根目录依次执行 route、plan、`codex_praetor_dispatch_readiness`、dry-run；前两项只是准备，精确 readiness 才说明本任务是 `direct_ready`、`bootstrap_eligible` 还是明确阻断。真实派工一律调用 `codex_praetor_dispatch_plan_task`，不得用通用 `codex_praetor_dispatch` 绕过计划入口；`bootstrap_eligible` 只能让同一真实用户计划任务建立一次证据，不能另建热身任务。dry-run 失败先读取结构化 `failure_class`、`field`、`next_action`，修正合同后再预演；不得把合同失败归因于 provider，也不得直接把可拆任务收回 Codex。真实编辑用 disposable worktree，多步任务写 durable plan，后台任务等 completion 事件，不高频轮询。
-3. Codex 顺序检查 `completion.json`、stdout/stderr、worktree diff/status、允许范围、成功 marker 和独立复跑，才记录 `accepted`；只有 `accepted` 可解锁依赖。拒绝、超时、无输出或遗留部分差异均为失败证据，不静默重试、合并或当作成功。
-4. 用户说“停”时，走正式取消并读取 `completion.json` 终态。共享根因修复后重跑受影响能力；发布影响 PR 必须从最终候选 artifact 重跑受影响场景和全量确定性矩阵，生成绑定 `HEAD` 与 artifact SHA 的回执，CI 只作独立复核。
+2. 从项目根目录依次执行 route、`codex_praetor_prepare_plan_task`、`codex_praetor_dispatch_readiness`、dry-run；前两项只是准备，精确 readiness 才说明本任务是 `direct_ready`、`bootstrap_eligible` 还是明确阻断。真实派工一律调用 `codex_praetor_dispatch_plan_task`，不得用通用 `codex_praetor_dispatch` 绕过计划入口；`bootstrap_eligible` 只能让同一真实用户计划任务建立一次证据，不能另建热身任务。dry-run 失败先读取结构化 `failure_class`、`field`、`next_action`，修正合同后再预演；不得把合同失败归因于 provider，也不得直接把可拆任务收回 Codex。真实编辑用 disposable worktree，多步任务写 durable plan，后台任务等 completion 事件，不高频轮询。
+3. 在 plan、dry-run 或 dispatch 任一步尚未产生 `job_id` 前，调用 `codex_praetor_executive_mode_status` 必须显示“尚未真实派工”；禁止用 route、合同预检、文字承诺或模型选择摘要替代真实 worker 证据。模型选择读取 `codex_praetor_model_routing_catalog`：只允许固定 default/explicit 模型；候选、Auto、历史 MiMo 配置绝不能自动路由。
+4. Codex 顺序检查 `completion.json`、stdout/stderr、worktree diff/status、允许范围、成功 marker 和独立复跑，才记录 `accepted`；只有 `accepted` 可解锁依赖。拒绝、超时、无输出或遗留部分差异均为失败证据，不静默重试、合并或当作成功。若 completion 明确是 `provider_rejected / provider_refusal_before_tool_use`，且记录为无 diff 的 `safe_provider_fallback`，可调用一次 `codex_praetor_recover_plan_task` 透明转交到既定的另一条固定 provider 路线；超时、网络不明、已有 diff、检查失败或第二次失败绝不转交，交回 Codex 决定。
+5. 用户说“停”时，走正式取消并读取 `completion.json` 终态。共享根因修复后重跑受影响能力；发布影响 PR 必须从最终候选 artifact 重跑受影响场景和全量确定性矩阵，生成绑定 `HEAD` 与 artifact SHA 的回执，CI 只作独立复核。
 
 ## 任务提示词
 

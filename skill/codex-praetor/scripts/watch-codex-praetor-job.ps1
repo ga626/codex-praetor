@@ -281,6 +281,11 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($sdkSessionPath)) {
         try { $sdkSession = Read-JsonWithRetry -Path $sdkSessionPath } catch { $sdkSession = $null }
     }
+    $streamJsonSession = $null
+    $streamJsonSessionPath = if ($null -ne $latestMeta) { [string]$latestMeta.qoder_stream_json_session } else { "" }
+    if (-not [string]::IsNullOrWhiteSpace($streamJsonSessionPath)) {
+        try { $streamJsonSession = Read-JsonWithRetry -Path $streamJsonSessionPath } catch { $streamJsonSession = $null }
+    }
     $acpSession = $null
     $acpSessionPath = if ($null -ne $latestMeta) { [string]$latestMeta.codebuddy_acp_session } else { "" }
     if (-not [string]::IsNullOrWhiteSpace($acpSessionPath)) {
@@ -290,6 +295,7 @@ try {
     # A worker exit is execution evidence, not a logical-task acceptance.
     $status = "process_exited"
     $semanticFailure = ""
+    $failureSubClass = ""
     # stdout is the worker's untrusted natural-language report. It can describe
     # a failure class as an example while the actual task succeeded, so it must
     # never drive terminal classification. Provider process diagnostics belong
@@ -320,12 +326,25 @@ try {
     } elseif ([string]$latestMeta.connection_mode -eq "qoder_agent_sdk" -and $null -ne $sdkSession -and [string]$sdkSession.state -eq "progress_saturated" -and [string]$sdkSession.stop_reason -eq "progress_saturated") {
         $status = "process_exited"
         $semanticFailure = "progress_saturated"
+    } elseif ([string]$latestMeta.connection_mode -eq "supervised_cli_stream_json" -and $null -ne $streamJsonSession -and [string]$streamJsonSession.state -eq "provider_queue_timeout" -and [bool]$streamJsonSession.queue_observed) {
+        # Qoder emits queue heartbeats before a model begins meaningful work.
+        # They prove upstream admission, but are not task progress; terminate at
+        # the declared queue bound and preserve the provider-side queue facts.
+        $status = "timed_out"
+        $semanticFailure = "provider_queue_timeout"
+        $failureSubClass = "model_queue_saturated"
     } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.state -eq "progress_saturated" -and [string]$acpSession.stop_reason -eq "progress_saturated") {
         $status = "process_exited"
         $semanticFailure = "progress_saturated"
     } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.terminal_stop_reason -eq "cancelled") {
         $status = "process_exited"
         $semanticFailure = "provider_cancelled_unexpected"
+    } elseif ([string]$latestMeta.connection_mode -eq "codebuddy_acp" -and $null -ne $acpSession -and [string]$acpSession.terminal_stop_reason -eq "refusal") {
+        # ACP can complete its JSON-RPC process cleanly while refusing the task.
+        # Never expose it as a successful worker exit merely because Node exits 0.
+        $status = "process_exited"
+        $semanticFailure = "provider_rejected"
+        $failureSubClass = "provider_refusal_before_tool_use"
     } elseif ($timedOut) {
         $status = "timed_out"
     } elseif (-not [string]::IsNullOrWhiteSpace($semanticFailure)) {
@@ -376,9 +395,17 @@ try {
         worktree_changed = $worktreeChanged
         worktree_status = $worktreeStatus
         boundary_denials_observed = if ($null -ne $acpSession) { [int]$acpSession.boundary_denials } else { 0 }
+        acp_terminal_stop_reason = if ($null -ne $acpSession) { [string]$acpSession.terminal_stop_reason } else { "" }
+        acp_terminal_diagnostic = if ($null -ne $acpSession) { $acpSession.terminal_diagnostic } else { $null }
         stream_json = $streamJsonObservation
+        qoder_stream_json_session = $streamJsonSession
         observed_at = (Get-Date).ToString("o")
     }
+    # A provider handoff is safe only for an explicit refusal before a material
+    # change.  Timeouts, cancellations, failures with a diff, and unknown
+    # transport states stay with Codex; they must never be silently replayed.
+    $safeProviderFallback = $semanticFailure -eq "provider_rejected" -and $failureSubClass -eq "provider_refusal_before_tool_use" -and -not $worktreeChanged -and [string]$meta.task_kind -ne "external_research"
+    $evidenceObservation.safe_provider_fallback = $safeProviderFallback
 
     $now = Get-Date
     Set-JsonProperty -Object $meta -Name "status" -Value $status
@@ -410,6 +437,8 @@ try {
         status = $status
         exit_code = $exitCode
         failure_class = $semanticFailure
+        failure_subclass = $failureSubClass
+        safe_provider_fallback = $safeProviderFallback
         exited_at = $now.ToString("o")
         stdout = $meta.stdout
         stderr = $meta.stderr
@@ -426,6 +455,7 @@ try {
         provider_tuple = $meta.provider_tuple
         connection_mode = $meta.connection_mode
         qoder_sdk_session = $sdkSession
+        qoder_stream_json_session = $streamJsonSession
         codebuddy_acp_session = $acpSession
         recovery_mode = if ([string]$meta.connection_mode -in @("qoder_agent_sdk", "codebuddy_acp") -and $semanticFailure -eq "cancelled_session_terminated") { "cold_resume_from_codex_ledger" } else { "" }
         terminal_state = $status

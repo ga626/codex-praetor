@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.16.39-alpha
+
+- Qoder 中国版 `stream-json` 将结构化 `model_queue_status` 视为 provider 存活队列，不再把持续排队误判为无心跳停滞；等待受任务总时限与上游队列上限共同约束。
+- 队列回执新增本地等待预算与实际生效上限，能明确区分 provider 排队超时和真正的无心跳卡死。
+- Qoder 只读 worker 即使存在需要验收的命令也保持关闭 Bash；Codex 在 worker 结束后独立执行确定性检查，避免 stream-json shell 命令被拼接扩大权限。
+
+## 0.16.38-alpha
+
+- CodeBuddy ACP 在创建付费 job 或隔离 worktree 前执行短时、只读的准入探测；登录过期、启动失败或探测超时会在控制面明确阻断并给出下一步，而不是消耗 worker 额度。
+- 固定 `hy3` 未出现在静态模型目录时仅记录为建议，不再误判为不可用；是否可用仍由冻结 ACP 真实任务、trace 与独立验收决定，绝不自动切换到 Auto、DeepSeek 或其他路线。
+- 候选版本夹具覆盖新增镜像运行时脚本，源码扫描忽略项目自有 `.codex/` 历史运行目录；保留既有 controlled process cancellation 与终态证据链。
+
+## 0.16.37-alpha
+
+- Qoder stream-json 以事件驱动方式识别纯模型排队，并用单独队列上限和 `provider_queue_timeout / model_queue_saturated` 回执代替消耗完整任务超时。
+- CodeBuddy ACP refusal 回执新增严格白名单诊断；保留安全错误码而不持久化自由文本、任务内容或账号资料。
+- 新增 Qoder queue 与 CodeBuddy refusal 诊断回归测试。
+
+## 0.16.36-alpha
+
+- 将展示标题与实际 worker 任务合同分离；Qoder 和 CodeBuddy 现在接收同一份可审计的完整任务包。
+- 把 CodeBuddy ACP 的 `refusal` 归一为 provider 失败，并只在无 diff 的明确拒绝时允许一次受控 alternate-provider 转交。
+- 同一 durable plan 由编辑任务更正为只读任务时，显式空 `immutable_paths` 会清除旧的冻结路径，不再在 worker 启动前被历史编辑基线错误阻断。
+- 首用 exact-tuple bootstrap 现在把 durable plan 标题作为独立字段传给 PowerShell；完整 worker 任务包仍作为任务正文传递，不会再因标题与正文混用而在 worker 启动前误拒绝。
+
+## 0.16.33-alpha
+
+- 将执政官模式的 `active` 状态、模型路由选择与未派工边界写入可持久化的任务决策回执，避免 route/dry-run 被误解为真实派工。
+- 新增受跟踪的模型路由目录与只读查询入口；固定默认与显式模型、价格快照和候选状态，不自动更新模型或读取账号配置。
+- 保持既有的 controlled process cancellation 与终态证据链不变。
+
 ## 0.16.32-alpha
 
 - 将执政官模式的真实派工收敛到 durable plan task，并为未绑定计划的通用入口返回可执行恢复指引。

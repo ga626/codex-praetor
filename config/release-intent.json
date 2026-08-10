@@ -1,11 +1,11 @@
 {
     "schema":  "codex-praetor-release-intent/v1",
     "product":  "codex-praetor",
-    "version":  "0.16.32-alpha",
-    "previous_version":  "0.16.31-alpha",
-    "tag":  "v0.16.32-alpha",
+    "version":  "0.16.39-alpha",
+    "previous_version":  "0.16.32-alpha",
+    "tag":  "v0.16.39-alpha",
     "release_required":  true,
     "release_mode":  "auto_on_main",
-    "artifact":  "codex-praetor-setup-0.16.32-alpha.zip",
-    "reason":  "修复执政官模式被识别后仍可能从通用派工入口停在 readiness gate 的控制面缺陷：真实派工统一绑定 durable plan task，新增 exact tuple readiness 预检和计划账本状态，并让首用 bootstrap 使用同一真实用户任务已解析的 provider、模型、分发与连接。Qoder 中国版仍使用官方 stream-json，Qoder Agent SDK 与 CodeBuddy ACP 仍是既定连接路线；本次不改变模型、认证边界或自动 fallback 策略。"
+    "artifact":  "codex-praetor-setup-0.16.39-alpha.zip",
+    "reason":  "在同一 PR 候选上补齐双 worker 的真实验收阻断：Qoder 中国版 stream-json 将结构化模型队列心跳与无进度停滞分离，队列等待受任务总时限和上游上限共同约束，并保留 provider_queue_timeout/model_queue_saturated 回执；Qoder readonly 不因 supervisor required check 开放 Bash，Codex 在 worker 退出后独立运行确定性检查。CodeBuddy ACP refusal 保留白名单诊断码、状态或类别，而不持久化任务正文、自由文本或账号信息。Qwen3.7-Plus/Hy3 保持既有路线；Qwen3.8、DeepSeek 保持候选，Auto 与全球版不路由；不读取认证、余额或账号配置，也不自动更新模型。"
 }

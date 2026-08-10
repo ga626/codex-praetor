@@ -43,16 +43,28 @@ const plannedTaskContractSchema = z.object({
   validation_only: z.boolean().optional(),
   validation_reason: z.string().min(1).optional()
 });
+
+const decisionReceiptSchema = z.object({
+  schema: z.literal("codex-praetor-decision-receipt/v1"),
+  decision_receipt_id: z.string().min(1),
+  executive_mode: z.enum(["active", "inactive"]),
+  dispatch_state: z.enum(["not_required", "not_dispatched"]),
+  selection_reason: z.string().min(1),
+  next_required_tool: z.enum(["codex_praetor_plan", "codex_praetor_dispatch_dry_run", "codex_kr_primary_research", "codex_direct", "clarify"]),
+  blocking_reason: z.string().optional()
+});
 import {
   detectConflictsTool,
   cancelJobTool,
   capabilityProfilesTool,
   prepareEvaluationTool,
   evaluationSuiteTool,
+  executiveModeStatusTool,
   explainableRouteTool,
   providerOperationsTool,
   dispatchReadinessTool,
   dispatchPlanTaskTool,
+  recoverPlanTaskWithAlternateProviderTool,
   dispatchDryRunTool,
   dispatchTool,
   getLaneTool,
@@ -63,7 +75,9 @@ import {
   resultTool,
   listJobsTool,
   listLanesTool,
+  modelRoutingCatalogTool,
   planTool,
+  preparePlanTaskTool,
   routeIntentTool,
   runtimeInfoTool,
   statusTool,
@@ -96,8 +110,8 @@ function asJsonContent(value: unknown) {
     : {};
   const stage = String(display.阶段 ?? display.当前动作 ?? "操作结果");
   const state = String(display.状态 ?? structuredContent.ok ?? "已返回");
-  const lines = [`【Codex 执行官｜${stage}】`, `状态：${state}`];
-  for (const field of ["执行者", "模型", "连接", "原因", "下一步"]) {
+  const lines = [`【Codex 执政官｜${stage}】`, `状态：${state}`];
+  for (const field of ["执行者", "模型", "连接", "模型依据", "原因", "下一步"]) {
     const value = display[field];
     if (typeof value === "string" && value.trim()) lines.push(`${field}：${value.trim()}`);
   }
@@ -115,8 +129,8 @@ function asJsonContent(value: unknown) {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "codex-praetor",
-    version: "0.16.32-alpha",
-    description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执行官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
+    version: "0.16.39-alpha",
+    description: "Codex Praetor 让 Codex 监督 Qoder 和 CodeBuddy 外部 worker；对话中的执政官模式由 Skill 工作规范维护，Codex 始终负责拆分、验收与整合。"
   });
 
   server.registerTool(
@@ -226,10 +240,70 @@ export function createServer(): McpServer {
       inputSchema: {
         request: z.string().min(1),
         repo: z.string().optional(),
-        allow_native_codex_subagents: z.boolean().optional()
+        allow_native_codex_subagents: z.boolean().optional(),
+        executive_mode: z.enum(["active", "inactive"]).optional()
       }
     },
     async (input) => asJsonContent(routeIntentTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_model_routing_catalog",
+    {
+      title: "读取 Codex Praetor 模型路由目录",
+      description: "读取受跟踪的固定模型、价格快照状态和候选边界；不会读取账号余额、认证或自动切换模型。",
+      annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: {}
+    },
+    async () => asJsonContent(modelRoutingCatalogTool())
+  );
+
+  server.registerTool(
+    "codex_praetor_prepare_plan_task",
+    {
+      title: "准备 Codex 执政官派工计划",
+      description: "将 route receipt 与明确范围、预算、检查、验收标准写为一项 durable plan；只创建计划，不启动 worker。",
+      annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: {
+        repo: z.string().min(1),
+        title: z.string().min(1),
+        task_id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/).optional(),
+        task_family: z.enum(["read_only_diagnosis", "bounded_code_change", "fixed_test_execution", "failure_recovery"]),
+        task_kind: z.enum(["local_audit", "test_execution", "code_change", "external_research_support"]),
+        mode: z.enum(["readonly", "edit"]),
+        acceptance: z.string().min(1),
+        allowed_paths: z.array(z.string().min(1)).min(1),
+        forbidden_paths: z.array(z.string().min(1)).min(1),
+        required_checks: z.array(z.string().min(1)).min(1),
+        budget: boundedTaskBudgetSchema,
+        base_commit: z.string().regex(/^[0-9a-f]{40}$/i).optional(),
+        immutable_paths: z.array(z.string().min(1)).optional(),
+        failure_injection: z.string().optional(),
+        sensitivity: z.string().optional(),
+        decision_receipt: decisionReceiptSchema,
+        plan_id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/).optional()
+      }
+    },
+    async (input) => asJsonContent(await preparePlanTaskTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_executive_mode_status",
+    {
+      title: "读取 Codex 执政官模式派工状态",
+      description: "根据 route receipt 与可选 durable plan 显示尚未派工、worker 已启动或待验收状态；不会伪称 route 已完成就是派工。",
+      annotations: readOnlyClosedWorld,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: {
+        repo: z.string().min(1),
+        decision_receipt: decisionReceiptSchema,
+        plan_id: z.string().optional(),
+        task_id: z.string().optional()
+      }
+    },
+    async (input) => asJsonContent(executiveModeStatusTool(input))
   );
 
   server.registerTool(
@@ -558,6 +632,26 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asJsonContent(await dispatchPlanTaskTool(input))
+  );
+
+  server.registerTool(
+    "codex_praetor_recover_plan_task",
+    {
+      title: "受控转交 Codex Praetor 计划任务",
+      description: "仅对无 diff、无副作用且已记录为 provider_refusal_before_tool_use 的任务，透明记录一次 alternate-provider 转交；超时、网络不明或已有改动绝不自动重放。",
+      annotations: additiveProjectLocalWrite,
+      outputSchema: structuredToolOutputSchema,
+      inputSchema: {
+        repo: z.string().min(1),
+        plan_id: z.string().min(1),
+        task_id: z.string().min(1),
+        run_mode: z.enum(["blocking", "background"]).optional(),
+        max_turns: z.number().int().positive().max(80).optional(),
+        max_stall_seconds: z.number().int().min(30).max(86400).optional(),
+        no_notify: z.boolean().optional()
+      }
+    },
+    async (input) => asJsonContent(await recoverPlanTaskWithAlternateProviderTool(input))
   );
 
   server.registerTool(

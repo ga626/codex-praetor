@@ -32,7 +32,8 @@ function Invoke-WatchedCase {
         [string]$TaskKind = "local_audit",
         [string]$ExecutionRepo = "",
         [string]$ConnectionMode = "",
-        [object]$AcpSession = $null
+        [object]$AcpSession = $null,
+        [object]$StreamJsonSession = $null
     )
     if ([string]::IsNullOrWhiteSpace($ExecutionRepo)) { $ExecutionRepo = $projectPath }
     $jobDir = Join-Path $testRoot $Name
@@ -51,6 +52,11 @@ function Invoke-WatchedCase {
         $acpSessionPath = Join-Path $jobDir "codebuddy-acp-session.json"
         $AcpSession | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $acpSessionPath -Encoding UTF8
         $metadata.codebuddy_acp_session = $acpSessionPath
+    }
+    if ($null -ne $StreamJsonSession) {
+        $streamSessionPath = Join-Path $jobDir "qoder-stream-json-session.json"
+        $StreamJsonSession | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $streamSessionPath -Encoding UTF8
+        $metadata.qoder_stream_json_session = $streamSessionPath
     }
     $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $metaPath -Encoding UTF8
     $watcherArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $watcherScript, "-JobDir", $jobDir, "-WorkerPid", "0", "-StartWorker", "-Exe", "powershell.exe", "-ArgumentListPath", $argumentPath, "-WorkingDirectory", $ExecutionRepo, "-StdoutPath", $stdoutPath, "-StderrPath", $stderrPath, "-TimeoutSeconds", "$TimeoutSeconds", "-NoNotify")
@@ -82,6 +88,10 @@ try {
     $streamJson = Invoke-WatchedCase -Name "qoder-stream-json" -WorkerArguments @("-NoProfile", "-Command", 'Write-Output ''{"type":"assistant"}''; Write-Output ''{"type":"result"}''; exit 0') -TimeoutSeconds 30 -Provider "qoder" -ConnectionMode "supervised_cli_stream_json"
     Assert-True ([string]$streamJson.failure_class -eq "") "A parseable Qoder stream-json result must remain available for Codex verification."
     Assert-True ([int]$streamJson.evidence_observation.stream_json.parsed_events -eq 2) "Watcher did not record the Qoder stream-json event count."
+    $queuedStream = Invoke-WatchedCase -Name "qoder-queue-timeout" -WorkerArguments @("-NoProfile", "-Command", "exit 2") -TimeoutSeconds 30 -Provider "qoder" -ConnectionMode "supervised_cli_stream_json" -StreamJsonSession ([ordered]@{ state = "provider_queue_timeout"; queue_observed = $true; queue_type = "slow"; queue_count = 180; queue_wait_elapsed_ms = 120000; queue_max_wait_ms = 3600000; service_available = $true; progress_observed = $false })
+    Assert-True ([string]$queuedStream.status -eq "timed_out") "A Qoder queue-only stream must have its own terminal status."
+    Assert-True ([string]$queuedStream.failure_class -eq "provider_queue_timeout" -and [string]$queuedStream.failure_subclass -eq "model_queue_saturated") "Qoder queue saturation was not classified distinctly from a generic timeout."
+    Assert-True ([string]$queuedStream.evidence_observation.qoder_stream_json_session.queue_type -eq "slow") "Queue diagnostics were not retained in the completion evidence."
     $invalidStream = Invoke-WatchedCase -Name "qoder-invalid-stream-json" -WorkerArguments @("-NoProfile", "-Command", "Write-Output 'not-json'; exit 0") -TimeoutSeconds 30 -Provider "qoder" -ConnectionMode "supervised_cli_stream_json"
     Assert-True ([string]$invalidStream.failure_class -eq "provider_output_unparseable") "Unparseable Qoder stream-json must fail closed."
     Assert-True ([string]$invalidStream.governance_state -eq "rejected") "Unparseable Qoder stream-json must not await acceptance."

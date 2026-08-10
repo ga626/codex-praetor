@@ -30,12 +30,37 @@ type State = {
   cancel_requested: boolean;
   cancel_acknowledged: boolean;
   terminal_stop_reason?: string;
+  terminal_diagnostic?: Record<string, string>;
   last_event_type?: string;
   last_progress_at?: string;
   stop_reason?: "operator_cancel" | "progress_saturated";
   updated_at: string;
   error?: string;
 };
+
+// ACP permits provider-specific extension fields.  These can explain a
+// terminal refusal, but they can also contain arbitrary prompt or account
+// material.  Persist only a deliberately small, non-content diagnostic
+// allowlist; never retain an agent message, a free-form error message, or an
+// unknown extension value in the durable job record.
+function publicDiagnostic(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {} as Record<string, string>;
+  const source = value as Record<string, unknown>;
+  const aliases: Array<[string, string]> = [
+    ["code", "code"], ["error_code", "code"], ["errorcode", "code"],
+    ["reason", "reason"], ["reason_code", "reason"], ["reasoncode", "reason"],
+    ["status", "status"], ["category", "category"], ["provider", "provider"], ["type", "type"]
+  ];
+  const result: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(source)) {
+    const normalized = rawKey.split(/[/:.]/).at(-1)?.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase() ?? "";
+    const mapped = aliases.find(([candidate]) => candidate === normalized)?.[1];
+    if (!mapped || Object.hasOwn(result, mapped) || typeof rawValue !== "string") continue;
+    const safe = rawValue.trim();
+    if (safe && safe.length <= 160) result[mapped] = safe;
+  }
+  return result;
+}
 
 type JsonRpcMessage = { jsonrpc?: string; id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: unknown };
 type TerminalExitStatus = { exitCode: number | null; signal: string | null };
@@ -149,6 +174,7 @@ class AcpClient {
   private sessionId = "";
   private terminalStopReason = "";
   private terminalText = "";
+  private terminalDiagnostic: Record<string, string> = {};
   private readonly agentMessages = new Map<string, string>();
   private lastAgentMessageId = "";
   private lastEventType = "";
@@ -176,7 +202,7 @@ class AcpClient {
   }
 
   private currentState(state: State["state"], error?: string) {
-    writeState(this.options, { state, session_id: this.sessionId || undefined, structured_events: this.structuredEvents, boundary_denials: this.boundaryDenials, cancel_requested: this.cancelRequested, cancel_acknowledged: this.cancelAcknowledged, terminal_stop_reason: this.terminalStopReason || undefined, last_event_type: this.lastEventType || undefined, last_progress_at: this.lastProgressAt, stop_reason: this.stopReason, error });
+    writeState(this.options, { state, session_id: this.sessionId || undefined, structured_events: this.structuredEvents, boundary_denials: this.boundaryDenials, cancel_requested: this.cancelRequested, cancel_acknowledged: this.cancelAcknowledged, terminal_stop_reason: this.terminalStopReason || undefined, terminal_diagnostic: Object.keys(this.terminalDiagnostic).length ? this.terminalDiagnostic : undefined, last_event_type: this.lastEventType || undefined, last_progress_at: this.lastProgressAt, stop_reason: this.stopReason, error });
   }
   private send(message: JsonRpcMessage) {
     trace(this.options, "client_message", { method: message.method ?? "response", id: message.id ?? null });
@@ -325,6 +351,8 @@ class AcpClient {
       this.armStallTimer();
       const update = message.params?.update as { sessionUpdate?: unknown; content?: { type?: unknown; text?: unknown }; messageId?: unknown; _meta?: Record<string, unknown> } | undefined;
       const updateKind = typeof update?.sessionUpdate === "string" ? update.sessionUpdate : "structured";
+      const updateDiagnostic = publicDiagnostic(update?._meta);
+      if (Object.keys(updateDiagnostic).length) this.terminalDiagnostic = { ...this.terminalDiagnostic, ...updateDiagnostic };
       const previousKind = this.lastEventType;
       this.lastEventType = updateKind;
       if (updateKind === "agent_message_chunk" && update?.content?.type === "text" && typeof update.content.text === "string") {
@@ -411,8 +439,10 @@ class AcpClient {
     this.cancelPath = path.join(path.dirname(this.options.state_path), "cancel-request.json");
     const cancelWatcher = await this.cancelWhenRequested(this.cancelPath);
     try {
-      const terminal = await this.request("session/prompt", { sessionId: this.sessionId, prompt: [{ type: "text", text: this.options.prompt }] }) as { stopReason?: unknown; result?: unknown };
+      const terminal = await this.request("session/prompt", { sessionId: this.sessionId, prompt: [{ type: "text", text: this.options.prompt }] }) as { stopReason?: unknown; result?: unknown; _meta?: unknown };
       this.terminalStopReason = typeof terminal.stopReason === "string" ? terminal.stopReason : "";
+      const terminalDiagnostic = publicDiagnostic(terminal._meta);
+      if (Object.keys(terminalDiagnostic).length) this.terminalDiagnostic = { ...this.terminalDiagnostic, ...terminalDiagnostic };
       if (typeof terminal.result === "string") this.terminalText = terminal.result;
       if (!this.terminalText && this.lastAgentMessageId) this.terminalText = this.agentMessages.get(this.lastAgentMessageId) ?? "";
       // Windows file-watch delivery may trail the provider's terminal reply.

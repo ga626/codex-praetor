@@ -164,8 +164,9 @@ try {
   const dispatchedRecord = dispatched as Record<string, unknown>;
   assert.equal(dispatched.ok, true, String(dispatchedRecord.stderr ?? dispatchedRecord.message ?? ""));
   assert.equal(dispatchedRecord.task_kind, "test_execution");
-  assert.match(String(dispatchedRecord.command ?? ""), /--print --output-format stream-json/);
-  assert.match(String(dispatchedRecord.command ?? ""), /--model Qwen3\.7-Plus/);
+  assert.match(String(dispatchedRecord.command ?? ""), /qoder-stream-json-runner\.js --options-file/);
+  assert.match(wrapperSource, /"--print",\s*\n\s*"--output-format", "stream-json"/);
+  assert.match(wrapperSource, /"--model", \$model/);
   assert.match(wrapperSource, /distribution qoder_cn must use connectionMode=supervised_cli_stream_json/);
   assert.match(wrapperSource, /distribution qoder_global requires explicit connectionMode=qoder_agent_sdk/);
 

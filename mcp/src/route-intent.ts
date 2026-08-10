@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { RouteDecision } from "./types.js";
 
 const codexSubagentTerms = [
@@ -98,15 +99,39 @@ function rejectsNativeCodexSubagents(value: string): boolean {
 
 export function routeIntent(
   request: string,
-  allowNativeCodexSubagents = false
+  allowNativeCodexSubagents = false,
+  executiveMode: "active" | "inactive" = "inactive"
 ): RouteDecision {
-  // The active-mode decision belongs to the Skill and the conversation
-  // context. The MCP has no host-thread state, so it always reports the
-  // neutral classifier context.
-  const modeContext: "inactive" = "inactive";
+  // MCP stdio processes cannot inspect the host conversation.  The Skill
+  // owns continuity and passes the explicit state on every substantive turn.
+  const modeContext = executiveMode;
   const trimmed = request.trim();
-  if (!trimmed) {
+  const withReceipt = (decision: Omit<RouteDecision, "decision_receipt">): RouteDecision => {
+    const receiptSource = JSON.stringify({
+      request: trimmed,
+      executive_mode: executiveMode,
+      route: decision.route,
+      dispatch_required: decision.dispatch_required,
+      next_required_tool: decision.next_required_tool,
+      blocking_reason: decision.blocking_reason ?? ""
+    });
+    const decisionReceiptId = `route-${createHash("sha256").update(receiptSource).digest("hex").slice(0, 16)}`;
     return {
+      ...decision,
+      decision_receipt: {
+        schema: "codex-praetor-decision-receipt/v1",
+        decision_receipt_id: decisionReceiptId,
+        executive_mode: executiveMode,
+        dispatch_state: decision.dispatch_required ? "not_dispatched" : "not_required",
+        selection_reason: decision.reason,
+        next_required_tool: decision.next_required_tool,
+        ...(decision.blocking_reason ? { blocking_reason: decision.blocking_reason } : {})
+      }
+    };
+  };
+
+  if (!trimmed) {
+    return withReceipt({
       route: "needs_clarification",
       confidence: "high",
       reason: "The request is empty, so no delegation intent can be classified.",
@@ -119,7 +144,7 @@ export function routeIntent(
       matched_terms: [],
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
-    };
+    });
   }
 
   const subagentMatches = collectMatches(trimmed, codexSubagentTerms);
@@ -131,7 +156,7 @@ export function routeIntent(
   const rejectsNative = subagentMatches.length > 0 && rejectsNativeCodexSubagents(trimmed);
 
   if (retainMatches.length > 0 && praetorMatches.length === 0 && delegationMatches.length === 0 && researchMatches.length === 0) {
-    return {
+    return withReceipt({
       route: "codex_retains_ineligible_work",
       confidence: "high",
       reason: "The request explicitly keeps the work in Codex, so Codex Praetor must not create a worker.",
@@ -144,12 +169,12 @@ export function routeIntent(
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
-    };
+    });
   }
 
   if (researchMatches.length > 0) {
     const workerEligible = delegationMatches.length > 0 || praetorMatches.length > 0;
-    return {
+    return withReceipt({
       route: "codex_kr_primary_research",
       confidence: "high",
       reason:
@@ -168,11 +193,11 @@ export function routeIntent(
       research_authority: "codex_kr_primary",
       worker_research_eligible: workerEligible,
       suggested_worker_research_mode: workerEligible ? "candidate_discovery" : "none"
-    };
+    });
   }
 
   if (rejectsNative && (praetorMatches.length > 0 || delegationMatches.length > 0)) {
-    return {
+    return withReceipt({
       route: "codex_praetor_external_worker",
       confidence: "high",
       reason:
@@ -185,11 +210,11 @@ export function routeIntent(
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
-    };
+    });
   }
 
   if (subagentMatches.length > 0 && allowNativeCodexSubagents) {
-    return {
+    return withReceipt({
       route: "native_codex_subagent",
       confidence: "high",
       reason: "The user explicitly mentioned native Codex subagents and allowed that route.",
@@ -202,11 +227,11 @@ export function routeIntent(
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
-    };
+    });
   }
 
   if (subagentMatches.length > 0 && praetorMatches.length === 0) {
-    return {
+    return withReceipt({
       route: "needs_clarification",
       confidence: "medium",
       reason: "The request mentions Codex subagents, but this tool does not dispatch native Codex subagents.",
@@ -219,16 +244,18 @@ export function routeIntent(
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
-    };
+    });
   }
 
-  if (praetorMatches.length > 0 || delegationMatches.length > 0) {
-    const confidence = praetorMatches.length > 0 ? "high" : "medium";
-    return {
+  if (executiveMode === "active" || praetorMatches.length > 0 || delegationMatches.length > 0) {
+    const confidence = executiveMode === "active" || praetorMatches.length > 0 ? "high" : "medium";
+    return withReceipt({
       route: "codex_praetor_external_worker",
       confidence,
       reason:
-        praetorMatches.length > 0
+        executiveMode === "active"
+          ? "执政官模式已显式开启。这个请求没有要求 Codex 独自处理，因此必须先把可独立验收的部分建立为计划并继续预演、派工；route 不能在这里结束。"
+          : praetorMatches.length > 0
           ? "The request contains Codex Praetor, cost-saving, provider, or external-worker terms."
           : "The request asks for delegation to other agents; without explicit native Codex subagent wording, Codex Praetor is the safer cost-control route.",
       suggested_next_action: "Run codex_praetor_dispatch_dry_run before any real worker dispatch.",
@@ -239,10 +266,10 @@ export function routeIntent(
       matched_terms: allMatches,
       native_codex_subagents_allowed: allowNativeCodexSubagents,
       mode_context: modeContext
-    };
+    });
   }
 
-  return {
+  return withReceipt({
     route: "no_delegation",
     confidence: "medium",
     reason: "No cost-saving, external-worker, or delegation terms were detected.",
@@ -255,15 +282,15 @@ export function routeIntent(
     matched_terms: allMatches,
     native_codex_subagents_allowed: allowNativeCodexSubagents,
     mode_context: modeContext
-  };
+  });
 }
 
 export function classifySessionModeCommand(request: string): "enable" | "disable" | undefined {
   const normalized = request.trim().toLowerCase();
   if (!normalized || /[?？]|什么是|如何|为什么|讨论|设计|介绍/.test(normalized)) return undefined;
-  const modeMentioned = /codex\s*执行官模式|执行官模式/.test(normalized);
+  const modeMentioned = /codex\s*(执行官|执政官)模式|(执行官|执政官)模式/.test(normalized);
   if (!modeMentioned) return undefined;
-  if (/^(请\s*)?(开启|打开|进入|启用)|接下来.*(使用|用).*执行官模式/.test(normalized)) return "enable";
-  if (/^(请\s*)?(关闭|退出|停止|禁用)|不用.*执行官模式/.test(normalized)) return "disable";
+  if (/^(请\s*)?(开启|打开|进入|启用)|接下来.*(使用|用).*(执行官|执政官)模式/.test(normalized)) return "enable";
+  if (/^(请\s*)?(关闭|退出|停止|禁用)|不用.*(执行官|执政官)模式/.test(normalized)) return "disable";
   return undefined;
 }

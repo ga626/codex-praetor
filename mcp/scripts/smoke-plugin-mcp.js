@@ -50,6 +50,7 @@ const requiredTools = [
   "codex_praetor_status",
   "codex_praetor_next_ready",
   "codex_praetor_dispatch_plan_task",
+  "codex_praetor_recover_plan_task",
   "codex_praetor_verify_task"
 ];
 
@@ -103,7 +104,7 @@ function readPublicCapabilities() {
   if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
     throw new Error("Public capability ids must be non-empty and unique.");
   }
-  const supportedScenarios = new Set(["skill_workflow", "mcp_contract", "route_intent", "provider_operations", "evaluation_suite", "evaluation_prepare", "evaluation_verify", "provider_contract", "code_change_user_path", "release_activation_contract"]);
+  const supportedScenarios = new Set(["skill_workflow", "mcp_contract", "route_intent", "model_routing_catalog", "executive_dispatch_receipt", "provider_operations", "evaluation_suite", "evaluation_prepare", "evaluation_verify", "provider_contract", "code_change_user_path", "release_activation_contract"]);
   for (const capability of payload.capabilities) {
     const scenario = String(capability?.scenario ?? "");
     if (!supportedScenarios.has(scenario)) {
@@ -121,6 +122,8 @@ function readPublicCapabilities() {
 
 const expectedReadOnlyTools = [
   "codex_praetor_route_intent",
+  "codex_praetor_model_routing_catalog",
+  "codex_praetor_executive_mode_status",
   "codex_praetor_dispatch_dry_run",
   "codex_praetor_dispatch_readiness",
   "codex_praetor_list_jobs",
@@ -173,7 +176,7 @@ try {
   if (planTool?.annotations?.readOnlyHint !== false || planTool.annotations.destructiveHint !== false) {
     throw new Error("Missing additive non-destructive annotations on MCP tool: codex_praetor_plan");
   }
-  for (const toolName of ["codex_praetor_dispatch", "codex_praetor_dispatch_plan_task", "codex_praetor_verify_task"]) {
+  for (const toolName of ["codex_praetor_dispatch", "codex_praetor_dispatch_plan_task", "codex_praetor_recover_plan_task", "codex_praetor_prepare_plan_task", "codex_praetor_verify_task"]) {
     const tool = tools.tools.find((candidate) => candidate.name === toolName);
     if (tool?.annotations?.readOnlyHint !== false || tool.annotations.destructiveHint !== false) {
       throw new Error(`Missing additive non-destructive annotations on MCP tool: ${toolName}`);
@@ -194,6 +197,21 @@ try {
   const routePayload = payloadFromToolResult(routeResult, "route intent tool response");
   if (routePayload.route !== "codex_praetor_external_worker") {
     throw new Error(`Unexpected route intent: ${routePayload.route}`);
+  }
+
+  const activeRouteResult = await client.callTool({
+    name: "codex_praetor_route_intent",
+    arguments: { request: "修复一个有明确范围的本地文件。", repo, executive_mode: "active" }
+  });
+  const activeRoutePayload = payloadFromToolResult(activeRouteResult, "active executive route response");
+  if (activeRoutePayload.dispatch_required !== true || activeRoutePayload.decision_receipt?.executive_mode !== "active" || activeRoutePayload.decision_receipt?.dispatch_state !== "not_dispatched") {
+    throw new Error(`Active executive route lacks a pending dispatch receipt: ${JSON.stringify(activeRoutePayload)}`);
+  }
+
+  const catalogResult = await client.callTool({ name: "codex_praetor_model_routing_catalog", arguments: {} });
+  const catalogPayload = payloadFromToolResult(catalogResult, "model routing catalog response");
+  if (catalogPayload.schema !== "codex-praetor-model-routing-catalog/v1" || !catalogPayload.models?.some((item) => item.model === "Qwen3.7-Plus" && item.status === "default") || !catalogPayload.models?.some((item) => item.model === "Auto" && item.status === "blocked")) {
+    throw new Error(`Model routing catalog is incomplete: ${JSON.stringify(catalogPayload)}`);
   }
 
   const runtimeInfoResult = await client.callTool({
